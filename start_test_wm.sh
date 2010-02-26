@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 # Copyright (c) 2009-2010 The Chromium OS Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
@@ -16,10 +16,7 @@
 # By default, this script runs WITHOUT clutter, at least for now.
 
 script_dir=$PWD/$(dirname $0)
-
-export LD_LIBRARY_PATH=/lib32:/usr/lib32:$script_dir/../../../chroot/usr/lib:$LD_LIBRARY_PATH
-export DISPLAY=:1.0
-export IMAGES=$script_dir/../assets/images
+chroot_dir=$script_dir/../../../chroot
 
 echo "Switch to the X Server running on display $DISPLAY NOW!"
 echo "4..."
@@ -31,6 +28,10 @@ sleep 1
 echo "1..."
 sleep 1
 echo "Starting wm!"
+
+export LD_LIBRARY_PATH=/lib32:/usr/lib32:$chroot_dir/lib:$chroot_dir/usr/lib:$chroot_dir/build/x86-generic/lib:$chroot_dir/build/x86-generic/usr/lib:$chroot_dir/build/x86-generic/opt/google/chrome/chromeos:$LD_LIBRARY_PATH
+export DISPLAY=:1.0
+export IMAGES=$script_dir/../assets/images
 
 $script_dir/wm --logtostderr                                            \
   --wm_background_image="${IMAGES}/background_1024x600.png"             \

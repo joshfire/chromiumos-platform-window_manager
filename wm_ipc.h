@@ -65,6 +65,12 @@ class WmIpc {
     // centering them over their owner and omit drawing a drop shadow.
     WINDOW_TYPE_CHROME_INFO_BUBBLE,
 
+    // A window showing a view of a tab within a Chrome window.
+    //   param[0]: X ID of toplevel window that owns it.
+    //   param[1]: index of this tab in the tab order (range is 0 to
+    //             sum of all tabs in all browsers).
+    WINDOW_TYPE_CHROME_TAB_SNAPSHOT,
+
     kNumWindowTypes,
   };
   // Get or set a property describing a window's type.  The window type
@@ -196,6 +202,12 @@ class WmIpc {
       //
       //   param[0]: version of this protocol currently supported
       WM_NOTIFY_IPC_VERSION,
+
+      // Notify Chrome when a tab snapshot has been 'magnified' in the
+      // overview.  Sent to the top level window.
+      //   param[0]: X ID of the tab snapshot window
+      //   param[1]: state (0 means end magnify, 1 means begin magnify)
+      CHROME_NOTIFY_TAB_SNAPSHOT_MAGNIFY,
 
       kNumTypes,
     };
