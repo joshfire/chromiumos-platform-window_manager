@@ -598,6 +598,22 @@ TEST_F(TidyTest, HandleXEvents) {
   EXPECT_TRUE(event_source()->tracked_xids.empty());
 }
 
+// Check that we don't crash when we delete a group that contains a child.
+TEST_F(TidyTest, DeleteGroup) {
+  scoped_ptr<TidyInterface::ContainerActor> group(interface()->CreateGroup());
+  scoped_ptr<TidyInterface::Actor> rect(
+    interface()->CreateRectangle(ClutterInterface::Color(),
+                                 ClutterInterface::Color(), 0));
+
+  interface()->GetDefaultStage()->AddActor(group.get());
+  group->AddActor(rect.get());
+
+  EXPECT_TRUE(rect->parent() == group.get());
+  group.reset();
+  EXPECT_TRUE(rect->parent() == NULL);
+  interface()->Draw();
+}
+
 }  // end namespace window_manager
 
 int main(int argc, char **argv) {

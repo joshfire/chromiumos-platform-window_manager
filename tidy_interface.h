@@ -326,6 +326,7 @@ class TidyInterface : public ClutterInterface {
     explicit ContainerActor(TidyInterface* interface)
         : TidyInterface::Actor(interface) {
     }
+    ~ContainerActor();
 
     // Implement VisitorDestination for visitor.
     void Accept(ActorVisitor* visitor) {
@@ -333,7 +334,11 @@ class TidyInterface : public ClutterInterface {
       visitor->VisitContainer(this);
     }
 
-    virtual Actor* Clone() { NOTIMPLEMENTED(); return NULL; }
+    virtual Actor* Clone() {
+      NOTIMPLEMENTED();
+      CHECK(false);
+      return NULL;
+    }
     virtual ActorVector GetChildren() { return children_; }
 
     void AddActor(ClutterInterface::Actor* actor);
@@ -360,15 +365,24 @@ class TidyInterface : public ClutterInterface {
     DISALLOW_COPY_AND_ASSIGN(ContainerActor);
   };
 
-  // This class contains an actor that is a quadralateral.
+  // This class represents a quadrilateral.
   class QuadActor : public TidyInterface::Actor {
    public:
     explicit QuadActor(TidyInterface* interface);
 
-    void SetColor(const ClutterInterface::Color& color) {
+    void SetColor(const ClutterInterface::Color& color,
+                  const ClutterInterface::Color& border_color,
+                  int border_width) {
+      DCHECK(border_width >= 0);
       color_ = color;
+      border_color_ = color;
+      border_width = border_width;
     }
     const ClutterInterface::Color& color() const { return color_; }
+    const ClutterInterface::Color& border_color() const {
+      return border_color_;
+    }
+    const int border_width() const { return border_width_; }
 
     // Implement VisitorDestination for visitor.
     void Accept(ActorVisitor* visitor) {
@@ -377,10 +391,14 @@ class TidyInterface : public ClutterInterface {
     }
 
     virtual Actor* Clone();
+
    protected:
     void CloneImpl(QuadActor* clone);
+
    private:
     ClutterInterface::Color color_;
+    ClutterInterface::Color border_color_;
+    int border_width_;
 
     DISALLOW_COPY_AND_ASSIGN(QuadActor);
   };

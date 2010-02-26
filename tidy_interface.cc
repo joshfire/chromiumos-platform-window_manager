@@ -322,6 +322,14 @@ void TidyInterface::Actor::AnimateInt(int* field, int value,
   }
 }
 
+
+TidyInterface::ContainerActor::~ContainerActor() {
+  for (ActorVector::iterator iterator = children_.begin();
+       iterator != children_.end(); ++iterator) {
+    dynamic_cast<TidyInterface::Actor*>(*iterator)->set_parent(NULL);
+  }
+}
+
 void TidyInterface::ContainerActor::AddActor(
     ClutterInterface::Actor* actor) {
   TidyInterface::Actor* cast_actor = dynamic_cast<Actor*>(actor);
@@ -439,9 +447,12 @@ void TidyInterface::ContainerActor::LowerChild(
   }
 }
 
+
 TidyInterface::QuadActor::QuadActor(TidyInterface* interface)
     : TidyInterface::Actor(interface),
-      color_(1.f, 1.f, 1.f) {
+      color_(1.f, 1.f, 1.f),
+      border_color_(1.f, 1.f, 1.f),
+      border_width_(0) {
 }
 
 TidyInterface::Actor* TidyInterface::QuadActor::Clone() {
@@ -452,8 +463,9 @@ TidyInterface::Actor* TidyInterface::QuadActor::Clone() {
 
 void TidyInterface::QuadActor::CloneImpl(QuadActor* clone) {
   Actor::CloneImpl(static_cast<TidyInterface::Actor*>(clone));
-  clone->color_ = color_;
+  clone->SetColor(color_, border_color_, border_width_);
 }
+
 
 TidyInterface::TexturePixmapActor::TexturePixmapActor(
     TidyInterface* interface)
@@ -598,8 +610,7 @@ TidyInterface::Actor* TidyInterface::CreateRectangle(
     const ClutterInterface::Color& border_color,
     int border_width) {
   QuadActor* actor = new QuadActor(this);
-  // TODO: Handle border color/width properly.
-  actor->SetColor(color);
+  actor->SetColor(color, border_color, border_width);
   return actor;
 }
 
@@ -613,7 +624,8 @@ TidyInterface::Actor* TidyInterface::CreateImage(
     draw_visitor_->BindImage(container.get(), actor);
     actor->SetSize(container->width(), container->height());
   } else {
-    actor->SetColor(ClutterInterface::Color(1.f, 0.f, 1.f));
+    ClutterInterface::Color color(1.f, 0.f, 1.f);
+    actor->SetColor(color, color, 0);
   }
 
   return actor;
@@ -630,7 +642,7 @@ TidyInterface::Actor* TidyInterface::CreateText(
     const ClutterInterface::Color& color) {
   QuadActor* actor = new QuadActor(this);
   // TODO: Actually create the text.
-  actor->SetColor(color);
+  actor->SetColor(color, color, 0);
   actor->SetOpacity(.5f, 0);
   return actor;
 }

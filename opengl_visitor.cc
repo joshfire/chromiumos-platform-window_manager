@@ -51,7 +51,7 @@ OpenGlQuadDrawingData::OpenGlQuadDrawingData(GLInterface* gl_interface)
   gl_interface_->GenBuffers(1, &vertex_buffer_);
   gl_interface_->BindBuffer(GL_ARRAY_BUFFER, vertex_buffer_);
 
-  static float kQuad[] = {
+  static const float kQuad[] = {
     0.f, 0.f,
     0.f, 1.f,
     1.f, 0.f,
