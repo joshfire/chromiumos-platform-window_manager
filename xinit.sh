@@ -23,5 +23,4 @@
 #XTRACE="xtrace -n -o /tmp/wm_xtrace.log"
 
 exec $XTRACE ./wm --logtostderr \
-  --wm_background_image=../assets/images/background_1024x768.png \
-  --lm_new_overview_mode
+  --wm_background_image=../assets/images/background_1024x768.png

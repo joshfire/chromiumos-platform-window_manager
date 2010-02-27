@@ -46,14 +46,6 @@ using window_manager::WmIpc;
 
 namespace mock_chrome {
 
-const int TabSummary::kTabImageWidth = 160;
-const int TabSummary::kTabImageHeight = 120;
-const int TabSummary::kPadding = 20;
-const int TabSummary::kInsertCursorWidth = 2;
-
-const int FloatingTab::kWidth = 240;
-const int FloatingTab::kHeight = 180;
-
 const int PanelTitlebar::kWidth = 200;
 const int PanelTitlebar::kHeight = 26;
 Glib::RefPtr<Gdk::Pixbuf> PanelTitlebar::image_bg_;
@@ -132,166 +124,6 @@ void Tab::RenderToGtkWidget(Gtk::Widget* widget,
   DrawImage(image_, widget, x, y, width, height);
 }
 
-TabSummary::TabSummary(ChromeWindow* parent_win)
-    : parent_win_(parent_win),
-      width_(1),
-      height_(1),
-      insert_index_(-1) {
-  Resize();
-
-  // Calling realize() creates the underlying X window; we need to do this
-  // early on instead of relying on show_all() to do it for us, so that we
-  // can set the window's type property before it gets mapped so the WM
-  // knows how to handle it.
-  realize();
-  xid_ = GDK_WINDOW_XWINDOW(Glib::unwrap(get_window()));
-  CHECK(parent_win_->chrome()->wm_ipc()->SetWindowType(
-            xid(), WmIpc::WINDOW_TYPE_CHROME_TAB_SUMMARY, NULL));
-
-  add_events(Gdk::BUTTON_PRESS_MASK);
-  show_all();
-
-}
-
-void TabSummary::Resize() {
-  width_ = parent_win_->num_tabs() * kTabImageWidth +
-           (parent_win_->num_tabs() + 1) * kPadding;
-  if (insert_index_ >= 0) {
-    width_ += kInsertCursorWidth + kPadding;
-  }
-  height_ = kTabImageHeight + 2 * kPadding;
-  set_size_request(width_, height_);
-}
-
-void TabSummary::Draw() {
-  get_window()->clear();
-
-  Cairo::RefPtr<Cairo::Context> cr =
-      get_window()->create_cairo_context();
-  cr->set_line_width(1.0);
-
-  int x = kPadding;
-  for (size_t i = 0; i < parent_win_->num_tabs(); ++i) {
-    if (static_cast<int>(i) == insert_index_) {
-      DrawInsertCursor(x, kPadding);
-      x += kInsertCursorWidth + kPadding;
-    }
-
-    parent_win_->tab(i)->RenderToGtkWidget(
-        this, x, kPadding, kTabImageWidth, kTabImageHeight);
-
-    double alpha =
-        (static_cast<int>(i) == parent_win_->active_tab_index()) ?  0.75 : 0.25;
-    cr->set_source_rgba(0, 0, 0, alpha);
-    // Cairo places coordinates at the edges of pixels.  So that we don't
-    // end up with ugly two-pixel-wide antialiased lines, we need to
-    // specify our positions in the center of pixels.
-    cr->rectangle(x + 0.5, kPadding + 0.5, kTabImageWidth, kTabImageHeight);
-    cr->stroke();
-    x += kTabImageWidth + kPadding;
-  }
-
-  if (insert_index_ == static_cast<int>(parent_win_->num_tabs())) {
-    DrawInsertCursor(x, kPadding);
-  }
-}
-
-void TabSummary::DrawInsertCursor(int x, int y) {
-  Cairo::RefPtr<Cairo::Context> cr = get_window()->create_cairo_context();
-  cr->set_line_width(kInsertCursorWidth);
-  cr->set_source_rgba(0, 0, 0, 1.0);
-  cr->move_to(x + 1, y);
-  cr->line_to(x + 1, y + kTabImageHeight);
-  cr->stroke();
-}
-
-void TabSummary::HandleFloatingTabMovement(int x, int y) {
-  int old_index = insert_index_;
-  // TODO: This isn't really correct; we need to take the insert cursor
-  // into account too.
-  insert_index_ = static_cast<double>(x) / (width_ - kTabImageWidth) *
-      parent_win_->num_tabs();
-  if (insert_index_ != old_index) {
-    if (old_index < 0) Resize();
-    Draw();
-  }
-}
-
-bool TabSummary::on_button_press_event(GdkEventButton* event) {
-  if (event->button != 1) {
-    return false;
-  }
-  int index = static_cast<double>(event->x) / width_ * parent_win_->num_tabs();
-  if (index < static_cast<int>(parent_win_->num_tabs())) {
-    parent_win_->ActivateTab(index);
-  }
-  Draw();
-  parent_win_->present();
-  return true;
-}
-
-bool TabSummary::on_expose_event(GdkEventExpose* event) {
-  Draw();
-  return true;
-}
-
-bool TabSummary::on_client_event(GdkEventClient* event) {
-  WmIpc::Message msg;
-  if (!GetWmIpcMessage(*event, parent_win_->chrome()->wm_ipc(), &msg))
-    return false;
-
-  VLOG(2) << "Got message of type " << msg.type();
-  switch (msg.type()) {
-    case WmIpc::Message::CHROME_NOTIFY_FLOATING_TAB_OVER_TAB_SUMMARY: {
-      HandleFloatingTabMovement(msg.param(2), msg.param(3));
-      break;
-    }
-    default:
-      LOG(WARNING) << "Ignoring WM message of unknown type " << msg.type();
-      return false;
-  }
-  return true;
-}
-
-FloatingTab::FloatingTab(MockChrome* chrome, Tab* tab,
-                         int initial_x, int initial_y,
-                         int drag_start_offset_x, int drag_start_offset_y)
-    : chrome_(chrome),
-      tab_(tab) {
-  set_size_request(kWidth, kHeight);
-
-  // TODO: We should really be calling realize() and setting the window
-  // type property before calling show_all() to avoid a race condition, but
-  // doing so seems to lead to another race condition -- a good portion of
-  // the time, the window ends up being blank instead of containing the tab
-  // image.
-  show_all();
-  xid_ = GDK_WINDOW_XWINDOW(Glib::unwrap(get_window()));
-  std::vector<int> type_params;
-  type_params.push_back(initial_x);
-  type_params.push_back(initial_y);
-  type_params.push_back(drag_start_offset_x);
-  type_params.push_back(drag_start_offset_y);
-  CHECK(chrome_->wm_ipc()->SetWindowType(
-            xid_, WmIpc::WINDOW_TYPE_CHROME_FLOATING_TAB, &type_params));
-
-}
-
-void FloatingTab::Move(int x, int y) {
-  VLOG(2) << "Asking WM to move floating tab " << xid_ << " to ("
-          << x << ", " << y << ")";
-  WmIpc::Message msg(WmIpc::Message::WM_MOVE_FLOATING_TAB);
-  msg.set_param(0, xid_);
-  msg.set_param(1, x);
-  msg.set_param(2, y);
-  CHECK(chrome_->wm_ipc()->SendMessage(chrome_->wm_ipc()->wm_window(), msg));
-}
-
-bool FloatingTab::on_expose_event(GdkEventExpose* event) {
-  tab_->RenderToGtkWidget(this, 0, 0, kWidth, kHeight);
-  return true;
-}
-
 ChromeWindow::ChromeWindow(MockChrome* chrome, int width, int height)
     : chrome_(chrome),
       width_(width),
@@ -333,9 +165,6 @@ void ChromeWindow::InsertTab(Tab* tab, size_t index) {
     DrawView();
   }
   DrawTabs();
-  if (tab_summary_.get()) {
-    tab_summary_.reset(new TabSummary(this));
-  }
 }
 
 Tab* ChromeWindow::RemoveTab(size_t index) {
@@ -359,7 +188,8 @@ void ChromeWindow::ActivateTab(int index) {
   DrawView();
 }
 
-/* static */ void ChromeWindow::InitImages() {
+// static
+void ChromeWindow::InitImages() {
   CHECK(!image_nav_bg_);
 
   image_nav_bg_ = Gdk::Pixbuf::create_from_file(
@@ -513,7 +343,7 @@ int ChromeWindow::GetTabIndexAtXPosition(int x) const {
     }
   }
 
-  return (x < get_width() ? tabs_.size() : -1);
+  return tabs_.size();
 }
 
 bool ChromeWindow::on_button_press_event(GdkEventButton* event) {
@@ -553,12 +383,6 @@ bool ChromeWindow::on_button_release_event(GdkEventButton* event) {
     return false;
   }
   VLOG(2) << "Got mouse up at (" << event->x << ", " << event->y << ")";
-  if (floating_tab_.get()) {
-    // Why do we have a floating tab if we weren't dragging a tab?
-    CHECK(dragging_tab_);
-    chrome_->HandleDroppedFloatingTab(floating_tab_->ReleaseTab());
-    floating_tab_.reset();
-  }
   dragging_tab_ = false;
   return true;
 }
@@ -567,53 +391,22 @@ bool ChromeWindow::on_motion_notify_event(GdkEventMotion* event) {
   if (!dragging_tab_) return false;
 
   VLOG(2) << "Got motion at (" << event->x << ", " << event->y << ")";
-  if (floating_tab_.get()) {
-    // TODO: We should send these events up to the MockChrome object.  If
-    // the user detaches a tab and switches windows in focused mode, they
-    // should be able to insert the tab into the new window; currently they
-    // can only insert it into the one that it was originally detached
-    // from.
+  if (active_tab_index_ >= 0) {
     int tab_index = GetTabIndexAtXPosition(event->x);
-    if (tab_index >= 0 && event->y >= 0 && event->y < kTabHeight) {
-      // If the floating tab has moved back into the tab bar, re-add it to
-      // the window and make it active.
-      InsertTab(floating_tab_->ReleaseTab(), tab_index);
-      floating_tab_.reset();
+    // The tab is still within the tab bar; move it to a new position.
+    if (tab_index >= static_cast<int>(tabs_.size())) {
+      // GetTabIndexAtXPosition() returns tabs_.size() for positions in
+      // the empty space at the right of the tab bar, but we need to
+      // treat that space as belonging to the last tab when reordering.
+      tab_index = tabs_.size() - 1;
+    } else if (tab_index < 0) {
+      tab_index = 0;
+    }
+    if (tab_index != active_tab_index_) {
+      Tab* tab = RemoveTab(active_tab_index_);
+      InsertTab(tab, tab_index);
       active_tab_index_ = tab_index;
       DrawTabs();
-      DrawView();
-    } else {
-      // Otherwise, just tell the window manager to move the floating tab.
-      floating_tab_->Move(event->x_root, event->y_root);
-    }
-  } else if (active_tab_index_ >= 0) {
-    int tab_index = GetTabIndexAtXPosition(event->x);
-    if (tab_index < 0 ||
-        event->y < -kTabDragThreshold ||
-        event->y >= kTabHeight + kTabDragThreshold) {
-      // The tab has been moved out of the tab bar (including the threshold
-      // around it); detach it.
-      Tab* tab = RemoveTab(active_tab_index_);
-      floating_tab_.reset(
-          new FloatingTab(chrome_, tab,
-                          event->x_root, event->y_root,
-                          tab_drag_start_offset_x_, tab_drag_start_offset_y_));
-      DrawTabs();
-      DrawView();
-    } else {
-      // The tab is still within the tab bar; move it to a new position.
-      if (tab_index >= static_cast<int>(tabs_.size())) {
-        // GetTabIndexAtXPosition() returns tabs_.size() for positions in
-        // the empty space at the right of the tab bar, but we need to
-        // treat that space as belonging to the last tab when reordering.
-        tab_index = tabs_.size() - 1;
-      }
-      if (tab_index != active_tab_index_) {
-        Tab* tab = RemoveTab(active_tab_index_);
-        InsertTab(tab, tab_index);
-        active_tab_index_ = tab_index;
-        DrawTabs();
-      }
     }
   }
   return true;
@@ -648,22 +441,6 @@ bool ChromeWindow::on_client_event(GdkEventClient* event) {
 
   VLOG(2) << "Got message of type " << msg.type();
   switch (msg.type()) {
-    case WmIpc::Message::CHROME_SET_TAB_SUMMARY_VISIBILITY: {
-      if (msg.param(0)) {
-        if (!tab_summary_.get()) {
-          tab_summary_.reset(new TabSummary(this));
-        }
-      } else {
-        tab_summary_.reset(NULL);
-      }
-      break;
-    }
-    case WmIpc::Message::CHROME_NOTIFY_FLOATING_TAB_OVER_TOPLEVEL: {
-      // Inform the MockChrome object that the tab has entered or exited a
-      // window.
-      chrome_->NotifyAboutFloatingTab(msg.param(0), this, msg.param(1));
-      break;
-    }
     default:
       LOG(WARNING) << "Ignoring WM message of unknown type " << msg.type();
       return false;
@@ -899,8 +676,7 @@ bool Panel::on_focus_out_event(GdkEventFocus* event) {
 MockChrome::MockChrome()
     : xconn_(new RealXConnection(GDK_DISPLAY())),
       atom_cache_(new AtomCache(xconn_.get())),
-      wm_ipc_(new WmIpc(xconn_.get(), atom_cache_.get())),
-      window_under_floating_tab_(NULL) {
+      wm_ipc_(new WmIpc(xconn_.get(), atom_cache_.get())) {
   WmIpc::Message msg(WmIpc::Message::WM_NOTIFY_IPC_VERSION);
   msg.set_param(0, 1);
   wm_ipc_->SendMessage(wm_ipc_->wm_window(), msg);
@@ -929,35 +705,6 @@ Panel* MockChrome::CreatePanel(const std::string& image_filename,
 void MockChrome::ClosePanel(Panel* panel) {
   CHECK(panel);
   CHECK_EQ(panels_.erase(panel->xid()), 1);
-}
-
-void MockChrome::NotifyAboutFloatingTab(
-    XWindow tab_xid, ChromeWindow* win, bool entered) {
-  CHECK(win);
-  if (!entered) {
-    if (win == window_under_floating_tab_) {
-      window_under_floating_tab_ = NULL;
-    }
-  } else {
-    window_under_floating_tab_ = win;
-  }
-}
-
-void MockChrome::HandleDroppedFloatingTab(Tab* tab) {
-  if (!window_under_floating_tab_) {
-    VLOG(1) << "Creating new window for tab";
-    ChromeWindow* win = CreateWindow(FLAGS_window_width, FLAGS_window_height);
-    win->InsertTab(tab, 0);
-  } else {
-    VLOG(1) << "Inserting tab into window "
-            << window_under_floating_tab_->xid();
-    TabSummary* summary = window_under_floating_tab_->tab_summary();
-    int index = window_under_floating_tab_->num_tabs();
-    if (summary && summary->insert_index() >= 0) {
-      index = summary->insert_index();
-    }
-    window_under_floating_tab_->InsertTab(tab, index);
-  }
 }
 
 }  // namespace mock_chrome

@@ -33,8 +33,6 @@ DEFINE_bool(lm_honor_window_size_hints, false,
             "size increment, etc.) instead of automatically making it fill the "
             "screen");
 
-DEFINE_bool(lm_new_overview_mode, false, "Use the new overview mode");
-
 DEFINE_string(lm_overview_gradient_image,
               "../assets/images/window_overview_gradient.png",
               "Image to use for gradients on inactive windows in "
@@ -60,24 +58,9 @@ static const double kOverviewExposedWindowRatio = 0.1;
 // Padding between the create browser window and the bottom of the screen.
 static const int kCreateBrowserWindowVerticalPadding = 10;
 
-// Amount of vertical padding that should be used between tab summary
-// windows and overview windows.
-static const int kTabSummaryPadding = 40;
-
-// Maximum height that an unmagnified window can have in overview mode,
-// relative to the height of the entire area used for displaying windows.
-static const double kMaxWindowHeightRatio = 0.75;
-
-// Duration between position redraws while a tab is being dragged.
-static const int kFloatingTabUpdateMs = 50;
-
 // Duration between panning updates while a drag is occurring on the
 // background window in overview mode.
 static const int kOverviewDragUpdateMs = 50;
-
-// Maximum fraction of the total height that magnified windows can take up
-// in overview mode.
-static const double kOverviewHeightFraction = 0.3;
 
 // Animation speed used for windows.
 const int LayoutManager::kWindowAnimMs = 200;
@@ -90,18 +73,10 @@ LayoutManager::LayoutManager
       y_(y),
       width_(-1),
       height_(-1),
-      overview_height_(-1),
       magnified_toplevel_(NULL),
       active_toplevel_(NULL),
-      floating_tab_(NULL),
-      toplevel_under_floating_tab_(NULL),
-      tab_summary_(NULL),
       create_browser_window_(NULL),
       overview_panning_offset_(0),
-      floating_tab_event_coalescer_(
-          new MotionEventCoalescer(
-              NewPermanentCallback(this, &LayoutManager::MoveFloatingTab),
-              kFloatingTabUpdateMs)),
       overview_background_event_coalescer_(
           new MotionEventCoalescer(
               NewPermanentCallback(
@@ -111,18 +86,14 @@ LayoutManager::LayoutManager
       saw_map_request_(false),
       event_consumer_registrar_(new EventConsumerRegistrar(wm, this)) {
   event_consumer_registrar_->RegisterForChromeMessages(
-      WmIpc::Message::WM_MOVE_FLOATING_TAB);
-  event_consumer_registrar_->RegisterForChromeMessages(
       WmIpc::Message::WM_SWITCH_TO_OVERVIEW_MODE);
 
   MoveAndResize(x, y, width, height);
 
-  if (FLAGS_lm_new_overview_mode) {
-    int event_mask = ButtonPressMask | ButtonReleaseMask | PointerMotionMask;
-    wm_->xconn()->AddButtonGrabOnWindow(
-        wm_->background_xid(), 1, event_mask, false);
-    event_consumer_registrar_->RegisterForWindowEvents(wm_->background_xid());
-  }
+  int event_mask = ButtonPressMask | ButtonReleaseMask | PointerMotionMask;
+  wm_->xconn()->AddButtonGrabOnWindow(
+      wm_->background_xid(), 1, event_mask, false);
+  event_consumer_registrar_->RegisterForWindowEvents(wm_->background_xid());
 
   KeyBindings* kb = wm_->key_bindings();
   kb->AddAction(
@@ -197,8 +168,7 @@ LayoutManager::LayoutManager
 }
 
 LayoutManager::~LayoutManager() {
-  if (FLAGS_lm_new_overview_mode)
-    wm_->xconn()->RemoveButtonGrabOnWindow(wm_->background_xid(), 1);
+  wm_->xconn()->RemoveButtonGrabOnWindow(wm_->background_xid(), 1);
 
   KeyBindings* kb = wm_->key_bindings();
   kb->RemoveAction("switch-to-overview-mode");
@@ -215,9 +185,6 @@ LayoutManager::~LayoutManager() {
   toplevels_.clear();
   magnified_toplevel_ = NULL;
   active_toplevel_ = NULL;
-  floating_tab_ = NULL;
-  toplevel_under_floating_tab_ = NULL;
-  tab_summary_ = NULL;
 }
 
 bool LayoutManager::IsInputWindow(XWindow xid) {
@@ -240,23 +207,7 @@ void LayoutManager::HandleWindowMap(Window* win) {
   // Just show override-redirect windows; they're already positioned
   // according to client apps' wishes.
   if (win->override_redirect()) {
-    // Make tab summary windows fade in -- this hides the period between
-    // them getting mapped and them getting painted in response to the
-    // first expose event.
-    if (win->type() == WmIpc::WINDOW_TYPE_CHROME_TAB_SUMMARY) {
-      // TODO: This is wrong (restacking an override-redirect window), but
-      // the proper fix is probably to make this window not be
-      // override-redirect in Chrome and to give it an alternate mechanism
-      // to provide the appropriate position to us.
-      wm_->stacking_manager()->StackWindowAtTopOfLayer(
-          win, StackingManager::LAYER_TAB_SUMMARY);
-      win->SetCompositedOpacity(0, 0);
-      win->ShowComposited();
-      win->SetCompositedOpacity(1, kWindowAnimMs);
-      tab_summary_ = win;
-    } else {
-      win->ShowComposited();
-    }
+    win->ShowComposited();
     return;
   }
 
@@ -269,43 +220,6 @@ void LayoutManager::HandleWindowMap(Window* win) {
     DoInitialSetupForWindow(win);
 
   switch (win->type()) {
-    // TODO: Remove this.  mock_chrome currently depends on the WM to
-    // position tab summary windows, but Chrome just creates
-    // override-redirect ("popup") windows and positions them itself.
-    case WmIpc::WINDOW_TYPE_CHROME_TAB_SUMMARY: {
-      int x = (width_ - win->client_width()) / 2;
-      int y = y_ + height_ - overview_height_ - win->client_height() -
-          kTabSummaryPadding;
-      win->MoveComposited(x, y, 0);
-      win->ScaleComposited(1.0, 1.0, 0);
-      win->SetCompositedOpacity(0, 0);
-      win->ShowComposited();
-      win->SetCompositedOpacity(0.75, kWindowAnimMs);
-      win->MoveClient(x, y);
-      tab_summary_ = win;
-      break;
-    }
-    case WmIpc::WINDOW_TYPE_CHROME_FLOATING_TAB: {
-      wm_->stacking_manager()->StackWindowAtTopOfLayer(
-          win, StackingManager::LAYER_FLOATING_TAB);
-      win->ScaleComposited(1.0, 1.0, 0);
-      win->SetCompositedOpacity(0.75, 0);
-      // No worries if we were already tracking a different tab; it should
-      // get destroyed soon enough.
-      if (floating_tab_)
-        floating_tab_->HideComposited();
-      floating_tab_ = win;
-      if (!floating_tab_event_coalescer_->IsRunning()) {
-        // Start redrawing the tab's position if we aren't already.
-        VLOG(2) << "Starting update loop for floating tab drag";
-        floating_tab_event_coalescer_->Start();
-      }
-      if (win->type_params().size() >= 2) {
-        floating_tab_event_coalescer_->StorePosition(
-            win->type_params()[0], win->type_params()[1]);
-      }
-      break;
-    }
     case WmIpc::WINDOW_TYPE_CREATE_BROWSER_WINDOW: {
       if (create_browser_window_) {
         LOG(WARNING) << "Got second create-browser window " << win->xid_str()
@@ -386,15 +300,6 @@ void LayoutManager::HandleWindowUnmap(Window* win) {
   CHECK(win);
 
   // If necessary, reset some pointers to non-toplevels windows first.
-  if (floating_tab_ == win) {
-    if (floating_tab_event_coalescer_->IsRunning()) {
-      VLOG(2) << "Stopping update loop for floating tab drag";
-      floating_tab_event_coalescer_->Stop();
-    }
-    floating_tab_ = NULL;
-  }
-  if (tab_summary_ == win)
-    tab_summary_ = NULL;
   if (create_browser_window_ == win) {
     create_browser_window_ = NULL;
     if (mode_ == MODE_OVERVIEW)
@@ -417,8 +322,6 @@ void LayoutManager::HandleWindowUnmap(Window* win) {
       SetMagnifiedToplevelWindow(NULL);
     if (active_toplevel_ == toplevel)
       active_toplevel_ = NULL;
-    if (toplevel_under_floating_tab_ == toplevel)
-      toplevel_under_floating_tab_ = NULL;
 
     const int index = GetIndexForToplevelWindow(*toplevel);
     CHECK_EQ(input_to_toplevel_.erase(toplevel->input_xid()), 1);
@@ -487,7 +390,7 @@ void LayoutManager::HandleButtonPress(XWindow xid,
                      << " while not in overview mode";
         return;
       }
-      if (FLAGS_lm_new_overview_mode && toplevel != magnified_toplevel_) {
+      if (toplevel != magnified_toplevel_) {
         SetMagnifiedToplevelWindow(toplevel);
         LayoutToplevelWindowsForOverviewMode(std::max(x_root - x_, 0));
       } else {
@@ -549,11 +452,6 @@ void LayoutManager::HandlePointerEnter(XWindow xid,
                  << " while not in overview mode";
     return;
   }
-  if (!FLAGS_lm_new_overview_mode && toplevel != magnified_toplevel_) {
-    SetMagnifiedToplevelWindow(toplevel);
-    LayoutToplevelWindowsForOverviewMode(-1);
-    SendTabSummaryMessage(toplevel, true);
-  }
 }
 
 void LayoutManager::HandlePointerMotion(XWindow xid,
@@ -588,20 +486,6 @@ void LayoutManager::HandleFocusChange(XWindow xid, bool focus_in) {
 
 void LayoutManager::HandleChromeMessage(const WmIpc::Message& msg) {
   switch (msg.type()) {
-    case WmIpc::Message::WM_MOVE_FLOATING_TAB: {
-      XWindow xid = msg.param(0);
-      int x = msg.param(1);
-      int y = msg.param(2);
-      if (!floating_tab_ || xid != floating_tab_->xid()) {
-        LOG(WARNING) << "Ignoring request to move unknown floating tab "
-                     << XidStr(xid) << " (current is "
-                     << XidStr(floating_tab_ ? floating_tab_->xid() : 0) << ")";
-        return;
-      } else {
-        floating_tab_event_coalescer_->StorePosition(x, y);
-      }
-      break;
-    }
     case WmIpc::Message::WM_SWITCH_TO_OVERVIEW_MODE: {
       SetMode(MODE_OVERVIEW);
       Window* win = wm_->GetWindow(msg.param(0));
@@ -621,8 +505,6 @@ void LayoutManager::HandleChromeMessage(const WmIpc::Message& msg) {
       }
 
       SetMagnifiedToplevelWindow(toplevel);
-      if (!FLAGS_lm_new_overview_mode)
-        SendTabSummaryMessage(toplevel, true);
       break;
     }
     default:
@@ -680,101 +562,6 @@ Window* LayoutManager::GetChromeWindow() {
   return NULL;
 }
 
-void LayoutManager::MoveFloatingTab() {
-  // TODO: Making a bunch of calls to clutter_actor_move() (say, to update
-  // the floating tab's Clutter actor's position in response to mouse
-  // motion) kills the performance of any animations that are going on.
-  // This looks like it's correlated to the mouse sampling rate -- it's
-  // less of an issue when running under Xephyr, but quite noticeable if
-  // we're talking to the real X server.  Always passing a short duration
-  // so that we use implicit animations instead doesn't help.  We
-  // rate-limit how often this method is invoked to actually move the
-  // floating tab as a workaround.
-
-  if (!floating_tab_) {
-    LOG(WARNING) << "Ignoring request to animate floating tab since none "
-                 << "is present";
-    return;
-  }
-
-  int x = floating_tab_event_coalescer_->x();
-  int y = floating_tab_event_coalescer_->y();
-
-  if (x == floating_tab_->composited_x() &&
-      y == floating_tab_->composited_y()) {
-    return;
-  }
-
-  if (!floating_tab_->composited_shown())
-    floating_tab_->ShowComposited();
-  int x_offset = 0, y_offset = 0;
-  if (floating_tab_->type_params().size() >= 4) {
-    x_offset = floating_tab_->type_params()[2];
-    y_offset = floating_tab_->type_params()[3];
-  }
-  floating_tab_->MoveComposited(x - x_offset, y - y_offset, 0);
-
-  if (mode_ == MODE_OVERVIEW) {
-    ToplevelWindow* toplevel = GetOverviewToplevelWindowAtPoint(x, y);
-
-    // If the user is moving the pointer up to the tab summary, pretend
-    // like the pointer is still in the magnified window.
-    if (!toplevel && magnified_toplevel_) {
-      if (PointIsInTabSummary(x, y) ||
-          PointIsBetweenMagnifiedToplevelWindowAndTabSummary(x, y)) {
-        toplevel = magnified_toplevel_;
-      }
-    }
-
-    // Only allow docking into Chrome windows.
-    if (toplevel &&
-        toplevel->win()->type() != WmIpc::WINDOW_TYPE_CHROME_TOPLEVEL) {
-      toplevel = NULL;
-    }
-
-    if (toplevel != toplevel_under_floating_tab_) {
-      // Notify the old and new toplevel windows about the new position.
-      if (toplevel_under_floating_tab_) {
-        WmIpc::Message msg(
-            WmIpc::Message::CHROME_NOTIFY_FLOATING_TAB_OVER_TOPLEVEL);
-        msg.set_param(0, floating_tab_->xid());
-        msg.set_param(1, 0);  // left
-        wm_->wm_ipc()->SendMessage(
-            toplevel_under_floating_tab_->win()->xid(), msg);
-      }
-      if (toplevel) {
-        WmIpc::Message msg(
-            WmIpc::Message::CHROME_NOTIFY_FLOATING_TAB_OVER_TOPLEVEL);
-        msg.set_param(0, floating_tab_->xid());
-        msg.set_param(1, 1);  // entered
-        wm_->wm_ipc()->SendMessage(toplevel->win()->xid(), msg);
-      }
-      toplevel_under_floating_tab_ = toplevel;
-      SetMagnifiedToplevelWindow(toplevel);
-      LayoutToplevelWindowsForOverviewMode(-1);
-      SendTabSummaryMessage(toplevel, true);
-    }
-
-    if (PointIsInTabSummary(x, y)) {
-      WmIpc::Message msg(
-          WmIpc::Message::CHROME_NOTIFY_FLOATING_TAB_OVER_TAB_SUMMARY);
-      msg.set_param(0, floating_tab_->xid());
-      msg.set_param(1, 1);  // currently in window
-      msg.set_param(2, x - tab_summary_->client_x());
-      msg.set_param(3, y - tab_summary_->client_y());
-      wm_->wm_ipc()->SendMessage(tab_summary_->xid(), msg);
-    }
-    // TODO: Also send a message when we move out of the summary.
-
-  } else if (mode_ == MODE_ACTIVE) {
-    if (y > (y_ + height_ - (kMaxWindowHeightRatio * overview_height_)) &&
-        y < y_ + height_) {
-      // Go into overview mode if the tab is dragged into the bottom area.
-      SetMode(MODE_OVERVIEW);
-    }
-  }
-}
-
 bool LayoutManager::TakeFocus() {
   if (mode_ != MODE_ACTIVE || !active_toplevel_)
     return false;
@@ -799,7 +586,6 @@ void LayoutManager::MoveAndResize(int x, int y, int width, int height) {
   y_ = y;
   width_ = width;
   height_ = height;
-  overview_height_ = kOverviewHeightFraction * height_;
 
   for (ToplevelWindows::iterator it = toplevels_.begin();
        it != toplevels_.end(); ++it) {
@@ -824,9 +610,7 @@ void LayoutManager::MoveAndResize(int x, int y, int width, int height) {
 
 // static
 bool LayoutManager::IsHandledWindowType(WmIpc::WindowType type) {
-  return (type == WmIpc::WINDOW_TYPE_CHROME_FLOATING_TAB ||
-          type == WmIpc::WINDOW_TYPE_CHROME_INFO_BUBBLE ||
-          type == WmIpc::WINDOW_TYPE_CHROME_TAB_SUMMARY ||
+  return (type == WmIpc::WINDOW_TYPE_CHROME_INFO_BUBBLE ||
           type == WmIpc::WINDOW_TYPE_CHROME_TOPLEVEL ||
           type == WmIpc::WINDOW_TYPE_CREATE_BROWSER_WINDOW ||
           type == WmIpc::WINDOW_TYPE_UNKNOWN);
@@ -936,8 +720,6 @@ void LayoutManager::MagnifyToplevelWindowByIndex(int index) {
 
   SetMagnifiedToplevelWindow(toplevels_[index].get());
   LayoutToplevelWindowsForOverviewMode(0.5 * width_);
-  if (!FLAGS_lm_new_overview_mode)
-    SendTabSummaryMessage(magnified_toplevel_, true);
 }
 
 void LayoutManager::Metrics::Populate(chrome_os_pb::SystemMetrics *metrics_pb) {
@@ -960,24 +742,17 @@ void LayoutManager::SetMode(Mode mode) {
         create_browser_window_->HideComposited();
         create_browser_window_->MoveClientOffscreen();
       }
-      if ((FLAGS_lm_new_overview_mode || !active_toplevel_) &&
-          magnified_toplevel_) {
+      if (magnified_toplevel_)
         active_toplevel_ = magnified_toplevel_;
-      }
       if (!active_toplevel_ && !toplevels_.empty())
         active_toplevel_ = toplevels_[0].get();
-      if (!FLAGS_lm_new_overview_mode)
-        SetMagnifiedToplevelWindow(NULL);
       LayoutToplevelWindowsForActiveMode(true);  // update_focus=true
       break;
     }
     case MODE_OVERVIEW: {
       if (create_browser_window_)
         create_browser_window_->ShowComposited();
-      if (FLAGS_lm_new_overview_mode)
-        SetMagnifiedToplevelWindow(active_toplevel_);
-      else
-        SetMagnifiedToplevelWindow(NULL);
+      SetMagnifiedToplevelWindow(active_toplevel_);
       // Leave 'active_toplevel_' alone, so we can activate the same window
       // if we return to active mode on an Escape keypress.
 
@@ -1030,106 +805,41 @@ void LayoutManager::CalculatePositionsForOverviewMode(int magnified_x) {
   if (toplevels_.empty())
     return;
 
-  if (FLAGS_lm_new_overview_mode) {
-    const int width_limit =
-        std::min(static_cast<double>(width_) / sqrt(toplevels_.size()),
-                 kOverviewWindowMaxSizeRatio * width_);
-    const int height_limit =
-        std::min(static_cast<double>(height_) / sqrt(toplevels_.size()),
-                 kOverviewWindowMaxSizeRatio * height_);
-    int running_width = kWindowPadding;
+  const int width_limit =
+      std::min(static_cast<double>(width_) / sqrt(toplevels_.size()),
+               kOverviewWindowMaxSizeRatio * width_);
+  const int height_limit =
+      std::min(static_cast<double>(height_) / sqrt(toplevels_.size()),
+               kOverviewWindowMaxSizeRatio * height_);
+  int running_width = kWindowPadding;
 
-    for (int i = 0; static_cast<size_t>(i) < toplevels_.size(); ++i) {
-      ToplevelWindow* toplevel = toplevels_[i].get();
-      bool is_magnified = (toplevel == magnified_toplevel_);
+  for (int i = 0; static_cast<size_t>(i) < toplevels_.size(); ++i) {
+    ToplevelWindow* toplevel = toplevels_[i].get();
+    bool is_magnified = (toplevel == magnified_toplevel_);
 
-      toplevel->UpdateOverviewScaling(width_limit, height_limit);
-      toplevel->UpdateOverviewPosition(
-          running_width, 0.5 * (height_ - toplevel->overview_height()));
-      running_width += is_magnified ?
-          toplevel->overview_width() :
-          (kOverviewExposedWindowRatio * width_ *
-            (width_limit / (kOverviewWindowMaxSizeRatio * width_)));
-      if (is_magnified && magnified_x >= 0) {
-        // If the window will be under 'magnified_x' when centered, just
-        // center it.  Otherwise, move it as close to centered as possible
-        // while still being under 'magnified_x'.
-        if (0.5 * (width_ - toplevel->overview_width()) < magnified_x &&
-            0.5 * (width_ + toplevel->overview_width()) >= magnified_x) {
-          overview_panning_offset_ =
-              toplevel->overview_x() +
-              0.5 * toplevel->overview_width() -
-              0.5 * width_;
-        } else if (0.5 * (width_ - toplevel->overview_width()) > magnified_x) {
-          overview_panning_offset_ = toplevel->overview_x() - magnified_x + 1;
-        } else {
-          overview_panning_offset_ = toplevel->overview_x() - magnified_x +
-                                     toplevel->overview_width() - 1;
-        }
+    toplevel->UpdateOverviewScaling(width_limit, height_limit);
+    toplevel->UpdateOverviewPosition(
+        running_width, 0.5 * (height_ - toplevel->overview_height()));
+    running_width += is_magnified ?
+        toplevel->overview_width() :
+        (kOverviewExposedWindowRatio * width_ *
+          (width_limit / (kOverviewWindowMaxSizeRatio * width_)));
+    if (is_magnified && magnified_x >= 0) {
+      // If the window will be under 'magnified_x' when centered, just
+      // center it.  Otherwise, move it as close to centered as possible
+      // while still being under 'magnified_x'.
+      if (0.5 * (width_ - toplevel->overview_width()) < magnified_x &&
+          0.5 * (width_ + toplevel->overview_width()) >= magnified_x) {
+        overview_panning_offset_ =
+            toplevel->overview_x() +
+            0.5 * toplevel->overview_width() -
+            0.5 * width_;
+      } else if (0.5 * (width_ - toplevel->overview_width()) > magnified_x) {
+        overview_panning_offset_ = toplevel->overview_x() - magnified_x + 1;
+      } else {
+        overview_panning_offset_ = toplevel->overview_x() - magnified_x +
+                                   toplevel->overview_width() - 1;
       }
-    }
-  } else {
-    // First, figure out how much space the magnified window (if any) will
-    // take up.
-    if (magnified_toplevel_) {
-      magnified_toplevel_->UpdateOverviewScaling(
-          width_,  // TODO: Cap this if we end up with wide windows.
-          overview_height_);
-    }
-
-    // Now, figure out the maximum size that we want each unmagnified window
-    // to be able to take.
-    int num_unmag_windows = toplevels_.size();
-    int total_unmag_width = width_ - (toplevels_.size() + 1) * kWindowPadding;
-
-    if (create_browser_window_) {
-      total_unmag_width -=
-          (create_browser_window_->client_width() + kWindowPadding);
-    }
-    if (magnified_toplevel_) {
-      total_unmag_width -= magnified_toplevel_->overview_width();
-      num_unmag_windows -= 1;
-    }
-
-    const int max_unmag_width =
-        num_unmag_windows ?
-        (total_unmag_width / num_unmag_windows) :
-        0;
-    const int max_unmag_height = kMaxWindowHeightRatio * overview_height_;
-
-    // Figure out the actual scaling for each window.
-    for (int i = 0; static_cast<size_t>(i) < toplevels_.size(); ++i) {
-      ToplevelWindow* toplevel = toplevels_[i].get();
-      // We already computed the dimensions for the magnified window.
-      if (toplevel != magnified_toplevel_)
-        toplevel->UpdateOverviewScaling(max_unmag_width, max_unmag_height);
-    }
-
-    // Divide up the remaining space among all of the windows, including
-    // padding around the outer windows.
-    int total_window_width = 0;
-    for (int i = 0; static_cast<size_t>(i) < toplevels_.size(); ++i)
-      total_window_width += toplevels_[i]->overview_width();
-    if (create_browser_window_)
-      total_window_width += create_browser_window_->client_width();
-    int total_padding = width_ - total_window_width;
-    if (total_padding < 0) {
-      LOG(WARNING) << "Summed width of scaled windows (" << total_window_width
-                   << ") exceeds width of overview area (" << width_ << ")";
-      total_padding = 0;
-    }
-    const double padding = create_browser_window_
-        ? total_padding / static_cast<double>(toplevels_.size() + 2) :
-          total_padding / static_cast<double>(toplevels_.size() + 1);
-
-    // Finally, go through and calculate the final position for each window.
-    double running_width = 0;
-    for (int i = 0; static_cast<size_t>(i) < toplevels_.size(); ++i) {
-      ToplevelWindow* toplevel = toplevels_[i].get();
-      int overview_x = round(running_width + padding);
-      int overview_y = height_ - toplevel->overview_height();
-      toplevel->UpdateOverviewPosition(overview_x, overview_y);
-      running_width += padding + toplevel->overview_width();
     }
   }
 }
@@ -1168,31 +878,6 @@ LayoutManager::ToplevelWindow* LayoutManager::GetOverviewToplevelWindowAtPoint(
     if (toplevels_[i]->OverviewWindowContainsPoint(x, y))
       return toplevels_[i].get();
   return NULL;
-}
-
-bool LayoutManager::PointIsInTabSummary(int x, int y) const {
-  return (tab_summary_ &&
-          x >= tab_summary_->client_x() &&
-          y >= tab_summary_->client_y() &&
-          x < tab_summary_->client_x() + tab_summary_->client_width() &&
-          y < tab_summary_->client_y() + tab_summary_->client_height());
-}
-
-bool LayoutManager::PointIsBetweenMagnifiedToplevelWindowAndTabSummary(
-    int x, int y) const {
-  if (!magnified_toplevel_ || !tab_summary_) return false;
-
-  for (int i = 0; static_cast<size_t>(i) < toplevels_.size(); ++i) {
-    ToplevelWindow* toplevel = toplevels_[i].get();
-    if (toplevel != magnified_toplevel_)
-      continue;
-    return (y >= tab_summary_->client_y() + tab_summary_->client_height() &&
-            y < toplevel->GetAbsoluteOverviewY());
-  }
-  LOG(WARNING) << "magnified_toplevel_ "
-               << magnified_toplevel_->win()->xid_str()
-               << " isn't present in our list of windows";
-  return false;
 }
 
 void LayoutManager::AddKeyBindingsForMode(Mode mode) {
@@ -1368,32 +1053,12 @@ void LayoutManager::CycleMagnifiedToplevelWindow(bool forward) {
     SetMagnifiedToplevelWindow(toplevels_[new_index].get());
   }
   LayoutToplevelWindowsForOverviewMode(0.5 * width_);
-
-  // Tell the magnified window to display a tab summary now that we've
-  // rearranged all of the windows.
-  if (!FLAGS_lm_new_overview_mode)
-    SendTabSummaryMessage(magnified_toplevel_, true);
 }
 
 void LayoutManager::SetMagnifiedToplevelWindow(ToplevelWindow* toplevel) {
   if (magnified_toplevel_ == toplevel)
     return;
-  // Hide the previous window's tab summary.
-  if (!FLAGS_lm_new_overview_mode && magnified_toplevel_)
-    SendTabSummaryMessage(magnified_toplevel_, false);
   magnified_toplevel_ = toplevel;
-}
-
-void LayoutManager::SendTabSummaryMessage(ToplevelWindow* toplevel, bool show) {
-  if (!toplevel ||
-      toplevel->win()->type() != WmIpc::WINDOW_TYPE_CHROME_TOPLEVEL) {
-    return;
-  }
-  WmIpc::Message msg(WmIpc::Message::CHROME_SET_TAB_SUMMARY_VISIBILITY);
-  msg.set_param(0, show);  // show summary
-  if (show)
-    msg.set_param(1, toplevel->GetAbsoluteOverviewCenterX());
-  wm_->wm_ipc()->SendMessage(toplevel->win()->xid(), msg);
 }
 
 void LayoutManager::SendModeMessage(ToplevelWindow* toplevel) {

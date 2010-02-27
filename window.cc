@@ -672,9 +672,7 @@ void Window::UpdateShadowIfNecessary() {
 
   bool should_use_shadow =
       !override_redirect_ &&
-      type_ != WmIpc::WINDOW_TYPE_CHROME_FLOATING_TAB &&
       type_ != WmIpc::WINDOW_TYPE_CHROME_INFO_BUBBLE &&
-      type_ != WmIpc::WINDOW_TYPE_CHROME_TAB_SUMMARY &&
       type_ != WmIpc::WINDOW_TYPE_CREATE_BROWSER_WINDOW &&
       !shaped_;
 

@@ -34,18 +34,9 @@ class WmIpc {
     // A top-level Chrome window.
     WINDOW_TYPE_CHROME_TOPLEVEL,
 
-    // A window showing scaled-down views of all of the tabs within a
-    // Chrome window.
-    WINDOW_TYPE_CHROME_TAB_SUMMARY,
-
-    // A tab that's been detached from a Chrome window and is currently
-    // being dragged.
-    //   param[0]: Cursor's initial X position at the start of the drag
-    //   param[1]: Cursor's initial Y position
-    //   param[2]: X component of cursor's offset from upper-left corner of
-    //             tab at start of drag
-    //   param[3]: Y component of cursor's offset
-    WINDOW_TYPE_CHROME_FLOATING_TAB,
+    // Vestiges of the old windows-across-the-bottom overview mode.
+    DEPRECATED_WINDOW_TYPE_CHROME_TAB_SUMMARY,
+    DEPRECATED_WINDOW_TYPE_CHROME_FLOATING_TAB,
 
     // The contents of a popup window.
     //   param[0]: X ID of associated titlebar, which must be mapped before
@@ -101,27 +92,10 @@ class WmIpc {
     enum Type {
       UNKNOWN = 0,
 
-      // Notify Chrome when a floating tab has entered or left a tab
-      // summary window.  Sent to the summary window.
-      //   param[0]: X ID of the floating tab window
-      //   param[1]: state (0 means left, 1 means entered or currently in)
-      //   param[2]: X coordinate relative to summary window
-      //   param[3]: Y coordinate
-      CHROME_NOTIFY_FLOATING_TAB_OVER_TAB_SUMMARY,
-
-      // Notify Chrome when a floating tab has entered or left a top-level
-      // window.  Sent to the window being entered/left.
-      //   param[0]: X ID of the floating tab window
-      //   param[1]: state (0 means left, 1 means entered)
-      CHROME_NOTIFY_FLOATING_TAB_OVER_TOPLEVEL,
-
-      // Instruct a top-level Chrome window to change the visibility of its
-      // tab summary window.
-      //   param[0]: desired visibility (0 means hide, 1 means show)
-      //   param[1]: X position (relative to the left edge of the root
-      //             window) of the center of the top-level window.  Only
-      //             relevant for "show" messages
-      CHROME_SET_TAB_SUMMARY_VISIBILITY,
+      // Vestiges of the old windows-across-the-bottom overview mode.
+      DEPRECATED_CHROME_NOTIFY_FLOATING_TAB_OVER_TAB_SUMMARY,
+      DEPRECATED_CHROME_NOTIFY_FLOATING_TAB_OVER_TOPLEVEL,
+      DEPRECATED_CHROME_SET_TAB_SUMMARY_VISIBILITY,
 
       // Tell the WM to collapse or expand a panel.
       //   param[0]: X ID of the panel window
@@ -135,14 +109,8 @@ class WmIpc {
       // _CHROME_STATE property to get the same information.
       CHROME_NOTIFY_PANEL_STATE,
 
-      // Instruct the WM to move a floating tab.  The passed-in position is
-      // that of the cursor; the tab's composited window is displaced based
-      // on the cursor's offset from the upper-left corner of the tab at
-      // the start of the drag.
-      //   param[0]: X ID of the floating tab window
-      //   param[1]: X coordinate to which the tab should be moved
-      //   param[2]: Y coordinate
-      WM_MOVE_FLOATING_TAB,
+      // From the old windows-across-the-bottom overview mode.
+      DEPRECATED_WM_MOVE_FLOATING_TAB,
 
       // Notify the WM that a panel has been dragged.
       //   param[0]: X ID of the panel's content window
@@ -170,8 +138,8 @@ class WmIpc {
       DEPRECATED_WM_FOCUS_WINDOW,
 
       // Notify Chrome that the layout mode (for example, overview or
-      // focused) has changed.
-      //   param[0]: new mode (0 means focused, 1 means overview)
+      // active) has changed.
+      //   param[0]: new mode (0 means active, 1 means overview)
       CHROME_NOTIFY_LAYOUT_MODE,
 
       // Instruct the WM to enter overview mode.

@@ -21,7 +21,6 @@
 #include "window_manager/window_manager.h"
 #include "window_manager/x_connection.h"
 
-DEFINE_string(panel_bar_image, "", "deprecated");
 DEFINE_string(panel_anchor_image, "../assets/images/panel_anchor.png",
               "Image to use for anchors on the panel bar");
 

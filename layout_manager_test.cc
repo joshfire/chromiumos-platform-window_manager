@@ -666,14 +666,23 @@ TEST_F(LayoutManagerTest, OverviewFocus) {
   EXPECT_TRUE(info->button_is_grabbed(AnyButton));
   EXPECT_TRUE(info2->button_is_grabbed(AnyButton));
 
-  // Click on the first window's input window.
+  // The second window should be magnified.
+  EXPECT_EQ(lm_->GetToplevelWindowByXid(xid2), lm_->magnified_toplevel_);
+
+  // Click on the first window's input window to magnify it.
   XWindow input_xid = lm_->GetInputXidForWindow(*(wm_->GetWindowOrDie(xid)));
   MockXConnection::InitButtonPressEvent(
       &event, *xconn_->GetWindowInfoOrDie(input_xid), 0, 0, 1);  // x, y, button
   wm_->HandleEvent(&event);
+  EXPECT_EQ(lm_->GetToplevelWindowByXid(xid), lm_->magnified_toplevel_);
 
-  // The first window should be focused and set as the active window, and
-  // only the second window should still have a button grab.
+  // Now click on it again to activate it.  The first window should be
+  // focused and set as the active window, and only the second window
+  // should still have a button grab.
+  MockXConnection::InitButtonPressEvent(
+      &event, *xconn_->GetWindowInfoOrDie(input_xid), 0, 0, 1);  // x, y, button
+  wm_->HandleEvent(&event);
+  EXPECT_EQ(lm_->GetToplevelWindowByXid(xid), lm_->active_toplevel_);
   EXPECT_EQ(xid, xconn_->focused_xid());
   SendFocusEvents(xid2, xid);
   EXPECT_EQ(xid, GetActiveWindowProperty());

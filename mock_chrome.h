@@ -193,10 +193,9 @@ class ChromeWindow : public Gtk::Window {
   // gray box.
   void DrawView();
 
-  // Get the number of the tab at the given position, relative to the
-  // left side of the window.  The portion of the tab bar to the right of
-  // any tabs is given position equal to the number of tabs.  -1 is
-  // returned for positions outside of the tab bar.
+  // Get the 0-indexed number of the tab at the given position, relative to
+  // the left side of the window.  The portion of the tab bar to the right
+  // of any tabs returns an index equal to the number of tabs.
   int GetTabIndexAtXPosition(int x) const;
 
   bool on_button_press_event(GdkEventButton* event);

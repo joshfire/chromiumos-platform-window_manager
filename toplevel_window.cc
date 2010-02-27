@@ -28,7 +28,6 @@ extern "C" {
 
 // Defined in layout_manager.cc
 DECLARE_bool(lm_honor_window_size_hints);
-DECLARE_bool(lm_new_overview_mode);
 DECLARE_string(lm_overview_gradient_image);
 
 namespace window_manager {
@@ -71,7 +70,7 @@ LayoutManager::ToplevelWindow::ToplevelWindow(Window* win,
   event_consumer_registrar_->RegisterForWindowEvents(win_->xid());
   event_consumer_registrar_->RegisterForWindowEvents(input_xid_);
 
-  if (FLAGS_lm_new_overview_mode && !static_gradient_texture_) {
+  if (!static_gradient_texture_) {
     static_gradient_texture_ = wm()->clutter()->CreateImage(
         FLAGS_lm_overview_gradient_image);
     static_gradient_texture_->SetVisibility(false);
@@ -102,14 +101,12 @@ LayoutManager::ToplevelWindow::ToplevelWindow(Window* win,
   // Make sure that we hear about button presses on this window.
   win->AddButtonGrab();
 
-  if (FLAGS_lm_new_overview_mode) {
-    gradient_actor_.reset(
-        wm()->clutter()->CloneActor(static_gradient_texture_));
-    gradient_actor_->SetOpacity(0, 0);
-    gradient_actor_->SetVisibility(true);
-    gradient_actor_->SetName("gradient screen");
-    wm()->stage()->AddActor(gradient_actor_.get());
-  }
+  gradient_actor_.reset(
+      wm()->clutter()->CloneActor(static_gradient_texture_));
+  gradient_actor_->SetOpacity(0, 0);
+  gradient_actor_->SetVisibility(true);
+  gradient_actor_->SetName("gradient screen");
+  wm()->stage()->AddActor(gradient_actor_.get());
 }
 
 LayoutManager::ToplevelWindow::~ToplevelWindow() {
@@ -124,10 +121,8 @@ LayoutManager::ToplevelWindow::~ToplevelWindow() {
 }
 
 int LayoutManager::ToplevelWindow::GetAbsoluteOverviewX() const {
-  int offset = FLAGS_lm_new_overview_mode ?
-               layout_manager_->overview_panning_offset() :
-               0;
-  return layout_manager_->x() - offset + overview_x_;
+  return layout_manager_->x() - layout_manager_->overview_panning_offset() +
+      overview_x_;
 }
 
 int LayoutManager::ToplevelWindow::GetAbsoluteOverviewY() const {
@@ -192,8 +187,7 @@ void LayoutManager::ToplevelWindow::ConfigureForActiveMode(
     win_->MoveComposited(win_x, win_y, LayoutManager::kWindowAnimMs);
     win_->ScaleComposited(1.0, 1.0, LayoutManager::kWindowAnimMs);
     win_->SetCompositedOpacity(1.0, LayoutManager::kWindowAnimMs);
-    if (FLAGS_lm_new_overview_mode)
-      gradient_actor_->SetOpacity(0, 0);
+    gradient_actor_->SetOpacity(0, 0);
     if (update_focus)
       TakeFocus(wm()->GetCurrentTimeFromServer());
     state_ = STATE_ACTIVE_MODE_ONSCREEN;
@@ -216,22 +210,14 @@ void LayoutManager::ToplevelWindow::ConfigureForActiveMode(
     } else if (state_ == STATE_ACTIVE_MODE_OFFSCREEN) {
       // No need to move it; it was already moved offscreen.
     } else {
-      if (FLAGS_lm_new_overview_mode) {
-        // Move non-active windows offscreen instead of just outside of the
-        // layout manager area -- we don't want them to be briefly visible
-        // if space opens up on the side due to a panel dock being hidden.
-        int x = to_left_of_active ?  0 - overview_width_ : wm()->width();
-        win_->MoveComposited(x, GetAbsoluteOverviewY(),
-                             LayoutManager::kWindowAnimMs);
-        gradient_actor_->Move(x, GetAbsoluteOverviewY(),
-                              LayoutManager::kWindowAnimMs);
-      } else {
-        // Slide the window down offscreen and scale it down to its
-        // overview size.
-        win_->MoveComposited(GetAbsoluteOverviewX(),
-                             GetAbsoluteOverviewOffscreenY(),
-                             LayoutManager::kWindowAnimMs);
-      }
+      // Move non-active windows offscreen instead of just outside of the
+      // layout manager area -- we don't want them to be briefly visible
+      // if space opens up on the side due to a panel dock being hidden.
+      int x = to_left_of_active ?  0 - overview_width_ : wm()->width();
+      win_->MoveComposited(x, GetAbsoluteOverviewY(),
+                           LayoutManager::kWindowAnimMs);
+      gradient_actor_->Move(x, GetAbsoluteOverviewY(),
+                            LayoutManager::kWindowAnimMs);
       win_->ScaleComposited(overview_scale_, overview_scale_,
                             LayoutManager::kWindowAnimMs);
       win_->SetCompositedOpacity(0.5, LayoutManager::kWindowAnimMs);
@@ -255,88 +241,59 @@ void LayoutManager::ToplevelWindow::ConfigureForOverviewMode(
     bool dim_if_unmagnified,
     ToplevelWindow* toplevel_to_stack_under,
     bool incremental) {
-  if (FLAGS_lm_new_overview_mode) {
-    if (!incremental) {
-      if (toplevel_to_stack_under) {
-        win_->StackCompositedBelow(
-            toplevel_to_stack_under->win()->GetBottomActor(), NULL, false);
-        win_->StackClientBelow(toplevel_to_stack_under->win()->xid());
-        wm()->xconn()->StackWindow(
-            input_xid_, toplevel_to_stack_under->input_xid(), false);
-      } else {
-        wm()->stacking_manager()->StackWindowAtTopOfLayer(
-            win_, StackingManager::LAYER_TOPLEVEL_WINDOW);
-        wm()->stacking_manager()->StackXidAtTopOfLayer(
-            input_xid_, StackingManager::LAYER_TOPLEVEL_WINDOW);
-      }
-
-      // We want to get new windows into their starting state immediately;
-      // we animate other windows smoothly.
-      const int anim_ms = (state_ == STATE_NEW) ? 0 : kOverviewAnimMs;
-
-      win_->ScaleComposited(overview_scale_, overview_scale_, anim_ms);
-      win_->SetCompositedOpacity(1.0, anim_ms);
-      win_->MoveClientOffscreen();
-      wm()->ConfigureInputWindow(input_xid_,
-                                 GetAbsoluteOverviewX(), GetAbsoluteOverviewY(),
-                                 overview_width_, overview_height_);
-      ApplyStackingForAllTransientWindows(true);  // stack above toplevel
-
-      gradient_actor_->Raise(
-          !stacked_transients_->items().empty() ?
-          stacked_transients_->items().front()->win->actor() :
-          win_->actor());
-      gradient_actor_->SetOpacity(window_is_magnified ? 0 : 1, anim_ms);
-
-      // Make new windows slide in from the right.
-      if (state_ == STATE_NEW) {
-        const int initial_x = layout_manager_->x() + layout_manager_->width();
-        const int initial_y = GetAbsoluteOverviewY();
-        win_->MoveComposited(initial_x, initial_y, 0);
-        gradient_actor_->Move(initial_x, initial_y, 0);
-      }
-      state_ = window_is_magnified ?
-               STATE_OVERVIEW_MODE_MAGNIFIED :
-               STATE_OVERVIEW_MODE_NORMAL;
+  if (!incremental) {
+    if (toplevel_to_stack_under) {
+      win_->StackCompositedBelow(
+          toplevel_to_stack_under->win()->GetBottomActor(), NULL, false);
+      win_->StackClientBelow(toplevel_to_stack_under->win()->xid());
+      wm()->xconn()->StackWindow(
+          input_xid_, toplevel_to_stack_under->input_xid(), false);
+    } else {
+      wm()->stacking_manager()->StackWindowAtTopOfLayer(
+          win_, StackingManager::LAYER_TOPLEVEL_WINDOW);
+      wm()->stacking_manager()->StackXidAtTopOfLayer(
+          input_xid_, StackingManager::LAYER_TOPLEVEL_WINDOW);
     }
 
-    win_->MoveComposited(GetAbsoluteOverviewX(), GetAbsoluteOverviewY(),
-                         incremental ? 0 : kOverviewAnimMs);
-    MoveAndScaleAllTransientWindows(incremental ? 0 : kOverviewAnimMs);
-    gradient_actor_->Move(GetAbsoluteOverviewX(), GetAbsoluteOverviewY(),
-                          incremental ? 0 : kOverviewAnimMs);
-    gradient_actor_->Scale(
-        overview_scale_ * win_->client_width() / gradient_actor_->GetWidth(),
-        overview_scale_ * win_->client_height() / gradient_actor_->GetHeight(),
-        incremental ? 0 : kOverviewAnimMs);
-  } else {
-    if (state_ == STATE_NEW || state_ == STATE_ACTIVE_MODE_OFFSCREEN) {
-      win_->MoveComposited(GetAbsoluteOverviewX(),
-                           GetAbsoluteOverviewOffscreenY(),
-                           0);
-      win_->ScaleComposited(overview_scale_, overview_scale_, 0);
-      win_->SetCompositedOpacity(0.5, 0);
-      MoveAndScaleAllTransientWindows(0);
-    }
-    win_->MoveComposited(GetAbsoluteOverviewX(), GetAbsoluteOverviewY(),
-                         kOverviewAnimMs);
-    win_->ScaleComposited(overview_scale_, overview_scale_, kOverviewAnimMs);
+    // We want to get new windows into their starting state immediately;
+    // we animate other windows smoothly.
+    const int anim_ms = (state_ == STATE_NEW) ? 0 : kOverviewAnimMs;
+
+    win_->ScaleComposited(overview_scale_, overview_scale_, anim_ms);
+    win_->SetCompositedOpacity(1.0, anim_ms);
     win_->MoveClientOffscreen();
     wm()->ConfigureInputWindow(input_xid_,
                                GetAbsoluteOverviewX(), GetAbsoluteOverviewY(),
                                overview_width_, overview_height_);
-    if (!window_is_magnified && dim_if_unmagnified)
-      win_->SetCompositedOpacity(0.75, kOverviewAnimMs);
-    else
-      win_->SetCompositedOpacity(1.0, kOverviewAnimMs);
-
     ApplyStackingForAllTransientWindows(true);  // stack above toplevel
-    MoveAndScaleAllTransientWindows(kOverviewAnimMs);
 
+    gradient_actor_->Raise(
+        !stacked_transients_->items().empty() ?
+        stacked_transients_->items().front()->win->actor() :
+        win_->actor());
+    gradient_actor_->SetOpacity(window_is_magnified ? 0 : 1, anim_ms);
+
+    // Make new windows slide in from the right.
+    if (state_ == STATE_NEW) {
+      const int initial_x = layout_manager_->x() + layout_manager_->width();
+      const int initial_y = GetAbsoluteOverviewY();
+      win_->MoveComposited(initial_x, initial_y, 0);
+      gradient_actor_->Move(initial_x, initial_y, 0);
+    }
     state_ = window_is_magnified ?
              STATE_OVERVIEW_MODE_MAGNIFIED :
              STATE_OVERVIEW_MODE_NORMAL;
   }
+
+  win_->MoveComposited(GetAbsoluteOverviewX(), GetAbsoluteOverviewY(),
+                       incremental ? 0 : kOverviewAnimMs);
+  MoveAndScaleAllTransientWindows(incremental ? 0 : kOverviewAnimMs);
+  gradient_actor_->Move(GetAbsoluteOverviewX(), GetAbsoluteOverviewY(),
+                        incremental ? 0 : kOverviewAnimMs);
+  gradient_actor_->Scale(
+      overview_scale_ * win_->client_width() / gradient_actor_->GetWidth(),
+      overview_scale_ * win_->client_height() / gradient_actor_->GetHeight(),
+      incremental ? 0 : kOverviewAnimMs);
 }
 
 void LayoutManager::ToplevelWindow::UpdateOverviewScaling(int max_width,

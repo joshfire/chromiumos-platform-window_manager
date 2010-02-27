@@ -44,14 +44,7 @@ TEST_F(WindowTest, WindowType) {
   EXPECT_EQ(WmIpc::WINDOW_TYPE_CHROME_TOPLEVEL, win.type());
   EXPECT_TRUE(win.using_shadow());
 
-  // Tab summary windows shouldn't have shadows.
-  ASSERT_TRUE(wm_->wm_ipc()->SetWindowType(
-                  xid, WmIpc::WINDOW_TYPE_CHROME_TAB_SUMMARY, NULL));
-  EXPECT_TRUE(win.FetchAndApplyWindowType(true));  // update_shadow
-  EXPECT_EQ(WmIpc::WINDOW_TYPE_CHROME_TAB_SUMMARY, win.type());
-  EXPECT_FALSE(win.using_shadow());
-
-  // Nor should info bubbles.
+  // Info bubbles shouldn't have shadows.
   ASSERT_TRUE(wm_->wm_ipc()->SetWindowType(
                   xid, WmIpc::WINDOW_TYPE_CHROME_INFO_BUBBLE, NULL));
   EXPECT_TRUE(win.FetchAndApplyWindowType(true));  // update_shadow

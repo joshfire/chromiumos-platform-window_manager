@@ -132,10 +132,6 @@ class LayoutManager : public EventConsumer {
   // exists.  Returns NULL if there is no such window.
   Window* GetChromeWindow();
 
-  // Move a floating tab window to the queued values.  Invoked periodically
-  // by 'floating_tab_event_coalescer_'.
-  void MoveFloatingTab();
-
   // Take the input focus if possible.  Returns 'false' if it doesn't make
   // sense to take the focus (currently, we take the focus if we're in
   // active mode but refuse to in overview mode).
@@ -250,14 +246,6 @@ class LayoutManager : public EventConsumer {
   // passed-in position, or NULL if no such window exists.
   ToplevelWindow* GetOverviewToplevelWindowAtPoint(int x, int y) const;
 
-  // Does the passed-in point lie inside of 'tab_summary_'?
-  bool PointIsInTabSummary(int x, int y) const;
-
-  // Does the passed-in point's position (well, currently just its Y
-  // component) lie in the region between 'magnified_window_' and
-  // 'tab_summary_'?
-  bool PointIsBetweenMagnifiedToplevelWindowAndTabSummary(int x, int y) const;
-
   // Add or remove the relevant key bindings for the passed-in mode.
   void AddKeyBindingsForMode(Mode mode);
   void RemoveKeyBindingsForMode(Mode mode);
@@ -269,16 +257,8 @@ class LayoutManager : public EventConsumer {
   void CycleMagnifiedToplevelWindow(bool forward);
 
   // Set 'magnified_toplevel_' to the passed-in toplevel window (which can
-  // be NULL to disable magnification).  Also takes care of telling the
-  // previously-magnified window to hide its tabs (but not telling the new
-  // window to show its tabs; we want to include the window's position in
-  // those messages, so SendTabSummaryMessage() should be explicitly called
-  // after ArrangeOverview() is called).
+  // be NULL to disable magnification).
   void SetMagnifiedToplevelWindow(ToplevelWindow* toplevel);
-
-  // Tell a toplevel window to show or hide its tab summary.  Does nothing
-  // if 'toplevel' isn't a Chrome window.
-  void SendTabSummaryMessage(ToplevelWindow* toplevel, bool show);
 
   // Send a message to a window describing the current state of 'mode_'.
   // Does nothing if 'win' isn't a toplevel Chrome window.
@@ -306,9 +286,6 @@ class LayoutManager : public EventConsumer {
   int width_;
   int height_;
 
-  // Maximum height of windows in overview mode.
-  int overview_height_;
-
   // Information about toplevel windows, stored in the order in which
   // we'll display them in overview mode.
   typedef std::deque<std::tr1::shared_ptr<ToplevelWindow> > ToplevelWindows;
@@ -330,14 +307,6 @@ class LayoutManager : public EventConsumer {
   // Currently-active toplevel window in active mode.
   ToplevelWindow* active_toplevel_;
 
-  // Floating window containing a tab that's being dragged around and the
-  // toplevel Chrome window currently underneath it.
-  Window* floating_tab_;
-  ToplevelWindow* toplevel_under_floating_tab_;
-
-  // Most recently-created tab summary window.
-  Window* tab_summary_;
-
   // Window that when clicked creates a new browser.  Only shown in
   // overview mode, and may be NULL.
   Window* create_browser_window_;
@@ -345,10 +314,6 @@ class LayoutManager : public EventConsumer {
   // Amount that toplevel windows' positions should be offset to the left
   // for overview mode.  Used to implement panning.
   int overview_panning_offset_;
-
-  // We save the requested positions for the floating tab here so we can
-  // apply them periodically in MoveFloatingTab().
-  scoped_ptr<MotionEventCoalescer> floating_tab_event_coalescer_;
 
   // Mouse pointer motion gets stored here during a drag on the background
   // window in overview mode so that it can be applied periodically in
