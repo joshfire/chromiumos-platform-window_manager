@@ -426,8 +426,13 @@ bool RealXConnection::RedirectWindowForCompositing(XWindow xid) {
 }
 
 bool RealXConnection::UnredirectWindowForCompositing(XWindow xid) {
-  xcb_composite_unredirect_window(
+  // TODO: We don't actually care about checking for an error here, but it
+  // looks like errors may be leaking into GDK's event queue and
+  // triggering crashes.
+  xcb_void_cookie_t cookie = xcb_composite_unredirect_window_checked(
       xcb_conn_, xid, XCB_COMPOSITE_REDIRECT_MANUAL);
+  CheckForXcbError(cookie, "in UnredirectWindowForCompositing (xid=0x%08x)",
+                   static_cast<int>(xid));
   return true;
 }
 
@@ -456,7 +461,12 @@ XPixmap RealXConnection::GetCompositingPixmapForWindow(XWindow xid) {
 }
 
 bool RealXConnection::FreePixmap(XPixmap pixmap) {
-  xcb_free_pixmap(xcb_conn_, pixmap);
+  // TODO: We don't actually care about checking for an error here, but it
+  // looks like the error may be leaking into GDK's event queue and
+  // triggering a crash.
+  xcb_void_cookie_t cookie = xcb_free_pixmap_checked(xcb_conn_, pixmap);
+  CheckForXcbError(cookie, "in FreePixmap (pixmap=0x%08x)",
+                   static_cast<int>(pixmap));
   return true;
 }
 
@@ -856,7 +866,12 @@ XDamage RealXConnection::CreateDamage(XDrawable drawable, int level) {
 }
 
 void RealXConnection::DestroyDamage(XDamage damage) {
-  xcb_damage_destroy(xcb_conn_, damage);
+  // TODO: We don't actually care about checking for an error here, but it
+  // looks like the error may be leaking into GDK's event queue and
+  // triggering a crash.
+  xcb_void_cookie_t cookie = xcb_damage_destroy_checked(xcb_conn_, damage);
+  CheckForXcbError(cookie, "in DestroyDamage (damage=0x%08x)",
+                   static_cast<int>(damage));
 }
 
 void RealXConnection::SubtractRegionFromDamage(XDamage damage,
@@ -903,6 +918,11 @@ bool RealXConnection::QueryPointerPosition(int* x_root, int* y_root) {
   if (y_root)
     *y_root = reply->root_y;
   return true;
+}
+
+void RealXConnection::ClearErrors() {
+  TrapErrors();
+  UntrapErrors();
 }
 
 void RealXConnection::Free(void* item) {

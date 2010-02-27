@@ -1070,6 +1070,9 @@ void WindowManager::HandleConfigureNotify(const XConfigureEvent& e) {
 
   if (xids_tracked_by_compositor_.count(e.window))
     clutter_->HandleWindowConfigured(e.window);
+
+  // TODO: Hack; sync to clear errors from the event queue.
+  xconn_->ClearErrors();
 }
 
 void WindowManager::HandleConfigureRequest(const XConfigureRequestEvent& e) {
@@ -1168,8 +1171,11 @@ void WindowManager::HandleCreateNotify(const XCreateWindowEvent& e) {
 }
 
 void WindowManager::HandleDamageNotify(const XDamageNotifyEvent& e) {
-  if (xids_tracked_by_compositor_.count(e.drawable))
+  if (xids_tracked_by_compositor_.count(e.drawable)) {
     clutter_->HandleWindowDamaged(e.drawable);
+    // TODO: Hack; sync to clear errors from the event queue.
+    xconn_->ClearErrors();
+  }
 }
 
 void WindowManager::HandleDestroyNotify(const XDestroyWindowEvent& e) {
@@ -1200,6 +1206,9 @@ void WindowManager::HandleDestroyNotify(const XDestroyWindowEvent& e) {
 
   if (xids_tracked_by_compositor_.count(e.window))
     clutter_->HandleWindowDestroyed(e.window);
+
+  // TODO: Hack; sync to clear errors from the event queue.
+  xconn_->ClearErrors();
 }
 
 void WindowManager::HandleEnterNotify(const XEnterWindowEvent& e) {
@@ -1272,6 +1281,8 @@ void WindowManager::HandleMapNotify(const XMapEvent& e) {
   VLOG(1) << "Handling map notify for " << XidStr(e.window);
   win->set_mapped(true);
   HandleMappedWindow(win);
+  // TODO: Hack; sync to clear errors from the event queue.
+  xconn_->ClearErrors();
 }
 
 void WindowManager::HandleMapRequest(const XMapRequestEvent& e) {

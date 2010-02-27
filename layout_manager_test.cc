@@ -13,6 +13,7 @@
 #include "window_manager/panel.h"
 #include "window_manager/stacking_manager.h"
 #include "window_manager/test_lib.h"
+#include "window_manager/toplevel_window.h"
 #include "window_manager/util.h"
 #include "window_manager/window.h"
 #include "window_manager/window_manager.h"

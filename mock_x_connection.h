@@ -91,7 +91,7 @@ class MockXConnection : public XConnection {
   std::string GetStringFromKeySym(KeySym keysym) { return ""; }
   bool GrabKey(KeyCode keycode, uint32 modifiers);
   bool UngrabKey(KeyCode keycode, uint32 modifiers);
-  XDamage CreateDamage(XDrawable drawable, int level) { return None; }
+  XDamage CreateDamage(XDrawable drawable, int level) { return 1; }
   void DestroyDamage(XDamage damage) {}
   void SubtractRegionFromDamage(XDamage damage,
                                 XServerRegion repair,
@@ -99,6 +99,7 @@ class MockXConnection : public XConnection {
   bool SetDetectableKeyboardAutoRepeat(bool detectable) { return true; }
   bool QueryKeyboardState(std::vector<uint8_t>* keycodes_out) { return true; }
   bool QueryPointerPosition(int* x_root, int* y_root);
+  void ClearErrors() {}
 
   // Testing-specific code.
   struct WindowInfo {

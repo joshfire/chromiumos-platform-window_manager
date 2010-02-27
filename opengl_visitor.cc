@@ -24,6 +24,7 @@
 #include "base/logging.h"
 #include "window_manager/gl_interface.h"
 #include "window_manager/image_container.h"
+#include "window_manager/util.h"
 
 DECLARE_bool(tidy_display_debug_needle);
 
@@ -167,7 +168,14 @@ bool OpenGlPixmapData::BindToPixmap(
   data->glx_pixmap_ = gl_interface->CreateGlxPixmap(config,
                                                     data->pixmap_,
                                                     attribs);
-  CHECK(data->glx_pixmap_ != XCB_NONE) << "Newly created GLX Pixmap is NULL";
+  if (data->glx_pixmap_ == XCB_NONE) {
+    // TODO: Figure out what causes this.  Perhaps the window was destroyed
+    // by the time that we tried to use its pixmap.
+    LOG(WARNING) << "Failed to create GLX pixmap for window "
+                 << XidStr(actor->texture_pixmap_window()) << " using pixmap "
+                 << XidStr(data->pixmap_);
+    return false;
+  }
 
   gl_interface->GenTextures(1, &data->texture_);
   gl_interface->BindTexture(GL_TEXTURE_2D, data->texture_);
@@ -175,6 +183,12 @@ bool OpenGlPixmapData::BindToPixmap(
   gl_interface->BindGlxTexImage(data->glx_pixmap_, GLX_FRONT_LEFT_EXT, NULL);
   data->damage_ = x_conn->CreateDamage(actor->texture_pixmap_window(),
                                        XCB_DAMAGE_REPORT_LEVEL_NON_EMPTY);
+  if (data->damage_ == XCB_NONE) {
+    LOG(WARNING) << "Failed to create damage object for window "
+                 << XidStr(actor->texture_pixmap_window());
+    return false;
+  }
+
   actor->SetDrawingData(OpenGlDrawVisitor::PIXMAP_DATA,
                         TidyInterface::DrawingDataPtr(data.release()));
   actor->set_dirty();
