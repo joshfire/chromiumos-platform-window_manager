@@ -377,7 +377,8 @@ bool WindowManager::Init() {
   metrics_reporter_timeout_id_ = event_loop_->AddTimeout(
       NewPermanentCallback(
           metrics_reporter_.get(), &MetricsReporter::AttemptReport),
-      true, MetricsReporter::kMetricsReportingIntervalMs);  // recurring=true
+      MetricsReporter::kMetricsReportingIntervalMs,
+      MetricsReporter::kMetricsReportingIntervalMs);
 
   return true;
 }
@@ -1551,7 +1552,7 @@ void WindowManager::ToggleHotkeyOverlay() {
     query_keyboard_state_timeout_id_ =
         event_loop_->AddTimeout(
             NewPermanentCallback(this, &WindowManager::QueryKeyboardState),
-            true, kHotkeyOverlayPollMs);  // recurring=true
+            0, kHotkeyOverlayPollMs);
   } else {
     group->SetOpacity(0, kHotkeyOverlayAnimMs);
     DCHECK_GE(query_keyboard_state_timeout_id_, 0);

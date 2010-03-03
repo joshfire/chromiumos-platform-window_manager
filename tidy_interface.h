@@ -57,7 +57,7 @@ class TidyInterface : public ClutterInterface {
   class AnimationBase {
    public:
     // This is in milliseconds.
-    typedef int64 AnimationTime;
+    typedef int64_t AnimationTime;
     AnimationBase(AnimationTime start_time, AnimationTime end_time);
     virtual ~AnimationBase() {}
     // Evaluate the animation at the passed-in time and update the
@@ -185,13 +185,13 @@ class TidyInterface : public ClutterInterface {
     int GetYScale() { return scale_y_; }
     void SetVisibility(bool visible) {
       visible_ = visible;
-      set_dirty();
+      SetDirty();
     }
     void SetSize(int width, int height) {
       width_ = width;
       height_ = height;
       SetSizeImpl(&width_, &height_);
-      set_dirty();
+      SetDirty();
     }
     void SetName(const std::string& name) { name_ = name; }
     const std::string& name() const { return name_; }
@@ -240,7 +240,7 @@ class TidyInterface : public ClutterInterface {
     float opacity() const { return opacity_; }
     float scale_x() const { return scale_x_; }
     float scale_y() const { return scale_y_; }
-    void set_dirty() { interface_->dirty_ = true; }
+    void SetDirty() { interface_->SetDirty(); }
 
     // Sets the drawing data of the given type on this object.
     void SetDrawingData(int32 id, DrawingDataPtr data) {
@@ -492,8 +492,6 @@ class TidyInterface : public ClutterInterface {
   TidyInterface(EventLoop* event_loop, GLInterfaceBase* gl_interface);
   ~TidyInterface();
 
-  XConnection* x_conn();
-
   // Begin ClutterInterface methods
   void SetEventSource(CompositorEventSource* source) { event_source_ = source; }
   ContainerActor* CreateGroup();
@@ -512,13 +510,35 @@ class TidyInterface : public ClutterInterface {
   void HandleWindowDamaged(XWindow xid);
   // End ClutterInterface methods
 
+  XConnection* x_conn();
+  int actor_count() { return actor_count_; }
+  bool dirty() const { return dirty_; }
+  void set_current_time_ms_for_testing(int64_t time_ms) {
+    current_time_ms_for_testing_ = time_ms;
+  }
+
+  // These accessors are present for testing.
+  int draw_timeout_id() const { return draw_timeout_id_; }
+  bool draw_timeout_enabled() const { return draw_timeout_enabled_; }
+
   void AddActor(Actor* actor) { actors_.push_back(actor); }
   void RemoveActor(Actor* actor);
 
-  AnimationBase::AnimationTime GetCurrentTime() { return now_; }
-  int actor_count() { return actor_count_; }
-  bool dirty() const { return dirty_; }
+  // Returns the current time, as milliseconds since the epoch, or
+  // 'current_time_ms_for_testing_' if it's 0 or positive.
+  AnimationBase::AnimationTime GetCurrentTimeMs();
 
+  // Mark the scene as dirty, enabling the draw timeout if needed.
+  void SetDirty();
+
+  // Increment or decrement the number of in-progress actors.  This is
+  // invoked by Actor as animations start or stop.  The increment method
+  // enables the draw timeout if needed.
+  void IncrementNumAnimations();
+  void DecrementNumAnimations();
+
+  // Run in-progress animations and redraw the scene if needed.  Disables
+  // the draw timeout if there are no in-progress animations.
   void Draw();
 
  private:
@@ -527,9 +547,6 @@ class TidyInterface : public ClutterInterface {
   // Used by tests.
   void set_actor_count(int count) { actor_count_ = count; }
 
-  // Returns the real current time, for updating animation time.
-  AnimationBase::AnimationTime GetCurrentRealTime();
-
   // This is called when we start monitoring for changes, and sets up
   // redirection for the supplied window.
   void StartMonitoringWindowForChanges(XWindow xid, TexturePixmapActor* actor);
@@ -537,6 +554,11 @@ class TidyInterface : public ClutterInterface {
   // This is called when we stop monitoring for changes, and removes
   // the redirection for the supplied window.
   void StopMonitoringWindowForChanges(XWindow xid, TexturePixmapActor* actor);
+
+  // Enable or disable the draw timeout.  Safe to call if it's already
+  // enabled/disabled.
+  void EnableDrawTimeout();
+  void DisableDrawTimeout();
 
   EventLoop* event_loop_;  // not owned
 
@@ -548,6 +570,9 @@ class TidyInterface : public ClutterInterface {
 
   // This indicates if the interface is dirty and needs to be redrawn.
   bool dirty_;
+
+  // Total number of in-progress animations.
+  int num_animations_;
 
   // This is the list of actors to display.
   ActorVector actors_;
@@ -576,8 +601,18 @@ class TidyInterface : public ClutterInterface {
   OpenGlesDrawVisitor* draw_visitor_;
 #endif
 
+  // If 0 or positive, the time that will be returned by GetCurrentTimeMs().
+  // Used for testing.
+  int64_t current_time_ms_for_testing_;
+
+  // Time that we last drew the scene, as milliseconds since the epoch.
+  int64_t last_draw_time_ms_;
+
   // ID of the event loop timeout used to invoke Draw().
   int draw_timeout_id_;
+
+  // Is the drawing timeout currently enabled?
+  bool draw_timeout_enabled_;
 
   DISALLOW_COPY_AND_ASSIGN(TidyInterface);
 };

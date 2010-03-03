@@ -36,10 +36,15 @@ DEFINE_bool(tidy_display_debug_needle, false,
 namespace window_manager {
 
 using chromeos::NewPermanentCallback;
+using std::max;
+using std::min;
 using std::tr1::shared_ptr;
 
 const float TidyInterface::LayerVisitor::kMinDepth = -2048.0f;
 const float TidyInterface::LayerVisitor::kMaxDepth = 2048.0f;
+
+// Minimum amount of time in milliseconds between scene redraws.
+static const int64_t kDrawTimeoutMs = 16;
 
 TidyInterface::AnimationBase::AnimationBase(AnimationTime start_time,
                                             AnimationTime end_time)
@@ -250,7 +255,7 @@ void TidyInterface::Actor::Raise(ClutterInterface::Actor* other) {
       dynamic_cast<TidyInterface::Actor*>(other);
   CHECK(other_nc) << "Failed to cast to an Actor in Raise";
   parent_->RaiseChild(this, other_nc);
-  set_dirty();
+  SetDirty();
 }
 
 void TidyInterface::Actor::Lower(ClutterInterface::Actor* other) {
@@ -259,19 +264,19 @@ void TidyInterface::Actor::Lower(ClutterInterface::Actor* other) {
       dynamic_cast<TidyInterface::Actor*>(other);
   CHECK(other_nc) << "Failed to cast to an Actor in Lower";
   parent_->LowerChild(this, other_nc);
-  set_dirty();
+  SetDirty();
 }
 
 void TidyInterface::Actor::RaiseToTop() {
   CHECK(parent_) << "Tried to raise an actor to top that has no parent.";
   parent_->RaiseChild(this, NULL);
-  set_dirty();
+  SetDirty();
 }
 
 void TidyInterface::Actor::LowerToBottom() {
   CHECK(parent_) << "Tried to lower an actor to bottom that has no parent.";
   parent_->LowerChild(this, NULL);
-  set_dirty();
+  SetDirty();
 }
 
 TidyInterface::DrawingDataPtr TidyInterface::Actor::GetDrawingData(
@@ -286,12 +291,16 @@ TidyInterface::DrawingDataPtr TidyInterface::Actor::GetDrawingData(
 void TidyInterface::Actor::Update(int* count,
                                   AnimationBase::AnimationTime now) {
   (*count)++;
+  if (animations_.empty())
+    return;
+
+  SetDirty();
   AnimationList::iterator iterator = animations_.begin();
-  if (!animations_.empty()) set_dirty();
   while (iterator != animations_.end()) {
     bool done = (*iterator)->Eval(now);
     if (done) {
       iterator = animations_.erase(iterator);
+      interface_->DecrementNumAnimations();
     } else {
       ++iterator;
     }
@@ -301,26 +310,27 @@ void TidyInterface::Actor::Update(int* count,
 void TidyInterface::Actor::AnimateFloat(float* field, float value,
                                         int duration_ms) {
   if (duration_ms > 0) {
-    AnimationBase::AnimationTime now = interface_->GetCurrentTime();
+    AnimationBase::AnimationTime now = interface_->GetCurrentTimeMs();
     shared_ptr<AnimationBase> animation(
         new FloatAnimation(field, value, now, now + duration_ms));
     animations_.push_back(animation);
+    interface_->IncrementNumAnimations();
   } else {
     *field = value;
-    set_dirty();
+    SetDirty();
   }
 }
 
-void TidyInterface::Actor::AnimateInt(int* field, int value,
-                                      int duration_ms) {
+void TidyInterface::Actor::AnimateInt(int* field, int value, int duration_ms) {
   if (duration_ms > 0) {
-    AnimationBase::AnimationTime now = interface_->GetCurrentTime();
+    AnimationBase::AnimationTime now = interface_->GetCurrentTimeMs();
     shared_ptr<AnimationBase> animation(
         new IntAnimation(field, value, now, now + duration_ms));
     animations_.push_back(animation);
+    interface_->IncrementNumAnimations();
   } else {
     *field = value;
-    set_dirty();
+    SetDirty();
   }
 }
 
@@ -339,7 +349,7 @@ void TidyInterface::ContainerActor::AddActor(
   cast_actor->set_parent(this);
   children_.insert(children_.begin(), cast_actor);
   set_has_children(true);
-  set_dirty();
+  SetDirty();
 }
 
 // Note that the passed-in Actors might be partially destroyed (the
@@ -352,7 +362,7 @@ void TidyInterface::ContainerActor::RemoveActor(
   if (iterator != children_.end()) {
     children_.erase(iterator);
     set_has_children(!children_.empty());
-    set_dirty();
+    SetDirty();
   }
 }
 
@@ -480,7 +490,7 @@ bool TidyInterface::TexturePixmapActor::SetTexturePixmapWindow(
   Reset();
   window_ = xid;
   interface()->StartMonitoringWindowForChanges(window_, this);
-  set_dirty();
+  SetDirty();
   return true;
 }
 
@@ -489,7 +499,7 @@ void TidyInterface::TexturePixmapActor::Reset() {
     interface()->StopMonitoringWindowForChanges(window_, this);
   window_ = None;
   DestroyPixmap();
-  set_dirty();
+  SetDirty();
 }
 
 void TidyInterface::TexturePixmapActor::DestroyPixmap() {
@@ -535,7 +545,7 @@ void TidyInterface::TexturePixmapActor::RefreshPixmap() {
   if (data)
     data->Refresh();
 #endif
-  set_dirty();
+  SetDirty();
 }
 
 TidyInterface::StageActor::StageActor(TidyInterface* an_interface,
@@ -563,14 +573,19 @@ void TidyInterface::StageActor::SetSizeImpl(int* width, int* height) {
   interface()->x_conn()->ResizeWindow(window_, *width, *height);
 }
 
+
 TidyInterface::TidyInterface(EventLoop* event_loop,
                              GLInterfaceBase* gl_interface)
     : event_loop_(event_loop),
       event_source_(NULL),
       dirty_(true),
-      actor_count_(0) {
+      num_animations_(0),
+      actor_count_(0),
+      current_time_ms_for_testing_(-1),
+      last_draw_time_ms_(-1),
+      draw_timeout_id_(-1),
+      draw_timeout_enabled_(false) {
   CHECK(event_loop_);
-  now_ = GetCurrentRealTime();
   XWindow root = x_conn()->GetRootWindow();
   XConnection::WindowGeometry geometry;
   x_conn()->GetWindowGeometry(root, &geometry);
@@ -589,17 +604,17 @@ TidyInterface::TidyInterface(EventLoop* event_loop,
                                           default_stage_.get());
 #endif
 
-  // Register a recurring timeout.
-  // TODO: Remove this lovely hack, and replace it with something that
-  // knows more about keeping a consistent frame rate.
   draw_timeout_id_ = event_loop_->AddTimeout(
-      NewPermanentCallback(this, &TidyInterface::Draw), true, 20);
+      NewPermanentCallback(this, &TidyInterface::Draw), 0, kDrawTimeoutMs);
+  draw_timeout_enabled_ = true;
 }
 
 TidyInterface::~TidyInterface() {
   delete draw_visitor_;
-  if (draw_timeout_id_ >= 0)
+  if (draw_timeout_id_ >= 0) {
     event_loop_->RemoveTimeout(draw_timeout_id_);
+    draw_timeout_id_ = -1;
+  }
 }
 
 XConnection* TidyInterface::x_conn() { return event_loop_->xconn(); }
@@ -665,7 +680,7 @@ void TidyInterface::HandleWindowConfigured(XWindow xid) {
   // Get a new pixmap with a new size.
   if (actor) {
     actor->DestroyPixmap();
-    actor->set_dirty();
+    actor->SetDirty();
   }
 }
 
@@ -711,21 +726,62 @@ void TidyInterface::StopMonitoringWindowForChanges(
   event_source_->StopSendingEventsForWindowToCompositor(xid);
 }
 
-void TidyInterface::Draw() {
-  now_ = GetCurrentRealTime();
-  actor_count_ = 0;
-  default_stage_->Update(&actor_count_, now_);
-  if (dirty_) {
-    default_stage_->Accept(draw_visitor_);
-    dirty_ = false;
-  }
-}
+TidyInterface::AnimationBase::AnimationTime TidyInterface::GetCurrentTimeMs() {
+  if (current_time_ms_for_testing_ >= 0)
+    return current_time_ms_for_testing_;
 
-TidyInterface::AnimationBase::AnimationTime
-TidyInterface::GetCurrentRealTime() {
   struct timeval tv;
   gettimeofday(&tv, NULL);
   return 1000ULL * tv.tv_sec + tv.tv_usec / 1000ULL;
+}
+
+void TidyInterface::SetDirty() {
+  if (!dirty_)
+    EnableDrawTimeout();
+  dirty_ = true;
+}
+
+void TidyInterface::IncrementNumAnimations() {
+  num_animations_++;
+  if (num_animations_ == 1)
+    EnableDrawTimeout();
+}
+
+void TidyInterface::DecrementNumAnimations() {
+  num_animations_--;
+  DCHECK(num_animations_ >= 0) << "Decrementing animation count below zero";
+}
+
+void TidyInterface::Draw() {
+  int64_t now = GetCurrentTimeMs();
+  if (num_animations_ > 0 || dirty_) {
+    actor_count_ = 0;
+    default_stage_->Update(&actor_count_, now);
+  }
+  if (dirty_) {
+    last_draw_time_ms_ = now;
+    default_stage_->Accept(draw_visitor_);
+    dirty_ = false;
+  }
+  if (num_animations_ == 0)
+    DisableDrawTimeout();
+}
+
+void TidyInterface::EnableDrawTimeout() {
+  if (!draw_timeout_enabled_) {
+    int64_t ms_since_draw = max(GetCurrentTimeMs() - last_draw_time_ms_,
+                                static_cast<int64_t>(0));
+    int ms_until_draw = kDrawTimeoutMs - min(ms_since_draw, kDrawTimeoutMs);
+    event_loop_->ResetTimeout(draw_timeout_id_, ms_until_draw, kDrawTimeoutMs);
+    draw_timeout_enabled_ = true;
+  }
+}
+
+void TidyInterface::DisableDrawTimeout() {
+  if (draw_timeout_enabled_) {
+    event_loop_->SuspendTimeout(draw_timeout_id_);
+    draw_timeout_enabled_ = false;
+  }
 }
 
 }  // namespace window_manager

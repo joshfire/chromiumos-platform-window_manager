@@ -185,7 +185,7 @@ bool OpenGlPixmapData::BindToPixmap(
 
   actor->SetDrawingData(OpenGlDrawVisitor::PIXMAP_DATA,
                         TidyInterface::DrawingDataPtr(data.release()));
-  actor->set_dirty();
+  actor->SetDirty();
   return true;
 }
 

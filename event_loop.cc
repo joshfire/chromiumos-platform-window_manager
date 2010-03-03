@@ -29,6 +29,21 @@ using std::max;
 using std::pop_heap;
 using std::tr1::shared_ptr;
 
+static void FillTimerSpec(struct itimerspec* spec,
+                          int initial_timeout_ms,
+                          int recurring_timeout_ms) {
+  DCHECK(spec);
+  memset(spec, 0, sizeof(*spec));
+  spec->it_value.tv_sec = initial_timeout_ms / 1000;
+  // timerfd interprets 0 values as disabling the timer; set it to run in
+  // one nanosecond instead.
+  spec->it_value.tv_nsec = initial_timeout_ms ?
+      (initial_timeout_ms % 1000) * 1000000 :
+      1;
+  spec->it_interval.tv_sec = recurring_timeout_ms / 1000;
+  spec->it_interval.tv_nsec = (recurring_timeout_ms % 1000) * 1000000;
+}
+
 EventLoop::EventLoop(XConnection* xconn)
     : xconn_(xconn),
       subscriber_(NULL),
@@ -102,9 +117,12 @@ void EventLoop::Run() {
       << strerror(errno);
 }
 
-int EventLoop::AddTimeout(Closure* cb, bool recurring, int timeout_ms) {
+int EventLoop::AddTimeout(Closure* cb,
+                          int initial_timeout_ms,
+                          int recurring_timeout_ms) {
   DCHECK(cb);
-  DCHECK(timeout_ms >= 0);
+  DCHECK(initial_timeout_ms >= 0);
+  DCHECK(recurring_timeout_ms >= 0);
 
   // Use a monotonically-increasing clock -- we don't want to be affected
   // by changes to the system time.
@@ -116,15 +134,10 @@ int EventLoop::AddTimeout(Closure* cb, bool recurring, int timeout_ms) {
       << strerror(errno);
 
   struct itimerspec new_timer_spec;
-  memset(&new_timer_spec, 0, sizeof(new_timer_spec));
-  new_timer_spec.it_value.tv_sec = timeout_ms / 1000;
-  new_timer_spec.it_value.tv_nsec = (timeout_ms % 1000) * 1000000;
-  if (recurring) {
-    new_timer_spec.it_interval.tv_sec = new_timer_spec.it_value.tv_sec;
-    new_timer_spec.it_interval.tv_nsec = new_timer_spec.it_value.tv_nsec;
-  }
   struct itimerspec old_timer_spec;
-  timerfd_settime(timer_fd, 0, &new_timer_spec, &old_timer_spec);
+  FillTimerSpec(&new_timer_spec, initial_timeout_ms, recurring_timeout_ms);
+  CHECK(timerfd_settime(timer_fd, 0, &new_timer_spec, &old_timer_spec) == 0)
+      << strerror(errno);
 
   CHECK(timeouts_.insert(make_pair(timer_fd, shared_ptr<Closure>(cb))).second)
       << "timer fd " << timer_fd << " already exists";
@@ -139,6 +152,24 @@ void EventLoop::RemoveTimeout(int id) {
   CHECK(epoll_ctl(epoll_fd_, EPOLL_CTL_DEL, id, NULL) != -1) << strerror(errno);
   timeouts_.erase(it);
   CHECK_EQ(HANDLE_EINTR(close(id)), 0) << strerror(errno);
+}
+
+void EventLoop::SuspendTimeout(int id) {
+  struct itimerspec new_timer_spec;
+  struct itimerspec old_timer_spec;
+  memset(&new_timer_spec, 0, sizeof(new_timer_spec));
+  CHECK(timerfd_settime(id, 0, &new_timer_spec, &old_timer_spec) == 0)
+      << strerror(errno);
+}
+
+void EventLoop::ResetTimeout(int id,
+                             int initial_timeout_ms,
+                             int recurring_timeout_ms) {
+  struct itimerspec new_timer_spec;
+  struct itimerspec old_timer_spec;
+  FillTimerSpec(&new_timer_spec, initial_timeout_ms, recurring_timeout_ms);
+  CHECK(timerfd_settime(id, 0, &new_timer_spec, &old_timer_spec) == 0)
+      << strerror(errno);
 }
 
 }  // namespace window_manager

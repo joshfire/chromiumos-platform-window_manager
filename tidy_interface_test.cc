@@ -617,6 +617,69 @@ TEST_F(TidyTest, DeleteGroup) {
   interface()->Draw();
 }
 
+// Test that we enable and disable the draw timeout as needed.
+TEST_F(TidyTest, DrawTimeout) {
+  int64_t now = 1000;  // arbitrary
+  interface()->set_current_time_ms_for_testing(now);
+
+  // The interface should create a draw timeout and draw just once
+  // initially.
+  EXPECT_GE(interface()->draw_timeout_id(), 0);
+  EXPECT_TRUE(interface()->draw_timeout_enabled());
+  interface()->Draw();
+  EXPECT_FALSE(interface()->draw_timeout_enabled());
+
+  // After we add an actor, we should draw another frame.
+  scoped_ptr<TidyInterface::Actor> actor(
+      interface()->CreateRectangle(
+          ClutterInterface::Color(), ClutterInterface::Color(), 0));
+  interface()->GetDefaultStage()->AddActor(actor.get());
+  EXPECT_TRUE(interface()->draw_timeout_enabled());
+  interface()->Draw();
+  EXPECT_FALSE(interface()->draw_timeout_enabled());
+
+  // Now animate the actor's X position over 100 ms and its Y position over
+  // 200 ms.
+  actor->MoveX(300, 100);
+  actor->MoveY(400, 150);
+  EXPECT_TRUE(interface()->draw_timeout_enabled());
+
+  // If we draw 50 ms later, both animations should still be active, as
+  // well as the timeout.
+  now += 50;
+  interface()->set_current_time_ms_for_testing(now);
+  interface()->Draw();
+  EXPECT_TRUE(interface()->draw_timeout_enabled());
+
+  // After drawing 51 ms later, the first animation will be gone, but we
+  // still keep the timeout alive for the second animation.
+  now += 51;
+  interface()->set_current_time_ms_for_testing(now);
+  interface()->Draw();
+  EXPECT_TRUE(interface()->draw_timeout_enabled());
+
+  // 100 ms later, the second animation has ended, so we should remove the
+  // timeout after drawing.
+  now += 100;
+  interface()->set_current_time_ms_for_testing(now);
+  interface()->Draw();
+  EXPECT_FALSE(interface()->draw_timeout_enabled());
+
+  // If we move the actor instantaneously, we should draw a single frame.
+  actor->Move(500, 600, 0);
+  EXPECT_TRUE(interface()->draw_timeout_enabled());
+  interface()->Draw();
+  EXPECT_FALSE(interface()->draw_timeout_enabled());
+
+  // We should also draw one more time after deleting the actor.
+  actor.reset();
+  EXPECT_TRUE(interface()->draw_timeout_enabled());
+  interface()->Draw();
+  EXPECT_FALSE(interface()->draw_timeout_enabled());
+
+  // TODO: Test the durations that we set for for the timeout.
+}
+
 }  // end namespace window_manager
 
 int main(int argc, char **argv) {

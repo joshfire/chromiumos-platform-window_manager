@@ -36,7 +36,7 @@ PointerPositionWatcher::PointerPositionWatcher(
   timeout_id_ =
       event_loop_->AddTimeout(
           NewPermanentCallback(this, &PointerPositionWatcher::HandleTimeout),
-          true, kTimeoutMs);  // recurring=true
+          0, kTimeoutMs);  // recurring=true
 }
 
 PointerPositionWatcher::~PointerPositionWatcher() {

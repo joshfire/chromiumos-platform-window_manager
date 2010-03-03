@@ -267,7 +267,7 @@ void PanelBar::HandleInputWindowPointerEnter(XWindow xid,
             wm()->event_loop()->AddTimeout(
                 NewPermanentCallback(
                     this, &PanelBar::HandleShowCollapsedPanelsTimeout),
-                false, kShowCollapsedPanelsDelayMs);  // recurring=false
+                kShowCollapsedPanelsDelayMs, 0);
       }
     }
   }

@@ -41,7 +41,7 @@ void MotionEventCoalescer::Start() {
   if (!synchronous_) {
     timeout_id_ = event_loop_->AddTimeout(
         NewPermanentCallback(this, &MotionEventCoalescer::HandleTimeout),
-        true, timeout_ms_);  // recurring=true
+        0, timeout_ms_);
   }
   have_queued_position_ = false;
   x_ = -1;

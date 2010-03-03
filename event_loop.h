@@ -41,18 +41,32 @@ class EventLoop {
   // timeouts.
   void Exit() { exit_requested_ = true; }
 
-  // Run 'cb' in 'timeout_ms' milliseconds, returning a non-negative ID
-  // that can be used to refer the timeout later.  Takes ownership of 'cb',
-  // which must be a repeatable (non-deleting) callback.  If 'recurring' is
-  // true, the timeout will be repeated every 'timeout_ms' milliseconds;
-  // otherwise it will only be run once.  Note that even non-recurring
-  // timeouts must be removed using RemoveTimeout() for their resources to
-  // be freed.
-  int AddTimeout(chromeos::Closure* cb, bool recurring, int timeout_ms);
+  // Run 'cb' in 'initial_timeout_ms' milliseconds, returning a
+  // non-negative ID that can be used to refer the timeout later.  A
+  // timeout of 0 will result in the callback being invoked in the next
+  // iteration of the event loop.
+  //
+  // Takes ownership of 'cb', which must be a repeatable
+  // (non-self-deleting) callback.  If 'recurring_timeout_ms' is non-zero,
+  // the timeout will be repeated every 'recurring_timeout_ms' milliseconds
+  // after the initial run; otherwise it will only be run once.  Note that
+  // even non-recurring timeouts must be removed using RemoveTimeout() for
+  // their resources to be freed.
+  int AddTimeout(chromeos::Closure* cb,
+                 int initial_timeout_ms,
+                 int recurring_timeout_ms);
 
   // Remove a timeout.  It is safe to call this from within the callback of
   // the timeout that's being removed.
   void RemoveTimeout(int id);
+
+  // Suspend a previously-registered timeout.  Use ResetTimeout() to
+  // unsuspend it.
+  void SuspendTimeout(int fd);
+
+  // Modify a previously-registered timeout.  The timeout arguments are
+  // interpreted in the same manner as in AddTimeout().
+  void ResetTimeout(int id, int initial_timeout_ms, int recurring_timeout_ms);
 
  private:
   typedef std::map<int, std::tr1::shared_ptr<chromeos::Closure> > TimeoutMap;

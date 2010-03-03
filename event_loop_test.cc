@@ -41,7 +41,7 @@ class TestEventLoopSubscriber : public EventLoopSubscriber {
         // Make HandleTimeout() get run every five milliseconds.
         timeout_id_ = event_loop_->AddTimeout(
             NewPermanentCallback(this, &TestEventLoopSubscriber::HandleTimeout),
-            true, 5);  // recurring=true
+            5, 5);
         break;
       }
       case ButtonRelease: {
