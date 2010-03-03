@@ -52,24 +52,34 @@ using std::vector;
 // Maximum property size in bytes (both for reading and setting).
 static const size_t kMaxPropertySize = 1024;
 
+// Xlib error handler that was originally installed.
 static int (*old_error_handler)(XDisplay*, XErrorEvent*) = NULL;
 
-static int last_trapped_error_code = 0;
-static int last_trapped_request_code = 0;
-static int last_trapped_minor_code = 0;
+// Are we currently trapping errors?  Set by TrapErrors() and cleared by
+// UntrapErrors().  Note that we always catch errors instead of letting
+// them fall through to Xlib's default handler; this is just used to
+// (sometimes) match errors with the requests that generated them.  We just
+// use this variable to catch places where TrapErrors() is incorrectly
+// called twice in a row.
+static bool trapping_errors = false;
+
+// Information about the last error that HandleXError() received.
+static int last_error_code = 0;
+static int last_error_request_major_opcode = 0;
+static int last_error_request_minor_opcode = 0;
 
 static int HandleXError(XDisplay* display, XErrorEvent* event) {
-  last_trapped_error_code = event->error_code;
-  last_trapped_request_code = event->request_code;
-  last_trapped_minor_code = event->minor_code;
+  last_error_code = event->error_code;
+  last_error_request_major_opcode = event->request_code;
+  last_error_request_minor_opcode = event->minor_code;
   char error_description[256] = "";
   XGetErrorText(display, event->error_code,
                 error_description, sizeof(error_description));
   LOG(WARNING) << "Handled X error on display " << display << ":"
-               << " error=" << last_trapped_error_code
+               << " error=" << last_error_code
                << " (" << error_description << ")"
-               << " request=" << last_trapped_request_code
-               << " minor=" << last_trapped_minor_code;
+               << " major=" << last_error_request_major_opcode
+               << " minor=" << last_error_request_minor_opcode;
   return 0;
 }
 
@@ -79,6 +89,10 @@ RealXConnection::RealXConnection(XDisplay* display)
       root_(XCB_NONE),
       utf8_string_atom_(XCB_NONE) {
   CHECK(display_);
+
+  // Install our own Xlib error handler to avoid crashing (the default
+  // behavior when Xlib sees an error in the event queue).
+  old_error_handler = XSetErrorHandler(&HandleXError);
 
   xcb_conn_ = XGetXCBConnection(display_);
   CHECK(xcb_conn_) "Couldn't get XCB connection from Xlib display";
@@ -108,6 +122,8 @@ RealXConnection::~RealXConnection() {
        it != cursors_.end(); ++it) {
     xcb_free_cursor(xcb_conn_, it->second);
   }
+  CHECK_EQ(XSetErrorHandler(old_error_handler), &HandleXError)
+      << "Our error handler was replaced with someone else's";
 }
 
 bool RealXConnection::GetWindowGeometry(XDrawable xid,
@@ -459,13 +475,8 @@ bool RealXConnection::RedirectWindowForCompositing(XWindow xid) {
 }
 
 bool RealXConnection::UnredirectWindowForCompositing(XWindow xid) {
-  // TODO: We don't actually care about checking for an error here, but it
-  // looks like errors may be leaking into GDK's event queue and
-  // triggering crashes.
-  xcb_void_cookie_t cookie = xcb_composite_unredirect_window_checked(
+  xcb_composite_unredirect_window(
       xcb_conn_, xid, XCB_COMPOSITE_REDIRECT_MANUAL);
-  CheckForXcbError(cookie, "in UnredirectWindowForCompositing (xid=0x%08x)",
-                   static_cast<int>(xid));
   return true;
 }
 
@@ -494,12 +505,7 @@ XPixmap RealXConnection::GetCompositingPixmapForWindow(XWindow xid) {
 }
 
 bool RealXConnection::FreePixmap(XPixmap pixmap) {
-  // TODO: We don't actually care about checking for an error here, but it
-  // looks like the error may be leaking into GDK's event queue and
-  // triggering a crash.
-  xcb_void_cookie_t cookie = xcb_free_pixmap_checked(xcb_conn_, pixmap);
-  CheckForXcbError(cookie, "in FreePixmap (pixmap=0x%08x)",
-                   static_cast<int>(pixmap));
+  xcb_free_pixmap(xcb_conn_, pixmap);
   return true;
 }
 
@@ -932,12 +938,7 @@ XDamage RealXConnection::CreateDamage(XDrawable drawable, int level) {
 }
 
 void RealXConnection::DestroyDamage(XDamage damage) {
-  // TODO: We don't actually care about checking for an error here, but it
-  // looks like the error may be leaking into GDK's event queue and
-  // triggering a crash.
-  xcb_void_cookie_t cookie = xcb_damage_destroy_checked(xcb_conn_, damage);
-  CheckForXcbError(cookie, "in DestroyDamage (damage=0x%08x)",
-                   static_cast<int>(damage));
+  xcb_damage_destroy(xcb_conn_, damage);
 }
 
 void RealXConnection::SubtractRegionFromDamage(XDamage damage,
@@ -986,11 +987,6 @@ bool RealXConnection::QueryPointerPosition(int* x_root, int* y_root) {
   return true;
 }
 
-void RealXConnection::ClearErrors() {
-  TrapErrors();
-  UntrapErrors();
-}
-
 void RealXConnection::Free(void* item) {
   XFree(item);
 }
@@ -1002,26 +998,25 @@ XVisualInfo* RealXConnection::GetVisualInfo(long mask,
 }
 
 void RealXConnection::TrapErrors() {
-  CHECK(!old_error_handler) << "X errors are already being trapped";
-  old_error_handler = XSetErrorHandler(&HandleXError);
+  DCHECK(!trapping_errors) << "X errors are already being trapped";
   // Sync to process any errors in the queue from XCB requests.
   XSync(display_, False);
-  last_trapped_error_code = 0;
-  last_trapped_request_code = 0;
-  last_trapped_minor_code = 0;
+  trapping_errors = true;
+  last_error_code = 0;
+  last_error_request_major_opcode = 0;
+  last_error_request_minor_opcode = 0;
 }
 
 int RealXConnection::UntrapErrors() {
-  CHECK(old_error_handler) << "X errors aren't being trapped";
-  // Sync in case we sent a request that didn't require a reply.
+  DCHECK(trapping_errors) << "X errors aren't being trapped";
+  // Sync in case we sent a request that didn't generate a reply.
   XSync(display_, False);
-  XSetErrorHandler(old_error_handler);
-  old_error_handler = NULL;
-  return last_trapped_error_code;
+  trapping_errors = false;
+  return last_error_code;
 }
 
 int RealXConnection::GetLastErrorCode() {
-  return last_trapped_error_code;
+  return last_error_code;
 }
 
 string RealXConnection::GetErrorText(int error_code) {

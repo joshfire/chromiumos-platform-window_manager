@@ -399,11 +399,6 @@ class XConnection {
   // Query the pointer's current position relative to the root window.
   virtual bool QueryPointerPosition(int* x_root, int* y_root) = 0;
 
-  // TODO: This is an awful hack.  We sync with the server to clear the
-  // event queue of errors from XCB functions that may lead to crashes in
-  // Xlib.
-  virtual void ClearErrors() = 0;
-
   // Value that should be used in event and property 'format' fields for
   // byte and long arguments.
   static const int kByteFormat;

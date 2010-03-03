@@ -96,7 +96,6 @@ class RealXConnection : public XConnection {
   bool SetDetectableKeyboardAutoRepeat(bool detectable);
   bool QueryKeyboardState(std::vector<uint8_t>* keycodes_out);
   bool QueryPointerPosition(int* x_root, int* y_root);
-  void ClearErrors();
 
   // This convenience function is ONLY available for a real X
   // connection.  It is not part of the XConnection interface.  This
@@ -111,13 +110,14 @@ class RealXConnection : public XConnection {
                              XVisualInfo* visual_template,
                              int* item_count);
 
-  // Install a custom error handler so we don't crash if we receive an
-  // error from the X server.  Calls to TrapErrors() cannot be nested.
+  // Sync with the X server and reset our error-tracking state.  This must
+  // be followed by a call to UntrapErrors().  Calls to TrapErrors() cannot
+  // be nested.
   void TrapErrors();
 
-  // Remove the custom error handler, restoring the previously-installed
-  // handler.  Returns the last-received error code or 0 if no errors were
-  // received.
+  // Sync with the server and return the last error code that was received.
+  // If no errors were received since the corresponding call to
+  // TrapErrors(), returns 0.
   int UntrapErrors();
 
   // Get the code of the last error since TrapErrors() was called.

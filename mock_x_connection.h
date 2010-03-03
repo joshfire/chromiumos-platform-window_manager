@@ -103,7 +103,6 @@ class MockXConnection : public XConnection {
   bool SetDetectableKeyboardAutoRepeat(bool detectable) { return true; }
   bool QueryKeyboardState(std::vector<uint8_t>* keycodes_out) { return true; }
   bool QueryPointerPosition(int* x_root, int* y_root);
-  void ClearErrors() {}
 
   // Testing-specific code.
   struct WindowInfo {
