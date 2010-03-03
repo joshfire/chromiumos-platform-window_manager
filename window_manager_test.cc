@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <cstdarg>
+#include <vector>
 
 #include <gflags/gflags.h>
 #include <gtest/gtest.h>
@@ -27,6 +28,8 @@ DEFINE_bool(logtostderr, false,
 
 namespace window_manager {
 
+using std::vector;
+
 class WindowManagerTest : public BasicWindowManagerTest {};
 
 class TestEventConsumer : public EventConsumer {
@@ -41,6 +44,9 @@ class TestEventConsumer : public EventConsumer {
   int num_mapped_windows() const { return num_mapped_windows_; }
   int num_unmapped_windows() const { return num_unmapped_windows_; }
   int num_button_presses() const { return num_button_presses_; }
+  const vector<WmIpc::Message>& chrome_messages() const {
+    return chrome_messages_;
+  }
 
   // Begin overridden EventConsumer virtual methods.
   bool IsInputWindow(XWindow xid) { return false; }
@@ -74,7 +80,9 @@ class TestEventConsumer : public EventConsumer {
                            int x, int y,
                            int x_root, int y_root,
                            XTime timestamp) {}
-  void HandleChromeMessage(const WmIpc::Message& msg) {}
+  void HandleChromeMessage(const WmIpc::Message& msg) {
+    chrome_messages_.push_back(msg);
+  }
   void HandleClientMessage(XWindow xid,
                            XAtom message_type,
                            const long data[5]) {}
@@ -86,6 +94,9 @@ class TestEventConsumer : public EventConsumer {
   int num_mapped_windows_;
   int num_unmapped_windows_;
   int num_button_presses_;
+
+  // Messages received via HandleChromeMessage().
+  vector<WmIpc::Message> chrome_messages_;
 };
 
 TEST_F(WindowManagerTest, RegisterExistence) {
@@ -345,6 +356,7 @@ TEST_F(WindowManagerTest, EventConsumer) {
 
   MockXConnection::InitUnmapEvent(&event, xid);
   wm_->HandleEvent(&event);
+  wm_->UnregisterEventConsumerForWindowEvents(xid, &ec);
 
   EXPECT_EQ(1, ec.num_mapped_windows());
   EXPECT_EQ(1, ec.num_button_presses());

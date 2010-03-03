@@ -62,7 +62,8 @@ bool WmIpc::SetSystemMetricsProperty(XWindow xid, const std::string& metrics) {
       xid, atom_cache_->GetXAtom(ATOM_WM_SYSTEM_METRICS), metrics);
 }
 
-bool WmIpc::GetMessage(XAtom message_type,
+bool WmIpc::GetMessage(XWindow xid,
+                       XAtom message_type,
                        int format,
                        const long data[5],
                        Message* msg_out) {
@@ -85,6 +86,8 @@ bool WmIpc::GetMessage(XAtom message_type,
                  << "message type " << msg_out->type();
     return false;
   }
+
+  msg_out->set_xid(xid);
 
   // ClientMessage events only have five 32-bit items, and we're using the
   // first one for our message type.

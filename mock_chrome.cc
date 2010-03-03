@@ -82,6 +82,7 @@ static bool GetWmIpcMessage(const GdkEventClient& event,
                             WmIpc* wm_ipc,
                             WmIpc::Message* msg_out) {
   return wm_ipc->GetMessage(
+      GDK_WINDOW_XID(event.window),
       gdk_x11_atom_to_xatom(event.message_type),
       event.data_format,
       event.data.l,

@@ -190,6 +190,9 @@ class WmIpc {
     Type type() const { return type_; }
     void set_type(Type type) { type_ = type; }
 
+    XWindow xid() const { return xid_; }
+    void set_xid(XWindow xid) { xid_ = xid; }
+
     inline int max_params() const {
       return arraysize(params_);
     }
@@ -208,6 +211,7 @@ class WmIpc {
     // Common initialization code shared between constructors.
     void Init(Type type) {
       set_type(type);
+      xid_ = 0;
       for (int i = 0; i < max_params(); ++i) {
         set_param(i, 0);
       }
@@ -216,8 +220,12 @@ class WmIpc {
     // Type of message that was sent.
     Type type_;
 
+    // Window associated with the event (more specifically, the 'window'
+    // field of the ClientMessage event).
+    XWindow xid_;
+
     // Type-specific data.  This is bounded by the number of 32-bit values
-    // that we can pack into a ClientMessageEvent -- it holds five, but we
+    // that we can pack into a ClientMessage event -- it holds five, but we
     // use the first one to store the Chrome OS message type.
     long params_[4];
   };
@@ -225,13 +233,18 @@ class WmIpc {
   // Check whether the contents of a ClientMessage event from the X server
   // belong to us.  If they do, the message is copied to 'msg' and true is
   // returned; otherwise, false is returned and the caller should continue
-  // processing the event.
-  bool GetMessage(XAtom message_type,
+  // processing the event.  'xid' should be the 'window' field of the
+  // ClientMessage event.
+  bool GetMessage(XWindow xid,
+                  XAtom message_type,
                   int format,
                   const long data[5],
                   Message* msg_out);
 
   // Send a message to a window.  false is returned if an error occurs.
+  // Note that msg.xid() is ignored; the recipient's copy of the message
+  // will contain the destination window specified in this method's 'xid'
+  // parameter.
   bool SendMessage(XWindow xid, const Message& msg);
 
   // Set a property on the chosen window that contains system metrics

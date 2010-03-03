@@ -914,7 +914,7 @@ void WindowManager::HandleClientMessage(const XClientMessageEvent& e) {
           << " with type " << XidStr(e.message_type) << " ("
           << GetXAtomName(e.message_type) << ") and format " << e.format;
   WmIpc::Message msg;
-  if (wm_ipc_->GetMessage(e.message_type, e.format, e.data.l, &msg)) {
+  if (wm_ipc_->GetMessage(e.window, e.message_type, e.format, e.data.l, &msg)) {
     if (msg.type() == WmIpc::Message::WM_NOTIFY_IPC_VERSION) {
       wm_ipc_version_ = msg.param(0);
       LOG(INFO) << "Got WM_NOTIFY_IPC_VERSION message saying that Chrome is "
