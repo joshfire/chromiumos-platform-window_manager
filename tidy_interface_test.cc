@@ -489,7 +489,7 @@ TEST_F(TidyTestTree, ContainerActorAttributes) {
 
 TEST_F(TidyTest, FloatAnimation) {
   float value = -10.0f;
-  TidyInterface::FloatAnimation anim(&value, 10.0f, 0, 20);
+  TidyInterface::Animation<float> anim(&value, 10.0f, 0, 20);
   EXPECT_FALSE(anim.Eval(0));
   EXPECT_FLOAT_EQ(-10.0f, value);
   EXPECT_FALSE(anim.Eval(5));
@@ -507,16 +507,19 @@ TEST_F(TidyTest, FloatAnimation) {
 
 TEST_F(TidyTest, IntAnimation) {
   int value = -10;
-  TidyInterface::IntAnimation anim(&value, 10, 0, 20);
+  TidyInterface::Animation<int> anim(&value, 10, 0, 200);
   EXPECT_FALSE(anim.Eval(0));
   EXPECT_EQ(-10, value);
-  EXPECT_FALSE(anim.Eval(5));
+  EXPECT_FALSE(anim.Eval(50));
   EXPECT_EQ(-7, value);
-  EXPECT_FALSE(anim.Eval(10));
+  EXPECT_FALSE(anim.Eval(100));
   EXPECT_EQ(0, value);
-  EXPECT_FALSE(anim.Eval(15));
+  EXPECT_FALSE(anim.Eval(150));
   EXPECT_EQ(7, value);
-  EXPECT_TRUE(anim.Eval(20));
+  // Test that we round to the nearest value instead of truncating.
+  EXPECT_FALSE(anim.Eval(199));
+  EXPECT_EQ(10, value);
+  EXPECT_TRUE(anim.Eval(200));
   EXPECT_EQ(10, value);
 }
 
@@ -678,6 +681,96 @@ TEST_F(TidyTest, DrawTimeout) {
   EXPECT_FALSE(interface()->draw_timeout_enabled());
 
   // TODO: Test the durations that we set for for the timeout.
+}
+
+// Test that we replace existing animations rather than creating
+// overlapping animations for the same field.
+TEST_F(TidyTest, ReplaceAnimations) {
+  int64_t now = 1000;  // arbitrary
+  interface()->set_current_time_ms_for_testing(now);
+
+  scoped_ptr<TidyInterface::Actor> actor(
+      interface()->CreateRectangle(
+          ClutterInterface::Color(), ClutterInterface::Color(), 0));
+  interface()->GetDefaultStage()->AddActor(actor.get());
+  interface()->Draw();
+
+  // Create 500-ms animations of the actor's X position to 200 and its
+  // Y position to 300, but then replace the Y animation with one that goes
+  // to 800 in just 100 ms.
+  actor->Move(200, 300, 500);
+  actor->MoveY(800, 100);
+
+  // 101 ms later, the actor should be at the final Y position but not yet
+  // at the final X position.
+  now += 101;
+  interface()->set_current_time_ms_for_testing(now);
+  interface()->Draw();
+  EXPECT_EQ(800, actor->GetY());
+  EXPECT_LT(actor->GetX(), 200);
+
+  // 400 ms later (501 since we started the animations), the actor should
+  // be in the final position.  Check that its Y position is still 800
+  // (i.e. the longer-running animation to 300 was replaced by the one to
+  // 800).
+  now += 400;
+  interface()->set_current_time_ms_for_testing(now);
+  interface()->Draw();
+  EXPECT_EQ(200, actor->GetX());
+  EXPECT_EQ(800, actor->GetY());
+
+  // Start 200-ms animations reducing the actor to half its original scale.
+  // After 100 ms, we should be halfway to the final scale (at 3/4 scale).
+  actor->Scale(0.5, 0.5, 200);
+  now += 100;
+  interface()->set_current_time_ms_for_testing(now);
+  interface()->Draw();
+  EXPECT_FLOAT_EQ(0.75, actor->GetXScale());
+  EXPECT_FLOAT_EQ(0.75, actor->GetYScale());
+
+  // Now interrupt the animation with another one going back to the
+  // original scale.  100 ms later, we should be halfway between the scale
+  // at the time the previous animation was interrupted and the original
+  // scale.
+  actor->Scale(1.0, 1.0, 200);
+  now += 100;
+  interface()->set_current_time_ms_for_testing(now);
+  interface()->Draw();
+  EXPECT_FLOAT_EQ(0.875, actor->GetXScale());
+  EXPECT_FLOAT_EQ(0.875, actor->GetYScale());
+
+  // After another 100 ms, we should be back at the original scale.
+  now += 100;
+  interface()->set_current_time_ms_for_testing(now);
+  interface()->Draw();
+  EXPECT_FLOAT_EQ(1, actor->GetXScale());
+  EXPECT_FLOAT_EQ(1, actor->GetYScale());
+}
+
+TEST_F(TidyTest, SkipUnneededAnimations) {
+  int64_t now = 1000;  // arbitrary
+  interface()->set_current_time_ms_for_testing(now);
+
+  // After we add an actor, we should draw a frame.
+  scoped_ptr<TidyInterface::Actor> actor(
+      interface()->CreateRectangle(
+          ClutterInterface::Color(), ClutterInterface::Color(), 0));
+  interface()->GetDefaultStage()->AddActor(actor.get());
+  EXPECT_TRUE(interface()->draw_timeout_enabled());
+  interface()->Draw();
+  EXPECT_FALSE(interface()->draw_timeout_enabled());
+
+  // Set the actor's X position.  We should draw just once.
+  // 200 ms.
+  actor->MoveX(300, 0);
+  EXPECT_TRUE(interface()->draw_timeout_enabled());
+  interface()->Draw();
+  EXPECT_FALSE(interface()->draw_timeout_enabled());
+
+  // We shouldn't do any drawing if we animate to the same position that
+  // we're already in.
+  actor->MoveX(300, 200);
+  EXPECT_FALSE(interface()->draw_timeout_enabled());
 }
 
 }  // end namespace window_manager

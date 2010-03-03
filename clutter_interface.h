@@ -51,8 +51,8 @@ class ClutterInterface {
     virtual int GetHeight() = 0;
     virtual int GetX() = 0;
     virtual int GetY() = 0;
-    virtual int GetXScale() = 0;
-    virtual int GetYScale() = 0;
+    virtual double GetXScale() = 0;
+    virtual double GetYScale() = 0;
 
     virtual void SetVisibility(bool visible) = 0;
     virtual void SetSize(int width, int height) = 0;
@@ -187,8 +187,8 @@ class MockClutterInterface : public ClutterInterface {
     int GetHeight() { return height_; };
     int GetX() { return x_; }
     int GetY() { return y_; };
-    int GetXScale() { return scale_x_; }
-    int GetYScale() { return scale_y_; }
+    double GetXScale() { return scale_x_; }
+    double GetYScale() { return scale_y_; }
     void SetVisibility(bool visible) { visible_ = visible; }
     void SetSize(int width, int height) {
       width_ = width;

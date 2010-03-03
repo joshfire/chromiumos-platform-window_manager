@@ -5,6 +5,7 @@
 #ifndef WINDOW_MANAGER_TIDY_INTERFACE_H_
 #define WINDOW_MANAGER_TIDY_INTERFACE_H_
 
+#include <cmath>
 #include <list>
 #include <map>
 #include <string>
@@ -35,7 +36,6 @@ class XConnection;
 class TidyInterface : public ClutterInterface {
  public:
   class Actor;
-  class AnimationBase;
   class ContainerActor;
   class DrawingData;
   class QuadActor;
@@ -43,7 +43,6 @@ class TidyInterface : public ClutterInterface {
   class TexturePixmapActor;
 
   typedef std::vector<Actor*> ActorVector;
-  typedef std::list<std::tr1::shared_ptr<AnimationBase> > AnimationList;
   typedef std::tr1::shared_ptr<DrawingData> DrawingDataPtr;
   typedef std::map<int32, DrawingDataPtr> DrawingDataMap;
 
@@ -54,52 +53,60 @@ class TidyInterface : public ClutterInterface {
     virtual ~DrawingData() {}
   };
 
-  class AnimationBase {
+  // This is in milliseconds.
+  typedef int64_t AnimationTime;
+
+  template<class T>
+  class Animation {
    public:
-    // This is in milliseconds.
-    typedef int64_t AnimationTime;
-    AnimationBase(AnimationTime start_time, AnimationTime end_time);
-    virtual ~AnimationBase() {}
+    Animation(T* field, T end_value,
+              AnimationTime start_time, AnimationTime end_time)
+        : field_(field) {
+      Reset(end_value, start_time, end_time);
+    }
+    ~Animation() {}
+
+    // Reset the animation to use a new end value and duration.  The
+    // field's current value is used as the start value.
+    void Reset(T end_value, AnimationTime start_time, AnimationTime end_time) {
+      start_value_ = *field_;
+      end_value_ = end_value;
+      start_time_ = start_time;
+      end_time_ = end_time;
+      ease_factor_ = M_PI / (end_time_ - start_time_);
+    }
+
     // Evaluate the animation at the passed-in time and update the
     // field associated with it.  It returns true when the animation
     // is finished.
-    virtual bool Eval(AnimationTime current_time) = 0;
+    bool Eval(AnimationTime current_time) {
+      if (current_time >= end_time_) {
+        *field_ = end_value_;
+        return true;
+      }
+      float x = (1.0f - cosf(ease_factor_ * (current_time - start_time_))) /
+          2.0f;
+      *field_ = InterpolateValue(start_value_, end_value_, x);
+      return false;
+    }
 
-   protected:
+   private:
+    // Helper method for Eval() that interpolates between two points.
+    // Integral types can specialize this to do rounding.
+    static T InterpolateValue(T start_value, T end_value, float fraction) {
+      return start_value + fraction * (end_value - start_value);
+    }
+
+    T* field_;
+    T start_value_;
+    T end_value_;
+
     AnimationTime start_time_;
     AnimationTime end_time_;
+
     float ease_factor_;
 
-   private:
-    DISALLOW_COPY_AND_ASSIGN(AnimationBase);
-  };
-
-  class FloatAnimation : public AnimationBase {
-   public:
-    FloatAnimation(float* field, float end_value,
-                   AnimationTime start_time, AnimationTime end_time);
-    bool Eval(AnimationTime current_time);
-
-   private:
-    float* field_;
-    float start_value_;
-    float end_value_;
-
-    DISALLOW_COPY_AND_ASSIGN(FloatAnimation);
-  };
-
-  class IntAnimation : public AnimationBase {
-   public:
-    IntAnimation(int* field, int end_value,
-                 AnimationTime start_time, AnimationTime end_time);
-    bool Eval(AnimationTime current_time);
-
-   private:
-    int* field_;
-    int start_value_;
-    int end_value_;
-
-    DISALLOW_COPY_AND_ASSIGN(IntAnimation);
+    DISALLOW_COPY_AND_ASSIGN(Animation);
   };
 
   class ActorVisitor {
@@ -181,8 +188,8 @@ class TidyInterface : public ClutterInterface {
     int GetHeight() { return height_; }
     int GetX() { return x_; }
     int GetY() { return y_; }
-    int GetXScale() { return scale_x_; }
-    int GetYScale() { return scale_y_; }
+    double GetXScale() { return scale_x_; }
+    double GetYScale() { return scale_y_; }
     void SetVisibility(bool visible) {
       visible_ = visible;
       SetDirty();
@@ -211,7 +218,7 @@ class TidyInterface : public ClutterInterface {
 
     // Updates the actor in response to time passing, and counts the
     // number of actors as it goes.
-    virtual void Update(int32* count, AnimationBase::AnimationTime now);
+    virtual void Update(int32* count, AnimationTime now);
 
     // Regular actors have no children, but we want to be able to
     // avoid a virtual function call to determine this while
@@ -262,13 +269,23 @@ class TidyInterface : public ClutterInterface {
     void CloneImpl(Actor* clone);
     virtual void SetSizeImpl(int* width, int* height) {}
 
-    void AnimateFloat(float* field, float value, int duration_ms);
-    void AnimateInt(int* field, int value, int duration_ms);
-
     void set_has_children(bool has_children) { has_children_ = has_children; }
     void set_is_opaque(bool opaque) { is_opaque_ = opaque; }
 
    private:
+    // Animate one of this actor's fields moving to a new value.
+    // 'animation_map' is '&int_animations_' or '&float_animations_'.
+    template<class T> void AnimateField(
+        std::map<T*, std::tr1::shared_ptr<Animation<T> > >* animation_map,
+        T* field, T value, int duration_ms);
+
+    // Helper method called by Update() for 'int_animations_' and
+    // 'float_animations_'.  Goes through the passed-in map, calling each
+    // animation's Eval() method and deleting it if it's done.
+    template<class T> void UpdateInternal(
+        std::map<T*, std::tr1::shared_ptr<Animation<T> > >* animation_map,
+        AnimationTime now);
+
     TidyInterface* interface_;
 
     // This points to the parent that has this actor as a child.
@@ -311,8 +328,10 @@ class TidyInterface : public ClutterInterface {
     // debugging).
     std::string name_;
 
-    // This is a list of animations that are active on this actor.
-    AnimationList animations_;
+    // Map from the address of a field to the animation that is modifying it.
+    std::map<int*, std::tr1::shared_ptr<Animation<int> > > int_animations_;
+    std::map<float*, std::tr1::shared_ptr<Animation<float> > >
+        float_animations_;
 
     // This keeps a mapping of int32 id to drawing data pointer.
     // The id space is maintained by the visitor implementation.
@@ -344,7 +363,7 @@ class TidyInterface : public ClutterInterface {
 
     void AddActor(ClutterInterface::Actor* actor);
     void RemoveActor(ClutterInterface::Actor* actor);
-    virtual void Update(int32* count, AnimationBase::AnimationTime now);
+    virtual void Update(int32* count, AnimationTime now);
 
     // Raise one child over another.  Raise to top if "above" is NULL.
     void RaiseChild(TidyInterface::Actor* child,
@@ -526,7 +545,7 @@ class TidyInterface : public ClutterInterface {
 
   // Returns the current time, as milliseconds since the epoch, or
   // 'current_time_ms_for_testing_' if it's 0 or positive.
-  AnimationBase::AnimationTime GetCurrentTimeMs();
+  AnimationTime GetCurrentTimeMs();
 
   // Mark the scene as dirty, enabling the draw timeout if needed.
   void SetDirty();
@@ -581,7 +600,7 @@ class TidyInterface : public ClutterInterface {
   scoped_ptr<StageActor> default_stage_;
 
   // This is the current time used to evaluate the currently active animations.
-  AnimationBase::AnimationTime now_;
+  AnimationTime now_;
 
   typedef base::hash_map<XWindow, TexturePixmapActor*>
   XIDToTexturePixmapActorMap;
@@ -616,6 +635,13 @@ class TidyInterface : public ClutterInterface {
 
   DISALLOW_COPY_AND_ASSIGN(TidyInterface);
 };
+
+// Specialization for integer animations that rounds to the nearest position.
+template<>
+inline int TidyInterface::Animation<int>::InterpolateValue(
+    int start_value, int end_value, float fraction) {
+  return roundf(start_value + fraction * (end_value - start_value));
+}
 
 }  // namespace window_manager
 

@@ -5,7 +5,6 @@
 #include "window_manager/tidy_interface.h"
 
 #include <algorithm>
-#include <cmath>
 #include <ctime>
 #include <string>
 
@@ -36,6 +35,7 @@ DEFINE_bool(tidy_display_debug_needle, false,
 namespace window_manager {
 
 using chromeos::NewPermanentCallback;
+using std::make_pair;
 using std::max;
 using std::min;
 using std::tr1::shared_ptr;
@@ -46,52 +46,6 @@ const float TidyInterface::LayerVisitor::kMaxDepth = 2048.0f;
 // Minimum amount of time in milliseconds between scene redraws.
 static const int64_t kDrawTimeoutMs = 16;
 
-TidyInterface::AnimationBase::AnimationBase(AnimationTime start_time,
-                                            AnimationTime end_time)
-    : start_time_(start_time),
-      end_time_(end_time),
-      ease_factor_(M_PI / (end_time - start_time)) {
-}
-
-TidyInterface::FloatAnimation::FloatAnimation(float* field,
-                                              float end_value,
-                                              AnimationTime start_time,
-                                              AnimationTime end_time)
-    : TidyInterface::AnimationBase(start_time, end_time),
-      field_(field),
-      start_value_(*field),
-      end_value_(end_value) {
-}
-
-bool TidyInterface::FloatAnimation::Eval(AnimationTime current_time) {
-  if (current_time >= end_time_) {
-    *field_ = end_value_;
-    return true;
-  }
-  float x = (1.0f - cosf(ease_factor_ * (current_time - start_time_))) / 2.0f;
-  *field_ = start_value_ + x * (end_value_ - start_value_);
-  return false;
-}
-
-TidyInterface::IntAnimation::IntAnimation(int* field,
-                                          int end_value,
-                                          AnimationTime start_time,
-                                          AnimationTime end_time)
-    : TidyInterface::AnimationBase(start_time, end_time),
-      field_(field),
-      start_value_(*field),
-      end_value_(end_value) {
-}
-
-bool TidyInterface::IntAnimation::Eval(AnimationTime current_time) {
-  if (current_time >= end_time_) {
-    *field_ = end_value_;
-    return true;
-  }
-  float x = (1.0f - cosf(ease_factor_ * (current_time - start_time_))) / 2.0f;
-  *field_ = start_value_ + x * (end_value_ - start_value_);
-  return false;
-}
 
 void TidyInterface::ActorVisitor::VisitContainer(ContainerActor* actor) {
   CHECK(actor);
@@ -232,21 +186,24 @@ void TidyInterface::Actor::Move(int x, int y, int duration_ms) {
 }
 
 void TidyInterface::Actor::MoveX(int x, int duration_ms) {
-  AnimateInt(&x_, x, duration_ms);
+  AnimateField(&int_animations_, &x_, x, duration_ms);
 }
 
 void TidyInterface::Actor::MoveY(int y, int duration_ms) {
-  AnimateInt(&y_, y, duration_ms);
+  AnimateField(&int_animations_, &y_, y, duration_ms);
 }
 
 void TidyInterface::Actor::Scale(double scale_x, double scale_y,
                                  int duration_ms) {
-  AnimateFloat(&scale_x_, static_cast<float>(scale_x), duration_ms);
-  AnimateFloat(&scale_y_, static_cast<float>(scale_y), duration_ms);
+  AnimateField(&float_animations_, &scale_x_, static_cast<float>(scale_x),
+               duration_ms);
+  AnimateField(&float_animations_, &scale_y_, static_cast<float>(scale_y),
+               duration_ms);
 }
 
 void TidyInterface::Actor::SetOpacity(double opacity, int duration_ms) {
-  AnimateFloat(&opacity_, static_cast<float>(opacity), duration_ms);
+  AnimateField(&float_animations_, &opacity_, static_cast<float>(opacity),
+               duration_ms);
 }
 
 void TidyInterface::Actor::Raise(ClutterInterface::Actor* other) {
@@ -288,49 +245,60 @@ TidyInterface::DrawingDataPtr TidyInterface::Actor::GetDrawingData(
   return DrawingDataPtr();
 }
 
-void TidyInterface::Actor::Update(int* count,
-                                  AnimationBase::AnimationTime now) {
+void TidyInterface::Actor::Update(int* count, AnimationTime now) {
   (*count)++;
-  if (animations_.empty())
+  if (int_animations_.empty() && float_animations_.empty())
     return;
 
   SetDirty();
-  AnimationList::iterator iterator = animations_.begin();
-  while (iterator != animations_.end()) {
-    bool done = (*iterator)->Eval(now);
+  UpdateInternal(&int_animations_, now);
+  UpdateInternal(&float_animations_, now);
+}
+
+template<class T> void TidyInterface::Actor::AnimateField(
+    std::map<T*, std::tr1::shared_ptr<Animation<T> > >* animation_map,
+    T* field, T value, int duration_ms) {
+  typeof(animation_map->begin()) iterator = animation_map->find(field);
+  // If we're not currently animating the field and it's already at the
+  // right value, there's no reason to do anything.
+  if (iterator == animation_map->end() && value == *field)
+    return;
+
+  if (duration_ms > 0) {
+    AnimationTime now = interface_->GetCurrentTimeMs();
+    if (iterator != animation_map->end()) {
+      Animation<T>* animation = iterator->second.get();
+      animation->Reset(value, now, now + duration_ms);
+    } else {
+      std::tr1::shared_ptr<Animation<T> > animation(
+          new Animation<T>(field, value, now, now + duration_ms));
+      animation_map->insert(make_pair(field, animation));
+      interface_->IncrementNumAnimations();
+    }
+  } else {
+    if (iterator != animation_map->end()) {
+      animation_map->erase(iterator);
+      interface_->DecrementNumAnimations();
+    }
+    *field = value;
+    SetDirty();
+  }
+}
+
+template<class T> void TidyInterface::Actor::UpdateInternal(
+    std::map<T*, std::tr1::shared_ptr<Animation<T> > >* animation_map,
+    AnimationTime now) {
+  typeof(animation_map->begin()) iterator = animation_map->begin();
+  while (iterator != animation_map->end()) {
+    bool done = iterator->second->Eval(now);
     if (done) {
-      iterator = animations_.erase(iterator);
+      typeof(iterator) old_iterator = iterator;
+      ++iterator;
+      animation_map->erase(old_iterator);
       interface_->DecrementNumAnimations();
     } else {
       ++iterator;
     }
-  }
-}
-
-void TidyInterface::Actor::AnimateFloat(float* field, float value,
-                                        int duration_ms) {
-  if (duration_ms > 0) {
-    AnimationBase::AnimationTime now = interface_->GetCurrentTimeMs();
-    shared_ptr<AnimationBase> animation(
-        new FloatAnimation(field, value, now, now + duration_ms));
-    animations_.push_back(animation);
-    interface_->IncrementNumAnimations();
-  } else {
-    *field = value;
-    SetDirty();
-  }
-}
-
-void TidyInterface::Actor::AnimateInt(int* field, int value, int duration_ms) {
-  if (duration_ms > 0) {
-    AnimationBase::AnimationTime now = interface_->GetCurrentTimeMs();
-    shared_ptr<AnimationBase> animation(
-        new IntAnimation(field, value, now, now + duration_ms));
-    animations_.push_back(animation);
-    interface_->IncrementNumAnimations();
-  } else {
-    *field = value;
-    SetDirty();
   }
 }
 
@@ -366,8 +334,7 @@ void TidyInterface::ContainerActor::RemoveActor(
   }
 }
 
-void TidyInterface::ContainerActor::Update(
-    int* count, AnimationBase::AnimationTime now) {
+void TidyInterface::ContainerActor::Update(int* count, AnimationTime now) {
   for (ActorVector::iterator iterator = children_.begin();
        iterator != children_.end(); ++iterator) {
     dynamic_cast<TidyInterface::Actor*>(*iterator)->Update(count, now);
@@ -726,7 +693,7 @@ void TidyInterface::StopMonitoringWindowForChanges(
   event_source_->StopSendingEventsForWindowToCompositor(xid);
 }
 
-TidyInterface::AnimationBase::AnimationTime TidyInterface::GetCurrentTimeMs() {
+TidyInterface::AnimationTime TidyInterface::GetCurrentTimeMs() {
   if (current_time_ms_for_testing_ >= 0)
     return current_time_ms_for_testing_;
 
