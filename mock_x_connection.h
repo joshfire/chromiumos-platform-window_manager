@@ -9,6 +9,7 @@ extern "C" {
 #include <X11/Xlib.h>
 }
 #include <map>
+#include <queue>
 #include <set>
 #include <string>
 #include <tr1/memory>
@@ -74,6 +75,9 @@ class MockXConnection : public XConnection {
   bool GetStringProperty(XWindow xid, XAtom xatom, std::string* out);
   bool SetStringProperty(XWindow xid, XAtom xatom, const std::string& value);
   bool DeletePropertyIfExists(XWindow xid, XAtom xatom);
+  int GetConnectionFileDescriptor() { return connection_pipe_fds_[0]; }
+  bool IsEventPending();
+  void GetNextEvent(void* event);
   bool SendClientMessageEvent(XWindow dest_xid,
                               XWindow xid,
                               XAtom message_type,
@@ -194,9 +198,11 @@ class MockXConnection : public XConnection {
 
   // Set a window as having an active pointer grab.  This is handy when
   // simulating a passive button grab being upgraded due to a button press.
-  void set_pointer_grab_xid(XWindow xid) {
-    pointer_grab_xid_ = xid;
-  }
+  void set_pointer_grab_xid(XWindow xid) { pointer_grab_xid_ = xid; }
+
+  // Append an event to the queue used by IsEventPending() and
+  // GetNextEvent() and write a single byte to 'connection_pipe_fds_'.
+  void AppendEventToQueue(const XEvent& event);
 
   // Register a callback to be invoked whenever a given property on a given
   // window is changed.  Takes ownership of 'cb'.
@@ -290,6 +296,17 @@ class MockXConnection : public XConnection {
   // Current position of the mouse pointer for QueryPointerPosition().
   int pointer_x_;
   int pointer_y_;
+
+  // Read and write ends of a pipe that we use to simulate events arriving
+  // on an X connection.  We don't actually write any events here --
+  // rather, we write a single byte for each event added by
+  // AppendEventToQueue() and read a byte each time that GetNextEvent() is
+  // called.  We hand out the read end of the pipe in
+  // GetConnectionFileDescriptor() so that EventLoop can epoll() on it.
+  int connection_pipe_fds_[2];
+
+  // Event queue used by IsEventPending() and GetNextEvent().
+  std::queue<XEvent> queued_events_;
 
   DISALLOW_COPY_AND_ASSIGN(MockXConnection);
 };

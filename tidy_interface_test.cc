@@ -17,6 +17,7 @@
 #include "base/logging.h"
 #include "window_manager/clutter_interface.h"
 #include "window_manager/compositor_event_source.h"
+#include "window_manager/event_loop.h"
 #include "window_manager/mock_gl_interface.h"
 #include "window_manager/mock_x_connection.h"
 #include "window_manager/test_lib.h"
@@ -34,8 +35,8 @@ namespace window_manager {
 
 class TestInterface : virtual public TidyInterface {
  public:
-  TestInterface(XConnection* xconnection, GLInterface* gl_interface)
-      : TidyInterface(xconnection, gl_interface) {}
+  TestInterface(EventLoop* event_loop, GLInterface* gl_interface)
+      : TidyInterface(event_loop, gl_interface) {}
  private:
   DISALLOW_COPY_AND_ASSIGN(TestInterface);
 };
@@ -69,9 +70,9 @@ class TidyTest : public ::testing::Test {
       : interface_(NULL),
         gl_interface_(new MockGLInterface),
         x_connection_(new MockXConnection),
+        event_loop_(new EventLoop(x_connection_.get())),
         event_source_(new TestCompositorEventSource) {
-    interface_.reset(new TestInterface(x_connection_.get(),
-                                       gl_interface_.get()));
+    interface_.reset(new TestInterface(event_loop_.get(), gl_interface_.get()));
     interface_->SetEventSource(event_source_.get());
   }
   virtual ~TidyTest() {
@@ -81,12 +82,14 @@ class TidyTest : public ::testing::Test {
 
   TidyInterface* interface() { return interface_.get(); }
   MockXConnection* x_connection() { return x_connection_.get(); }
+  EventLoop* event_loop() { return event_loop_.get(); }
   TestCompositorEventSource* event_source() { return event_source_.get(); }
 
  private:
   scoped_ptr<TidyInterface> interface_;
   scoped_ptr<GLInterface> gl_interface_;
   scoped_ptr<MockXConnection> x_connection_;
+  scoped_ptr<EventLoop> event_loop_;
   scoped_ptr<TestCompositorEventSource> event_source_;
 };
 

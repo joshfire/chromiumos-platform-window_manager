@@ -21,6 +21,7 @@ class XConnection;  // from x_connection.h
 // kAtomInfos in atom_cache.cc.
 enum Atom {
   ATOM_ATOM = 0,
+  ATOM_CARDINAL,
   ATOM_CHROME_GET_SERVER_TIME,
   ATOM_CHROME_STATE,
   ATOM_CHROME_STATE_COLLAPSED_PANEL,

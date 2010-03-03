@@ -33,7 +33,7 @@ class MetricsReporter {
   // Chrome.  If successful, clears current metric counts.
   void AttemptReport();
 
-  static const int kMetricsReportingIntervalInSeconds = 60;
+  static const int kMetricsReportingIntervalMs = 60000;
 
  private:
   // The boot time is currently left on disk in a known location by

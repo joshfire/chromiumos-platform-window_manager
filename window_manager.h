@@ -26,12 +26,14 @@ extern "C" {
 #include "window_manager/atom_cache.h"  // for Atom enum
 #include "window_manager/clutter_interface.h"
 #include "window_manager/compositor_event_source.h"
+#include "window_manager/event_loop_subscriber.h"
 #include "window_manager/wm_ipc.h"
 #include "window_manager/x_types.h"
 
 namespace window_manager {
 
 class EventConsumer;
+class EventLoop;
 class HotkeyOverlay;
 class KeyBindings;
 class LayoutManager;
@@ -43,12 +45,14 @@ class WmIpc;
 class XConnection;
 template<class T> class Stacker;
 
-class WindowManager : public CompositorEventSource {
+class WindowManager : public CompositorEventSource,
+                      public EventLoopSubscriber {
  public:
-  WindowManager(XConnection* xconn, ClutterInterface* clutter);
+  WindowManager(EventLoop *event_loop, ClutterInterface* clutter);
   ~WindowManager();
 
-  XConnection* xconn() { return xconn_; }
+  EventLoop* event_loop() { return event_loop_; }
+  XConnection* xconn();
   ClutterInterface* clutter() { return clutter_; }
   StackingManager* stacking_manager() { return stacking_manager_.get(); }
 
@@ -267,16 +271,12 @@ class WindowManager : public CompositorEventSource {
   // captured.
   void TakeScreenshot(bool use_active_window);
 
-  // Helper method called repeatedly by a GLib timeout while the hotkey
-  // overlay is being displayed to query the current keyboard state from
-  // the X server and pass it to the overlay.
-  static int QueryKeyboardStateThunk(void* data) {
-    reinterpret_cast<WindowManager*>(data)->QueryKeyboardState();
-    return 1;  // keep the timeout alive
-  }
+  // Helper method called repeatedly by a timeout while the hotkey overlay
+  // is being displayed to query the current keyboard state from the X
+  // server and pass it to the overlay.
   void QueryKeyboardState();
 
-  XConnection* xconn_;         // not owned
+  EventLoop* event_loop_;      // not owned
   ClutterInterface* clutter_;  // not owned
 
   XWindow root_;
@@ -353,8 +353,11 @@ class WindowManager : public CompositorEventSource {
   scoped_ptr<PanelManager> panel_manager_;
   scoped_ptr<MetricsReporter> metrics_reporter_;
 
-  // GLib source ID for the timer that calls QueryKeyboardStateThunk().
-  unsigned int query_keyboard_state_timer_;
+  // ID for the timeout that invokes metrics_reporter_->AttemptReport().
+  int metrics_reporter_timeout_id_;
+
+  // ID for the timeout that calls QueryKeyboardState().
+  int query_keyboard_state_timeout_id_;
 
   // Is the hotkey overlay currently being shown?
   bool showing_hotkey_overlay_;

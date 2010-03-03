@@ -5,6 +5,7 @@
 #include "window_manager/atom_cache.h"
 #include "window_manager/clutter_interface.h"
 #include "window_manager/event_consumer.h"
+#include "window_manager/event_loop.h"
 #include "window_manager/key_bindings.h"
 #include "window_manager/layout_manager.h"
 #include "window_manager/motion_event_coalescer.h"

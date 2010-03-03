@@ -4,14 +4,9 @@
 
 #include "window_manager/util.h"
 
-#include <cstdarg>
-#include <cstdlib>
-#include <ctime>
-#include <string.h>
+#include <cstring>
 
-#include <iomanip>
-#include <sstream>
-
+#include "base/string_util.h"
 #include "chromeos/obsolete_logging.h"
 
 namespace window_manager {
@@ -55,19 +50,6 @@ void ByteMap::SetRectangle(int rect_x, int rect_y,
     memset(bytes_ + y * width_ + rect_x, value, limit_x - rect_x);
 }
 
-
-double GetCurrentTime() {
-  struct timeval tv;
-  CHECK_EQ(gettimeofday(&tv, NULL), 0);
-  return tv.tv_sec + (tv.tv_usec / 1000000.0);
-}
-
-void FillTimeval(double time, struct timeval* tv) {
-  CHECK(tv);
-  tv->tv_sec = static_cast<__time_t>(time);
-  tv->tv_usec =
-      static_cast<__suseconds_t>(1000000 * (time - static_cast<int>(time)));
-}
 
 std::string XidStr(unsigned long xid) {
   return StringPrintf("0x%lx", xid);

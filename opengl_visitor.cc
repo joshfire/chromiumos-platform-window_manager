@@ -7,16 +7,10 @@
 #include <GL/gl.h>
 #include <GL/glext.h>
 #include <GL/glx.h>
-#include <X11/extensions/Xcomposite.h>
-#include <X11/extensions/Xdamage.h>
-#include <gdk/gdkx.h>
 #include <gflags/gflags.h>
 #include <sys/time.h>
 #include <time.h>
-#include <xcb/composite.h>
 #include <xcb/damage.h>
-#include <xcb/randr.h>
-#include <xcb/shape.h>
 
 #include <algorithm>
 #include <string>

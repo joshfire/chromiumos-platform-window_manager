@@ -11,6 +11,7 @@
 #include "base/command_line.h"
 #include "base/string_util.h"
 #include "window_manager/clutter_interface.h"
+#include "window_manager/event_loop.h"
 #include "window_manager/mock_x_connection.h"
 #include "window_manager/motion_event_coalescer.h"
 #include "window_manager/panel.h"
@@ -69,8 +70,9 @@ int InitAndRunTests(int* argc, char** argv, bool* log_to_stderr) {
 
 void BasicWindowManagerTest::SetUp() {
   xconn_.reset(new MockXConnection);
+  event_loop_.reset(new EventLoop(xconn_.get()));
   clutter_.reset(new MockClutterInterface(xconn_.get()));
-  wm_.reset(new WindowManager(xconn_.get(), clutter_.get()));
+  wm_.reset(new WindowManager(event_loop_.get(), clutter_.get()));
   CHECK(wm_->Init());
 
   // Tell the WM that we implement a recent-enough version of the IPC

@@ -6,18 +6,20 @@
 
 extern "C" {
 #include <xcb/composite.h>
+#include <xcb/damage.h>
 #include <xcb/randr.h>
 #include <xcb/shape.h>
-#include <xcb/damage.h>
+#include <xcb/xfixes.h>
 #include <X11/extensions/shape.h>
+#include <X11/extensions/Xdamage.h>
 #include <X11/Xatom.h>
 #include <X11/Xlib-xcb.h>
 #include <X11/Xutil.h>
 #include <X11/XKBlib.h>
 }
 
+#include "base/string_util.h"
 #include "chromeos/obsolete_logging.h"
-
 #include "window_manager/util.h"
 
 namespace window_manager {
@@ -25,6 +27,27 @@ namespace window_manager {
 using std::map;
 using std::string;
 using std::vector;
+
+// Used by RealXConnection's constructor to negotiate the version of an X
+// extension that we'll be using with the X server.  'name' is the
+// extension's name as it appears in XCB, i.e. "damage" for
+// xcb_damage_query_version(), and 'major' and 'minor' specify the minimum
+// version of the extension to be accepted.
+#define INIT_XCB_EXTENSION(name, major, minor)                                 \
+  do {                                                                         \
+    xcb_##name##_query_version_cookie_t cookie =                               \
+        xcb_##name##_query_version(xcb_conn_, major, minor);                   \
+    xcb_generic_error_t* error = NULL;                                         \
+    scoped_ptr_malloc<xcb_##name##_query_version_reply_t> reply(               \
+        xcb_##name##_query_version_reply(xcb_conn_, cookie, &error));          \
+    scoped_ptr_malloc<xcb_generic_error_t> scoped_error(error);                \
+    CHECK(!error) << "Unable to query " #name " extension";                    \
+    LOG(INFO) << "Server has " #name " extension v"                            \
+              << reply->major_version << "." << reply->minor_version;          \
+    CHECK_GE(reply->major_version, major);                                     \
+    if (reply->major_version == major)                                         \
+      CHECK_GE(reply->minor_version, minor);                                   \
+  } while (0)
 
 // Maximum property size in bytes (both for reading and setting).
 static const size_t kMaxPropertySize = 1024;
@@ -65,9 +88,19 @@ RealXConnection::RealXConnection(XDisplay* display)
   root_ = DefaultRootWindow(display_);
   CHECK(GetAtom("UTF8_STRING", &utf8_string_atom_));
 
-  CHECK(QueryExtensionInternal("SHAPE", &shape_event_base_, NULL));
-  CHECK(QueryExtensionInternal("RANDR", &randr_event_base_, NULL));
-  CHECK(QueryExtensionInternal("DAMAGE", &damage_event_base_, NULL));
+  CHECK(QueryExtension("SHAPE", &shape_event_base_, NULL));
+  CHECK(QueryExtension("RANDR", &randr_event_base_, NULL));
+  CHECK(QueryExtension("Composite", NULL, NULL));
+  CHECK(QueryExtension("DAMAGE", &damage_event_base_, NULL));
+  CHECK(QueryExtension("XFIXES", NULL, NULL));
+
+  // The shape extension's XCB interface is different; it doesn't take a
+  // version number.  The extension is ancient and doesn't require that we
+  // tell the server which version we support, though, so just skip it.
+  INIT_XCB_EXTENSION(randr, 1, 2);
+  INIT_XCB_EXTENSION(composite, 0, 4);
+  INIT_XCB_EXTENSION(damage, 1, 1);
+  INIT_XCB_EXTENSION(xfixes, 4, 0);
 }
 
 RealXConnection::~RealXConnection() {
@@ -723,6 +756,20 @@ bool RealXConnection::DeletePropertyIfExists(XWindow xid, XAtom xatom) {
   return true;
 }
 
+int RealXConnection::GetConnectionFileDescriptor() {
+  return XConnectionNumber(display_);
+}
+
+bool RealXConnection::IsEventPending() {
+  return XPending(display_) > 0;
+}
+
+void RealXConnection::GetNextEvent(void* event) {
+  DCHECK(event);
+  XEvent* xevent = reinterpret_cast<XEvent*>(event);
+  XNextEvent(display_, xevent);
+}
+
 bool RealXConnection::SendClientMessageEvent(XWindow dest_xid,
                                              XWindow xid,
                                              XAtom message_type,
@@ -860,8 +907,27 @@ bool RealXConnection::UngrabKey(KeyCode keycode, uint32 modifiers) {
 }
 
 XDamage RealXConnection::CreateDamage(XDrawable drawable, int level) {
+  // TODO: Argh, more functionality that doesn't seem to work (sometimes?)
+  // in XCB.  Damage handles created with the below code (or just with
+  // xcb_damage_create()) don't seem to generate any DamageNotify events;
+  // handles created via the corresponding Xlib function work fine.
+  // Strangely, the XCB version appears to work in conjunction with GDK, so
+  // maybe something else isn't being initialized correctly here.
+#if 0
   const xcb_damage_damage_t damage = xcb_generate_id(xcb_conn_);
-  xcb_damage_create(xcb_conn_, damage, drawable, level);
+  xcb_void_cookie_t cookie = xcb_damage_create_checked(
+      xcb_conn_, damage, drawable, level);
+  CheckForXcbError(cookie, "in CreateDamage "
+                   "(damage=0x%x, drawable=0x%x, level=%d)",
+                   damage, drawable, level);
+#endif
+  TrapErrors();
+  XDamage damage = XDamageCreate(display_, drawable, level);
+  if (int error = UntrapErrors()) {
+    LOG(WARNING) << "Got X error while creating damage handle for window "
+                 << XidStr(drawable) << ": " << GetErrorText(error);
+    return 0;
+  }
   return damage;
 }
 
@@ -974,9 +1040,9 @@ bool RealXConnection::UngrabServerImpl() {
   return true;
 }
 
-bool RealXConnection::QueryExtensionInternal(const string& name,
-                                             int* first_event_out,
-                                             int* first_error_out) {
+bool RealXConnection::QueryExtension(const string& name,
+                                     int* first_event_out,
+                                     int* first_error_out) {
   xcb_query_extension_cookie_t cookie =
       xcb_query_extension(xcb_conn_, name.size(), name.data());
   xcb_generic_error_t* error = NULL;
@@ -1072,7 +1138,7 @@ bool RealXConnection::CheckForXcbError(
   StringAppendV(&message, format, ap);
   va_end(ap);
 
-  LOG(WARNING) << "Got XCB error while " << message << ":"
+  LOG(WARNING) << "Got XCB error while " << message << ": "
                << GetErrorText(error->error_code);
   return false;
 }

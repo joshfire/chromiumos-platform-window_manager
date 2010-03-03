@@ -8,6 +8,7 @@
 #include "base/scoped_ptr.h"
 #include "base/logging.h"
 #include "chromeos/callback.h"
+#include "window_manager/event_loop.h"
 #include "window_manager/mock_x_connection.h"
 #include "window_manager/pointer_position_watcher.h"
 #include "window_manager/test_lib.h"
@@ -33,73 +34,78 @@ struct WatcherContainer {
 
 TEST_F(PointerPositionWatcherTest, Basic) {
   MockXConnection xconn;
+  EventLoop event_loop(&xconn);
   xconn.SetPointerPosition(0, 0);
 
   // Watch for the pointer moving into a 20x30 rectangle at (50, 100).
   TestCallbackCounter counter;
   scoped_ptr<PointerPositionWatcher> watcher(
       new PointerPositionWatcher(
+          &event_loop,
           &xconn,
           NewPermanentCallback(&counter, &TestCallbackCounter::Increment),
           true,      // watch_for_entering_target
           50, 100,   // x, y
           20, 30));  // width, height
-  EXPECT_NE(0, watcher->timer_id());
+  EXPECT_GE(watcher->timeout_id(), 0);
 
   // Check that the callback doesn't get run and the timer stays active as
   // long as the pointer is outside of the rectangle.
   watcher->TriggerTimeout();
   EXPECT_EQ(0, counter.num_calls());
-  EXPECT_NE(0, watcher->timer_id());
+  EXPECT_GE(watcher->timeout_id(), 0);
 
   xconn.SetPointerPosition(49, 105);
   watcher->TriggerTimeout();
   EXPECT_EQ(0, counter.num_calls());
-  EXPECT_NE(0, watcher->timer_id());
+  EXPECT_GE(watcher->timeout_id(), 0);
 
   // As soon as the pointer moves into the rectangle, the callback should
   // be run and the timer should be destroyed.
   xconn.SetPointerPosition(50, 105);
   watcher->TriggerTimeout();
   EXPECT_EQ(1, counter.num_calls());
-  EXPECT_EQ(0, watcher->timer_id());
+  EXPECT_EQ(-1, watcher->timeout_id());
 
   // Now create a new watcher that waits for the pointer to move *outside*
   // of the same region.
   watcher.reset(
       new PointerPositionWatcher(
+          &event_loop,
           &xconn,
           NewPermanentCallback(&counter, &TestCallbackCounter::Increment),
           false,     // watch_for_entering_target=false
           50, 100,   // x, y
           20, 30));  // width, height
-  EXPECT_NE(0, watcher->timer_id());
+  EXPECT_GE(watcher->timeout_id(), 0);
   counter.Reset();
 
   watcher->TriggerTimeout();
   EXPECT_EQ(0, counter.num_calls());
-  EXPECT_NE(0, watcher->timer_id());
+  EXPECT_GE(watcher->timeout_id(), 0);
 
   xconn.SetPointerPosition(69, 129);
   watcher->TriggerTimeout();
   EXPECT_EQ(0, counter.num_calls());
-  EXPECT_NE(0, watcher->timer_id());
+  EXPECT_GE(watcher->timeout_id(), 0);
 
   xconn.SetPointerPosition(69, 130);
   watcher->TriggerTimeout();
   EXPECT_EQ(1, counter.num_calls());
-  EXPECT_EQ(0, watcher->timer_id());
+  EXPECT_EQ(-1, watcher->timeout_id());
 }
 
 // Test that we don't crash if a callback deletes the watcher that ran it.
 TEST_F(PointerPositionWatcherTest, DeleteFromCallback) {
   MockXConnection xconn;
+  EventLoop event_loop(&xconn);
   xconn.SetPointerPosition(0, 0);
 
   // Register a callback that deletes its own watcher.
   WatcherContainer container;
   container.set_watcher(
       new PointerPositionWatcher(
+          &event_loop,
           &xconn,
           NewPermanentCallback(
               &container,

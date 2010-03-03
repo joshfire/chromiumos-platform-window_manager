@@ -4,6 +4,7 @@
 
 #include "window_manager/stacking_manager.h"
 
+#include "base/string_util.h"
 #include "window_manager/util.h"
 #include "window_manager/window.h"
 #include "window_manager/x_connection.h"

@@ -30,7 +30,7 @@ class WindowManager;
 // screen.
 class PanelBar : public PanelContainer {
  public:
-  PanelBar(PanelManager* panel_manager);
+  explicit PanelBar(PanelManager* panel_manager);
   ~PanelBar();
 
   WindowManager* wm();
@@ -197,15 +197,13 @@ class PanelBar : public PanelContainer {
   // instead.
   void HideCollapsedPanels();
 
-  // If 'show_collapsed_panels_timer_id_' is set, disable the timer and
+  // If 'show_collapsed_panels_timeout_id_' is set, disable the timeout and
   // clear the variable.
-  void DisableShowCollapsedPanelsTimer();
+  void DisableShowCollapsedPanelsTimeout();
 
-  // Stop 'show_collapsed_panels_timer_id_' and invoke ShowCollapsedPanels().
-  static int HandleShowCollapsedPanelsTimerThunk(void* self) {
-    return reinterpret_cast<PanelBar*>(self)->HandleShowCollapsedPanelsTimer();
-  }
-  int HandleShowCollapsedPanelsTimer();
+  // Invoke ShowCollapsedPanels() and clear
+  // 'show_collapsed_panels_timeout_id_'.
+  void HandleShowCollapsedPanelsTimeout();
 
   PanelManager* panel_manager_;  // not owned
 
@@ -252,7 +250,7 @@ class PanelBar : public PanelContainer {
     COLLAPSED_PANEL_STATE_HIDDEN,
 
     // Hiding the titlebars, but we'll show them after
-    // 'show_collapsed_panels_timer_id_' fires.
+    // 'show_collapsed_panels_timeout_id_' fires.
     COLLAPSED_PANEL_STATE_WAITING_TO_SHOW,
 
     // Showing the titlebars, but the pointer has moved up from the bottom
@@ -266,9 +264,10 @@ class PanelBar : public PanelContainer {
   // screen so that we can show collapsed panels.
   XWindow show_collapsed_panels_input_xid_;
 
-  // ID of a timer that we use to delay calling ShowCollapsedPanels() after
-  // the pointer enters 'show_collapsed_panels_input_xid_', or 0 if unset.
-  unsigned int show_collapsed_panels_timer_id_;
+  // ID of a timeout that we use to delay calling ShowCollapsedPanels()
+  // after the pointer enters 'show_collapsed_panels_input_xid_', or -1 if
+  // unset.
+  int show_collapsed_panels_timeout_id_;
 
   // Used to monitor the pointer position when we're showing collapsed
   // panels so that we'll know to hide them when the pointer far enough

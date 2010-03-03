@@ -8,6 +8,7 @@
 #include "base/scoped_ptr.h"
 #include "base/logging.h"
 #include "window_manager/clutter_interface.h"
+#include "window_manager/event_loop.h"
 #include "window_manager/mock_x_connection.h"
 #include "window_manager/panel.h"
 #include "window_manager/panel_bar.h"
@@ -252,9 +253,10 @@ TEST_F(PanelBarTest, HideCollapsedPanels) {
   EXPECT_EQ(hidden_panel_y, panel->titlebar_y());
   EXPECT_EQ(PanelBar::COLLAPSED_PANEL_STATE_HIDDEN,
             panel_bar_->collapsed_panel_state_);
-  EXPECT_TRUE(panel_bar_->show_collapsed_panels_timer_id_ == 0);
-  EXPECT_TRUE(!panel_bar_->hide_collapsed_panels_pointer_watcher_.get() ||
-              !panel_bar_->hide_collapsed_panels_pointer_watcher_->timer_id());
+  EXPECT_EQ(-1, panel_bar_->show_collapsed_panels_timeout_id_);
+  EXPECT_TRUE(
+      !panel_bar_->hide_collapsed_panels_pointer_watcher_.get() ||
+      panel_bar_->hide_collapsed_panels_pointer_watcher_->timeout_id() == -1);
 
   // Check that the show-collapsed-panels input window covers the bottom
   // row of pixels.
@@ -283,9 +285,10 @@ TEST_F(PanelBarTest, HideCollapsedPanels) {
   EXPECT_EQ(hidden_panel_y, panel->titlebar_y());
   // TODO: We don't have a good way to trigger a GLib timer, so just check
   // that the timer has been set to show the panels.
-  EXPECT_TRUE(panel_bar_->show_collapsed_panels_timer_id_ != 0);
-  EXPECT_TRUE(!panel_bar_->hide_collapsed_panels_pointer_watcher_.get() ||
-              !panel_bar_->hide_collapsed_panels_pointer_watcher_->timer_id());
+  EXPECT_GE(panel_bar_->show_collapsed_panels_timeout_id_, 0);
+  EXPECT_TRUE(
+      !panel_bar_->hide_collapsed_panels_pointer_watcher_.get() ||
+      panel_bar_->hide_collapsed_panels_pointer_watcher_->timeout_id() == -1);
 
   // The input window still be in the same place.
   EXPECT_EQ(input_x, input_info->x);
@@ -303,9 +306,10 @@ TEST_F(PanelBarTest, HideCollapsedPanels) {
   EXPECT_EQ(PanelBar::COLLAPSED_PANEL_STATE_HIDDEN,
             panel_bar_->collapsed_panel_state_);
   EXPECT_EQ(hidden_panel_y, panel->titlebar_y());
-  EXPECT_TRUE(panel_bar_->show_collapsed_panels_timer_id_ == 0);
-  EXPECT_TRUE(!panel_bar_->hide_collapsed_panels_pointer_watcher_.get() ||
-              !panel_bar_->hide_collapsed_panels_pointer_watcher_->timer_id());
+  EXPECT_EQ(-1, panel_bar_->show_collapsed_panels_timeout_id_);
+  EXPECT_TRUE(
+      !panel_bar_->hide_collapsed_panels_pointer_watcher_.get() ||
+      panel_bar_->hide_collapsed_panels_pointer_watcher_->timeout_id() == -1);
 
   // The input window should also still be there.
   EXPECT_EQ(input_x, input_info->x);
@@ -323,9 +327,10 @@ TEST_F(PanelBarTest, HideCollapsedPanels) {
   EXPECT_EQ(PanelBar::COLLAPSED_PANEL_STATE_SHOWN,
             panel_bar_->collapsed_panel_state_);
   EXPECT_EQ(shown_panel_y, panel->titlebar_y());
-  EXPECT_TRUE(panel_bar_->show_collapsed_panels_timer_id_ == 0);
+  EXPECT_EQ(-1, panel_bar_->show_collapsed_panels_timeout_id_);
   ASSERT_TRUE(panel_bar_->hide_collapsed_panels_pointer_watcher_.get() != NULL);
-  ASSERT_NE(panel_bar_->hide_collapsed_panels_pointer_watcher_->timer_id(), 0);
+  ASSERT_GE(panel_bar_->hide_collapsed_panels_pointer_watcher_->timeout_id(),
+            0);
 
   // The input window should be offscreen.
   EXPECT_EQ(-1, input_info->x);
@@ -341,9 +346,10 @@ TEST_F(PanelBarTest, HideCollapsedPanels) {
   EXPECT_EQ(PanelBar::COLLAPSED_PANEL_STATE_SHOWN,
             panel_bar_->collapsed_panel_state_);
   EXPECT_EQ(shown_panel_y, panel->titlebar_y());
-  EXPECT_TRUE(panel_bar_->show_collapsed_panels_timer_id_ == 0);
+  EXPECT_EQ(-1, panel_bar_->show_collapsed_panels_timeout_id_);
   ASSERT_TRUE(panel_bar_->hide_collapsed_panels_pointer_watcher_.get() != NULL);
-  ASSERT_NE(panel_bar_->hide_collapsed_panels_pointer_watcher_->timer_id(), 0);
+  ASSERT_GE(panel_bar_->hide_collapsed_panels_pointer_watcher_->timeout_id(),
+            0);
 
   // Move the pointer further up.
   xconn_->SetPointerPosition(
@@ -355,9 +361,10 @@ TEST_F(PanelBarTest, HideCollapsedPanels) {
   EXPECT_EQ(PanelBar::COLLAPSED_PANEL_STATE_HIDDEN,
             panel_bar_->collapsed_panel_state_);
   EXPECT_EQ(hidden_panel_y, panel->titlebar_y());
-  EXPECT_TRUE(panel_bar_->show_collapsed_panels_timer_id_ == 0);
-  EXPECT_TRUE(!panel_bar_->hide_collapsed_panels_pointer_watcher_.get() ||
-              !panel_bar_->hide_collapsed_panels_pointer_watcher_->timer_id());
+  EXPECT_EQ(-1, panel_bar_->show_collapsed_panels_timeout_id_);
+  EXPECT_TRUE(
+      !panel_bar_->hide_collapsed_panels_pointer_watcher_.get() ||
+      panel_bar_->hide_collapsed_panels_pointer_watcher_->timeout_id() == -1);
 
   // The input window should also be moved back.
   EXPECT_EQ(input_x, input_info->x);
@@ -378,7 +385,8 @@ TEST_F(PanelBarTest, HideCollapsedPanels) {
             panel_bar_->collapsed_panel_state_);
   EXPECT_EQ(shown_panel_y, panel->titlebar_y());
   ASSERT_TRUE(panel_bar_->hide_collapsed_panels_pointer_watcher_.get() != NULL);
-  ASSERT_NE(panel_bar_->hide_collapsed_panels_pointer_watcher_->timer_id(), 0);
+  ASSERT_GE(panel_bar_->hide_collapsed_panels_pointer_watcher_->timeout_id(),
+            0);
 }
 
 // Test that we defer hiding collapsed panels if we're in the middle of a
@@ -401,7 +409,8 @@ TEST_F(PanelBarTest, DeferHidingDraggedCollapsedPanel) {
             panel_bar_->collapsed_panel_state_);
   EXPECT_EQ(shown_panel_y, panel->titlebar_y());
   ASSERT_TRUE(panel_bar_->hide_collapsed_panels_pointer_watcher_.get() != NULL);
-  ASSERT_NE(panel_bar_->hide_collapsed_panels_pointer_watcher_->timer_id(), 0);
+  ASSERT_GE(panel_bar_->hide_collapsed_panels_pointer_watcher_->timeout_id(),
+            0);
   panel_bar_->hide_collapsed_panels_pointer_watcher_->TriggerTimeout();
 
   // Drag the panel to the left.
@@ -411,7 +420,8 @@ TEST_F(PanelBarTest, DeferHidingDraggedCollapsedPanel) {
   // We should still show the panel and be monitoring the pointer's position.
   xconn_->SetPointerPosition(300, shown_panel_y);
   ASSERT_TRUE(panel_bar_->hide_collapsed_panels_pointer_watcher_.get() != NULL);
-  ASSERT_NE(panel_bar_->hide_collapsed_panels_pointer_watcher_->timer_id(), 0);
+  ASSERT_GE(panel_bar_->hide_collapsed_panels_pointer_watcher_->timeout_id(),
+            0);
   panel_bar_->hide_collapsed_panels_pointer_watcher_->TriggerTimeout();
   EXPECT_EQ(PanelBar::COLLAPSED_PANEL_STATE_SHOWN,
             panel_bar_->collapsed_panel_state_);
@@ -427,7 +437,8 @@ TEST_F(PanelBarTest, DeferHidingDraggedCollapsedPanel) {
   // shouldn't hide the dragged panel yet.
   xconn_->SetPointerPosition(300, hide_pointer_y);
   ASSERT_TRUE(panel_bar_->hide_collapsed_panels_pointer_watcher_.get() != NULL);
-  ASSERT_NE(panel_bar_->hide_collapsed_panels_pointer_watcher_->timer_id(), 0);
+  ASSERT_GE(panel_bar_->hide_collapsed_panels_pointer_watcher_->timeout_id(),
+            0);
   panel_bar_->hide_collapsed_panels_pointer_watcher_->TriggerTimeout();
   EXPECT_EQ(PanelBar::COLLAPSED_PANEL_STATE_WAITING_TO_HIDE,
             panel_bar_->collapsed_panel_state_);
@@ -438,8 +449,9 @@ TEST_F(PanelBarTest, DeferHidingDraggedCollapsedPanel) {
   EXPECT_EQ(PanelBar::COLLAPSED_PANEL_STATE_HIDDEN,
             panel_bar_->collapsed_panel_state_);
   EXPECT_EQ(hidden_panel_y, panel->titlebar_y());
-  EXPECT_TRUE(!panel_bar_->hide_collapsed_panels_pointer_watcher_.get() ||
-              !panel_bar_->hide_collapsed_panels_pointer_watcher_->timer_id());
+  EXPECT_TRUE(
+      !panel_bar_->hide_collapsed_panels_pointer_watcher_.get() ||
+      panel_bar_->hide_collapsed_panels_pointer_watcher_->timeout_id() == -1);
 
   // Show the panel again.
   xconn_->SetPointerPosition(panel->titlebar_x(), panel->titlebar_y());
@@ -453,7 +465,8 @@ TEST_F(PanelBarTest, DeferHidingDraggedCollapsedPanel) {
   SendPanelDraggedMessage(panel, 300, hide_pointer_y);
   xconn_->SetPointerPosition(300, hide_pointer_y);
   ASSERT_TRUE(panel_bar_->hide_collapsed_panels_pointer_watcher_.get() != NULL);
-  ASSERT_NE(panel_bar_->hide_collapsed_panels_pointer_watcher_->timer_id(), 0);
+  ASSERT_GE(panel_bar_->hide_collapsed_panels_pointer_watcher_->timeout_id(),
+            0);
   panel_bar_->hide_collapsed_panels_pointer_watcher_->TriggerTimeout();
   EXPECT_EQ(PanelBar::COLLAPSED_PANEL_STATE_WAITING_TO_HIDE,
             panel_bar_->collapsed_panel_state_);
@@ -468,7 +481,8 @@ TEST_F(PanelBarTest, DeferHidingDraggedCollapsedPanel) {
             panel_bar_->collapsed_panel_state_);
   EXPECT_EQ(shown_panel_y, panel->titlebar_y());
   ASSERT_TRUE(panel_bar_->hide_collapsed_panels_pointer_watcher_.get() != NULL);
-  ASSERT_NE(panel_bar_->hide_collapsed_panels_pointer_watcher_->timer_id(), 0);
+  ASSERT_GE(panel_bar_->hide_collapsed_panels_pointer_watcher_->timeout_id(),
+            0);
 
   // Move the pointer up again without dragging and check that the panel is
   // hidden.
@@ -477,8 +491,9 @@ TEST_F(PanelBarTest, DeferHidingDraggedCollapsedPanel) {
   EXPECT_EQ(PanelBar::COLLAPSED_PANEL_STATE_HIDDEN,
             panel_bar_->collapsed_panel_state_);
   EXPECT_EQ(hidden_panel_y, panel->titlebar_y());
-  EXPECT_TRUE(!panel_bar_->hide_collapsed_panels_pointer_watcher_.get() ||
-              !panel_bar_->hide_collapsed_panels_pointer_watcher_->timer_id());
+  EXPECT_TRUE(
+      !panel_bar_->hide_collapsed_panels_pointer_watcher_.get() ||
+      panel_bar_->hide_collapsed_panels_pointer_watcher_->timeout_id() == -1);
 }
 
 TEST_F(PanelBarTest, ReorderPanels) {

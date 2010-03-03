@@ -7,6 +7,7 @@
 
 #include "base/scoped_ptr.h"
 #include "base/logging.h"
+#include "window_manager/event_loop.h"
 #include "window_manager/mock_x_connection.h"
 #include "window_manager/panel.h"
 #include "window_manager/panel_bar.h"

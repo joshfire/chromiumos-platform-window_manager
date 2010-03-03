@@ -71,6 +71,7 @@ Panel::Panel(PanelManager* panel_manager,
       is_expanded_(is_expanded),
       resize_actor_(NULL),
       resize_event_coalescer_(
+          wm()->event_loop(),
           NewPermanentCallback(this, &Panel::ApplyResize),
           kResizeUpdateMs),
       // We don't need to select events on any of the drag borders; we'll

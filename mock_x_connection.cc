@@ -4,8 +4,14 @@
 
 #include "window_manager/mock_x_connection.h"
 
-#include "base/logging.h"
+#include <cerrno>
+#include <cstring>
+#include <fcntl.h>
+#include <unistd.h>
 
+#include "base/logging.h"
+#include "base/eintr_wrapper.h"
+#include "chromeos/obsolete_logging.h"
 #include "window_manager/util.h"
 
 namespace window_manager {
@@ -15,6 +21,7 @@ using std::list;
 using std::make_pair;
 using std::map;
 using std::pair;
+using std::queue;
 using std::string;
 using std::tr1::shared_ptr;
 using std::vector;
@@ -31,14 +38,18 @@ MockXConnection::MockXConnection()
       pointer_grab_xid_(None),
       pointer_x_(0),
       pointer_y_(0) {
+  CHECK(HANDLE_EINTR(pipe2(connection_pipe_fds_, O_NONBLOCK)) != -1)
+      << strerror(errno);
   // Arbitrary large numbers unlikely to be used by other events.
-  shape_event_base_ = 432432;
-  randr_event_base_ = 543251;
-  damage_event_base_ = 683827;
-  damage_error_base_ = 728384;
+  damage_event_base_ = 10000;
+  shape_event_base_  = 10010;
+  randr_event_base_  = 10020;
 }
 
-MockXConnection::~MockXConnection() {}
+MockXConnection::~MockXConnection() {
+  CHECK(HANDLE_EINTR(close(connection_pipe_fds_[0])) != -1) << strerror(errno);
+  CHECK(HANDLE_EINTR(close(connection_pipe_fds_[1])) != -1) << strerror(errno);
+}
 
 bool MockXConnection::GetWindowGeometry(XWindow xid, WindowGeometry* geom_out) {
   CHECK(geom_out);
@@ -398,6 +409,22 @@ bool MockXConnection::DeletePropertyIfExists(XWindow xid, XAtom xatom) {
   return true;
 }
 
+bool MockXConnection::IsEventPending() {
+  return !queued_events_.empty();
+}
+
+void MockXConnection::GetNextEvent(void* event) {
+  CHECK(event);
+  CHECK(!queued_events_.empty())
+      << "GetNextEvent() called while no events are queued in single-threaded "
+      << "testing code -- we would block forever";
+  *(reinterpret_cast<XEvent*>(event)) = queued_events_.front();
+  queued_events_.pop();
+  unsigned char data = 1;
+  CHECK_EQ(HANDLE_EINTR(read(connection_pipe_fds_[0], &data, 1)), 1)
+      << strerror(errno);
+}
+
 bool MockXConnection::SendClientMessageEvent(XWindow dest_xid,
                                              XWindow xid,
                                              XAtom message_type,
@@ -513,6 +540,13 @@ MockXConnection::WindowInfo::~WindowInfo() {}
 MockXConnection::WindowInfo* MockXConnection::GetWindowInfo(XWindow xid) {
   map<XWindow, shared_ptr<WindowInfo> >::iterator it = windows_.find(xid);
   return (it != windows_.end()) ? it->second.get() : NULL;
+}
+
+void MockXConnection::AppendEventToQueue(const XEvent& event) {
+  queued_events_.push(event);
+  unsigned char data = 1;
+  CHECK_EQ(HANDLE_EINTR(write(connection_pipe_fds_[1], &data, 1)), 1)
+      << strerror(errno);
 }
 
 void MockXConnection::RegisterPropertyCallback(

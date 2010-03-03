@@ -26,6 +26,7 @@
 namespace window_manager {
 
 class CompositorEventSource;
+class EventLoop;
 class GLInterfaceBase;
 class OpenGlDrawVisitor;
 class OpenGlesDrawVisitor;
@@ -488,9 +489,10 @@ class TidyInterface : public ClutterInterface {
     DISALLOW_COPY_AND_ASSIGN(StageActor);
   };
 
-  TidyInterface(XConnection* x_connection,
-                GLInterfaceBase* gl_interface);
+  TidyInterface(EventLoop* event_loop, GLInterfaceBase* gl_interface);
   ~TidyInterface();
+
+  XConnection* x_conn();
 
   // Begin ClutterInterface methods
   void SetEventSource(CompositorEventSource* source) { event_source_ = source; }
@@ -519,8 +521,6 @@ class TidyInterface : public ClutterInterface {
 
   void Draw();
 
-  XConnection* x_conn() const { return xconn_; }
-
  private:
   FRIEND_TEST(OpenGlVisitorTestTree, LayerDepth);  // sets actor count
 
@@ -538,6 +538,8 @@ class TidyInterface : public ClutterInterface {
   // the redirection for the supplied window.
   void StopMonitoringWindowForChanges(XWindow xid, TexturePixmapActor* actor);
 
+  EventLoop* event_loop_;  // not owned
+
   // The source that will be sending us X events related to windows used
   // for TexturePixmapActors (typically WindowManager).  We need to be able
   // to tell the source when we're interested or uninterested in receiving
@@ -546,9 +548,6 @@ class TidyInterface : public ClutterInterface {
 
   // This indicates if the interface is dirty and needs to be redrawn.
   bool dirty_;
-
-  // This is the X connection to use, and is not owned.
-  XConnection* xconn_;
 
   // This is the list of actors to display.
   ActorVector actors_;
@@ -576,6 +575,9 @@ class TidyInterface : public ClutterInterface {
 #elif defined(TIDY_OPENGLES)
   OpenGlesDrawVisitor* draw_visitor_;
 #endif
+
+  // ID of the event loop timeout used to invoke Draw().
+  int draw_timeout_id_;
 
   DISALLOW_COPY_AND_ASSIGN(TidyInterface);
 };

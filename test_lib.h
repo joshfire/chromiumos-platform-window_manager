@@ -14,6 +14,7 @@
 
 namespace window_manager {
 
+class EventLoop;
 class MockXConnection;
 class MockClutterInterface;
 class Panel;
@@ -100,6 +101,7 @@ class BasicWindowManagerTest : public ::testing::Test {
   void TestIntArrayProperty(XWindow xid, XAtom atom, int num_values, ...);
 
   scoped_ptr<MockXConnection> xconn_;
+  scoped_ptr<EventLoop> event_loop_;
   scoped_ptr<MockClutterInterface> clutter_;
   scoped_ptr<WindowManager> wm_;
 };

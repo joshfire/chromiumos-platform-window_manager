@@ -79,6 +79,7 @@ LayoutManager::LayoutManager
       overview_panning_offset_(0),
       overview_background_event_coalescer_(
           new MotionEventCoalescer(
+              wm_->event_loop(),
               NewPermanentCallback(
                   this, &LayoutManager::UpdateOverviewPanningForMotion),
               kOverviewDragUpdateMs)),

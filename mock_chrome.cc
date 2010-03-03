@@ -40,7 +40,6 @@ DEFINE_int32(window_width, 920, "Window width");
 using chromeos::SplitStringUsing;
 using std::max;
 using window_manager::AtomCache;
-using window_manager::GetCurrentTime;
 using window_manager::RealXConnection;
 using window_manager::WmIpc;
 

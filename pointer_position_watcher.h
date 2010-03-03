@@ -10,6 +10,7 @@
 
 namespace window_manager {
 
+class EventLoop;
 class XConnection;
 
 // This class periodically queries the mouse pointer's position and invokes
@@ -31,6 +32,7 @@ class PointerPositionWatcher {
  public:
   // The constructor takes ownership of 'cb'.
   PointerPositionWatcher(
+      EventLoop* event_loop,
       XConnection* xconn,
       chromeos::Closure* cb,
       bool watch_for_entering_target,  // as opposed to leaving it
@@ -38,18 +40,22 @@ class PointerPositionWatcher {
   ~PointerPositionWatcher();
 
   // Useful for testing.
-  int timer_id() const { return timer_id_; }
+  int timeout_id() const { return timeout_id_; }
 
-  // Invoke HandleTimer() manually.  Useful for testing.
+  // Invoke RunCallbackIfConditionIsSatisfied() and remove the current
+  // timeout if needed.
   void TriggerTimeout();
 
  private:
-  static int HandleTimerThunk(void* self) {
-    return reinterpret_cast<PointerPositionWatcher*>(self)->HandleTimer();
-  }
-  int HandleTimer();
+  // If 'timeout_id_' is set, clear it and remove the timeout.
+  void CancelTimeoutIfActive();
 
-  XConnection* xconn_;  // not owned
+  // Check the pointer's position, running the callback and removing the
+  // timeout if the condition has been satisfied.
+  void HandleTimeout();
+
+  EventLoop* event_loop_;  // not owned
+  XConnection* xconn_;     // not owned
 
   // Callback that gets invoked when the pointer enters/exits the target
   // rectangle.
@@ -65,8 +71,8 @@ class PointerPositionWatcher {
   int target_width_;
   int target_height_;
 
-  // ID of the timer's GLib event source, or 0 if the timer isn't active.
-  unsigned int timer_id_;
+  // Timeout ID, or -1 if the timeout isn't active.
+  int timeout_id_;
 };
 
 }  // namespace window_manager

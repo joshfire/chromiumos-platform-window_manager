@@ -38,6 +38,7 @@ PanelManager::PanelManager(WindowManager* wm)
       dragged_panel_(NULL),
       dragged_panel_event_coalescer_(
           new MotionEventCoalescer(
+              wm_->event_loop(),
               NewPermanentCallback(
                   this, &PanelManager::HandlePeriodicPanelDragMotion),
               kDraggedPanelUpdateMs)),

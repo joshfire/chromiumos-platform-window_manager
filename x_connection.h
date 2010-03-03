@@ -300,6 +300,17 @@ class XConnection {
   // Delete a property on a window if it exists.
   virtual bool DeletePropertyIfExists(XWindow xid, XAtom xatom) = 0;
 
+  // Get the X connection's file descriptor.
+  virtual int GetConnectionFileDescriptor() = 0;
+
+  // Is there an unprocessed event available?
+  virtual bool IsEventPending() = 0;
+
+  // Get the next event, blocking if one isn't available.  'event' is
+  // actually a pointer to an XEvent; we just don't want to include Xlib.h
+  // here. :-(
+  virtual void GetNextEvent(void* event) = 0;
+
   // Send a ClientMessage event with 32-bit data to a window.  If
   // 'event_mask' is 0, the event is sent to the client that created
   // 'dest_xid'; otherwise the event is sent to all clients selecting any
@@ -402,7 +413,6 @@ class XConnection {
   // Base IDs for extension events.  Implementations should initialize
   // these in their constructors.
   int damage_event_base_;
-  int damage_error_base_;
   int shape_event_base_;
   int randr_event_base_;
 

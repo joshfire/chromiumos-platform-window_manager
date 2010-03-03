@@ -5,13 +5,8 @@
 #include "window_manager/wm_ipc.h"
 
 #include <cstring>
-#include <gdk/gdkx.h>
-extern "C" {
-#include <X11/Xatom.h>  // for XA_CARDINAL
-}
 
 #include "chromeos/obsolete_logging.h"
-
 #include "window_manager/atom_cache.h"
 #include "window_manager/util.h"
 #include "window_manager/x_connection.h"
@@ -58,7 +53,8 @@ bool WmIpc::SetWindowType(
     }
   }
   return xconn_->SetIntArrayProperty(
-      xid, atom_cache_->GetXAtom(ATOM_CHROME_WINDOW_TYPE), XA_CARDINAL, values);
+      xid, atom_cache_->GetXAtom(ATOM_CHROME_WINDOW_TYPE),
+      atom_cache_->GetXAtom(ATOM_CARDINAL), values);
 }
 
 bool WmIpc::SetSystemMetricsProperty(XWindow xid, const std::string& metrics) {

@@ -7,11 +7,11 @@
 #include <algorithm>
 
 #include <gflags/gflags.h>
-#include <glib.h>
 
 #include "base/logging.h"
 #include "window_manager/clutter_interface.h"
 #include "window_manager/event_consumer_registrar.h"
+#include "window_manager/event_loop.h"
 #include "window_manager/panel.h"
 #include "window_manager/panel_manager.h"
 #include "window_manager/pointer_position_watcher.h"
@@ -80,7 +80,7 @@ PanelBar::PanelBar(PanelManager* panel_manager)
       show_collapsed_panels_input_xid_(
           wm()->CreateInputWindow(-1, -1, 1, 1,
                                   EnterWindowMask | LeaveWindowMask)),
-      show_collapsed_panels_timer_id_(0),
+      show_collapsed_panels_timeout_id_(-1),
       event_consumer_registrar_(
           new EventConsumerRegistrar(wm(), panel_manager)) {
   event_consumer_registrar_->RegisterForWindowEvents(anchor_input_xid_);
@@ -103,7 +103,7 @@ PanelBar::PanelBar(PanelManager* panel_manager)
 }
 
 PanelBar::~PanelBar() {
-  DisableShowCollapsedPanelsTimer();
+  DisableShowCollapsedPanelsTimeout();
   wm()->xconn()->DestroyWindow(anchor_input_xid_);
   anchor_input_xid_ = None;
   wm()->xconn()->DestroyWindow(show_collapsed_panels_input_xid_);
@@ -257,16 +257,17 @@ void PanelBar::HandleInputWindowPointerEnter(XWindow xid,
       // Show the panels immediately in this case.
       ShowCollapsedPanels();
     } else {
-      // Otherwise, set up a timer to show the panels if we're not already
+      // Otherwise, set up a timeout to show the panels if we're not already
       // doing so.
       if (collapsed_panel_state_ != COLLAPSED_PANEL_STATE_SHOWN &&
           collapsed_panel_state_ != COLLAPSED_PANEL_STATE_WAITING_TO_SHOW) {
         collapsed_panel_state_ = COLLAPSED_PANEL_STATE_WAITING_TO_SHOW;
-        DCHECK(show_collapsed_panels_timer_id_ == 0);
-        show_collapsed_panels_timer_id_ =
-            g_timeout_add(kShowCollapsedPanelsDelayMs,
-                          &HandleShowCollapsedPanelsTimerThunk,
-                          this);
+        DCHECK_EQ(show_collapsed_panels_timeout_id_, -1);
+        show_collapsed_panels_timeout_id_ =
+            wm()->event_loop()->AddTimeout(
+                NewPermanentCallback(
+                    this, &PanelBar::HandleShowCollapsedPanelsTimeout),
+                false, kShowCollapsedPanelsDelayMs);  // recurring=false
       }
     }
   }
@@ -280,7 +281,7 @@ void PanelBar::HandleInputWindowPointerLeave(XWindow xid,
     VLOG(1) << "Got mouse leave in show-collapsed-panels window";
     if (collapsed_panel_state_ == COLLAPSED_PANEL_STATE_WAITING_TO_SHOW) {
       collapsed_panel_state_ = COLLAPSED_PANEL_STATE_HIDDEN;
-      DisableShowCollapsedPanelsTimer();
+      DisableShowCollapsedPanelsTimeout();
     }
   }
 }
@@ -658,6 +659,7 @@ void PanelBar::CreateAnchor(Panel* panel) {
   // we slide a panel up.
   anchor_pointer_watcher_.reset(
       new PointerPositionWatcher(
+          wm()->event_loop(),
           wm()->xconn(),
           NewPermanentCallback(this, &PanelBar::DestroyAnchor),
           false,  // watch_for_entering_target=false
@@ -714,6 +716,7 @@ void PanelBar::ConfigureShowCollapsedPanelsInputWindow(bool move_onscreen) {
 void PanelBar::StartHideCollapsedPanelsWatcher() {
   hide_collapsed_panels_pointer_watcher_.reset(
       new PointerPositionWatcher(
+          wm()->event_loop(),
           wm()->xconn(),
           NewPermanentCallback(this, &PanelBar::HideCollapsedPanels),
           false,  // watch_for_entering_target=false
@@ -723,7 +726,7 @@ void PanelBar::StartHideCollapsedPanelsWatcher() {
 
 void PanelBar::ShowCollapsedPanels() {
   VLOG(1) << "Showing collapsed panels";
-  DisableShowCollapsedPanelsTimer();
+  DisableShowCollapsedPanelsTimeout();
   collapsed_panel_state_ = COLLAPSED_PANEL_STATE_SHOWN;
 
   for (Panels::iterator it = panels_.begin(); it != panels_.end(); ++it) {
@@ -742,7 +745,7 @@ void PanelBar::ShowCollapsedPanels() {
 
 void PanelBar::HideCollapsedPanels() {
   VLOG(1) << "Hiding collapsed panels";
-  DisableShowCollapsedPanelsTimer();
+  DisableShowCollapsedPanelsTimeout();
 
   if (dragged_panel_ && !dragged_panel_->is_expanded()) {
     // Don't hide the panels in the middle of the drag -- we'll do it in
@@ -769,20 +772,17 @@ void PanelBar::HideCollapsedPanels() {
   hide_collapsed_panels_pointer_watcher_.reset();
 }
 
-void PanelBar::DisableShowCollapsedPanelsTimer() {
-  if (show_collapsed_panels_timer_id_) {
-    g_source_remove(show_collapsed_panels_timer_id_);
-    show_collapsed_panels_timer_id_ = 0;
+void PanelBar::DisableShowCollapsedPanelsTimeout() {
+  if (show_collapsed_panels_timeout_id_ >= 0) {
+    wm()->event_loop()->RemoveTimeout(show_collapsed_panels_timeout_id_);
+    show_collapsed_panels_timeout_id_ = -1;
   }
 }
 
-gboolean PanelBar::HandleShowCollapsedPanelsTimer() {
+void PanelBar::HandleShowCollapsedPanelsTimeout() {
   DCHECK_EQ(collapsed_panel_state_, COLLAPSED_PANEL_STATE_WAITING_TO_SHOW);
-  // Clear the ID so that ShowCollapsedPanels() won't try to delete the
-  // timer for us -- it'll be deleted automatically when we return FALSE.
-  show_collapsed_panels_timer_id_ = 0;
+  DisableShowCollapsedPanelsTimeout();
   ShowCollapsedPanels();
-  return FALSE;
 }
 
 }  // namespace window_manager

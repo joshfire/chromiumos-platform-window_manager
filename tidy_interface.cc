@@ -10,11 +10,12 @@
 #include <string>
 
 #include <gflags/gflags.h>
-#include <glib.h>
 #include <sys/time.h>
 
 #include "base/logging.h"
+#include "chromeos/callback.h"
 #include "window_manager/compositor_event_source.h"
+#include "window_manager/event_loop.h"
 #include "window_manager/gl_interface_base.h"
 #include "window_manager/image_container.h"
 #ifdef TIDY_OPENGL
@@ -25,8 +26,6 @@
 #include "window_manager/util.h"
 #include "window_manager/x_connection.h"
 
-using std::tr1::shared_ptr;
-
 DEFINE_bool(tidy_display_debug_needle, false,
             "Specify this to turn on a debugging aid for seeing when "
             "frames are being drawn.");
@@ -35,6 +34,9 @@ DEFINE_bool(tidy_display_debug_needle, false,
 #undef EXTRA_LOGGING
 
 namespace window_manager {
+
+using chromeos::NewPermanentCallback;
+using std::tr1::shared_ptr;
 
 const float TidyInterface::LayerVisitor::kMinDepth = -2048.0f;
 const float TidyInterface::LayerVisitor::kMaxDepth = 2048.0f;
@@ -561,18 +563,13 @@ void TidyInterface::StageActor::SetSizeImpl(int* width, int* height) {
   interface()->x_conn()->ResizeWindow(window_, *width, *height);
 }
 
-static gboolean DrawInterface(void* data) {
-  reinterpret_cast<TidyInterface*>(data)->Draw();
-  return TRUE;
-}
-
-TidyInterface::TidyInterface(XConnection* xconn,
+TidyInterface::TidyInterface(EventLoop* event_loop,
                              GLInterfaceBase* gl_interface)
-    : event_source_(NULL),
+    : event_loop_(event_loop),
+      event_source_(NULL),
       dirty_(true),
-      xconn_(xconn),
       actor_count_(0) {
-  CHECK(xconn_);
+  CHECK(event_loop_);
   now_ = GetCurrentRealTime();
   XWindow root = x_conn()->GetRootWindow();
   XConnection::WindowGeometry geometry;
@@ -592,14 +589,20 @@ TidyInterface::TidyInterface(XConnection* xconn,
                                           default_stage_.get());
 #endif
 
+  // Register a recurring timeout.
   // TODO: Remove this lovely hack, and replace it with something that
   // knows more about keeping a consistent frame rate.
-  g_timeout_add(20, window_manager::DrawInterface, this);
+  draw_timeout_id_ = event_loop_->AddTimeout(
+      NewPermanentCallback(this, &TidyInterface::Draw), true, 20);
 }
 
 TidyInterface::~TidyInterface() {
   delete draw_visitor_;
+  if (draw_timeout_id_ >= 0)
+    event_loop_->RemoveTimeout(draw_timeout_id_);
 }
+
+XConnection* TidyInterface::x_conn() { return event_loop_->xconn(); }
 
 TidyInterface::ContainerActor* TidyInterface::CreateGroup() {
   return new ContainerActor(this);

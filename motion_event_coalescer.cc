@@ -4,16 +4,19 @@
 
 #include "window_manager/motion_event_coalescer.h"
 
-#include <glib.h>
-
 #include "chromeos/obsolete_logging.h"
+#include "window_manager/event_loop.h"
 
 namespace window_manager {
 
 using chromeos::Closure;
+using chromeos::NewPermanentCallback;
 
-MotionEventCoalescer::MotionEventCoalescer(Closure* cb, int timeout_ms)
-    : timer_id_(0),
+MotionEventCoalescer::MotionEventCoalescer(EventLoop* event_loop,
+                                           Closure* cb,
+                                           int timeout_ms)
+    : event_loop_(event_loop),
+      timeout_id_(-1),
       timeout_ms_(timeout_ms),
       have_queued_position_(false),
       x_(-1),
@@ -30,13 +33,16 @@ MotionEventCoalescer::~MotionEventCoalescer() {
 }
 
 void MotionEventCoalescer::Start() {
-  if (timer_id_) {
+  if (timeout_id_ >= 0) {
     LOG(WARNING) << "Ignoring request to start coalescer while timer "
                  << "is already running";
     return;
   }
-  if (!synchronous_)
-    timer_id_ = g_timeout_add(timeout_ms_, &HandleTimerThunk, this);
+  if (!synchronous_) {
+    timeout_id_ = event_loop_->AddTimeout(
+        NewPermanentCallback(this, &MotionEventCoalescer::HandleTimeout),
+        true, timeout_ms_);  // recurring=true
+  }
   have_queued_position_ = false;
   x_ = -1;
   y_ = -1;
@@ -54,31 +60,29 @@ void MotionEventCoalescer::StorePosition(int x, int y) {
   y_ = y;
   have_queued_position_ = true;
   if (synchronous_)
-    HandleTimer();
+    HandleTimeout();
 }
 
 void MotionEventCoalescer::StopInternal(bool maybe_run_callback) {
-  if (!timer_id_) {
+  if (timeout_id_ < 0) {
     LOG(WARNING) << "Ignoring request to stop coalescer while timer "
                  << "isn't running";
     return;
   }
-  g_source_remove(timer_id_);
-  timer_id_ = 0;
+  event_loop_->RemoveTimeout(timeout_id_);
+  timeout_id_ = -1;
 
-  if (maybe_run_callback) {
-    // Invoke the handler one last time to catch any events that came in
-    // after the final run.
-    HandleTimer();
-  }
+  // Invoke the handler one last time to catch any events that came in
+  // after the final run.
+  if (maybe_run_callback)
+    HandleTimeout();
 }
 
-gboolean MotionEventCoalescer::HandleTimer() {
+void MotionEventCoalescer::HandleTimeout() {
   if (have_queued_position_) {
     cb_->Run();
     have_queued_position_ = false;
   }
-  return TRUE;
 }
 
 }  // namespace window_manager

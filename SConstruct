@@ -93,8 +93,9 @@ wm_env['BUILDERS']['ProtocolBuffer'] = proto_builder
 
 wm_env.Append(LIBS=Split('gflags protobuf'))
 
-wm_env.ParseConfig('pkg-config --cflags --libs gdk-2.0 libpcrecpp ' +
-                   'xcb x11-xcb xcb-composite xcb-randr xcb-shape xcb-damage')
+wm_env.ParseConfig('pkg-config --cflags --libs libpcrecpp libpng12 ' +
+                   'xcb x11-xcb xcb-composite xcb-randr xcb-shape xcb-damage ' +
+                   'xdamage xext')
 
 # Add builder for .glsl* files, and GLESv2 libraries
 if backend == 'opengles':
@@ -130,6 +131,7 @@ libwm_ipc = wm_env.Library('wm_ipc', srcs)
 # atom_cache.cc and util.cc via libwm_ipc).
 srcs = Split('''\
   event_consumer_registrar.cc
+  event_loop.cc
   hotkey_overlay.cc
   image_container.cc
   key_bindings.cc

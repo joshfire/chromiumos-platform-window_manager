@@ -7,7 +7,6 @@
 #include <queue>
 
 extern "C" {
-#include <gdk/gdkx.h>
 #include <stdlib.h>
 #include <X11/cursorfont.h>
 #include <X11/Xatom.h>
@@ -21,6 +20,7 @@ extern "C" {
 #include "chromeos/obsolete_logging.h"
 #include "chromeos/utility.h"
 #include "window_manager/event_consumer.h"
+#include "window_manager/event_loop.h"
 #include "window_manager/hotkey_overlay.h"
 #include "window_manager/key_bindings.h"
 #include "window_manager/layout_manager.h"
@@ -147,29 +147,9 @@ static const char* FocusChangeEventDetailToName(int detail) {
   }
 }
 
-// Callback that sends GDK events to the window manager.
-static GdkFilterReturn FilterEvent(GdkXEvent* xevent,
-                                   GdkEvent* event,
-                                   gpointer data) {
-  WindowManager* wm = reinterpret_cast<WindowManager*>(data);
-  wm->HandleEvent(reinterpret_cast<XEvent*>(xevent));
-  return GDK_FILTER_CONTINUE;
-}
-
-// Callback for a GTK timer that will attempt to send metrics to
-// Chrome once every timer interval.  We don't really care if a given
-// attempt fails, as we'll just keep aggregating metrics and try again
-// next time.
-// Returns true, as returning false causes the timer to destroy itself.
-static gboolean AttemptMetricsReport(gpointer data) {
-  MetricsReporter *reporter = reinterpret_cast<MetricsReporter*>(data);
-  reporter->AttemptReport();
-  return true;
-}
-
-
-WindowManager::WindowManager(XConnection* xconn, ClutterInterface* clutter)
-    : xconn_(xconn),
+WindowManager::WindowManager(EventLoop* event_loop,
+                             ClutterInterface* clutter)
+    : event_loop_(event_loop),
       clutter_(clutter),
       root_(None),
       width_(0),
@@ -184,24 +164,32 @@ WindowManager::WindowManager(XConnection* xconn, ClutterInterface* clutter)
       mapped_xids_(new Stacker<XWindow>),
       stacked_xids_(new Stacker<XWindow>),
       active_window_xid_(None),
-      query_keyboard_state_timer_(0),
+      metrics_reporter_timeout_id_(-1),
+      query_keyboard_state_timeout_id_(-1),
       showing_hotkey_overlay_(false),
       wm_ipc_version_(0),
       layout_manager_x_(0),
       layout_manager_y_(0),
       layout_manager_width_(1),
       layout_manager_height_(1) {
-  CHECK(xconn_);
+  CHECK(event_loop_);
   CHECK(clutter_);
+  event_loop_->SetSubscriber(this);
   clutter_->SetEventSource(this);
 }
 
 WindowManager::~WindowManager() {
   if (wm_xid_)
-    xconn_->DestroyWindow(wm_xid_);
+    xconn()->DestroyWindow(wm_xid_);
   if (background_xid_)
-    xconn_->DestroyWindow(background_xid_);
+    xconn()->DestroyWindow(background_xid_);
+  if (metrics_reporter_timeout_id_ >= 0)
+    event_loop_->RemoveTimeout(metrics_reporter_timeout_id_);
+  if (query_keyboard_state_timeout_id_ >= 0)
+    event_loop_->RemoveTimeout(query_keyboard_state_timeout_id_);
 }
+
+XConnection* WindowManager::xconn() { return event_loop_->xconn(); }
 
 void WindowManager::StartSendingEventsForWindowToCompositor(XWindow xid) {
   bool added = xids_tracked_by_compositor_.insert(xid).second;
@@ -216,24 +204,24 @@ void WindowManager::StopSendingEventsForWindowToCompositor(XWindow xid) {
 }
 
 bool WindowManager::Init() {
-  root_ = xconn_->GetRootWindow();
-  xconn_->SelectRandREventsOnWindow(root_);
+  root_ = xconn()->GetRootWindow();
+  xconn()->SelectRandREventsOnWindow(root_);
   XConnection::WindowGeometry root_geometry;
-  CHECK(xconn_->GetWindowGeometry(root_, &root_geometry));
+  CHECK(xconn()->GetWindowGeometry(root_, &root_geometry));
   width_ = root_geometry.width;
   height_ = root_geometry.height;
 
   // Create the atom cache first; RegisterExistence() needs it.
-  atom_cache_.reset(new AtomCache(xconn_));
+  atom_cache_.reset(new AtomCache(xconn()));
 
-  wm_ipc_.reset(new WmIpc(xconn_, atom_cache_.get()));
+  wm_ipc_.reset(new WmIpc(xconn(), atom_cache_.get()));
 
   CHECK(RegisterExistence());
   SetEwmhGeneralProperties();
   SetEwmhSizeProperties();
 
   // Set root window's cursor to left pointer.
-  xconn_->SetWindowCursor(root_, XC_left_ptr);
+  xconn()->SetWindowCursor(root_, XC_left_ptr);
 
   stage_ = clutter_->GetDefaultStage();
   stage_xid_ = stage_->GetStageXWindow();
@@ -243,7 +231,7 @@ bool WindowManager::Init() {
   stage_->SetStageColor(ClutterInterface::Color(0.12549f, 0.12549f, 0.12549f));
   stage_->SetVisibility(true);
 
-  stacking_manager_.reset(new StackingManager(xconn_, clutter_));
+  stacking_manager_.reset(new StackingManager(xconn(), clutter_));
 
   if (!FLAGS_wm_background_image.empty()) {
     background_.reset(clutter_->CreateImage(FLAGS_wm_background_image));
@@ -259,13 +247,13 @@ bool WindowManager::Init() {
   if (FLAGS_wm_use_compositing) {
     // Create the compositing overlay, put the stage's window inside of it,
     // and make events fall through both to the client windows underneath.
-    overlay_xid_ = xconn_->GetCompositingOverlayWindow(root_);
+    overlay_xid_ = xconn()->GetCompositingOverlayWindow(root_);
     CHECK_NE(overlay_xid_, None);
     VLOG(1) << "Reparenting stage window " << XidStr(stage_xid_)
             << " into Xcomposite overlay window " << XidStr(overlay_xid_);
-    CHECK(xconn_->ReparentWindow(stage_xid_, overlay_xid_, 0, 0));
-    CHECK(xconn_->RemoveInputRegionFromWindow(overlay_xid_));
-    CHECK(xconn_->RemoveInputRegionFromWindow(stage_xid_));
+    CHECK(xconn()->ReparentWindow(stage_xid_, overlay_xid_, 0, 0));
+    CHECK(xconn()->RemoveInputRegionFromWindow(overlay_xid_));
+    CHECK(xconn()->RemoveInputRegionFromWindow(stage_xid_));
   }
 
   background_xid_ = CreateInputWindow(0, 0, width_, height_, 0);  // no events
@@ -273,7 +261,7 @@ bool WindowManager::Init() {
       background_xid_, StackingManager::LAYER_BACKGROUND);
 
   // Set up keybindings.
-  key_bindings_.reset(new KeyBindings(xconn_));
+  key_bindings_.reset(new KeyBindings(xconn()));
   if (!FLAGS_wm_xterm_command.empty()) {
     key_bindings_->AddAction(
         "launch-terminal",
@@ -348,14 +336,11 @@ bool WindowManager::Init() {
   panel_manager_.reset(new PanelManager(this));
   event_consumers_.insert(panel_manager_.get());
 
-  hotkey_overlay_.reset(new HotkeyOverlay(xconn_, clutter_));
+  hotkey_overlay_.reset(new HotkeyOverlay(xconn(), clutter_));
   stage_->AddActor(hotkey_overlay_->group());
   stacking_manager_->StackActorAtTopOfLayer(
       hotkey_overlay_->group(), StackingManager::LAYER_HOTKEY_OVERLAY);
   hotkey_overlay_->group()->Move(width_ / 2, height_ / 2, 0);
-
-  // Register a callback to get a shot at all the events that come in.
-  gdk_window_add_filter(NULL, FilterEvent, this);
 
   // Look up existing windows (note that this includes windows created
   // earlier in this method) and select window management events.
@@ -380,7 +365,7 @@ bool WindowManager::Init() {
   // being created or mapped, so HandleCreateNotify() and HandleMapNotify()
   // are careful to bail out early if it looks like they're dealing with a
   // window that was already handled by ManageExistingWindows().
-  CHECK(xconn_->SelectInputOnWindow(
+  CHECK(xconn()->SelectInputOnWindow(
             root_,
             SubstructureRedirectMask | StructureNotifyMask |
               SubstructureNotifyMask,
@@ -389,29 +374,26 @@ bool WindowManager::Init() {
 
   metrics_reporter_.reset(new MetricsReporter(layout_manager_.get(),
                                               wm_ipc_.get()));
-  // Using this function to set the timeout allows for better
-  // optimization from the user's perspective at the cost of some
-  // timer precision.  We don't really care about timer precision, so
-  // that's fine.
-  g_timeout_add_seconds(MetricsReporter::kMetricsReportingIntervalInSeconds,
-                        AttemptMetricsReport,
-                        metrics_reporter_.get());
+  metrics_reporter_timeout_id_ = event_loop_->AddTimeout(
+      NewPermanentCallback(
+          metrics_reporter_.get(), &MetricsReporter::AttemptReport),
+      true, MetricsReporter::kMetricsReportingIntervalMs);  // recurring=true
 
   return true;
 }
 
 void WindowManager::HandleEvent(XEvent* event) {
 #ifdef DEBUG_EVENTS
-    if (event->type == xconn_->damage_event_base() + XDamageNotify) {
+  if (event->type == xconn()->damage_event_base() + XDamageNotify) {
     LOG(INFO) << "Got DAMAGE" << " event (" << event->type << ")";
   } else {
     LOG(INFO) << "Got " << XEventTypeToName(event->type)
               << " event (" << event->type << ") in window manager.";
   }
 #endif
-  static int damage_notify = xconn_->damage_event_base() + XDamageNotify;
-  static int shape_notify = xconn_->shape_event_base() + ShapeNotify;
-  static int randr_notify = xconn_->randr_event_base() + RRScreenChangeNotify;
+  static int damage_notify = xconn()->damage_event_base() + XDamageNotify;
+  static int shape_notify = xconn()->shape_event_base() + ShapeNotify;
+  static int randr_notify = xconn()->randr_event_base() + RRScreenChangeNotify;
 
   switch (event->type) {
     case ButtonPress:
@@ -467,7 +449,7 @@ void WindowManager::HandleEvent(XEvent* event) {
 
 XWindow WindowManager::CreateInputWindow(
     int x, int y, int width, int height, int event_mask) {
-  XWindow xid = xconn_->CreateWindow(
+  XWindow xid = xconn()->CreateWindow(
       root_,  // parent
       x, y,
       width, height,
@@ -481,9 +463,9 @@ XWindow WindowManager::CreateInputWindow(
     // stack the input window under the overlay instead of under the stage
     // (because the stage isn't a sibling of the input window).
     XWindow top_win = overlay_xid_ ? overlay_xid_ : stage_xid_;
-    CHECK(xconn_->StackWindow(xid, top_win, false));
+    CHECK(xconn()->StackWindow(xid, top_win, false));
   }
-  CHECK(xconn_->MapWindow(xid));
+  CHECK(xconn()->MapWindow(xid));
   return xid;
 }
 
@@ -492,7 +474,7 @@ bool WindowManager::ConfigureInputWindow(
   VLOG(1) << "Configuring input window " << XidStr(xid)
           << " to (" << x << ", " << y << ") and size "
           << width << "x" << height;
-  return xconn_->ConfigureWindow(xid, x, y, width, height);
+  return xconn()->ConfigureWindow(xid, x, y, width, height);
 }
 
 XAtom WindowManager::GetXAtom(Atom atom) {
@@ -506,13 +488,13 @@ const string& WindowManager::GetXAtomName(XAtom xatom) {
 XTime WindowManager::GetCurrentTimeFromServer() {
   // Just set a bogus property on our window and wait for the
   // PropertyNotify event so we can get its timestamp.
-  CHECK(xconn_->SetIntProperty(
+  CHECK(xconn()->SetIntProperty(
             wm_xid_,
             GetXAtom(ATOM_CHROME_GET_SERVER_TIME),    // atom
             XA_ATOM,                                  // type
             GetXAtom(ATOM_CHROME_GET_SERVER_TIME)));  // value
   XTime timestamp = 0;
-  xconn_->WaitForPropertyChange(wm_xid_, &timestamp);
+  xconn()->WaitForPropertyChange(wm_xid_, &timestamp);
   return timestamp;
 }
 
@@ -528,7 +510,7 @@ Window* WindowManager::GetWindowOrDie(XWindow xid) {
 
 void WindowManager::TakeFocus() {
   if (!layout_manager_->TakeFocus() && !panel_manager_->TakeFocus())
-    xconn_->FocusWindow(root_, CurrentTime);
+    xconn()->FocusWindow(root_, CurrentTime);
 }
 
 bool WindowManager::SetActiveWindowProperty(XWindow xid) {
@@ -536,7 +518,7 @@ bool WindowManager::SetActiveWindowProperty(XWindow xid) {
     return true;
 
   VLOG(1) << "Setting active window to " << XidStr(xid);
-  if (!xconn_->SetIntProperty(
+  if (!xconn()->SetIntProperty(
           root_, GetXAtom(ATOM_NET_ACTIVE_WINDOW), XA_WINDOW, xid)) {
     return false;
   }
@@ -638,13 +620,13 @@ bool WindowManager::GetManagerSelection(
     XAtom atom, XWindow manager_win, XTime timestamp) {
   // Find the current owner of the selection and select events on it so
   // we'll know when it's gone away.
-  XWindow current_manager = xconn_->GetSelectionOwner(atom);
+  XWindow current_manager = xconn()->GetSelectionOwner(atom);
   if (current_manager != None)
-    xconn_->SelectInputOnWindow(current_manager, StructureNotifyMask, false);
+    xconn()->SelectInputOnWindow(current_manager, StructureNotifyMask, false);
 
   // Take ownership of the selection.
-  CHECK(xconn_->SetSelectionOwner(atom, manager_win, timestamp));
-  if (xconn_->GetSelectionOwner(atom) != manager_win) {
+  CHECK(xconn()->SetSelectionOwner(atom, manager_win, timestamp));
+  if (xconn()->GetSelectionOwner(atom) != manager_win) {
     LOG(WARNING) << "Couldn't take ownership of "
                  << GetXAtomName(atom) << " selection";
     return false;
@@ -656,12 +638,12 @@ bool WindowManager::GetManagerSelection(
   data[0] = timestamp;
   data[1] = atom;
   data[2] = manager_win;
-  CHECK(xconn_->SendClientMessageEvent(
+  CHECK(xconn()->SendClientMessageEvent(
             root_, root_, GetXAtom(ATOM_MANAGER), data, StructureNotifyMask));
 
   // If there was an old manager running, wait for its window to go away.
   if (current_manager != None)
-    CHECK(xconn_->WaitForWindowToBeDestroyed(current_manager));
+    CHECK(xconn()->WaitForWindowToBeDestroyed(current_manager));
 
   return true;
 }
@@ -669,22 +651,22 @@ bool WindowManager::GetManagerSelection(
 bool WindowManager::RegisterExistence() {
   // Create an offscreen window to take ownership of the selection and
   // receive properties.
-  wm_xid_ = xconn_->CreateWindow(root_,   // parent
-                                 -1, -1,  // position
-                                 1, 1,    // dimensions
-                                 true,    // override redirect
-                                 false,   // input only
-                                 PropertyChangeMask);  // event mask
+  wm_xid_ = xconn()->CreateWindow(root_,   // parent
+                                  -1, -1,  // position
+                                  1, 1,    // dimensions
+                                  true,    // override redirect
+                                  false,   // input only
+                                  PropertyChangeMask);  // event mask
   CHECK_NE(wm_xid_, None);
   VLOG(1) << "Created window " << XidStr(wm_xid_)
           << " for registering ourselves as the window manager";
 
   // Set the window's title and wait for the notify event so we can get a
   // timestamp from the server.
-  CHECK(xconn_->SetStringProperty(
+  CHECK(xconn()->SetStringProperty(
             wm_xid_, GetXAtom(ATOM_NET_WM_NAME), GetWmName()));
   XTime timestamp = 0;
-  xconn_->WaitForPropertyChange(wm_xid_, &timestamp);
+  xconn()->WaitForPropertyChange(wm_xid_, &timestamp);
 
   if (!GetManagerSelection(GetXAtom(ATOM_WM_S0), wm_xid_, timestamp) ||
       !GetManagerSelection(GetXAtom(ATOM_NET_WM_CM_S0), wm_xid_, timestamp)) {
@@ -697,16 +679,16 @@ bool WindowManager::RegisterExistence() {
 bool WindowManager::SetEwmhGeneralProperties() {
   bool success = true;
 
-  success &= xconn_->SetIntProperty(
+  success &= xconn()->SetIntProperty(
       root_, GetXAtom(ATOM_NET_NUMBER_OF_DESKTOPS), XA_CARDINAL, 1);
-  success &= xconn_->SetIntProperty(
+  success &= xconn()->SetIntProperty(
       root_, GetXAtom(ATOM_NET_CURRENT_DESKTOP), XA_CARDINAL, 0);
 
   // Let clients know that we're the current WM and that we at least
   // partially conform to EWMH.
   XAtom check_atom = GetXAtom(ATOM_NET_SUPPORTING_WM_CHECK);
-  success &= xconn_->SetIntProperty(root_, check_atom, XA_WINDOW, wm_xid_);
-  success &= xconn_->SetIntProperty(wm_xid_, check_atom, XA_WINDOW, wm_xid_);
+  success &= xconn()->SetIntProperty(root_, check_atom, XA_WINDOW, wm_xid_);
+  success &= xconn()->SetIntProperty(wm_xid_, check_atom, XA_WINDOW, wm_xid_);
 
   // State which parts of EWMH we support.
   vector<int> supported;
@@ -723,7 +705,7 @@ bool WindowManager::SetEwmhGeneralProperties() {
   supported.push_back(GetXAtom(ATOM_NET_WM_STATE_MODAL));
   supported.push_back(GetXAtom(ATOM_NET_WM_WINDOW_OPACITY));
   supported.push_back(GetXAtom(ATOM_NET_WORKAREA));
-  success &= xconn_->SetIntArrayProperty(
+  success &= xconn()->SetIntArrayProperty(
       root_, GetXAtom(ATOM_NET_SUPPORTED), XA_ATOM, supported);
 
   return success;
@@ -736,12 +718,12 @@ bool WindowManager::SetEwmhSizeProperties() {
   vector<int> geometry;
   geometry.push_back(width_);
   geometry.push_back(height_);
-  success &= xconn_->SetIntArrayProperty(
+  success &= xconn()->SetIntArrayProperty(
       root_, GetXAtom(ATOM_NET_DESKTOP_GEOMETRY), XA_CARDINAL, geometry);
 
   // The viewport (top-left corner of the desktop) is just (0, 0) for us.
   vector<int> viewport(2, 0);
-  success &= xconn_->SetIntArrayProperty(
+  success &= xconn()->SetIntArrayProperty(
       root_, GetXAtom(ATOM_NET_DESKTOP_VIEWPORT), XA_CARDINAL, viewport);
 
   // This isn't really applicable to us (EWMH just says that it should be
@@ -752,7 +734,7 @@ bool WindowManager::SetEwmhSizeProperties() {
   workarea.push_back(0);  // y
   workarea.push_back(width_);
   workarea.push_back(height_);
-  success &= xconn_->SetIntArrayProperty(
+  success &= xconn()->SetIntArrayProperty(
       root_, GetXAtom(ATOM_NET_WORKAREA), XA_CARDINAL, workarea);
 
   return success;
@@ -773,7 +755,7 @@ ClutterInterface::Actor* WindowManager::CreateActorAbove(
 
 bool WindowManager::ManageExistingWindows() {
   vector<XWindow> windows;
-  if (!xconn_->GetChildWindows(root_, &windows)) {
+  if (!xconn()->GetChildWindows(root_, &windows)) {
     return false;
   }
 
@@ -782,7 +764,7 @@ bool WindowManager::ManageExistingWindows() {
   for (size_t i = 0; i < windows.size(); ++i) {
     XWindow xid = windows[i];
     XConnection::WindowAttributes attr;
-    if (!xconn_->GetWindowAttributes(xid, &attr))
+    if (!xconn()->GetWindowAttributes(xid, &attr))
       continue;
     // XQueryTree() returns child windows in bottom-to-top stacking order.
     stacked_xids_->AddOnTop(xid);
@@ -810,7 +792,7 @@ Window* WindowManager::TrackWindow(XWindow xid, bool override_redirect) {
   // TODO: Don't call GetWindowAttributes() so many times; we call in it
   // Window's c'tor as well.
   XConnection::WindowAttributes attr;
-  if (xconn_->GetWindowAttributes(xid, &attr) &&
+  if (xconn()->GetWindowAttributes(xid, &attr) &&
       attr.window_class ==
         XConnection::WindowAttributes::WINDOW_CLASS_INPUT_ONLY)
     return NULL;
@@ -856,7 +838,7 @@ bool WindowManager::SetWmStateProperty(XWindow xid, int state) {
   values.push_back(state);
   values.push_back(None);  // we don't use icons
   XAtom xatom = GetXAtom(ATOM_WM_STATE);
-  return xconn_->SetIntArrayProperty(xid, xatom, xatom, values);
+  return xconn()->SetIntArrayProperty(xid, xatom, xatom, values);
 }
 
 bool WindowManager::UpdateClientListProperty() {
@@ -878,10 +860,10 @@ bool WindowManager::UpdateClientListProperty() {
     }
   }
   if (!values.empty()) {
-    return xconn_->SetIntArrayProperty(
+    return xconn()->SetIntArrayProperty(
         root_, GetXAtom(ATOM_NET_CLIENT_LIST), XA_WINDOW, values);
   } else {
-    return xconn_->DeletePropertyIfExists(
+    return xconn()->DeletePropertyIfExists(
         root_, GetXAtom(ATOM_NET_CLIENT_LIST));
   }
 }
@@ -898,10 +880,10 @@ bool WindowManager::UpdateClientListStackingProperty() {
       values.push_back(*it);
   }
   if (!values.empty()) {
-    return xconn_->SetIntArrayProperty(
+    return xconn()->SetIntArrayProperty(
         root_, GetXAtom(ATOM_NET_CLIENT_LIST_STACKING), XA_WINDOW, values);
   } else {
-    return xconn_->DeletePropertyIfExists(
+    return xconn()->DeletePropertyIfExists(
         root_, GetXAtom(ATOM_NET_CLIENT_LIST_STACKING));
   }
 }
@@ -1072,7 +1054,7 @@ void WindowManager::HandleConfigureNotify(const XConfigureEvent& e) {
     clutter_->HandleWindowConfigured(e.window);
 
   // TODO: Hack; sync to clear errors from the event queue.
-  xconn_->ClearErrors();
+  xconn()->ClearErrors();
 }
 
 void WindowManager::HandleConfigureRequest(const XConfigureRequestEvent& e) {
@@ -1157,7 +1139,7 @@ void WindowManager::HandleCreateNotify(const XCreateWindowEvent& e) {
   // described above the call to ManageExistingWindows() in Init().
 
   XConnection::WindowAttributes attr;
-  if (!xconn_->GetWindowAttributes(e.window, &attr)) {
+  if (!xconn()->GetWindowAttributes(e.window, &attr)) {
     LOG(WARNING) << "Window " << XidStr(e.window)
                  << " went away while we were handling its CreateNotify event";
     return;
@@ -1174,7 +1156,7 @@ void WindowManager::HandleDamageNotify(const XDamageNotifyEvent& e) {
   if (xids_tracked_by_compositor_.count(e.drawable)) {
     clutter_->HandleWindowDamaged(e.drawable);
     // TODO: Hack; sync to clear errors from the event queue.
-    xconn_->ClearErrors();
+    xconn()->ClearErrors();
   }
 }
 
@@ -1208,7 +1190,7 @@ void WindowManager::HandleDestroyNotify(const XDestroyWindowEvent& e) {
     clutter_->HandleWindowDestroyed(e.window);
 
   // TODO: Hack; sync to clear errors from the event queue.
-  xconn_->ClearErrors();
+  xconn()->ClearErrors();
 }
 
 void WindowManager::HandleEnterNotify(const XEnterWindowEvent& e) {
@@ -1250,12 +1232,12 @@ void WindowManager::HandleFocusChange(const XFocusChangeEvent& e) {
 }
 
 void WindowManager::HandleKeyPress(const XKeyEvent& e) {
-  KeySym keysym = xconn_->GetKeySymFromKeyCode(e.keycode);
+  KeySym keysym = xconn()->GetKeySymFromKeyCode(e.keycode);
   key_bindings_->HandleKeyPress(keysym, e.state);
 }
 
 void WindowManager::HandleKeyRelease(const XKeyEvent& e) {
-  KeySym keysym = xconn_->GetKeySymFromKeyCode(e.keycode);
+  KeySym keysym = xconn()->GetKeySymFromKeyCode(e.keycode);
   key_bindings_->HandleKeyRelease(keysym, e.state);
 }
 
@@ -1282,7 +1264,7 @@ void WindowManager::HandleMapNotify(const XMapEvent& e) {
   win->set_mapped(true);
   HandleMappedWindow(win);
   // TODO: Hack; sync to clear errors from the event queue.
-  xconn_->ClearErrors();
+  xconn()->ClearErrors();
 }
 
 void WindowManager::HandleMapRequest(const XMapRequestEvent& e) {
@@ -1293,7 +1275,7 @@ void WindowManager::HandleMapRequest(const XMapRequestEvent& e) {
     // we're not going to be compositing it.
     LOG(WARNING) << "Mapping " << XidStr(e.window)
                  << ", which we somehow didn't already know about";
-    xconn_->MapWindow(e.window);
+    xconn()->MapWindow(e.window);
     return;
   }
 
@@ -1334,7 +1316,7 @@ void WindowManager::HandlePropertyNotify(const XPropertyEvent& e) {
             << XidStr(e.atom) << " (" << GetXAtomName(e.atom) << ")";
     if (e.atom == GetXAtom(ATOM_NET_WM_NAME)) {
       string title;
-      if (deleted || !xconn_->GetStringProperty(win->xid(), e.atom, &title))
+      if (deleted || !xconn()->GetStringProperty(win->xid(), e.atom, &title))
         win->SetTitle("");
       else
         win->SetTitle(title);
@@ -1410,7 +1392,7 @@ void WindowManager::HandleReparentNotify(const XReparentEvent& e) {
         LOG(WARNING) << "Possible race condition -- unredirecting "
                      << XidStr(e.window) << " after it was already "
                      << "mapped";
-        xconn_->UnredirectWindowForCompositing(e.window);
+        xconn()->UnredirectWindowForCompositing(e.window);
       }
     }
   }
@@ -1435,7 +1417,7 @@ void WindowManager::HandleRRScreenChangeNotify(
   layout_manager_->MoveAndResize(layout_manager_x_, layout_manager_y_,
                                  layout_manager_width_, layout_manager_height_);
   hotkey_overlay_->group()->Move(width_ / 2, height_ / 2, 0);
-  xconn_->ResizeWindow(background_xid_, width_, height_);
+  xconn()->ResizeWindow(background_xid_, width_, height_);
 
   SetEwmhSizeProperties();
 }
@@ -1506,7 +1488,7 @@ void WindowManager::ToggleClientWindowDebugging() {
   LOG(INFO) << "Clutter actors:\n" << stage_->GetDebugString();
 
   vector<XWindow> xids;
-  if (!xconn_->GetChildWindows(root_, &xids))
+  if (!xconn()->GetChildWindows(root_, &xids))
     return;
 
   static const int kDebugFadeMs = 100;
@@ -1515,7 +1497,7 @@ void WindowManager::ToggleClientWindowDebugging() {
 
   for (vector<XWindow>::iterator it = xids.begin(); it != xids.end(); ++it) {
     XConnection::WindowGeometry geometry;
-    if (!xconn_->GetWindowGeometry(*it, &geometry))
+    if (!xconn()->GetWindowGeometry(*it, &geometry))
       continue;
 
     ClutterInterface::ContainerActor* group = clutter_->CreateGroup();
@@ -1565,14 +1547,16 @@ void WindowManager::ToggleHotkeyOverlay() {
     group->SetOpacity(0, 0);
     group->SetVisibility(true);
     group->SetOpacity(1, kHotkeyOverlayAnimMs);
-    DCHECK(query_keyboard_state_timer_ == 0);
-    query_keyboard_state_timer_ =
-        g_timeout_add(kHotkeyOverlayPollMs, QueryKeyboardStateThunk, this);
+    DCHECK_EQ(query_keyboard_state_timeout_id_, -1);
+    query_keyboard_state_timeout_id_ =
+        event_loop_->AddTimeout(
+            NewPermanentCallback(this, &WindowManager::QueryKeyboardState),
+            true, kHotkeyOverlayPollMs);  // recurring=true
   } else {
     group->SetOpacity(0, kHotkeyOverlayAnimMs);
-    DCHECK(query_keyboard_state_timer_ != 0);
-    g_source_remove(query_keyboard_state_timer_);
-    query_keyboard_state_timer_ = 0;
+    DCHECK_GE(query_keyboard_state_timeout_id_, 0);
+    event_loop_->RemoveTimeout(query_keyboard_state_timeout_id_);
+    query_keyboard_state_timeout_id_ = -1;
   }
 }
 
@@ -1614,7 +1598,7 @@ void WindowManager::TakeScreenshot(bool use_active_window) {
 
 void WindowManager::QueryKeyboardState() {
   vector<uint8_t> keycodes;
-  xconn_->QueryKeyboardState(&keycodes);
+  xconn()->QueryKeyboardState(&keycodes);
   hotkey_overlay_->HandleKeyboardState(keycodes);
 }
 

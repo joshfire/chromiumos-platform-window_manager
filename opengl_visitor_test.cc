@@ -14,6 +14,7 @@
 #include "base/scoped_ptr.h"
 #include "base/logging.h"
 #include "window_manager/clutter_interface.h"
+#include "window_manager/event_loop.h"
 #include "window_manager/opengl_visitor.h"
 #include "window_manager/mock_gl_interface.h"
 #include "window_manager/mock_x_connection.h"
@@ -29,8 +30,8 @@ namespace window_manager {
 
 class TestInterface : virtual public TidyInterface {
  public:
-  TestInterface(XConnection* xconnection, GLInterfaceBase* gl_interface)
-      : TidyInterface(xconnection, gl_interface) {}
+  TestInterface(EventLoop* event_loop, GLInterfaceBase* gl_interface)
+      : TidyInterface(event_loop, gl_interface) {}
  private:
   DISALLOW_COPY_AND_ASSIGN(TestInterface);
 };
@@ -39,9 +40,9 @@ class OpenGlVisitorTest : public ::testing::Test {
  public:
   OpenGlVisitorTest() : interface_(NULL),
                         gl_interface_(new MockGLInterface),
-                        x_connection_(new MockXConnection) {
-    interface_.reset(new TestInterface(x_connection_.get(),
-                                       gl_interface_.get()));
+                        x_connection_(new MockXConnection),
+                        event_loop_(new EventLoop(x_connection_.get())) {
+    interface_.reset(new TestInterface(event_loop_.get(), gl_interface_.get()));
   }
   virtual ~OpenGlVisitorTest() {
     interface_.reset(NULL);  // Must explicitly delete so that we get
@@ -53,6 +54,7 @@ class OpenGlVisitorTest : public ::testing::Test {
   scoped_ptr<TidyInterface> interface_;
   scoped_ptr<GLInterface> gl_interface_;
   scoped_ptr<XConnection> x_connection_;
+  scoped_ptr<EventLoop> event_loop_;
 };
 
 class OpenGlVisitorTestTree : public OpenGlVisitorTest {

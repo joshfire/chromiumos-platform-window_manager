@@ -5,12 +5,10 @@
 #include <cmath>
 #include <cstdlib>
 #include <ctime>
-
 #include <unistd.h>
 
 extern "C" {
-#include <gdk/gdk.h>
-#include <gdk/gdkx.h>
+#include <X11/Xlib.h>
 }
 
 #include <gflags/gflags.h>
@@ -25,6 +23,7 @@ extern "C" {
 #include "handler/exception_handler.h"
 #endif
 #include "window_manager/clutter_interface.h"
+#include "window_manager/event_loop.h"
 #include "window_manager/tidy_interface.h"
 #if defined(TIDY_OPENGL)
 #include "window_manager/real_gl_interface.h"
@@ -50,6 +49,7 @@ DEFINE_int32(pause_at_start, 0,
              "Specify this to pause for N seconds at startup.");
 
 using window_manager::ClutterInterface;
+using window_manager::EventLoop;
 using window_manager::MockClutterInterface;
 using window_manager::TidyInterface;
 #if defined(TIDY_OPENGL)
@@ -80,11 +80,8 @@ static void HandleLogAssert(const std::string& str) {
 
 int main(int argc, char** argv) {
   google::ParseCommandLineFlags(&argc, &argv, true);
-  if (!FLAGS_display.empty()) {
+  if (!FLAGS_display.empty())
     setenv("DISPLAY", FLAGS_display.c_str(), 1);
-  }
-
-  gdk_init(&argc, &argv);
 
   CommandLine::Init(argc, argv);
   if (FLAGS_pause_at_start > 0) {
@@ -117,7 +114,11 @@ int main(int argc, char** argv) {
   // FPE, ILL, and BUS.  Use our own function to send ABRT instead.
   logging::SetLogAssertHandler(HandleLogAssert);
 
-  RealXConnection xconn(GDK_DISPLAY());
+  const char* display_name = getenv("DISPLAY");
+  Display* display = XOpenDisplay(display_name);
+  CHECK(display) << "Unable to open "
+                 << (display_name ? display_name : "default display");
+  RealXConnection xconn(display);
 
   // Create the overlay window as soon as possible, to reduce the chances that
   // Chrome will be able to map a window before we've taken over.
@@ -125,6 +126,8 @@ int main(int argc, char** argv) {
     XWindow root = xconn.GetRootWindow();
     xconn.GetCompositingOverlayWindow(root);
   }
+
+  EventLoop event_loop(&xconn);
 
   scoped_ptr<ClutterInterface> clutter;
 #if defined(TIDY_OPENGL)
@@ -139,16 +142,14 @@ int main(int argc, char** argv) {
 #elif defined(TIDY_OPENGLES)
     gl_interface.reset(new RealGles2Interface(&xconn));
 #endif
-    clutter.reset(new TidyInterface(&xconn, gl_interface.get()));
+    clutter.reset(new TidyInterface(&event_loop, gl_interface.get()));
   } else {
     clutter.reset(new MockClutterInterface(&xconn));
   }
 
-  WindowManager wm(&xconn, clutter.get());
+  WindowManager wm(&event_loop, clutter.get());
   wm.Init();
 
-  GMainLoop* loop = g_main_loop_ref(g_main_loop_new(NULL, FALSE));
-  g_main_loop_run(loop);
-  g_main_loop_unref(loop);
+  event_loop.Run();
   return 0;
 }

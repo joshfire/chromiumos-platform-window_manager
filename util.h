@@ -5,15 +5,13 @@
 #ifndef WINDOW_MANAGER_UTIL_H_
 #define WINDOW_MANAGER_UTIL_H_
 
-#include <ctime>
 #include <list>
 #include <map>
-#include <sys/time.h>
+#include <string>
 
 #include "base/basictypes.h"
-#include "base/hash_tables.h"
 #include "base/logging.h"
-#include "base/string_util.h"
+#include "base/hash_tables.h"
 
 namespace window_manager {
 
@@ -198,12 +196,6 @@ V FindWithDefault(const base::hash_map<K, V>& the_map,
   return it->second;
 }
 
-
-// Get the number of seconds since the epoch.
-double GetCurrentTime();
-
-// Fill 'tv' with the time from 'time'.
-void FillTimeval(double time, struct timeval* tv);
 
 // Helper method to convert an XID into a hex string.
 std::string XidStr(unsigned long xid);

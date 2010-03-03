@@ -12,6 +12,7 @@
 #include "base/logging.h"
 #include "window_manager/clutter_interface.h"
 #include "window_manager/event_consumer.h"
+#include "window_manager/event_loop.h"
 #include "window_manager/layout_manager.h"
 #include "window_manager/mock_x_connection.h"
 #include "window_manager/panel_bar.h"
@@ -135,12 +136,13 @@ TEST_F(WindowManagerTest, ExistingWindows) {
   // event is sent.
   wm_.reset(NULL);
   xconn_.reset(new MockXConnection);
+  event_loop_.reset(new EventLoop(xconn_.get()));
   clutter_.reset(new MockClutterInterface(xconn_.get()));
   XWindow xid = CreateSimpleWindow();
   MockXConnection::WindowInfo* info = xconn_->GetWindowInfoOrDie(xid);
   xconn_->MapWindow(xid);
 
-  wm_.reset(new WindowManager(xconn_.get(), clutter_.get()));
+  wm_.reset(new WindowManager(event_loop_.get(), clutter_.get()));
   CHECK(wm_->Init());
   Window* win = wm_->GetWindowOrDie(xid);
   EXPECT_TRUE(win->mapped());
@@ -152,11 +154,12 @@ TEST_F(WindowManagerTest, ExistingWindows) {
   // MapRequest (and subsequent MapNotify).
   wm_.reset(NULL);
   xconn_.reset(new MockXConnection);
+  event_loop_.reset(new EventLoop(xconn_.get()));
   clutter_.reset(new MockClutterInterface(xconn_.get()));
   xid = CreateSimpleWindow();
   info = xconn_->GetWindowInfoOrDie(xid);
 
-  wm_.reset(new WindowManager(xconn_.get(), clutter_.get()));
+  wm_.reset(new WindowManager(event_loop_.get(), clutter_.get()));
   CHECK(wm_->Init());
   EXPECT_FALSE(info->mapped);
   win = wm_->GetWindowOrDie(xid);
@@ -181,11 +184,12 @@ TEST_F(WindowManagerTest, ExistingWindows) {
   // CreateNotify event about it.
   wm_.reset(NULL);
   xconn_.reset(new MockXConnection);
+  event_loop_.reset(new EventLoop(xconn_.get()));
   clutter_.reset(new MockClutterInterface(xconn_.get()));
   xid = CreateSimpleWindow();
   info = xconn_->GetWindowInfoOrDie(xid);
 
-  wm_.reset(new WindowManager(xconn_.get(), clutter_.get()));
+  wm_.reset(new WindowManager(event_loop_.get(), clutter_.get()));
   CHECK(wm_->Init());
   EXPECT_FALSE(info->mapped);
   win = wm_->GetWindowOrDie(xid);
@@ -210,11 +214,12 @@ TEST_F(WindowManagerTest, ExistingWindows) {
   // WindowManager has been initialized.
   wm_.reset(NULL);
   xconn_.reset(new MockXConnection);
+  event_loop_.reset(new EventLoop(xconn_.get()));
   clutter_.reset(new MockClutterInterface(xconn_.get()));
   xid = None;
   info = NULL;
 
-  wm_.reset(new WindowManager(xconn_.get(), clutter_.get()));
+  wm_.reset(new WindowManager(event_loop_.get(), clutter_.get()));
   CHECK(wm_->Init());
 
   xid = CreateSimpleWindow();
@@ -710,7 +715,7 @@ TEST_F(WindowManagerTest, WmIpcVersion) {
   // BasicWindowManagerTest::SetUp() sends a WM_NOTIFY_IPC_VERSION message
   // automatically, since most tests want something reasonable there.
   // Create a new WindowManager object to work around this.
-  wm_.reset(new WindowManager(xconn_.get(), clutter_.get()));
+  wm_.reset(new WindowManager(event_loop_.get(), clutter_.get()));
   ASSERT_TRUE(wm_->Init());
 
   // We should assume version 0 if we haven't received a message from Chrome.
@@ -731,12 +736,13 @@ TEST_F(WindowManagerTest, DeferRedirection) {
   // started.
   wm_.reset(NULL);
   xconn_.reset(new MockXConnection);
+  event_loop_.reset(new EventLoop(xconn_.get()));
   clutter_.reset(new MockClutterInterface(xconn_.get()));
   XWindow existing_xid = CreateSimpleWindow();
   MockXConnection::WindowInfo* existing_info =
       xconn_->GetWindowInfoOrDie(existing_xid);
   xconn_->MapWindow(existing_xid);
-  wm_.reset(new WindowManager(xconn_.get(), clutter_.get()));
+  wm_.reset(new WindowManager(event_loop_.get(), clutter_.get()));
   CHECK(wm_->Init());
 
   // Check that the window manager redirected it.

@@ -68,6 +68,9 @@ class RealXConnection : public XConnection {
   bool GetStringProperty(XWindow xid, XAtom xatom, std::string* out);
   bool SetStringProperty(XWindow xid, XAtom xatom, const std::string& value);
   bool DeletePropertyIfExists(XWindow xid, XAtom xatom);
+  int GetConnectionFileDescriptor();
+  bool IsEventPending();
+  void GetNextEvent(void* event);
   bool SendClientMessageEvent(XWindow dest_xid,
                               XWindow xid,
                               XAtom message_type,
@@ -129,9 +132,9 @@ class RealXConnection : public XConnection {
 
   // Ask the server for information about an extension.  Out params may be
   // NULL.  Returns false if the extension isn't present.
-  bool QueryExtensionInternal(const std::string& name,
-                              int* first_event_out,
-                              int* first_error_out);
+  bool QueryExtension(const std::string& name,
+                      int* first_event_out,
+                      int* first_error_out);
 
   // Read a property set on a window.  Returns false on error or if the
   // property isn't set.  'format_out' and 'type_out' may be NULL.

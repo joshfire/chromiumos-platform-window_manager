@@ -7,6 +7,8 @@
 
 #include "base/logging.h"
 #include "chromeos/callback.h"
+#include "window_manager/event_loop.h"
+#include "window_manager/mock_x_connection.h"
 #include "window_manager/motion_event_coalescer.h"
 #include "window_manager/test_lib.h"
 
@@ -25,9 +27,14 @@ class MotionEventCoalescerTest : public ::testing::Test {
 // restarting the coalescer if the first values it received matched the
 // last ones it'd seen before it was restarted.
 TEST_F(MotionEventCoalescerTest, InitialValues) {
+  MockXConnection xconn;
+  EventLoop event_loop(&xconn);
+
   TestCallbackCounter counter;
   MotionEventCoalescer coalescer(
-      NewPermanentCallback(&counter, &TestCallbackCounter::Increment), 100);
+      &event_loop,
+      NewPermanentCallback(&counter, &TestCallbackCounter::Increment),
+      100);
   coalescer.set_synchronous(true);
 
   coalescer.Start();

@@ -8,6 +8,7 @@
 #include "base/scoped_ptr.h"
 #include "base/logging.h"
 #include "window_manager/clutter_interface.h"
+#include "window_manager/event_loop.h"
 #include "window_manager/layout_manager.h"
 #include "window_manager/mock_x_connection.h"
 #include "window_manager/panel.h"
@@ -695,6 +696,7 @@ TEST_F(LayoutManagerTest, InitialWindowStacking) {
   // Reset everything so we can start from scratch.
   wm_.reset(NULL);
   xconn_.reset(new MockXConnection);
+  event_loop_.reset(new EventLoop(xconn_.get()));
   clutter_.reset(new MockClutterInterface(xconn_.get()));
   lm_ = NULL;
 
@@ -704,7 +706,7 @@ TEST_F(LayoutManagerTest, InitialWindowStacking) {
 
   // Now create a new WindowManager object that will see the toplevel
   // window as already existing.
-  wm_.reset(new WindowManager(xconn_.get(), clutter_.get()));
+  wm_.reset(new WindowManager(event_loop_.get(), clutter_.get()));
   CHECK(wm_->Init());
 
   // Get the stacking reference points for toplevel windows and for the

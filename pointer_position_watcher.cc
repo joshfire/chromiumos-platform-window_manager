@@ -4,64 +4,74 @@
 
 #include "window_manager/pointer_position_watcher.h"
 
-#include <glib.h>
-
+#include "window_manager/event_loop.h"
 #include "window_manager/x_connection.h"
 
 namespace window_manager {
+
+using chromeos::Closure;
+using chromeos::NewPermanentCallback;
 
 // How frequently should we query the pointer position, in milliseconds?
 static const int kTimeoutMs = 200;
 
 PointerPositionWatcher::PointerPositionWatcher(
+    EventLoop* event_loop,
     XConnection* xconn,
-    chromeos::Closure* cb,
+    Closure* cb,
     bool watch_for_entering_target,
     int target_x, int target_y, int target_width, int target_height)
-    : xconn_(xconn),
+    : event_loop_(event_loop),
+      xconn_(xconn),
       cb_(cb),
       watch_for_entering_target_(watch_for_entering_target),
       target_x_(target_x),
       target_y_(target_y),
       target_width_(target_width),
       target_height_(target_height),
-      timer_id_(g_timeout_add(kTimeoutMs, &HandleTimerThunk, this)) {
+      timeout_id_(-1) {
+  DCHECK(event_loop);
+  DCHECK(xconn);
+  DCHECK(cb);
+  timeout_id_ =
+      event_loop_->AddTimeout(
+          NewPermanentCallback(this, &PointerPositionWatcher::HandleTimeout),
+          true, kTimeoutMs);  // recurring=true
 }
 
 PointerPositionWatcher::~PointerPositionWatcher() {
-  if (timer_id_) {
-    g_source_remove(timer_id_);
-    timer_id_ = 0;
-  }
+  CancelTimeoutIfActive();
 }
 
 void PointerPositionWatcher::TriggerTimeout() {
-  // We need to store the timer ID since HandleTimer() can clear it.
-  int timer_id = timer_id_;
-  if (HandleTimer() == FALSE)
-    g_source_remove(timer_id);
+  HandleTimeout();
 }
 
-gboolean PointerPositionWatcher::HandleTimer() {
+void PointerPositionWatcher::CancelTimeoutIfActive() {
+  if (timeout_id_ >= 0) {
+    event_loop_->RemoveTimeout(timeout_id_);
+    timeout_id_ = -1;
+  }
+}
+
+void PointerPositionWatcher::HandleTimeout() {
   int pointer_x = 0, pointer_y = 0;
   if (!xconn_->QueryPointerPosition(&pointer_x, &pointer_y))
-    return TRUE;
+    return;
 
-  // Bail out early if we're not in the desired state yet.
+  // Bail out if we're not in the desired state yet.
   bool in_target = pointer_x >= target_x_ &&
                    pointer_x < target_x_ + target_width_ &&
                    pointer_y >= target_y_ &&
                    pointer_y < target_y_ + target_height_;
   if ((watch_for_entering_target_ && !in_target) ||
       (!watch_for_entering_target_ && in_target))
-    return TRUE;
+    return;
 
-  // Otherwise, run the callback and kill the timer.  We clear 'timer_id_'
-  // before running the callback, since it's possible that the callback may
-  // delete us.
-  timer_id_ = 0;
+  // Otherwise, run the callback.  Cancel the timeout first, in case the
+  // callback deletes this object.
+  CancelTimeoutIfActive();
   cb_->Run();
-  return FALSE;
 }
 
 }  // namespace window_manager

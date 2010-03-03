@@ -10,13 +10,17 @@
 
 namespace window_manager {
 
+class EventLoop;
+
 // Rate-limits how quickly motion events are processed by saving them as
 // they're generated and then periodically invoking a callback (but only if
 // new motion events have been received).
 class MotionEventCoalescer {
  public:
   // The constructor takes ownership of 'cb'.
-  MotionEventCoalescer(chromeos::Closure* cb, int timeout_ms);
+  MotionEventCoalescer(EventLoop* event_loop,
+                       chromeos::Closure* cb,
+                       int timeout_ms);
   ~MotionEventCoalescer();
 
   int x() const { return x_; }
@@ -32,7 +36,7 @@ class MotionEventCoalescer {
 
   // Is the timer currently running?
   bool IsRunning() {
-    return timer_id_ != 0;
+    return timeout_id_ >= 0;
   }
 
   // Store a position.  This should be called in response to each motion
@@ -47,13 +51,14 @@ class MotionEventCoalescer {
   // parts of the owning class have already been destroyed).
   void StopInternal(bool maybe_run_callback);
 
-  static int HandleTimerThunk(void* self) {
-    return reinterpret_cast<MotionEventCoalescer*>(self)->HandleTimer();
-  }
-  int HandleTimer();
+  // Handle the timer firing.  Runs the callback if we have a queued
+  // position.
+  void HandleTimeout();
 
-  // ID of the timer's GLib event source, or 0 if the timer isn't active.
-  unsigned int timer_id_;
+  EventLoop* event_loop_;  // not owned
+
+  // Timeout ID, or -1 if the timeout isn't active.
+  int timeout_id_;
 
   // Frequency for invoking the callback, in milliseconds.
   int timeout_ms_;

@@ -33,7 +33,7 @@ class WindowManager;
 // between containers, etc.
 class PanelManager : public EventConsumer {
  public:
-  PanelManager(WindowManager* wm);
+  explicit PanelManager(WindowManager* wm);
   ~PanelManager();
 
   WindowManager* wm() { return wm_; }

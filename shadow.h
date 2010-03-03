@@ -25,7 +25,7 @@ namespace window_manager {
 class Shadow {
  public:
   // The shadow is hidden when first created.
-  Shadow(ClutterInterface* clutter);
+  explicit Shadow(ClutterInterface* clutter);
   ~Shadow() {}
 
   bool is_shown() const { return is_shown_; }

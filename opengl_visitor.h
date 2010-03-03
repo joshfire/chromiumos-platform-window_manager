@@ -23,7 +23,7 @@ class OpenGlDrawVisitor;
 
 class OpenGlQuadDrawingData : public TidyInterface::DrawingData  {
  public:
-  OpenGlQuadDrawingData(GLInterface* gl_interface);
+  explicit OpenGlQuadDrawingData(GLInterface* gl_interface);
   virtual ~OpenGlQuadDrawingData();
 
   GLuint vertex_buffer() { return vertex_buffer_; }
@@ -40,8 +40,7 @@ class OpenGlQuadDrawingData : public TidyInterface::DrawingData  {
 
 class OpenGlPixmapData : public TidyInterface::DrawingData  {
  public:
-  OpenGlPixmapData(GLInterface* gl_interface,
-                   XConnection* x_conn);
+  OpenGlPixmapData(GLInterface* gl_interface, XConnection* x_conn);
   virtual ~OpenGlPixmapData();
 
   void Refresh();
@@ -83,7 +82,7 @@ class OpenGlPixmapData : public TidyInterface::DrawingData  {
 
 class OpenGlTextureData : public TidyInterface::DrawingData  {
  public:
-  OpenGlTextureData(GLInterface* gl_interface);
+  explicit OpenGlTextureData(GLInterface* gl_interface);
   virtual ~OpenGlTextureData();
 
   void SetTexture(GLuint texture, bool has_alpha);
@@ -103,10 +102,8 @@ class OpenGlTextureData : public TidyInterface::DrawingData  {
 };
 
 // This class visits an actor tree and draws it using OpenGL.
-class OpenGlDrawVisitor
-    : virtual public TidyInterface::ActorVisitor {
+class OpenGlDrawVisitor : virtual public TidyInterface::ActorVisitor {
  public:
-
   // These are IDs used when storing drawing data on the actors.
   enum DataId {
     TEXTURE_DATA = 1,
