@@ -79,6 +79,12 @@ class TestEventLoopSubscriber : public EventLoopSubscriber {
 
 // Perform a somewhat-tricky test of the event loop.
 TEST_F(EventLoopTest, Basic) {
+  if (!EventLoop::IsTimerFdSupported()) {
+    LOG(ERROR) << "timerfd isn't supported on this system; skipping "
+               << "EventLoopTest::Basic";
+    return;
+  }
+
   MockXConnection xconn;
   EventLoop event_loop(&xconn);
   TestEventLoopSubscriber subscriber(&event_loop, &xconn);

@@ -48,9 +48,15 @@ EventLoop::EventLoop(XConnection* xconn)
     : xconn_(xconn),
       subscriber_(NULL),
       exit_requested_(false),
-      epoll_fd_(epoll_create(10)) {  // argument is ignored since 2.6.8
+      epoll_fd_(epoll_create(10)),  // argument is ignored since 2.6.8
+      timerfd_supported_(IsTimerFdSupported()) {
   DCHECK(xconn_);
   CHECK(epoll_fd_ != -1) << "epoll_create: " << strerror(errno);
+  if (!timerfd_supported_) {
+    LOG(ERROR) << "timerfd doesn't work on this system (perhaps your kernel "
+               << "doesn't support it).  EventLoop::Run() will crash if "
+               << "called.";
+  }
 }
 
 EventLoop::~EventLoop() {
@@ -60,6 +66,8 @@ EventLoop::~EventLoop() {
 void EventLoop::Run() {
   CHECK(subscriber_) << "SetSubscriber() must be called before the event loop "
                      << "is started";
+  CHECK(timerfd_supported_) << "timerfd is unsupported -- look for earlier "
+                            << "errors";
 
   int x11_fd = xconn_->GetConnectionFileDescriptor();
   LOG(INFO) << "X11 connection is on fd " << x11_fd;
@@ -124,9 +132,19 @@ int EventLoop::AddTimeout(Closure* cb,
   DCHECK(initial_timeout_ms >= 0);
   DCHECK(recurring_timeout_ms >= 0);
 
+  if (!timerfd_supported_) {
+    // If we previously established that timerfd doesn't work on this
+    // system, just return an arbitrary fake descriptor -- we'll crash
+    // before we'd try to use it in Run().
+    delete cb;
+    static int next_timer_fd = 0;
+    return next_timer_fd++;
+  }
+
   // Use a monotonically-increasing clock -- we don't want to be affected
   // by changes to the system time.
   const int timer_fd = timerfd_create(CLOCK_MONOTONIC, TFD_NONBLOCK);
+  CHECK(timer_fd != 1) << "timerfd_create: " << strerror(errno);
   struct epoll_event event;
   event.events = EPOLLIN;
   event.data.fd = timer_fd;
@@ -145,6 +163,9 @@ int EventLoop::AddTimeout(Closure* cb,
 }
 
 void EventLoop::RemoveTimeout(int id) {
+  if (!timerfd_supported_)
+    return;
+
   TimeoutMap::iterator it = timeouts_.find(id);
   CHECK(it != timeouts_.end())
       << "Got request to add nonexistent timeout with ID " << id;
@@ -155,6 +176,9 @@ void EventLoop::RemoveTimeout(int id) {
 }
 
 void EventLoop::SuspendTimeout(int id) {
+  if (!timerfd_supported_)
+    return;
+
   struct itimerspec new_timer_spec;
   struct itimerspec old_timer_spec;
   memset(&new_timer_spec, 0, sizeof(new_timer_spec));
@@ -165,11 +189,28 @@ void EventLoop::SuspendTimeout(int id) {
 void EventLoop::ResetTimeout(int id,
                              int initial_timeout_ms,
                              int recurring_timeout_ms) {
+  if (!timerfd_supported_)
+    return;
+
   struct itimerspec new_timer_spec;
   struct itimerspec old_timer_spec;
   FillTimerSpec(&new_timer_spec, initial_timeout_ms, recurring_timeout_ms);
   CHECK(timerfd_settime(id, 0, &new_timer_spec, &old_timer_spec) == 0)
       << strerror(errno);
+}
+
+// static
+bool EventLoop::IsTimerFdSupported() {
+  // Try creating a timeout (which we'll throw away immediately) to test
+  // whether the kernel that we're running on suports timerfd.
+  int timer_fd = timerfd_create(CLOCK_MONOTONIC, TFD_NONBLOCK);
+  if (timer_fd == -1) {
+    LOG(ERROR) << "timerfd_create: " << strerror(errno);
+    return false;
+  } else {
+    CHECK(HANDLE_EINTR(close(timer_fd)) != -1) << strerror(errno);
+    return true;
+  }
 }
 
 }  // namespace window_manager

@@ -68,6 +68,12 @@ class EventLoop {
   // interpreted in the same manner as in AddTimeout().
   void ResetTimeout(int id, int initial_timeout_ms, int recurring_timeout_ms);
 
+  // Does the system that we're currently running on support the latest
+  // timerfd interface (the one with timerfd_create())?  This was
+  // introduced in Linux 2.6.25 and glibc 2.8.  This is static so that
+  // EventLoopTest can skip out early on older systems.
+  static bool IsTimerFdSupported();
+
  private:
   typedef std::map<int, std::tr1::shared_ptr<chromeos::Closure> > TimeoutMap;
 
@@ -84,6 +90,10 @@ class EventLoop {
 
   // Map from timerfd file descriptors to the corresponding callbacks.
   TimeoutMap timeouts_;
+
+  // Does the kernel support timerfd?  If it doesn't, timeout-related calls
+  // are no-ops, and we'll crash if Run() is ever called.
+  bool timerfd_supported_;
 
   DISALLOW_COPY_AND_ASSIGN(EventLoop);
 };

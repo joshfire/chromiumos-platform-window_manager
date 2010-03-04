@@ -38,8 +38,11 @@ MockXConnection::MockXConnection()
       pointer_grab_xid_(None),
       pointer_x_(0),
       pointer_y_(0) {
-  CHECK(HANDLE_EINTR(pipe2(connection_pipe_fds_, O_NONBLOCK)) != -1)
-      << strerror(errno);
+  CHECK(HANDLE_EINTR(pipe(connection_pipe_fds_)) != -1) << strerror(errno);
+  CHECK(HANDLE_EINTR(fcntl(connection_pipe_fds_[0], F_SETFL, O_NONBLOCK)) != -1)
+        << strerror(errno);
+  CHECK(HANDLE_EINTR(fcntl(connection_pipe_fds_[1], F_SETFL, O_NONBLOCK)) != -1)
+        << strerror(errno);
   // Arbitrary large numbers unlikely to be used by other events.
   damage_event_base_ = 10000;
   shape_event_base_  = 10010;
