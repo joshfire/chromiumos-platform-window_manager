@@ -100,10 +100,10 @@ class PanelBar : public PanelContainer {
   struct PanelInfo {
     PanelInfo() : snapped_right(0), is_urgent(false) {}
 
-    // X position of the right edge of where the titlebar wants to be when
-    // collapsed.  For collapsed panels that are being dragged, this may be
-    // different from the actual composited position -- we only snap the
-    // panels to this position when the drag is complete.
+    // X position of the right edge of where the panel wants to be.  For
+    // panels that are being dragged, this may be different from the actual
+    // composited position -- we only snap the panels to this position when
+    // the drag is complete.
     int snapped_right;
 
     // Was the content window's urgency hint set the last time that we

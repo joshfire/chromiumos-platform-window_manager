@@ -18,6 +18,7 @@
 #include "window_manager/opengl_visitor.h"
 #include "window_manager/mock_gl_interface.h"
 #include "window_manager/mock_x_connection.h"
+#include "window_manager/test_lib.h"
 #include "window_manager/util.h"
 
 DEFINE_bool(logtostderr, false,
@@ -180,15 +181,6 @@ TEST_F(OpenGlVisitorTestTree, LayerDepth) {
 
 }  // end namespace window_manager
 
-int main(int argc, char **argv) {
-  google::ParseCommandLineFlags(&argc, &argv, true);
-  CommandLine::Init(argc, argv);
-  logging::InitLogging(NULL,
-                       FLAGS_logtostderr ?
-                       logging::LOG_ONLY_TO_SYSTEM_DEBUG_LOG :
-                       logging::LOG_NONE,
-                       logging::DONT_LOCK_LOG_FILE,
-                       logging::APPEND_TO_OLD_LOG_FILE);
-  ::testing::InitGoogleTest(&argc, argv);
-  return RUN_ALL_TESTS();
+int main(int argc, char** argv) {
+  window_manager::InitAndRunTests(&argc, argv, &FLAGS_logtostderr);
 }

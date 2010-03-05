@@ -128,7 +128,7 @@ void PanelBar::AddPanel(Panel* panel, PanelSource source) {
   info->snapped_right =
       wm()->width() - total_panel_width_ - kPixelsBetweenPanels;
   info->is_urgent = panel->content_win()->wm_hint_urgent();
-  panel_infos_.insert(make_pair(panel, info));
+  CHECK(panel_infos_.insert(make_pair(panel, info)).second);
 
   panels_.insert(panels_.begin(), panel);
   total_panel_width_ += panel->width() + kPixelsBetweenPanels;
@@ -347,6 +347,7 @@ bool PanelBar::HandleNotifyPanelDraggedMessage(Panel* panel,
 
   if (dragging_panel_horizontally_) {
     panel->MoveX(drag_x, false, 0);
+    ReorderPanel(panel);
   } else {
     // Cap the Y value between the lowest and highest positions that the
     // panel can take while in the bar.
@@ -355,7 +356,6 @@ bool PanelBar::HandleNotifyPanelDraggedMessage(Panel* panel,
             wm()->height() - panel->total_height());
     panel->MoveY(capped_y, false, 0);
   }
-  ReorderPanel(panel);
   return true;
 }
 
@@ -600,7 +600,7 @@ void PanelBar::ReorderPanel(Panel* fixed_panel) {
     // Otherwise, do the same check with our right edge to the right.
     for (int i = src_position + 1; i < static_cast<int>(panels_.size()); ++i) {
       Panel* panel = panels_[i];
-      if (fixed_panel->right() >= panel->content_center())
+      if (fixed_panel->right() > panel->content_center())
         dest_position = i;
       else
         break;
@@ -618,6 +618,8 @@ void PanelBar::ReorderPanel(Panel* fixed_panel) {
 }
 
 void PanelBar::PackPanels(Panel* fixed_panel) {
+  // Recalculate the total width; PackPanels() gets called after we receive
+  // notification that a panel has been resized.
   total_panel_width_ = 0;
 
   for (Panels::reverse_iterator it = panels_.rbegin();

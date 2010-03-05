@@ -30,8 +30,8 @@ static const int kDraggedPanelUpdateMs = 25;
 // How long should the animation when detaching panels from containers take?
 static const int kDetachPanelAnimMs = 100;
 
-// Width of panel docks, chosen because 1280 - 256 = 1024.
-static const int kPanelDockWidth = 256;
+// Chosen because 1280 - 256 = 1024.
+const int PanelManager::kPanelDockWidth = 256;
 
 PanelManager::PanelManager(WindowManager* wm)
     : wm_(wm),

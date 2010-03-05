@@ -157,6 +157,7 @@ class WindowManager : public CompositorEventSource,
   friend class LayoutManagerTest;         // uses 'layout_manager_'
   friend class PanelTest;                 // uses 'panel_manager_'
   friend class PanelBarTest;              // uses 'panel_manager_'
+  friend class PanelDockTest;             // uses 'panel_manager_'
   friend class PanelManagerTest;          // uses 'panel_manager_'
   FRIEND_TEST(LayoutManagerTest, Basic);  // uses TrackWindow()
   FRIEND_TEST(WindowTest, TransientFor);  // uses TrackWindow()

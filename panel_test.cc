@@ -11,7 +11,6 @@
 #include "window_manager/event_loop.h"
 #include "window_manager/mock_x_connection.h"
 #include "window_manager/panel.h"
-#include "window_manager/panel_bar.h"
 #include "window_manager/panel_manager.h"
 #include "window_manager/shadow.h"
 #include "window_manager/stacking_manager.h"
@@ -30,11 +29,9 @@ class PanelTest : public BasicWindowManagerTest {
   virtual void SetUp() {
     BasicWindowManagerTest::SetUp();
     panel_manager_ = wm_->panel_manager_.get();
-    panel_bar_ = panel_manager_->panel_bar_.get();
   }
 
   PanelManager* panel_manager_;  // instance belonging to 'wm_'
-  PanelBar* panel_bar_;          // instance belonging to 'panel_manager_'
 };
 
 TEST_F(PanelTest, InputWindows) {
@@ -289,6 +286,6 @@ TEST_F(PanelTest, Shadows) {
 
 }  // namespace window_manager
 
-int main(int argc, char **argv) {
+int main(int argc, char** argv) {
   return window_manager::InitAndRunTests(&argc, argv, &FLAGS_logtostderr);
 }

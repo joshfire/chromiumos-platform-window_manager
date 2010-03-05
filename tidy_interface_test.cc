@@ -775,6 +775,6 @@ TEST_F(TidyTest, SkipUnneededAnimations) {
 
 }  // end namespace window_manager
 
-int main(int argc, char **argv) {
+int main(int argc, char** argv) {
   window_manager::InitAndRunTests(&argc, argv, &FLAGS_logtostderr);
 }

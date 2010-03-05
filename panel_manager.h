@@ -33,6 +33,9 @@ class WindowManager;
 // between containers, etc.
 class PanelManager : public EventConsumer {
  public:
+  // Width of panel docks.
+  static const int kPanelDockWidth;
+
   explicit PanelManager(WindowManager* wm);
   ~PanelManager();
 
@@ -118,8 +121,8 @@ class PanelManager : public EventConsumer {
 
  private:
   friend class BasicWindowManagerTest;  // uses 'dragged_panel_event_coalescer_'
-  friend class PanelTest;               // uses 'panel_bar_'
   friend class PanelBarTest;            // uses 'panel_bar_'
+  friend class PanelDockTest;           // uses '*_panel_dock_'
   friend class PanelManagerTest;
   FRIEND_TEST(PanelManagerTest, AttachAndDetach);
   FRIEND_TEST(PanelManagerTest, DragFocusedPanel);

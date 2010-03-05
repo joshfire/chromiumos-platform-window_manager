@@ -91,6 +91,6 @@ TEST_F(ShadowTest, Basic) {
 
 }  // namespace window_manager
 
-int main(int argc, char **argv) {
+int main(int argc, char** argv) {
   return window_manager::InitAndRunTests(&argc, argv, &FLAGS_logtostderr);
 }

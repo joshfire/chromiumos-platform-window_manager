@@ -6,6 +6,7 @@
 #define WINDOW_MANAGER_PANEL_DOCK_H_
 
 #include <vector>
+#include <tr1/memory>
 
 #include "base/basictypes.h"
 #include "base/scoped_ptr.h"
@@ -26,6 +27,14 @@ class WindowManager;
 // the screen.
 class PanelDock : public PanelContainer {
  public:
+  // Distance between the panel and the edge of the screen at which we
+  // detach it.
+  static const int kDetachThresholdPixels;
+
+  // Distance between the panel and the edge of the screen at which we
+  // attach it.
+  static const int kAttachThresholdPixels;
+
   enum DockType {
     DOCK_TYPE_LEFT = 0,
     DOCK_TYPE_RIGHT,
@@ -68,30 +77,40 @@ class PanelDock : public PanelContainer {
   bool HandleNotifyPanelDraggedMessage(Panel* panel, int drag_x, int drag_y);
   void HandleNotifyPanelDragCompleteMessage(Panel* panel);
   void HandleFocusPanelMessage(Panel* panel);
-  void HandlePanelResize(Panel* panel) {}
+  void HandlePanelResize(Panel* panel);
   void HandleScreenResize();
   void HandlePanelUrgencyChange(Panel* panel) {}
   // End PanelContainer implementation.
 
  private:
+  typedef std::vector<Panel*> Panels;
+
+  // PanelDock-specific information about a panel.
+  struct PanelInfo {
+    PanelInfo() : snapped_y(0) {}
+
+    // Y position where the panel's titlebar wants to be.  For panels that
+    // are being dragged, this may be different from the actual composited
+    // position -- we only snap the panels to this position when the drag
+    // is complete.
+    int snapped_y;
+  };
+
   WindowManager* wm();
 
-  // Expand or collapse the passed-in panel.  The panels below the modified
-  // one are packed as needed.
-  void ExpandPanel(Panel* panel);
-  void CollapsePanel(Panel* panel);
+  // Get the PanelInfo object for a panel, crashing if it's not present.
+  PanelInfo* GetPanelInfoOrDie(Panel* panel);
 
-  // Pack all panels from 'starting_panel' to the bottom of the dock
-  // together.  Restacks panels as needed.
-  void PackPanels(Panel* starting_panel);
+  // Update the position of 'fixed_panel' within 'panels_' based on its
+  // current position.
+  void ReorderPanel(Panel* fixed_panel);
+
+  // Pack all panels except 'fixed_panel' to their snapped positions in the
+  // dock, starting from the top.
+  void PackPanels(Panel* fixed_panel);
 
   // Focus a panel.
   void FocusPanel(Panel* panel, bool remove_pointer_grab, XTime timestamp);
-
-  // Get the expanded panel that's nearest (in terms of number of
-  // intervening collapsed panels) to the passed-in panel, or NULL if
-  // there aren't any other expanded panels in the dock.
-  Panel* GetNearestExpandedPanel(Panel* panel);
 
   PanelManager* panel_manager_;  // not owned
 
@@ -105,7 +124,15 @@ class PanelDock : public PanelContainer {
   int width_;
   int height_;
 
-  std::vector<Panel*> panels_;
+  // The total height of all panels in the dock.
+  int total_panel_height_;
+
+  // Panels, in top-to-bottom order.
+  Panels panels_;
+
+  // Information about our panels that doesn't belong in the Panel class
+  // itself.
+  std::map<Panel*, std::tr1::shared_ptr<PanelInfo> > panel_infos_;
 
   // The currently-dragged panel, or NULL if no panel in the dock is being
   // dragged.

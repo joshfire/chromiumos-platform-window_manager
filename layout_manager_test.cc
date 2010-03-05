@@ -849,6 +849,6 @@ TEST_F(LayoutManagerTest, ActiveWindowHintOnTransientUnmap) {
 
 }  // namespace window_manager
 
-int main(int argc, char **argv) {
+int main(int argc, char** argv) {
   return window_manager::InitAndRunTests(&argc, argv, &FLAGS_logtostderr);
 }

@@ -5,6 +5,7 @@
 #include "window_manager/panel_dock.h"
 
 #include <algorithm>
+#include <utility>
 
 #include <gflags/gflags.h>
 
@@ -22,13 +23,10 @@ DEFINE_string(panel_dock_background_image,
 namespace window_manager {
 
 using std::find;
+using std::make_pair;
+using std::tr1::shared_ptr;
 using std::vector;
 
-// Distance between the panel and the edge of the screen at which we detach it.
-static const int kDetachThresholdPixels = 50;
-
-// Distance between the panel and the edge of the screen at which we attach it.
-static const int kAttachThresholdPixels = 20;
 
 // Amount of time to take for sliding the dock background in or out when
 // the dock is shown or hidden.
@@ -43,6 +41,9 @@ static const int kPanelShadowAnimMs = 150;
 // Amount of time to take when packing panels into the dock.
 static const int kPackPanelsAnimMs = 150;
 
+const int PanelDock::kDetachThresholdPixels = 50;
+const int PanelDock::kAttachThresholdPixels = 20;
+
 PanelDock::PanelDock(PanelManager* panel_manager, DockType type, int width)
     : panel_manager_(panel_manager),
       type_(type),
@@ -50,6 +51,7 @@ PanelDock::PanelDock(PanelManager* panel_manager, DockType type, int width)
       y_(0),
       width_(width),
       height_(wm()->height()),
+      total_panel_height_(0),
       dragged_panel_(NULL),
       bg_actor_(wm()->clutter()->CreateImage(
                     FLAGS_panel_dock_background_image)),
@@ -94,8 +96,18 @@ void PanelDock::GetInputWindows(std::vector<XWindow>* windows_out) {
 }
 
 void PanelDock::AddPanel(Panel* panel, PanelSource source) {
+  DCHECK(panel);
   DCHECK(find(panels_.begin(), panels_.end(), panel) == panels_.end());
+
+  shared_ptr<PanelInfo> info(new PanelInfo);
+  info->snapped_y = total_panel_height_;
+  CHECK(panel_infos_.insert(make_pair(panel, info)).second);
+
   panels_.push_back(panel);
+  total_panel_height_ += panel->total_height();
+  if (source == PANEL_SOURCE_DRAGGED)
+    ReorderPanel(panel);
+
   if (panels_.size() == static_cast<size_t>(1)) {
     wm()->ConfigureInputWindow(bg_input_xid_, x_, y_, width_, height_);
     bg_actor_->MoveX(x_, kBackgroundAnimMs);
@@ -136,8 +148,8 @@ void PanelDock::RemovePanel(Panel* panel) {
 
   vector<Panel*>::iterator it = find(panels_.begin(), panels_.end(), panel);
   DCHECK(it != panels_.end());
-  const int panel_pos = it - panels_.begin();
   panels_.erase(it);
+  CHECK_EQ(static_cast<int>(panel_infos_.erase(panel)), 1);
 
   if (panels_.empty()) {
     const int bg_x = type_ == DOCK_TYPE_LEFT ? x_ - width_ : x_ + width_;
@@ -147,10 +159,7 @@ void PanelDock::RemovePanel(Panel* panel) {
     bg_shadow_->SetOpacity(0, kBackgroundAnimMs);
     panel_manager_->HandleDockVisibilityChange(this);
   } else {
-    Panel* next_panel = (panel_pos < static_cast<int>(panels_.size())) ?
-                        *(panels_.begin() + panel_pos) :
-                        NULL;
-    PackPanels(next_panel);
+    PackPanels(dragged_panel_);
   }
 }
 
@@ -174,12 +183,8 @@ void PanelDock::HandlePanelFocusChange(Panel* panel, bool focus_in) {
 }
 
 void PanelDock::HandleSetPanelStateMessage(Panel* panel, bool expand) {
-  VLOG(1) << "Got request to " << (expand ? "expand" : "collapse")
-          << " panel " << panel->xid_str();
-  if (expand)
-    ExpandPanel(panel);
-  else
-    CollapsePanel(panel);
+  LOG(WARNING) << "Ignoring request to " << (expand ? "expand" : "collapse")
+               << " docked panel " << panel->xid_str();
 }
 
 bool PanelDock::HandleNotifyPanelDraggedMessage(Panel* panel,
@@ -199,12 +204,14 @@ bool PanelDock::HandleNotifyPanelDraggedMessage(Panel* panel,
     panel->SetShadowOpacity(1, kPanelShadowAnimMs);
   }
 
+  // Cap the drag position within the Y bounds of the dock.
   if (drag_y + panel->total_height() > y_ + height_)
     drag_y = y_ + height_ - panel->total_height();
   if (drag_y < y_)
     drag_y = y_;
-  panel->MoveY(drag_y, false, 0);
 
+  panel->MoveY(drag_y, false, 0);
+  ReorderPanel(panel);
   return true;
 }
 
@@ -221,12 +228,19 @@ void PanelDock::HandleNotifyPanelDragCompleteMessage(Panel* panel) {
           Window::GRAVITY_NORTHWEST);
   }
   panel->SetShadowOpacity(0, kPanelShadowAnimMs);
-  PackPanels(dragged_panel_);
+  panel->StackAtTopOfLayer(StackingManager::LAYER_STATIONARY_PANEL_IN_DOCK);
   dragged_panel_ = NULL;
+  PackPanels(NULL);
 }
 
 void PanelDock::HandleFocusPanelMessage(Panel* panel) {
   FocusPanel(panel, false, wm()->GetCurrentTimeFromServer());
+}
+
+void PanelDock::HandlePanelResize(Panel* panel) {
+  // TODO: We should probably prevent a panel's width from being changed at
+  // all while it's docked, and repack all the panels in the dock if the
+  // panel's height is changed.
 }
 
 void PanelDock::HandleScreenResize() {
@@ -258,70 +272,67 @@ void PanelDock::HandleScreenResize() {
 
 WindowManager* PanelDock::wm() { return panel_manager_->wm(); }
 
-void PanelDock::ExpandPanel(Panel* panel) {
-  if (panel->is_expanded()) {
-    LOG(WARNING) << "Ignoring request to expand already-expanded panel "
-                 << panel->xid_str();
-    return;
-  }
-
-  panel->SetExpandedState(true);
-  PackPanels(panel);
+PanelDock::PanelInfo* PanelDock::GetPanelInfoOrDie(Panel* panel) {
+  shared_ptr<PanelInfo> info =
+      FindWithDefault(panel_infos_, panel, shared_ptr<PanelInfo>());
+  CHECK(info.get());
+  return info.get();
 }
 
-void PanelDock::CollapsePanel(Panel* panel) {
-  if (!panel->is_expanded()) {
-    LOG(WARNING) << "Ignoring request to expand already-collapsed panel "
-                 << panel->xid_str();
-    return;
-  }
-  if (panel == panels_.back()) {
-    VLOG(1) << "Ignoring request to collapse bottom panel " << panel->xid_str();
-    return;
+void PanelDock::ReorderPanel(Panel* fixed_panel) {
+  DCHECK(fixed_panel);
+
+  Panels::iterator src_it = find(panels_.begin(), panels_.end(), fixed_panel);
+  DCHECK(src_it != panels_.end());
+  const int src_position = src_it - panels_.begin();
+
+  int dest_position = src_position;
+  if (fixed_panel->titlebar_y() < GetPanelInfoOrDie(fixed_panel)->snapped_y) {
+    // If we're above our snapped position, look for the furthest panel
+    // whose midpoint has been passed by our top edge.
+    for (int i = src_position - 1; i >= 0; --i) {
+      Panel* panel = panels_[i];
+      if (fixed_panel->titlebar_y() <=
+          panel->titlebar_y() + 0.5 * panel->total_height()) {
+        dest_position = i;
+      } else {
+        break;
+      }
+    }
+  } else {
+    // Otherwise, do the same check with our bottom edge below us.
+    for (int i = src_position + 1; i < static_cast<int>(panels_.size()); ++i) {
+      Panel* panel = panels_[i];
+      if (fixed_panel->titlebar_y() + fixed_panel->total_height() >
+          panel->titlebar_y() + 0.5 * panel->total_height()) {
+        dest_position = i;
+      } else {
+        break;
+      }
+    }
   }
 
-  panel->SetExpandedState(false);
-  PackPanels(panel);
-
-  // If this panel was focused, find another one to focus instead.
-  if (panel->content_win()->focused()) {
-    Panel* new_panel_to_focus = GetNearestExpandedPanel(panel);
-    if (new_panel_to_focus)
-      FocusPanel(new_panel_to_focus, true, wm()->GetCurrentTimeFromServer());
+  if (dest_position != src_position) {
+    Panels::iterator dest_it = panels_.begin() + dest_position;
+    if (dest_it > src_it)
+      rotate(src_it, src_it + 1, dest_it + 1);
     else
-      wm()->TakeFocus();
+      rotate(dest_it, src_it, src_it + 1);
+    PackPanels(fixed_panel);
   }
 }
 
-void PanelDock::PackPanels(Panel* starting_panel) {
-  bool found_starting_panel = (starting_panel == NULL);
-  int total_height = 0;
-  Panel* prev_panel = NULL;
-
+void PanelDock::PackPanels(Panel* fixed_panel) {
+  int total_panel_height_ = 0;
   for (vector<Panel*>::iterator it = panels_.begin();
        it != panels_.end(); ++it) {
     Panel* panel = *it;
-    if (!found_starting_panel && panel == starting_panel)
-      found_starting_panel = true;
-    if (found_starting_panel) {
-      if (prev_panel)
-        panel->StackAbovePanel(
-            prev_panel, StackingManager::LAYER_STATIONARY_PANEL_IN_DOCK);
-      panel->MoveY(y_ + total_height, true, kPackPanelsAnimMs);
-    }
-    total_height += panel->is_expanded() ?
-                    panel->total_height() :
-                    panel->titlebar_height();
-    prev_panel = panel;
+    PanelInfo* info = GetPanelInfoOrDie(panel);
+    info->snapped_y = total_panel_height_;
+    if (panel != fixed_panel && panel->titlebar_y() != info->snapped_y)
+      panel->MoveY(info->snapped_y, true, kPackPanelsAnimMs);
+    total_panel_height_ += panel->total_height();
   }
-
-  // We stack panels relative to their siblings in the above loop so that
-  // we won't get a bunch of flicker, but we need to handle the case where
-  // there's only one initial panel separately (since we don't have
-  // anything to stack it relative to).
-  if (panels_.size() == static_cast<size_t>(1))
-    panels_[0]->StackAtTopOfLayer(
-        StackingManager::LAYER_STATIONARY_PANEL_IN_DOCK);
 }
 
 void PanelDock::FocusPanel(Panel* panel,
@@ -331,33 +342,6 @@ void PanelDock::FocusPanel(Panel* panel,
   panel->RemoveButtonGrab(remove_pointer_grab);
   wm()->SetActiveWindowProperty(panel->content_win()->xid());
   panel->content_win()->TakeFocus(timestamp);
-}
-
-Panel* PanelDock::GetNearestExpandedPanel(Panel* panel) {
-  DCHECK(panel);
-  vector<Panel*>::iterator it = find(panels_.begin(), panels_.end(), panel);
-  DCHECK(it != panels_.end());
-  int panel_pos = it - panels_.begin();
-
-  int nearest_pos = -1;
-  for (int i = panel_pos - 1; i >= 0; --i) {
-    if (panels_[i]->is_expanded()) {
-      nearest_pos = i;
-      break;
-    }
-  }
-  for (int i = panel_pos + 1; i < static_cast<int>(panels_.size()); ++i) {
-    if (panels_[i]->is_expanded()) {
-      if (nearest_pos < 0 || i - panel_pos < panel_pos - nearest_pos)
-        nearest_pos = i;
-      break;
-    }
-  }
-
-  if (nearest_pos < 0)
-    return NULL;
-  DCHECK(nearest_pos < static_cast<int>(panels_.size()));
-  return panels_[nearest_pos];
 }
 
 };  // namespace window_manager
