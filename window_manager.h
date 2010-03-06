@@ -164,6 +164,7 @@ class WindowManager : public CompositorEventSource,
   FRIEND_TEST(WindowManagerTest, RegisterExistence);
   FRIEND_TEST(WindowManagerTest, EventConsumer);
   FRIEND_TEST(WindowManagerTest, RandR);
+  FRIEND_TEST(WindowManagerTest, KeepPanelsAfterRestart);
 
   typedef std::map<XWindow, std::set<EventConsumer*> > WindowEventConsumerMap;
   typedef std::map<std::pair<XWindow, XAtom>, std::set<EventConsumer*> >

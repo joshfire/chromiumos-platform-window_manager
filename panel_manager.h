@@ -127,6 +127,7 @@ class PanelManager : public EventConsumer {
   FRIEND_TEST(PanelManagerTest, AttachAndDetach);
   FRIEND_TEST(PanelManagerTest, DragFocusedPanel);
   FRIEND_TEST(WindowManagerTest, RandR);  // uses 'panel_bar_'
+  FRIEND_TEST(WindowManagerTest, KeepPanelsAfterRestart);  // uses 'panel_bar_'
 
   // Get the panel with the passed-in content or titlebar window.
   // Returns NULL for unknown windows.

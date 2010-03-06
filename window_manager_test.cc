@@ -16,6 +16,7 @@
 #include "window_manager/event_loop.h"
 #include "window_manager/layout_manager.h"
 #include "window_manager/mock_x_connection.h"
+#include "window_manager/panel.h"
 #include "window_manager/panel_bar.h"
 #include "window_manager/panel_manager.h"
 #include "window_manager/test_lib.h"
@@ -28,6 +29,8 @@ DEFINE_bool(logtostderr, false,
 
 namespace window_manager {
 
+using std::find;
+using std::string;
 using std::vector;
 
 class WindowManagerTest : public BasicWindowManagerTest {};
@@ -104,7 +107,7 @@ TEST_F(WindowManagerTest, RegisterExistence) {
   // a title.
   XAtom title_atom = None;
   ASSERT_TRUE(xconn_->GetAtom("_NET_WM_NAME", &title_atom));
-  std::string window_title;
+  string window_title;
   EXPECT_TRUE(
       xconn_->GetStringProperty(wm_->wm_xid_, title_atom, &window_title));
   EXPECT_EQ(WindowManager::GetWmName(), window_title);
@@ -825,6 +828,46 @@ TEST_F(WindowManagerTest, DeferRedirection) {
           override_redirect_win->actor());
   CHECK(override_redirect_mock_actor);
   EXPECT_EQ(override_redirect_xid, override_redirect_mock_actor->xid());
+}
+
+// This tests against a bug where the window manager would fail to handle
+// existing panel windows at startup -- see http://crosbug.com/1591.
+TEST_F(WindowManagerTest, KeepPanelsAfterRestart) {
+  // Create a panel and check that the window manager handles it.
+  Panel* panel = CreatePanel(200, 20, 400, true);
+  const XWindow titlebar_xid = panel->titlebar_xid();
+  const XWindow content_xid = panel->content_xid();
+  const Window* win = wm_->GetWindow(content_xid);
+  ASSERT_TRUE(win != NULL);
+  EXPECT_EQ(panel, wm_->panel_manager_->panel_bar_->GetPanelByWindow(*win));
+  wm_.reset();
+
+  // XConnection::GetChildWindows() returns windows in bottom-to-top order.
+  // We want to make sure that the window manager is able to deal with
+  // seeing the content window show up before the titlebar window when it
+  // asks for all of the existing windows at startup, so stack the content
+  // window beneath the titlebar window.
+  ASSERT_TRUE(xconn_->StackWindow(content_xid, titlebar_xid, false));
+
+  // Call GetChildWindows() to make sure that the windows are stacked as we
+  // intended.
+  vector<XWindow> windows;
+  ASSERT_TRUE(xconn_->GetChildWindows(xconn_->GetRootWindow(), &windows));
+  vector<XWindow>::iterator titlebar_it =
+      find(windows.begin(), windows.end(), titlebar_xid);
+  ASSERT_TRUE(titlebar_it != windows.end());
+  vector<XWindow>::iterator content_it =
+      find(windows.begin(), windows.end(), content_xid);
+  ASSERT_TRUE(content_it != windows.end());
+  ASSERT_TRUE(content_it < titlebar_it);
+
+  // Now create and initialize a new window manager and check that it
+  // creates a new Panel object.
+  wm_.reset(new WindowManager(event_loop_.get(), clutter_.get()));
+  ASSERT_TRUE(wm_->Init());
+  win = wm_->GetWindow(content_xid);
+  ASSERT_TRUE(win != NULL);
+  ASSERT_TRUE(wm_->panel_manager_->panel_bar_->GetPanelByWindow(*win) != NULL);
 }
 
 }  // namespace window_manager

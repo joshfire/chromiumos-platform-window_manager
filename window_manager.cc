@@ -760,6 +760,13 @@ bool WindowManager::ManageExistingWindows() {
     return false;
   }
 
+  // Panel content windows that are already mapped.  We defer calling
+  // HandleMappedWindow() on these until we've handled all other windows to
+  // make sure that we handle the corresponding panel titlebar windows
+  // first -- the panel code requires that the titlebars be mapped before
+  // the content windows.
+  vector<Window*> mapped_panel_content_windows;
+
   VLOG(1) << "Taking ownership of " << windows.size() << " window"
           << (windows.size() == 1 ? "" : "s");
   for (size_t i = 0; i < windows.size(); ++i) {
@@ -772,9 +779,18 @@ bool WindowManager::ManageExistingWindows() {
     Window* win = TrackWindow(xid, attr.override_redirect);
     if (win && win->FetchMapState()) {
       win->set_mapped(true);
-      HandleMappedWindow(win);
+      if (win->type() == WmIpc::WINDOW_TYPE_CHROME_PANEL_CONTENT)
+        mapped_panel_content_windows.push_back(win);
+      else
+        HandleMappedWindow(win);
     }
   }
+
+  for (vector<Window*>::iterator it = mapped_panel_content_windows.begin();
+       it != mapped_panel_content_windows.end(); ++it) {
+    HandleMappedWindow(*it);
+  }
+
   UpdateClientListStackingProperty();
   return true;
 }

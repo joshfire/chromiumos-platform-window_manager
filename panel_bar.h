@@ -95,6 +95,7 @@ class PanelBar : public PanelContainer {
   FRIEND_TEST(PanelBarTest, FocusNewPanel);
   FRIEND_TEST(PanelBarTest, HideCollapsedPanels);
   FRIEND_TEST(PanelBarTest, DeferHidingDraggedCollapsedPanel);
+  FRIEND_TEST(WindowManagerTest, KeepPanelsAfterRestart);
 
   // PanelBar-specific information about a panel.
   struct PanelInfo {
