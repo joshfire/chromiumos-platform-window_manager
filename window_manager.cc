@@ -171,7 +171,8 @@ WindowManager::WindowManager(EventLoop* event_loop,
       layout_manager_x_(0),
       layout_manager_y_(0),
       layout_manager_width_(1),
-      layout_manager_height_(1) {
+      layout_manager_height_(1),
+      logged_in_(false) {
   CHECK(event_loop_);
   CHECK(clutter_);
   event_loop_->SetSubscriber(this);
@@ -190,6 +191,16 @@ WindowManager::~WindowManager() {
 }
 
 XConnection* WindowManager::xconn() { return event_loop_->xconn(); }
+
+void WindowManager::SetLoggedIn(bool logged_in) {
+  if (logged_in == logged_in_)
+    return;
+
+  CHECK(key_bindings_.get());  // Init should have been invoked first.
+
+  logged_in_ = logged_in;
+  key_bindings_->set_is_enabled(logged_in_);
+}
 
 void WindowManager::StartSendingEventsForWindowToCompositor(XWindow xid) {
   bool added = xids_tracked_by_compositor_.insert(xid).second;
@@ -262,6 +273,7 @@ bool WindowManager::Init() {
 
   // Set up keybindings.
   key_bindings_.reset(new KeyBindings(xconn()));
+  key_bindings_->set_is_enabled(logged_in_);
   if (!FLAGS_wm_xterm_command.empty()) {
     key_bindings_->AddAction(
         "launch-terminal",

@@ -422,6 +422,28 @@ TEST_F(KeyBindingsTest, ModifierReleasedFirst) {
   EXPECT_EQ(1, actions_[0]->end_call_count);
 }
 
+// Makes sure actions are notified when key bindings are dispatched and that
+// when key bindings are reenabled the action is correctly notified.
+TEST_F(KeyBindingsTest, EnableDisable) {
+  AddAction(0, true, true, true);
+  bindings_->AddBinding(KeyBindings::KeyCombo(XK_e, KeyBindings::kControlMask),
+                       actions_[0]->name);
+
+  bindings_->set_is_enabled(false);
+
+  EXPECT_FALSE(bindings_->HandleKeyPress(XK_e, KeyBindings::kControlMask));
+  EXPECT_EQ(0, actions_[0]->begin_call_count);
+  EXPECT_EQ(0, actions_[0]->repeat_call_count);
+  EXPECT_EQ(0, actions_[0]->end_call_count);
+
+  bindings_->set_is_enabled(true);
+
+  EXPECT_TRUE(bindings_->HandleKeyPress(XK_e, KeyBindings::kControlMask));
+  EXPECT_EQ(1, actions_[0]->begin_call_count);
+  EXPECT_EQ(0, actions_[0]->repeat_call_count);
+  EXPECT_EQ(0, actions_[0]->end_call_count);
+}
+
 }  // namespace window_manager
 
 int main(int argc, char** argv) {

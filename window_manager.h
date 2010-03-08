@@ -72,6 +72,10 @@ class WindowManager : public CompositorEventSource,
   WmIpc* wm_ipc() { return wm_ipc_.get(); }
   int wm_ipc_version() const { return wm_ipc_version_; }
 
+  // Has the user logged in?
+  void SetLoggedIn(bool logged_in);
+  bool logged_in() const { return logged_in_; }
+
   // Begin CompositorEventSource implementation.
   void StartSendingEventsForWindowToCompositor(XWindow xid);
   void StopSendingEventsForWindowToCompositor(XWindow xid);
@@ -376,6 +380,10 @@ class WindowManager : public CompositorEventSource,
   int layout_manager_y_;
   int layout_manager_width_;
   int layout_manager_height_;
+
+  // See description above setter. This effects whether key bindings are enabled
+  // or not.
+  bool logged_in_;
 
   DISALLOW_COPY_AND_ASSIGN(WindowManager);
 };

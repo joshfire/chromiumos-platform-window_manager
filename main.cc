@@ -47,6 +47,8 @@ DEFINE_string(minidump_dir, ".",
               "it doesn't exist.");
 DEFINE_int32(pause_at_start, 0,
              "Specify this to pause for N seconds at startup.");
+DEFINE_bool(logged_in, true,
+             "Whether Chrome is logged in or not.");
 
 using window_manager::ClutterInterface;
 using window_manager::EventLoop;
@@ -149,6 +151,7 @@ int main(int argc, char** argv) {
 
   WindowManager wm(&event_loop, clutter.get());
   wm.Init();
+  wm.SetLoggedIn(FLAGS_logged_in);
 
   event_loop.Run();
   return 0;

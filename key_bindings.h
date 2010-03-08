@@ -70,6 +70,11 @@ class KeyBindings {
   KeyBindings(XConnection* xconn);
   ~KeyBindings();
 
+  // Are the key bindings enabled? If not, HandleKeyXXX does nothing.
+  // The default is enabled.
+  void set_is_enabled(bool enabled) { is_enabled_ = enabled; }
+  bool is_enabled() const { return is_enabled_; }
+
   // Add a new action. This will fail if the action already exists.
   // NOTE: The KeyBindings class will take ownership of passed-in
   // callbacks, any of which may be NULL.
@@ -111,6 +116,9 @@ class KeyBindings {
   // their non-modifier key.
   typedef std::map<KeySym, std::set<std::string> > KeySymMap;
   KeySymMap action_names_by_keysym_;
+
+  // See description above setter.
+  bool is_enabled_;
 
   DISALLOW_COPY_AND_ASSIGN(KeyBindings);
 };

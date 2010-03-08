@@ -870,6 +870,21 @@ TEST_F(WindowManagerTest, KeepPanelsAfterRestart) {
   ASSERT_TRUE(wm_->panel_manager_->panel_bar_->GetPanelByWindow(*win) != NULL);
 }
 
+// Makes sure key bindings are disabled by default.
+TEST_F(WindowManagerTest, KeyBindingsDisabled) {
+  EXPECT_FALSE(wm_->key_bindings()->is_enabled());
+}
+
+// Makes sure the user isn't logged in by default and that toggling logged in
+// enables key bindings.
+TEST_F(WindowManagerTest, LoggedInFalse) {
+  EXPECT_FALSE(wm_->logged_in());
+
+  wm_->SetLoggedIn(true);
+  EXPECT_TRUE(wm_->logged_in());
+  EXPECT_TRUE(wm_->key_bindings()->is_enabled());
+}
+
 }  // namespace window_manager
 
 int main(int argc, char** argv) {

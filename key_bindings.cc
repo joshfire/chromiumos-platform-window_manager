@@ -78,7 +78,8 @@ struct Action {
 };
 
 KeyBindings::KeyBindings(XConnection* xconn)
-    : xconn_(xconn) {
+    : xconn_(xconn),
+      is_enabled_(true) {
   CHECK(xconn_);
   if (!xconn_->SetDetectableKeyboardAutoRepeat(true)) {
     LOG(WARNING) << "Unable to enable detectable keyboard autorepeat";
@@ -179,6 +180,9 @@ bool KeyBindings::RemoveBinding(const KeyCombo& combo) {
 }
 
 bool KeyBindings::HandleKeyPress(KeySym keysym, uint32 modifiers) {
+  if (!is_enabled_)
+    return false;
+
   KeyCombo combo(keysym, modifiers);
   BindingsMap::const_iterator bindings_iter = bindings_.find(combo);
   if (bindings_iter == bindings_.end()) {
@@ -204,6 +208,9 @@ bool KeyBindings::HandleKeyPress(KeySym keysym, uint32 modifiers) {
 }
 
 bool KeyBindings::HandleKeyRelease(KeySym keysym, uint32 modifiers) {
+  if (!is_enabled_)
+    return false;
+
   KeyCombo combo(keysym, modifiers);
 
   // It's possible that a combo's modifier key(s) will get released before
