@@ -203,6 +203,12 @@ for test_src in Glob('*_test.cc', strings=True):
 # Create a 'tests' target that will build all tests.
 test_env.Alias('tests', tests)
 
-mock_chrome_env = wm_env.Clone()
-mock_chrome_env.ParseConfig('pkg-config --cflags --libs gtkmm-2.4')
-mock_chrome_env.Program('mock_chrome', 'mock_chrome.cc')
+# mock_chrome is just a small program that developers can use to test
+# interaction between the window manager and Chrome.  We only define a
+# target for it if gtkmm is installed so that this SConstruct file can
+# still be parsed in the chroot build environment, which shouldn't contain
+# gtkmm.
+if os.system('pkg-config --exists gtkmm-2.4') == 0:
+  mock_chrome_env = wm_env.Clone()
+  mock_chrome_env.ParseConfig('pkg-config --cflags --libs gtkmm-2.4')
+  mock_chrome_env.Program('mock_chrome', 'mock_chrome.cc')
