@@ -9,9 +9,6 @@
 
 namespace window_manager {
 
-using chromeos::Closure;
-using chromeos::NewPermanentCallback;
-
 // How frequently should we query the pointer position, in milliseconds?
 static const int kTimeoutMs = 200;
 

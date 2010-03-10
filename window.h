@@ -13,7 +13,6 @@
 #include "base/basictypes.h"
 #include "base/logging.h"
 #include "base/scoped_ptr.h"
-#include "chromeos/obsolete_logging.h"
 #include "window_manager/atom_cache.h"  // for Atom enum
 #include "window_manager/clutter_interface.h"
 #include "window_manager/wm_ipc.h"

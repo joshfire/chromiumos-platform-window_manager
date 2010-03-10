@@ -4,13 +4,10 @@
 
 #include "window_manager/motion_event_coalescer.h"
 
-#include "chromeos/obsolete_logging.h"
+#include "base/logging.h"
 #include "window_manager/event_loop.h"
 
 namespace window_manager {
-
-using chromeos::Closure;
-using chromeos::NewPermanentCallback;
 
 MotionEventCoalescer::MotionEventCoalescer(EventLoop* event_loop,
                                            Closure* cb,
@@ -24,7 +21,7 @@ MotionEventCoalescer::MotionEventCoalescer(EventLoop* event_loop,
       cb_(cb),
       synchronous_(false) {
   CHECK(cb);
-  CHECK_GT(timeout_ms, 0);
+  CHECK(timeout_ms > 0);
 }
 
 MotionEventCoalescer::~MotionEventCoalescer() {

@@ -13,10 +13,10 @@ extern "C" {
 
 #include <gflags/gflags.h>
 
-#include "chromeos/callback.h"
 #include "base/string_util.h"
 #include "base/logging.h"
 #include "window_manager/atom_cache.h"
+#include "window_manager/callback.h"
 #include "window_manager/event_consumer_registrar.h"
 #include "window_manager/motion_event_coalescer.h"
 #include "window_manager/stacking_manager.h"
@@ -41,8 +41,6 @@ DEFINE_string(lm_overview_gradient_image,
 namespace window_manager {
 
 using std::tr1::shared_ptr;
-
-using chromeos::NewPermanentCallback;
 
 // Amount of padding that should be used between windows in overview mode.
 static const int kWindowPadding = 10;
@@ -272,7 +270,7 @@ void LayoutManager::HandleWindowMap(Window* win) {
           // currently-active window.
           if (active_toplevel_) {
             int old_index = GetIndexForToplevelWindow(*active_toplevel_);
-            CHECK_GE(old_index, 0);
+            CHECK(old_index >= 0);
             ToplevelWindows::iterator it = toplevels_.begin() + old_index + 1;
             toplevels_.insert(it, toplevel);
           } else {
@@ -325,7 +323,7 @@ void LayoutManager::HandleWindowUnmap(Window* win) {
       active_toplevel_ = NULL;
 
     const int index = GetIndexForToplevelWindow(*toplevel);
-    CHECK_EQ(input_to_toplevel_.erase(toplevel->input_xid()), 1);
+    CHECK(input_to_toplevel_.erase(toplevel->input_xid()) == 1);
     toplevels_.erase(toplevels_.begin() + index);
 
     if (mode_ == MODE_OVERVIEW) {
@@ -523,10 +521,10 @@ void LayoutManager::HandleClientMessage(XWindow xid,
   if (message_type == wm_->GetXAtom(ATOM_NET_WM_STATE)) {
     win->HandleWmStateMessage(data);
   } else if (message_type == wm_->GetXAtom(ATOM_NET_ACTIVE_WINDOW)) {
-    VLOG(1) << "Got _NET_ACTIVE_WINDOW request to focus " << XidStr(xid)
-            << " (requestor says its currently-active window is "
-            << XidStr(data[2]) << "; real active window is "
-            << XidStr(wm_->active_window_xid()) << ")";
+    DLOG(INFO) << "Got _NET_ACTIVE_WINDOW request to focus " << XidStr(xid)
+               << " (requestor says its currently-active window is "
+               << XidStr(data[2]) << "; real active window is "
+               << XidStr(wm_->active_window_xid()) << ")";
 
     // If we got a _NET_ACTIVE_WINDOW request for a transient, switch to
     // its owner instead.
@@ -779,7 +777,7 @@ void LayoutManager::SetMode(Mode mode) {
 }
 
 void LayoutManager::LayoutToplevelWindowsForActiveMode(bool update_focus) {
-  VLOG(1) << "Laying out windows for active mode";
+  DLOG(INFO) << "Laying out windows for active mode";
   if (toplevels_.empty())
     return;
   if (!active_toplevel_)
@@ -797,7 +795,7 @@ void LayoutManager::LayoutToplevelWindowsForActiveMode(bool update_focus) {
 
 void LayoutManager::LayoutToplevelWindowsForOverviewMode(
     int magnified_x) {
-  VLOG(1) << "Laying out windows for overview mode";
+  DLOG(INFO) << "Laying out windows for overview mode";
   CalculatePositionsForOverviewMode(magnified_x);
   ConfigureWindowsForOverviewMode(false);
 }
@@ -882,7 +880,7 @@ LayoutManager::ToplevelWindow* LayoutManager::GetOverviewToplevelWindowAtPoint(
 }
 
 void LayoutManager::AddKeyBindingsForMode(Mode mode) {
-  VLOG(1) << "Adding key bindings for mode " << mode;
+  DLOG(INFO) << "Adding key bindings for mode " << mode;
   KeyBindings* kb = wm_->key_bindings();
 
   switch (mode) {
@@ -946,7 +944,7 @@ void LayoutManager::AddKeyBindingsForMode(Mode mode) {
 }
 
 void LayoutManager::RemoveKeyBindingsForMode(Mode mode) {
-  VLOG(1) << "Removing key bindings for mode " << mode;
+  DLOG(INFO) << "Removing key bindings for mode " << mode;
   KeyBindings* kb = wm_->key_bindings();
 
   switch (mode) {

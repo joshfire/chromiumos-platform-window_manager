@@ -26,7 +26,6 @@ DEFINE_string(panel_anchor_image, "../assets/images/panel_anchor.png",
 
 namespace window_manager {
 
-using chromeos::NewPermanentCallback;
 using std::find;
 using std::make_pair;
 using std::map;
@@ -230,12 +229,12 @@ void PanelBar::HandleInputWindowButtonPress(XWindow xid,
                                             int x_root, int y_root,
                                             int button,
                                             XTime timestamp) {
-  CHECK_EQ(xid, anchor_input_xid_);
+  CHECK(xid == anchor_input_xid_);
   if (button != 1)
     return;
 
   // Destroy the anchor and collapse the corresponding panel.
-  VLOG(1) << "Got button press in anchor window";
+  DLOG(INFO) << "Got button press in anchor window";
   Panel* panel = anchor_panel_;
   DestroyAnchor();
   if (panel)
@@ -249,7 +248,7 @@ void PanelBar::HandleInputWindowPointerEnter(XWindow xid,
                                              int x_root, int y_root,
                                              XTime timestamp) {
   if (xid == show_collapsed_panels_input_xid_) {
-    VLOG(1) << "Got mouse enter in show-collapsed-panels window";
+    DLOG(INFO) << "Got mouse enter in show-collapsed-panels window";
     if (x_root >= wm()->width() - total_panel_width_) {
       // If the user moves the pointer down quickly to the bottom of the
       // screen, it's possible that it could end up below a collapsed panel
@@ -262,7 +261,7 @@ void PanelBar::HandleInputWindowPointerEnter(XWindow xid,
       if (collapsed_panel_state_ != COLLAPSED_PANEL_STATE_SHOWN &&
           collapsed_panel_state_ != COLLAPSED_PANEL_STATE_WAITING_TO_SHOW) {
         collapsed_panel_state_ = COLLAPSED_PANEL_STATE_WAITING_TO_SHOW;
-        DCHECK_EQ(show_collapsed_panels_timeout_id_, -1);
+        DCHECK(show_collapsed_panels_timeout_id_ == -1);
         show_collapsed_panels_timeout_id_ =
             wm()->event_loop()->AddTimeout(
                 NewPermanentCallback(
@@ -278,7 +277,7 @@ void PanelBar::HandleInputWindowPointerLeave(XWindow xid,
                                              int x_root, int y_root,
                                              XTime timestamp) {
   if (xid == show_collapsed_panels_input_xid_) {
-    VLOG(1) << "Got mouse leave in show-collapsed-panels window";
+    DLOG(INFO) << "Got mouse leave in show-collapsed-panels window";
     if (collapsed_panel_state_ == COLLAPSED_PANEL_STATE_WAITING_TO_SHOW) {
       collapsed_panel_state_ = COLLAPSED_PANEL_STATE_HIDDEN;
       DisableShowCollapsedPanelsTimeout();
@@ -289,8 +288,8 @@ void PanelBar::HandleInputWindowPointerLeave(XWindow xid,
 void PanelBar::HandlePanelButtonPress(
     Panel* panel, int button, XTime timestamp) {
   DCHECK(panel);
-  VLOG(1) << "Got button press in panel " << panel->xid_str()
-          << "; giving it the focus";
+  DLOG(INFO) << "Got button press in panel " << panel->xid_str()
+             << "; giving it the focus";
   // Get rid of the passive button grab, and then ungrab the pointer
   // and replay events so the panel will get a copy of the click.
   FocusPanel(panel, true, timestamp);  // remove_pointer_grab=true
@@ -298,7 +297,8 @@ void PanelBar::HandlePanelButtonPress(
 
 void PanelBar::HandlePanelTitlebarPointerEnter(Panel* panel, XTime timestamp) {
   DCHECK(panel);
-  VLOG(1) << "Got pointer enter in panel " << panel->xid_str() << "'s titlebar";
+  DLOG(INFO) << "Got pointer enter in panel " << panel->xid_str()
+             << "'s titlebar";
   if (collapsed_panel_state_ != COLLAPSED_PANEL_STATE_SHOWN &&
       !panel->is_expanded()) {
     ShowCollapsedPanels();
@@ -323,8 +323,8 @@ bool PanelBar::HandleNotifyPanelDraggedMessage(Panel* panel,
                                                int drag_x,
                                                int drag_y) {
   DCHECK(panel);
-  VLOG(2) << "Notified about drag of panel " << panel->xid_str()
-          << " to (" << drag_x << ", " << drag_y << ")";
+  DLOG(INFO) << "Notified about drag of panel " << panel->xid_str()
+             << " to (" << drag_x << ", " << drag_y << ")";
 
   const int y_threshold =
       wm()->height() - panel->total_height() - kPanelDetachThresholdPixels;
@@ -338,7 +338,7 @@ bool PanelBar::HandleNotifyPanelDraggedMessage(Panel* panel,
       HandlePanelDragComplete(dragged_panel_);
     }
 
-    VLOG(2) << "Starting drag of panel " << panel->xid_str();
+    DLOG(INFO) << "Starting drag of panel " << panel->xid_str();
     dragged_panel_ = panel;
     dragging_panel_horizontally_ =
         (abs(drag_x - panel->right()) > abs(drag_y - panel->titlebar_y()));
@@ -530,8 +530,8 @@ PanelBar::Panels::iterator PanelBar::FindPanelInVectorByWindow(
 
 void PanelBar::HandlePanelDragComplete(Panel* panel) {
   CHECK(panel);
-  VLOG(2) << "Got notification that panel drag is complete for "
-          << panel->xid_str();
+  DLOG(INFO) << "Got notification that panel drag is complete for "
+             << panel->xid_str();
   if (dragged_panel_ != panel)
     return;
 
@@ -702,9 +702,9 @@ Panel* PanelBar::GetNearestExpandedPanel(Panel* panel) {
 }
 
 void PanelBar::ConfigureShowCollapsedPanelsInputWindow(bool move_onscreen) {
-  VLOG(1) << (move_onscreen ? "Showing" : "Hiding") << " input window "
-          << XidStr(show_collapsed_panels_input_xid_)
-          << " for showing collapsed panels";
+  DLOG(INFO) << (move_onscreen ? "Showing" : "Hiding") << " input window "
+             << XidStr(show_collapsed_panels_input_xid_)
+             << " for showing collapsed panels";
   if (move_onscreen) {
     wm()->ConfigureInputWindow(
         show_collapsed_panels_input_xid_,
@@ -727,7 +727,7 @@ void PanelBar::StartHideCollapsedPanelsWatcher() {
 }
 
 void PanelBar::ShowCollapsedPanels() {
-  VLOG(1) << "Showing collapsed panels";
+  DLOG(INFO) << "Showing collapsed panels";
   DisableShowCollapsedPanelsTimeout();
   collapsed_panel_state_ = COLLAPSED_PANEL_STATE_SHOWN;
 
@@ -746,14 +746,14 @@ void PanelBar::ShowCollapsedPanels() {
 }
 
 void PanelBar::HideCollapsedPanels() {
-  VLOG(1) << "Hiding collapsed panels";
+  DLOG(INFO) << "Hiding collapsed panels";
   DisableShowCollapsedPanelsTimeout();
 
   if (dragged_panel_ && !dragged_panel_->is_expanded()) {
     // Don't hide the panels in the middle of the drag -- we'll do it in
     // HandlePanelDragComplete() instead.
-    VLOG(1) << "Deferring hiding collapsed panels since collapsed panel "
-            << dragged_panel_->xid_str() << " is currently being dragged";
+    DLOG(INFO) << "Deferring hiding collapsed panels since collapsed panel "
+               << dragged_panel_->xid_str() << " is currently being dragged";
     collapsed_panel_state_ = COLLAPSED_PANEL_STATE_WAITING_TO_HIDE;
     return;
   }
@@ -782,7 +782,7 @@ void PanelBar::DisableShowCollapsedPanelsTimeout() {
 }
 
 void PanelBar::HandleShowCollapsedPanelsTimeout() {
-  DCHECK_EQ(collapsed_panel_state_, COLLAPSED_PANEL_STATE_WAITING_TO_SHOW);
+  DCHECK(collapsed_panel_state_ == COLLAPSED_PANEL_STATE_WAITING_TO_SHOW);
   DisableShowCollapsedPanelsTimeout();
   ShowCollapsedPanels();
 }

@@ -7,15 +7,14 @@
 #include <cstring>
 
 #include "base/string_util.h"
-#include "chromeos/obsolete_logging.h"
 
 namespace window_manager {
 
 ByteMap::ByteMap(int width, int height)
     : width_(width),
       height_(height) {
-  CHECK_GT(width, 0);
-  CHECK_GT(height, 0);
+  CHECK(width > 0);
+  CHECK(height > 0);
   bytes_ = new unsigned char[width * height];
   Clear(0);
 }
@@ -26,8 +25,8 @@ ByteMap::~ByteMap() {
 }
 
 void ByteMap::Copy(const ByteMap& other) {
-  CHECK_EQ(width_, other.width_);
-  CHECK_EQ(height_, other.height_);
+  CHECK(width_ == other.width_);
+  CHECK(height_ == other.height_);
   memcpy(bytes_, other.bytes_, width_ * height_);
 }
 

@@ -23,7 +23,7 @@ class ScopedFilePointer {
   ~ScopedFilePointer() {
     if (!fp_)
       return;
-    CHECK_EQ(0, fclose(fp_));
+    CHECK(fclose(fp_) == 0);
   }
   FILE* get() { return fp_; }
  private:

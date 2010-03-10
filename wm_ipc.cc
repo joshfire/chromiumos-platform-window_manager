@@ -6,7 +6,6 @@
 
 #include <cstring>
 
-#include "chromeos/obsolete_logging.h"
 #include "window_manager/atom_cache.h"
 #include "window_manager/util.h"
 #include "window_manager/x_connection.h"
@@ -17,7 +16,7 @@ WmIpc::WmIpc(XConnection* xconn, AtomCache* cache)
     : xconn_(xconn),
       atom_cache_(cache),
       wm_window_(xconn_->GetSelectionOwner(atom_cache_->GetXAtom(ATOM_WM_S0))) {
-  VLOG(1) << "Window manager window is " << XidStr(wm_window_);
+  LOG(INFO) << "Window manager window is " << XidStr(wm_window_);
 }
 
 bool WmIpc::GetWindowType(XWindow xid,
@@ -42,8 +41,8 @@ bool WmIpc::GetWindowType(XWindow xid,
 
 bool WmIpc::SetWindowType(
     XWindow xid, WindowType type, const std::vector<int>* params) {
-  CHECK_GE(type, 0);
-  CHECK_LT(type, kNumWindowTypes);
+  CHECK(type >= 0);
+  CHECK(type < kNumWindowTypes);
 
   std::vector<int> values;
   values.push_back(type);
@@ -91,7 +90,7 @@ bool WmIpc::GetMessage(XWindow xid,
 
   // ClientMessage events only have five 32-bit items, and we're using the
   // first one for our message type.
-  CHECK_LE(msg_out->max_params(), 4);
+  CHECK(msg_out->max_params() <= 4);
   for (int i = 0; i < msg_out->max_params(); ++i) {
     msg_out->set_param(i, data[i+1]);  // l[0] contains message type
   }
@@ -99,14 +98,15 @@ bool WmIpc::GetMessage(XWindow xid,
 }
 
 bool WmIpc::SendMessage(XWindow xid, const Message& msg) {
-  VLOG(2) << "Sending message of type " << msg.type() << " to " << XidStr(xid);
+  DLOG(INFO) << "Sending message of type " << msg.type() << " to "
+             << XidStr(xid);
 
   long data[5];
   memset(data, 0, sizeof(data));
   data[0] = msg.type();
   // XClientMessageEvent only gives us five 32-bit items, and we're using
   // the first one for our message type.
-  CHECK_LE(msg.max_params(), 4);
+  CHECK(msg.max_params() <= 4);
   for (int i = 0; i < msg.max_params(); ++i)
     data[i+1] = msg.param(i);
 

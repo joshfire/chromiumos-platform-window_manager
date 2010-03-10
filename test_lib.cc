@@ -180,7 +180,7 @@ void BasicWindowManagerTest::SendWmIpcMessage(const WmIpc::Message& msg) {
   // Next, copy it from where MockXConnection saved it and pass it to the
   // window manager.
   XEvent event;
-  CHECK_EQ(info->client_messages.size(), orig_num_messages + 1);
+  CHECK(info->client_messages.size() == orig_num_messages + 1);
   memcpy(&(event.xclient),
          &(info->client_messages.back()),
          sizeof(XClientMessageEvent));
@@ -226,7 +226,7 @@ void BasicWindowManagerTest::TestIntArrayProperty(
 
   va_list args;
   va_start(args, num_values);
-  CHECK_GE(num_values, 0);
+  CHECK(num_values >= 0);
   for (; num_values; num_values--) {
     int arg = va_arg(args, int);
     expected.push_back(arg);

@@ -25,8 +25,6 @@ DEFINE_bool(logtostderr, false,
 
 namespace window_manager {
 
-using chromeos::NewPermanentCallback;
-
 class LayoutManagerTest : public BasicWindowManagerTest {
  protected:
   virtual void SetUp() {

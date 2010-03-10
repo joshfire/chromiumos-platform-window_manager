@@ -19,7 +19,6 @@ extern "C" {
 }
 
 #include "base/string_util.h"
-#include "chromeos/obsolete_logging.h"
 #include "window_manager/util.h"
 
 namespace window_manager {
@@ -44,9 +43,9 @@ using std::vector;
     CHECK(!error) << "Unable to query " #name " extension";                    \
     LOG(INFO) << "Server has " #name " extension v"                            \
               << reply->major_version << "." << reply->minor_version;          \
-    CHECK_GE(reply->major_version, major);                                     \
+    CHECK(reply->major_version >= major);                                      \
     if (reply->major_version == major)                                         \
-      CHECK_GE(reply->minor_version, minor);                                   \
+      CHECK(reply->minor_version >= minor);                                    \
   } while (0)
 
 // Maximum property size in bytes (both for reading and setting).
@@ -122,7 +121,7 @@ RealXConnection::~RealXConnection() {
        it != cursors_.end(); ++it) {
     xcb_free_cursor(xcb_conn_, it->second);
   }
-  CHECK_EQ(XSetErrorHandler(old_error_handler), &HandleXError)
+  CHECK(XSetErrorHandler(old_error_handler) == &HandleXError)
       << "Our error handler was replaced with someone else's";
 }
 
@@ -192,7 +191,7 @@ bool RealXConnection::RaiseWindow(XWindow xid) {
 }
 
 bool RealXConnection::FocusWindow(XWindow xid, XTime event_time) {
-  VLOG(1) << "Focusing window " << XidStr(xid);
+  DLOG(INFO) << "Focusing window " << XidStr(xid);
   xcb_set_input_focus(xcb_conn_, XCB_INPUT_FOCUS_PARENT, xid, event_time);
   return true;
 }
@@ -213,7 +212,7 @@ bool RealXConnection::ReparentWindow(
 }
 
 bool RealXConnection::SetWindowBorderWidth(XWindow xid, int width) {
-  DCHECK_GE(width, 0);
+  DCHECK(width >= 0);
   const uint32_t values[] = { width };
   xcb_configure_window(xcb_conn_, xid, XCB_CONFIG_WINDOW_BORDER_WIDTH, values);
   return true;
@@ -516,9 +515,9 @@ XWindow RealXConnection::CreateWindow(
     bool override_redirect,
     bool input_only,
     int event_mask) {
-  CHECK_GT(width, 0);
-  CHECK_GT(height, 0);
-  CHECK_NE(parent, XCB_NONE);
+  CHECK(width > 0);
+  CHECK(height > 0);
+  CHECK(parent != XCB_NONE);
 
   const uint32_t value_mask = XCB_CW_OVERRIDE_REDIRECT | XCB_CW_EVENT_MASK;
   const uint32_t values[] = { override_redirect ? 1 : 0, event_mask, };

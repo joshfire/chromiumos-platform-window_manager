@@ -10,8 +10,6 @@
 
 #include "base/command_line.h"
 #include "base/string_util.h"
-#include "chromeos/obsolete_logging.h"
-#include "chromeos/string.h"
 #include "window_manager/atom_cache.h"
 #include "window_manager/real_x_connection.h"
 #include "window_manager/util.h"
@@ -37,7 +35,6 @@ DEFINE_int32(tabs_per_window, 3, "Number of tabs to add to each window");
 DEFINE_int32(window_height, 640, "Window height");
 DEFINE_int32(window_width, 920, "Window width");
 
-using chromeos::SplitStringUsing;
 using std::max;
 using window_manager::AtomCache;
 using window_manager::RealXConnection;
@@ -94,8 +91,8 @@ static void DrawImage(Glib::RefPtr<Gdk::Pixbuf>& image,
                       int dest_x, int dest_y,
                       int dest_width, int dest_height) {
   CHECK(widget);
-  CHECK_GT(dest_width, 0);
-  CHECK_GT(dest_height, 0);
+  CHECK(dest_width > 0);
+  CHECK(dest_height > 0);
 
   // Only scale the original image if we have to.
   Glib::RefPtr<Gdk::Pixbuf> scaled_image = image;
@@ -168,7 +165,7 @@ void ChromeWindow::InsertTab(Tab* tab, size_t index) {
 }
 
 Tab* ChromeWindow::RemoveTab(size_t index) {
-  CHECK_LT(index, tabs_.size());
+  CHECK(index < tabs_.size());
   std::tr1::shared_ptr<TabInfo> info = tabs_[index];
   tabs_.erase(tabs_.begin() + index);
   if (active_tab_index_ >= static_cast<int>(tabs_.size())) {
@@ -178,8 +175,8 @@ Tab* ChromeWindow::RemoveTab(size_t index) {
 }
 
 void ChromeWindow::ActivateTab(int index) {
-  CHECK_GE(index, 0);
-  CHECK_LT(index, static_cast<int>(tabs_.size()));
+  CHECK(index >= 0);
+  CHECK(index < static_cast<int>(tabs_.size()));
   if (index == active_tab_index_) {
     return;
   }
@@ -325,7 +322,7 @@ void ChromeWindow::DrawView() {
   int height = height_ - y;
 
   if (active_tab_index_ >= 0) {
-    CHECK_LT(active_tab_index_, static_cast<int>(tabs_.size()));
+    CHECK(active_tab_index_ < static_cast<int>(tabs_.size()));
     tabs_[active_tab_index_]->tab->RenderToGtkWidget(this, x, y, width, height);
   } else {
     get_window()->clear_area(x, y, width, height);
@@ -354,7 +351,7 @@ bool ChromeWindow::on_button_press_event(GdkEventButton* event) {
     return false;
   }
 
-  VLOG(2) << "Got mouse down at (" << event->x << ", " << event->y << ")";
+  DLOG(INFO) << "Got mouse down at (" << event->x << ", " << event->y << ")";
   if (event->y < 0 || event->y > kTabHeight) {
     // Don't do anything for clicks outside of the tab bar.
     return false;
@@ -370,7 +367,7 @@ bool ChromeWindow::on_button_press_event(GdkEventButton* event) {
   tab_drag_start_offset_x_ = event->x - tabs_[tab_index]->start_x;
   tab_drag_start_offset_y_ = event->y;
   if (tab_index != active_tab_index_) {
-    CHECK_LT(tab_index, static_cast<int>(tabs_.size()));
+    CHECK(tab_index < static_cast<int>(tabs_.size()));
     active_tab_index_ = tab_index;
     DrawTabs();
     DrawView();
@@ -382,7 +379,7 @@ bool ChromeWindow::on_button_release_event(GdkEventButton* event) {
   if (event->button != 1) {
     return false;
   }
-  VLOG(2) << "Got mouse up at (" << event->x << ", " << event->y << ")";
+  DLOG(INFO) << "Got mouse up at (" << event->x << ", " << event->y << ")";
   dragging_tab_ = false;
   return true;
 }
@@ -390,7 +387,7 @@ bool ChromeWindow::on_button_release_event(GdkEventButton* event) {
 bool ChromeWindow::on_motion_notify_event(GdkEventMotion* event) {
   if (!dragging_tab_) return false;
 
-  VLOG(2) << "Got motion at (" << event->x << ", " << event->y << ")";
+  DLOG(INFO) << "Got motion at (" << event->x << ", " << event->y << ")";
   if (active_tab_index_ >= 0) {
     int tab_index = GetTabIndexAtXPosition(event->x);
     // The tab is still within the tab bar; move it to a new position.
@@ -439,7 +436,7 @@ bool ChromeWindow::on_client_event(GdkEventClient* event) {
   if (!GetWmIpcMessage(*event, chrome_->wm_ipc(), &msg))
     return false;
 
-  VLOG(2) << "Got message of type " << msg.type();
+  DLOG(INFO) << "Got message of type " << msg.type();
   switch (msg.type()) {
     default:
       LOG(WARNING) << "Ignoring WM message of unknown type " << msg.type();
@@ -457,7 +454,7 @@ bool ChromeWindow::on_configure_event(GdkEventConfigure* event) {
 
 bool ChromeWindow::on_window_state_event(GdkEventWindowState* event) {
   fullscreen_ = (event->new_window_state & GDK_WINDOW_STATE_FULLSCREEN);
-  VLOG(1) << "Fullscreen mode set to " << fullscreen_;
+  DLOG(INFO) << "Fullscreen mode set to " << fullscreen_;
   return true;
 }
 
@@ -619,7 +616,7 @@ bool Panel::on_expose_event(GdkEventExpose* event) {
 }
 
 bool Panel::on_button_press_event(GdkEventButton* event) {
-  VLOG(1) << "Panel " << xid_ << " got button " << event->button;
+  DLOG(INFO) << "Panel " << xid_ << " got button " << event->button;
   if (event->button == 2) {
     chrome_->ClosePanel(this);
   }
@@ -638,7 +635,7 @@ bool Panel::on_key_press_event(GdkEventKey* event) {
   } else if (strcmp(event->string, "u") == 0) {
     set_urgency_hint(!get_urgency_hint());
   } else {
-    VLOG(1) << "Panel " << xid_ << " got key press " << event->string;
+    DLOG(INFO) << "Panel " << xid_ << " got key press " << event->string;
   }
   return true;
 }
@@ -648,7 +645,7 @@ bool Panel::on_client_event(GdkEventClient* event) {
   if (!GetWmIpcMessage(*event, chrome_->wm_ipc(), &msg))
     return false;
 
-  VLOG(2) << "Got message of type " << msg.type();
+  DLOG(INFO) << "Got message of type " << msg.type();
   switch (msg.type()) {
     case WmIpc::Message::CHROME_NOTIFY_PANEL_STATE: {
       expanded_ = msg.param(0);
@@ -690,7 +687,7 @@ ChromeWindow* MockChrome::CreateWindow(int width, int height) {
 
 void MockChrome::CloseWindow(ChromeWindow* win) {
   CHECK(win);
-  CHECK_EQ(windows_.erase(win->xid()), 1);
+  CHECK(windows_.erase(win->xid()) == 1);
 }
 
 Panel* MockChrome::CreatePanel(const std::string& image_filename,
@@ -704,7 +701,7 @@ Panel* MockChrome::CreatePanel(const std::string& image_filename,
 
 void MockChrome::ClosePanel(Panel* panel) {
   CHECK(panel);
-  CHECK_EQ(panels_.erase(panel->xid()), 1);
+  CHECK(panels_.erase(panel->xid()) == 1);
 }
 
 }  // namespace mock_chrome
@@ -720,13 +717,13 @@ int main(int argc, char** argv) {
                        logging::APPEND_TO_OLD_LOG_FILE);
 
   std::vector<std::string> filenames;
-  SplitStringUsing(FLAGS_tab_images, ",", &filenames);
+  SplitString(FLAGS_tab_images, ',', &filenames);
   CHECK(!filenames.empty())
       << "At least one image must be supplied using --tab_images";
 
   std::vector<std::string> titles;
-  SplitStringUsing(FLAGS_tab_titles, ",", &titles);
-  CHECK_EQ(filenames.size(), titles.size())
+  SplitString(FLAGS_tab_titles, ',', &titles);
+  CHECK(filenames.size() == titles.size())
       << "Must specify same number of tab images and titles";
 
   mock_chrome::MockChrome mock_chrome;
@@ -742,13 +739,13 @@ int main(int argc, char** argv) {
   }
 
   filenames.clear();
-  SplitStringUsing(FLAGS_panel_images, ",", &filenames);
+  SplitString(FLAGS_panel_images, ',', &filenames);
   CHECK(!filenames.empty())
       << "At least one image must be supplied using --panel_images";
 
   titles.clear();
-  SplitStringUsing(FLAGS_panel_titles, ",", &titles);
-  CHECK_EQ(filenames.size(), titles.size())
+  SplitString(FLAGS_panel_titles, ',', &titles);
+  CHECK(filenames.size() == titles.size())
       << "Must specify same number of panel images and titles";
 
   for (int i = 0; i < FLAGS_num_panels; ++i) {

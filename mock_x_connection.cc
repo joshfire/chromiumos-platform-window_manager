@@ -11,12 +11,10 @@
 
 #include "base/logging.h"
 #include "base/eintr_wrapper.h"
-#include "chromeos/obsolete_logging.h"
 #include "window_manager/util.h"
 
 namespace window_manager {
 
-using chromeos::Closure;
 using std::list;
 using std::make_pair;
 using std::map;
@@ -63,8 +61,8 @@ bool MockXConnection::GetWindowGeometry(XWindow xid, WindowGeometry* geom_out) {
   geom_out->y = info->y;
   geom_out->width = info->width;
   geom_out->height = info->height;
-  geom_out->border_width = 0;
-  geom_out->depth = 32;
+  geom_out->border_width = info->border_width;
+  geom_out->depth = info->depth;
   return true;
 }
 
@@ -142,6 +140,14 @@ bool MockXConnection::AddButtonGrabOnWindow(
     return false;
   info->button_grabs[button] =
       WindowInfo::ButtonGrabInfo(event_mask, synchronous);
+  return true;
+}
+
+bool MockXConnection::SetWindowBorderWidth(XWindow xid, int width) {
+  WindowInfo* info = GetWindowInfo(xid);
+  if (!info)
+    return false;
+  info->border_width = width;
   return true;
 }
 
@@ -424,7 +430,7 @@ void MockXConnection::GetNextEvent(void* event) {
   *(reinterpret_cast<XEvent*>(event)) = queued_events_.front();
   queued_events_.pop();
   unsigned char data = 1;
-  CHECK_EQ(HANDLE_EINTR(read(connection_pipe_fds_[0], &data, 1)), 1)
+  CHECK(HANDLE_EINTR(read(connection_pipe_fds_[0], &data, 1)) == 1)
       << strerror(errno);
 }
 
@@ -548,7 +554,7 @@ MockXConnection::WindowInfo* MockXConnection::GetWindowInfo(XWindow xid) {
 void MockXConnection::AppendEventToQueue(const XEvent& event) {
   queued_events_.push(event);
   unsigned char data = 1;
-  CHECK_EQ(HANDLE_EINTR(write(connection_pipe_fds_[1], &data, 1)), 1)
+  CHECK(HANDLE_EINTR(write(connection_pipe_fds_[1], &data, 1)) == 1)
       << strerror(errno);
 }
 

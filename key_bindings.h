@@ -30,7 +30,7 @@
 #include <string>
 
 #include "base/basictypes.h"
-#include "chromeos/callback.h"
+#include "window_manager/callback.h"
 #include "window_manager/x_types.h"
 
 namespace window_manager {
@@ -79,9 +79,9 @@ class KeyBindings {
   // NOTE: The KeyBindings class will take ownership of passed-in
   // callbacks, any of which may be NULL.
   bool AddAction(const std::string& action_name,
-                 chromeos::Closure* begin_closure,   // On combo press
-                 chromeos::Closure* repeat_closure,  // On combo auto-repeat
-                 chromeos::Closure* end_closure);    // On combo release
+                 Closure* begin_closure,   // On combo press
+                 Closure* repeat_closure,  // On combo auto-repeat
+                 Closure* end_closure);    // On combo release
 
   // Removes an action. Any key bindings to this action will also be removed.
   bool RemoveAction(const std::string& action_name);

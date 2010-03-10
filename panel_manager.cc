@@ -18,7 +18,6 @@
 
 namespace window_manager {
 
-using chromeos::NewPermanentCallback;
 using std::make_pair;
 using std::map;
 using std::tr1::shared_ptr;
@@ -118,9 +117,9 @@ void PanelManager::HandleWindowMap(Window* win) {
       // updated.
       bool expanded = win->type_params().size() >= 2 ?
           win->type_params().at(1) : false;
-      VLOG(1) << "Adding " << (expanded ? "expanded" : "collapsed")
-              << " panel with content window " << win->xid_str()
-              << " and titlebar window " << titlebar_win->xid_str();
+      DLOG(INFO) << "Adding " << (expanded ? "expanded" : "collapsed")
+                 << " panel with content window " << win->xid_str()
+                 << " and titlebar window " << titlebar_win->xid_str();
 
       shared_ptr<Panel> panel(new Panel(this, win, titlebar_win, expanded));
       panel->SetTitlebarWidth(panel->content_width());
@@ -350,10 +349,10 @@ void PanelManager::HandleClientMessage(XWindow xid,
     return;
 
   if (message_type == wm_->GetXAtom(ATOM_NET_ACTIVE_WINDOW)) {
-    VLOG(1) << "Got _NET_ACTIVE_WINDOW request to focus " << XidStr(xid)
-            << " (requestor says its currently-active window is "
-            << XidStr(data[2]) << "; real active window is "
-            << XidStr(wm_->active_window_xid()) << ")";
+    DLOG(INFO) << "Got _NET_ACTIVE_WINDOW request to focus " << XidStr(xid)
+               << " (requestor says its currently-active window is "
+               << XidStr(data[2]) << "; real active window is "
+               << XidStr(wm_->active_window_xid()) << ")";
     PanelContainer* container = GetContainerForPanel(*panel);
     if (container)
       container->HandleFocusPanelMessage(panel);
@@ -374,7 +373,7 @@ void PanelManager::HandleWindowPropertyChange(XWindow xid, XAtom xatom) {
   DCHECK(panel) << "Got property change for non-panel window " << XidStr(xid);
   if (!panel)
     return;
-  DCHECK_EQ(wm_->GetXAtom(ATOM_WM_HINTS), xatom);
+  DCHECK(xatom == wm_->GetXAtom(ATOM_WM_HINTS));
   PanelContainer* container = GetContainerForPanel(*panel);
   if (container)
     container->HandlePanelUrgencyChange(panel);
@@ -425,8 +424,8 @@ void PanelManager::RegisterContainer(PanelContainer* container) {
   container->GetInputWindows(&input_xids);
   for (vector<XWindow>::const_iterator it = input_xids.begin();
        it != input_xids.end(); ++it) {
-    VLOG(1) << "Registering input window " << *it << " for container "
-            << container;
+    DLOG(INFO) << "Registering input window " << *it << " for container "
+               << container;
     CHECK(container_input_xids_.insert(make_pair(*it, container)).second);
   }
   containers_.push_back(container);
@@ -451,8 +450,9 @@ void PanelManager::HandlePeriodicPanelDragMotion() {
     if (container->HandleNotifyPanelDraggedMessage(dragged_panel_, x, y)) {
       container_handled_drag = true;
     } else {
-      VLOG(1) << "Container " << container << " told us to detach panel "
-              << dragged_panel_->xid_str() << " at (" << x << ", " << y << ")";
+      DLOG(INFO) << "Container " << container << " told us to detach panel "
+                 << dragged_panel_->xid_str()
+                 << " at (" << x << ", " << y << ")";
       RemovePanelFromContainer(dragged_panel_, container);
       panel_was_detached = true;
     }
@@ -470,9 +470,9 @@ void PanelManager::HandlePeriodicPanelDragMotion() {
     for (vector<PanelContainer*>::iterator it = containers_.begin();
          it != containers_.end(); ++it) {
       if ((*it)->ShouldAddDraggedPanel(dragged_panel_, x, y)) {
-        VLOG(1) << "Container " << *it << " told us to attach panel "
-                << dragged_panel_->xid_str()
-                << " at (" << x << ", " << y << ")";
+        DLOG(INFO) << "Container " << *it << " told us to attach panel "
+                   << dragged_panel_->xid_str()
+                   << " at (" << x << ", " << y << ")";
         AddPanelToContainer(dragged_panel_,
                             *it,
                             PanelContainer::PANEL_SOURCE_DRAGGED);
@@ -503,8 +503,8 @@ void PanelManager::HandlePanelDragComplete(Panel* panel, bool removed) {
     if (container) {
       container->HandleNotifyPanelDragCompleteMessage(panel);
     } else {
-      VLOG(1) << "Attaching dropped panel " << panel->xid_str()
-              << " to panel bar";
+      DLOG(INFO) << "Attaching dropped panel " << panel->xid_str()
+                 << " to panel bar";
       AddPanelToContainer(panel,
                           panel_bar_.get(),
                           PanelContainer::PANEL_SOURCE_DROPPED);
@@ -523,7 +523,7 @@ void PanelManager::AddPanelToContainer(Panel* panel,
 void PanelManager::RemovePanelFromContainer(Panel* panel,
                                             PanelContainer* container) {
   DCHECK(GetContainerForPanel(*panel) == container);
-  CHECK_EQ(containers_by_panel_.erase(panel), static_cast<size_t>(1));
+  CHECK(containers_by_panel_.erase(panel) == static_cast<size_t>(1));
   container->RemovePanel(panel);
   panel->RemoveButtonGrab(false);  // remove_pointer_grab=false
   panel->SetResizable(false);

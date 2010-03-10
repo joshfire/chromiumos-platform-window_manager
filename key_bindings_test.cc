@@ -14,8 +14,7 @@ extern "C" {
 #include "base/scoped_ptr.h"
 #include "base/stl_util-inl.h"
 #include "base/string_util.h"
-#include "chromeos/callback.h"
-#include "chromeos/obsolete_logging.h"
+#include "window_manager/callback.h"
 #include "window_manager/key_bindings.h"
 #include "window_manager/mock_x_connection.h"
 #include "window_manager/test_lib.h"
@@ -24,8 +23,6 @@ DEFINE_bool(logtostderr, false,
             "Print debugging messages to stderr (suppressed otherwise)");
 
 namespace window_manager {
-
-using chromeos::NewPermanentCallback;
 
 struct TestAction {
   explicit TestAction(const std::string& name_param)
@@ -43,18 +40,9 @@ struct TestAction {
     end_call_count = 0;
   }
 
-  void BeginCallback() {
-    VLOG(1) << "Begin: " << name;
-    ++begin_call_count;
-  }
-  void RepeatCallback() {
-    VLOG(1) << "Repeat: " << name;
-    ++repeat_call_count;
-  }
-  void EndCallback() {
-    VLOG(1) << "End: " << name;
-    ++end_call_count;
-  }
+  void inc_begin_call_count() { ++begin_call_count; }
+  void inc_repeat_call_count() { ++repeat_call_count; }
+  void inc_end_call_count() { ++end_call_count; }
 
   std::string name;
   int begin_call_count;
@@ -79,16 +67,16 @@ class KeyBindingsTest : public ::testing::Test {
                  bool use_begin_closure,
                  bool use_repeat_closure,
                  bool use_end_closure) {
-    CHECK_LT(number, kNumActions);
+    CHECK(number < kNumActions);
     TestAction* const action = actions_[number];
     bindings_->AddAction(
         action->name,
         use_begin_closure ?
-        NewPermanentCallback(action, &TestAction::BeginCallback) : NULL,
+        NewPermanentCallback(action, &TestAction::inc_begin_call_count) : NULL,
         use_repeat_closure ?
-        NewPermanentCallback(action, &TestAction::RepeatCallback) : NULL,
+        NewPermanentCallback(action, &TestAction::inc_repeat_call_count) : NULL,
         use_end_closure ?
-        NewPermanentCallback(action, &TestAction::EndCallback) : NULL);
+        NewPermanentCallback(action, &TestAction::inc_end_call_count) : NULL);
   }
 
   void AddAllActions() {

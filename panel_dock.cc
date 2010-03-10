@@ -149,7 +149,7 @@ void PanelDock::RemovePanel(Panel* panel) {
   vector<Panel*>::iterator it = find(panels_.begin(), panels_.end(), panel);
   DCHECK(it != panels_.end());
   panels_.erase(it);
-  CHECK_EQ(static_cast<int>(panel_infos_.erase(panel)), 1);
+  CHECK(static_cast<int>(panel_infos_.erase(panel)) == 1);
 
   if (panels_.empty()) {
     const int bg_x = type_ == DOCK_TYPE_LEFT ? x_ - width_ : x_ + width_;

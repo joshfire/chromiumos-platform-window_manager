@@ -326,8 +326,8 @@ void OpenGlDrawVisitor::BindImage(const ImageContainer* container,
   actor->SetSize(container->width(), container->height());
   actor->SetDrawingData(OpenGlDrawVisitor::TEXTURE_DATA,
                         TidyInterface::DrawingDataPtr(data));
-  LOG(INFO) << "Binding image " << container->filename()
-            << " to texture " << new_texture;
+  DLOG(INFO) << "Binding image " << container->filename()
+             << " to texture " << new_texture;
 }
 
 void OpenGlDrawVisitor::VisitActor(TidyInterface::Actor* actor) {
@@ -354,7 +354,7 @@ void OpenGlDrawVisitor::VisitTexturePixmap(
 void OpenGlDrawVisitor::VisitQuad(TidyInterface::QuadActor* actor) {
   if (!actor->IsVisible()) return;
 #ifdef EXTRA_LOGGING
-  LOG(INFO) << "Drawing quad " << actor->name() << ".";
+  DLOG(INFO) << "Drawing quad " << actor->name() << ".";
 #endif
   OpenGlQuadDrawingData* draw_data = dynamic_cast<OpenGlQuadDrawingData*>(
       actor->GetDrawingData(DRAWING_DATA).get());
@@ -397,11 +397,11 @@ void OpenGlDrawVisitor::VisitQuad(TidyInterface::QuadActor* actor) {
   gl_interface_->Scalef(actor->width() * actor->scale_x(),
                         actor->height() * actor->scale_y(), 1.f);
 #ifdef EXTRA_LOGGING
-  LOG(INFO) << "  at: (" << actor->x() << ", "  << actor->y()
-            << ", " << actor->z() << ") with scale: ("
-            << actor->scale_x() << ", "  << actor->scale_y() << ") at size ("
-            << actor->width() << "x"  << actor->height()
-            << ") and opacity " << actor->opacity() * ancestor_opacity_;
+  DLOG(INFO) << "  at: (" << actor->x() << ", "  << actor->y()
+             << ", " << actor->z() << ") with scale: ("
+             << actor->scale_x() << ", "  << actor->scale_y() << ") at size ("
+             << actor->width() << "x"  << actor->height()
+             << ") and opacity " << actor->opacity() * ancestor_opacity_;
 #endif
   gl_interface_->DrawArrays(GL_TRIANGLE_STRIP, 0, 4);
   gl_interface_->PopMatrix();
@@ -455,7 +455,7 @@ void OpenGlDrawVisitor::VisitStage(TidyInterface::StageActor* actor) {
   actor->Accept(&layer_visitor);
 
 #ifdef EXTRA_LOGGING
-  LOG(INFO) << "Starting OPAQUE pass.";
+  DLOG(INFO) << "Starting OPAQUE pass.";
 #endif
   // Disable blending because these actors are all opaque, and we're
   // drawing them front to back.
@@ -467,8 +467,8 @@ void OpenGlDrawVisitor::VisitStage(TidyInterface::StageActor* actor) {
   VisitContainer(actor);
 
 #ifdef EXTRA_LOGGING
-  LOG(INFO) << "Ending OPAQUE pass.";
-  LOG(INFO) << "Starting TRANSPARENT pass.";
+  DLOG(INFO) << "Ending OPAQUE pass.";
+  DLOG(INFO) << "Starting TRANSPARENT pass.";
 #endif
   ancestor_opacity_ = actor->opacity();
   gl_interface_->DepthMask(GL_FALSE);
@@ -486,7 +486,7 @@ void OpenGlDrawVisitor::VisitStage(TidyInterface::StageActor* actor) {
   gl_interface_->SwapGlxBuffers(actor->GetStageXWindow());
   ++num_frames_drawn_;
 #ifdef EXTRA_LOGGING
-  LOG(INFO) << "Ending TRANSPARENT pass.";
+  DLOG(INFO) << "Ending TRANSPARENT pass.";
 #endif
   stage_ = NULL;
 }
@@ -507,11 +507,11 @@ void OpenGlDrawVisitor::VisitContainer(
   }
 
 #ifdef EXTRA_LOGGING
-  LOG(INFO) << "Drawing container " << actor->name() << ".";
-  LOG(INFO) << "  at: (" << actor->x() << ", "  << actor->y()
-            << ", " << actor->z() << ") with scale: ("
-            << actor->scale_x() << ", "  << actor->scale_y() << ") at size ("
-            << actor->width() << "x"  << actor->height() << ")";
+  DLOG(INFO) << "Drawing container " << actor->name() << ".";
+  DLOG(INFO) << "  at: (" << actor->x() << ", "  << actor->y()
+             << ", " << actor->z() << ") with scale: ("
+             << actor->scale_x() << ", "  << actor->scale_y() << ") at size ("
+             << actor->width() << "x"  << actor->height() << ")";
 #endif
   TidyInterface::ActorVector children = actor->GetChildren();
   if (visit_opaque_) {
@@ -522,16 +522,16 @@ void OpenGlDrawVisitor::VisitContainer(
       // Only traverse if the child is visible, and opaque.
       if (child->IsVisible() && child->is_opaque()) {
 #ifdef EXTRA_LOGGING
-        LOG(INFO) << "Drawing opaque child " << child->name()
-                  << " (visible: " << child->IsVisible()
-                  << ", is_opaque: " << child->is_opaque() << ")";
+        DLOG(INFO) << "Drawing opaque child " << child->name()
+                   << " (visible: " << child->IsVisible()
+                   << ", is_opaque: " << child->is_opaque() << ")";
 #endif
         (*iterator)->Accept(this);
       } else {
 #ifdef EXTRA_LOGGING
-        LOG(INFO) << "NOT drawing transparent child " << child->name()
-                  << " (visible: " << child->IsVisible()
-                  << ", is_opaque: " << child->is_opaque() << ")";
+        DLOG(INFO) << "NOT drawing transparent child " << child->name()
+                   << " (visible: " << child->IsVisible()
+                   << ", is_opaque: " << child->is_opaque() << ")";
 #endif
       }
       CHECK_GL_ERROR();
@@ -552,20 +552,20 @@ void OpenGlDrawVisitor::VisitContainer(
           (ancestor_opacity_ <= 0.999 || child->has_children() ||
            !child->is_opaque())) {
 #ifdef EXTRA_LOGGING
-        LOG(INFO) << "Drawing transparent child " << child->name()
-                  << " (visible: " << child->IsVisible()
-                  << ", has_children: " << child->has_children()
-                  << ", ancestor_opacity: " << ancestor_opacity_
-                  << ", is_opaque: " << child->is_opaque() << ")";
+        DLOG(INFO) << "Drawing transparent child " << child->name()
+                   << " (visible: " << child->IsVisible()
+                   << ", has_children: " << child->has_children()
+                   << ", ancestor_opacity: " << ancestor_opacity_
+                   << ", is_opaque: " << child->is_opaque() << ")";
 #endif
         (*iterator)->Accept(this);
       } else {
 #ifdef EXTRA_LOGGING
-        LOG(INFO) << "NOT drawing opaque child " << child->name()
-                  << " (visible: " << child->IsVisible()
-                  << ", has_children: " << child->has_children()
-                  << ", ancestor_opacity: " << ancestor_opacity_
-                  << ", is_opaque: " << child->is_opaque() << ")";
+        DLOG(INFO) << "NOT drawing opaque child " << child->name()
+                   << " (visible: " << child->IsVisible()
+                   << ", has_children: " << child->has_children()
+                   << ", ancestor_opacity: " << ancestor_opacity_
+                   << ", is_opaque: " << child->is_opaque() << ")";
 #endif
       }
       CHECK_GL_ERROR();

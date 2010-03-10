@@ -16,7 +16,7 @@ extern "C" {
 #include <utility>
 
 #include "base/logging.h"
-#include "chromeos/callback.h"
+#include "window_manager/callback.h"
 #include "window_manager/x_connection.h"
 
 namespace window_manager {
@@ -41,7 +41,7 @@ class MockXConnection : public XConnection {
   bool ReparentWindow(XWindow xid, XWindow parent, int x, int y) {
     return true;
   }
-  bool SetWindowBorderWidth(XWindow xid, int width) { return true; }
+  bool SetWindowBorderWidth(XWindow xid, int width);
   bool SelectInputOnWindow(XWindow xid, int event_mask, bool preserve_existing);
   bool DeselectInputOnWindow(XWindow xid, int event_mask);
   bool AddButtonGrabOnWindow(
@@ -206,7 +206,7 @@ class MockXConnection : public XConnection {
   // Register a callback to be invoked whenever a given property on a given
   // window is changed.  Takes ownership of 'cb'.
   void RegisterPropertyCallback(
-      XWindow xid, XAtom xatom, chromeos::Closure* cb);
+      XWindow xid, XAtom xatom, Closure* cb);
 
   // Helper methods tests can use to initialize events.
   // 'x' and 'y' are relative to the window.
@@ -289,7 +289,7 @@ class MockXConnection : public XConnection {
 
   // Mappings from (window, atom) pairs to callbacks that will be invoked
   // when the corresponding properties are changed.
-  std::map<std::pair<XWindow, XAtom>, std::tr1::shared_ptr<chromeos::Closure> >
+  std::map<std::pair<XWindow, XAtom>, std::tr1::shared_ptr<Closure> >
       property_callbacks_;
 
   // Current position of the mouse pointer for QueryPointerPosition().

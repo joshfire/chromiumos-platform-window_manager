@@ -10,7 +10,7 @@
 
 #include "base/basictypes.h"
 #include "base/scoped_ptr.h"
-#include "chromeos/callback.h"
+#include "window_manager/callback.h"
 #include "window_manager/x_types.h"
 
 namespace window_manager {
@@ -52,9 +52,7 @@ class EventLoop {
   // after the initial run; otherwise it will only be run once.  Note that
   // even non-recurring timeouts must be removed using RemoveTimeout() for
   // their resources to be freed.
-  int AddTimeout(chromeos::Closure* cb,
-                 int initial_timeout_ms,
-                 int recurring_timeout_ms);
+  int AddTimeout(Closure* cb, int initial_timeout_ms, int recurring_timeout_ms);
 
   // Remove a timeout.  It is safe to call this from within the callback of
   // the timeout that's being removed.
@@ -75,7 +73,7 @@ class EventLoop {
   static bool IsTimerFdSupported();
 
  private:
-  typedef std::map<int, std::tr1::shared_ptr<chromeos::Closure> > TimeoutMap;
+  typedef std::map<int, std::tr1::shared_ptr<Closure> > TimeoutMap;
 
   XConnection* xconn_;  // not owned
 

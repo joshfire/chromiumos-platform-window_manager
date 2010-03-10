@@ -9,7 +9,6 @@ extern "C" {
 }
 
 #include <gflags/gflags.h>
-#include "chromeos/obsolete_logging.h"
 
 #include "window_manager/atom_cache.h"
 #include "window_manager/event_consumer_registrar.h"
@@ -27,7 +26,6 @@ DEFINE_bool(panel_opaque_resize, false, "Resize panels opaquely");
 
 namespace window_manager {
 
-using chromeos::NewPermanentCallback;
 using std::make_pair;
 using std::max;
 using std::min;
@@ -254,9 +252,9 @@ void Panel::HandleWindowConfigureRequest(
     Window* win, int req_x, int req_y, int req_width, int req_height) {
   DCHECK(win);
   if (drag_xid_ != None) {
-    VLOG(1) << "Ignoring configure request for " << win->xid_str()
-            << " in panel " << xid_str() << " because the panel is being "
-            << "resized by the user";
+    LOG(WARNING) << "Ignoring configure request for " << win->xid_str()
+                 << " in panel " << xid_str() << " because the panel is being "
+                 << "resized by the user";
     return;
   }
   if (win != content_win_) {
@@ -388,8 +386,8 @@ WindowManager* Panel::wm() {
 }
 
 void Panel::ResizeContent(int width, int height, Window::Gravity gravity) {
-  DCHECK_GT(width, 0);
-  DCHECK_GT(height, 0);
+  DCHECK(width > 0);
+  DCHECK(height > 0);
 
   bool changing_height = (height != content_win_->client_height());
 

@@ -6,7 +6,7 @@
 #define WINDOW_MANAGER_POINTER_POSITION_WATCHER_H_
 
 #include "base/scoped_ptr.h"
-#include "chromeos/callback.h"
+#include "window_manager/callback.h"
 
 namespace window_manager {
 
@@ -34,7 +34,7 @@ class PointerPositionWatcher {
   PointerPositionWatcher(
       EventLoop* event_loop,
       XConnection* xconn,
-      chromeos::Closure* cb,
+      Closure* cb,
       bool watch_for_entering_target,  // as opposed to leaving it
       int target_x, int target_y, int target_width, int target_height);
   ~PointerPositionWatcher();
@@ -59,7 +59,7 @@ class PointerPositionWatcher {
 
   // Callback that gets invoked when the pointer enters/exits the target
   // rectangle.
-  scoped_ptr<chromeos::Closure> cb_;
+  scoped_ptr<Closure> cb_;
 
   // Should we watch for the pointer entering the target rectangle, as
   // opposed to leaving it?

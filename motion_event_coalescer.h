@@ -6,7 +6,7 @@
 #define WINDOW_MANAGER_MOTION_EVENT_COALESCER_H_
 
 #include "base/scoped_ptr.h"
-#include "chromeos/callback.h"
+#include "window_manager/callback.h"
 
 namespace window_manager {
 
@@ -18,9 +18,7 @@ class EventLoop;
 class MotionEventCoalescer {
  public:
   // The constructor takes ownership of 'cb'.
-  MotionEventCoalescer(EventLoop* event_loop,
-                       chromeos::Closure* cb,
-                       int timeout_ms);
+  MotionEventCoalescer(EventLoop* event_loop, Closure* cb, int timeout_ms);
   ~MotionEventCoalescer();
 
   int x() const { return x_; }
@@ -75,7 +73,7 @@ class MotionEventCoalescer {
   // handle.
   // TODO: When we're using a callback library that supports parameters, we
   // should just pass the position directly to the callback.
-  scoped_ptr<chromeos::Closure> cb_;
+  scoped_ptr<Closure> cb_;
 
   // Should we just invoke the callback in response to each StorePosition()
   // call instead of using a timer?  Useful for tests.

@@ -12,7 +12,7 @@
 #include <sys/time.h>
 
 #include "base/logging.h"
-#include "chromeos/callback.h"
+#include "window_manager/callback.h"
 #include "window_manager/compositor_event_source.h"
 #include "window_manager/event_loop.h"
 #include "window_manager/gl_interface_base.h"
@@ -34,7 +34,6 @@ DEFINE_bool(tidy_display_debug_needle, false,
 
 namespace window_manager {
 
-using chromeos::NewPermanentCallback;
 using std::make_pair;
 using std::max;
 using std::min;

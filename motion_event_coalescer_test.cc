@@ -6,7 +6,7 @@
 #include <gtest/gtest.h>
 
 #include "base/logging.h"
-#include "chromeos/callback.h"
+#include "window_manager/callback.h"
 #include "window_manager/event_loop.h"
 #include "window_manager/mock_x_connection.h"
 #include "window_manager/motion_event_coalescer.h"
@@ -16,8 +16,6 @@ DEFINE_bool(logtostderr, false,
             "Print debugging messages to stderr (suppressed otherwise)");
 
 namespace window_manager {
-
-using chromeos::NewPermanentCallback;
 
 class MotionEventCoalescerTest : public ::testing::Test {
 };

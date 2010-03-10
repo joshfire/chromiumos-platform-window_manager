@@ -5,8 +5,6 @@
 #include "window_manager/atom_cache.h"
 
 #include "base/logging.h"
-#include "chromeos/obsolete_logging.h"
-
 #include "window_manager/util.h"
 #include "window_manager/x_connection.h"
 
@@ -63,7 +61,7 @@ AtomCache::AtomCache(XConnection* xconn)
     : xconn_(xconn) {
   CHECK(xconn_);
 
-  CHECK_EQ(sizeof(kAtomInfos) / sizeof(AtomInfo), kNumAtoms)
+  CHECK(sizeof(kAtomInfos) / sizeof(AtomInfo) == kNumAtoms)
       << "Each value in the Atom enum in atom_cache.h must have "
       << "a mapping in kAtomInfos in atom_cache.cc";
   std::vector<std::string> names;
@@ -74,11 +72,11 @@ AtomCache::AtomCache(XConnection* xconn)
   }
 
   CHECK(xconn_->GetAtoms(names, &xatoms));
-  CHECK_EQ(xatoms.size(), kNumAtoms);
+  CHECK(xatoms.size() == kNumAtoms);
 
   for (size_t i = 0; i < kNumAtoms; ++i) {
-    VLOG(2) << "Registering atom " << XidStr(xatoms[i])
-            << " (" << kAtomInfos[i].name << ")";
+    LOG(INFO) << "Registering atom " << XidStr(xatoms[i])
+              << " (" << kAtomInfos[i].name << ")";
     atom_to_xatom_[kAtomInfos[i].atom] = xatoms[i];
     xatom_to_string_[xatoms[i]] = kAtomInfos[i].name;
   }

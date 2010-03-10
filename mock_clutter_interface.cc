@@ -5,7 +5,6 @@
 #include "window_manager/clutter_interface.h"
 
 #include "base/logging.h"
-#include "chromeos/obsolete_logging.h"
 #include "window_manager/util.h"
 #include "window_manager/x_connection.h"
 
@@ -75,7 +74,7 @@ void MockClutterInterface::ContainerActor::AddActor(
   MockClutterInterface::Actor* cast_actor =
       dynamic_cast<MockClutterInterface::Actor*>(actor);
   CHECK(cast_actor);
-  CHECK_EQ(cast_actor->parent(), static_cast<ContainerActor*>(NULL));
+  CHECK(cast_actor->parent() == static_cast<ContainerActor*>(NULL));
   cast_actor->set_parent(this);
   CHECK(!stacked_children_->Contains(cast_actor));
   stacked_children_->AddOnBottom(cast_actor);

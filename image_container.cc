@@ -155,10 +155,10 @@ ImageContainer::Result PngImageContainer::LoadImage() {
   png_destroy_read_struct(&read_obj, &info_obj, NULL);
   fclose(fp);
 
-  LOG(INFO) << "Successfully loaded image '" << filename() << "' ("
-            << width() << "x" << height() << ", "
-            << channels() << " channel(s), "
-            << bits_per_channel() << " bit(s)/channel)";
+  DLOG(INFO) << "Successfully loaded image '" << filename() << "' ("
+             << width() << "x" << height() << ", "
+             << channels() << " channel(s), "
+             << bits_per_channel() << " bit(s)/channel)";
 
   return ImageContainer::IMAGE_LOAD_SUCCESS;
 }

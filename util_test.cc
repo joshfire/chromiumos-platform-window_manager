@@ -6,7 +6,7 @@
 #include <gtest/gtest.h>
 
 #include "base/logging.h"
-#include "chromeos/string.h"
+#include "base/string_util.h"
 #include "window_manager/test_lib.h"
 #include "window_manager/util.h"
 
@@ -15,17 +15,15 @@ DEFINE_bool(logtostderr, false,
 
 namespace window_manager {
 
-using chromeos::SplitString;
-
 class UtilTest : public ::testing::Test {
  protected:
-  // Helper function for testStacker().
+  // Helper function for the Stacker test.
   // 'expected' is a space-separated list of strings in the order in which
   // they should appear in 'actual'.
   void CheckStackerOutput(const std::list<std::string>& actual,
                           const std::string& expected) {
     std::vector<std::string> expected_parts;
-    SplitString(expected, &expected_parts);
+    SplitString(expected, ' ', &expected_parts);
     ASSERT_EQ(actual.size(), expected_parts.size());
 
     int i = 0;

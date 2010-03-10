@@ -72,7 +72,7 @@ base_env.Append(CCFLAGS=['-fno-strict-aliasing'])
 
 base_env.Append(CPPPATH=['..'])
 
-base_env.Append(LIBS=Split('base chromeos rt'))
+base_env.Append(LIBS=Split('base rt'))
 
 base_env.ParseConfig('pkg-config --cflags --libs x11')
 

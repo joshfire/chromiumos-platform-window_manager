@@ -16,9 +16,7 @@ extern "C" {
 
 #include "base/logging.h"
 #include "base/string_util.h"
-#include "chromeos/callback.h"
-#include "chromeos/obsolete_logging.h"
-#include "chromeos/utility.h"
+#include "window_manager/callback.h"
 #include "window_manager/event_consumer.h"
 #include "window_manager/event_loop.h"
 #include "window_manager/hotkey_overlay.h"
@@ -48,8 +46,6 @@ DEFINE_bool(wm_use_compositing, true, "Use compositing");
 
 namespace window_manager {
 
-using chromeos::Closure;
-using chromeos::NewPermanentCallback;
 using std::list;
 using std::make_pair;
 using std::map;
@@ -81,43 +77,47 @@ static const int kHotkeyOverlayPollMs = 100;
     }                                                                          \
   } while (0)
 
+// Used by helper functions to generate 'case' statements.
+#define CASE_RETURN_LABEL(label) \
+    case label: return #label
+
 #undef DEBUG_EVENTS  // Turn this on if you want to debug events.
 #ifdef DEBUG_EVENTS
 static const char* XEventTypeToName(int type) {
   switch (type) {
-    CHROMEOS_CASE_RETURN_LABEL(ButtonPress);
-    CHROMEOS_CASE_RETURN_LABEL(ButtonRelease);
-    CHROMEOS_CASE_RETURN_LABEL(CirculateNotify);
-    CHROMEOS_CASE_RETURN_LABEL(CirculateRequest);
-    CHROMEOS_CASE_RETURN_LABEL(ClientMessage);
-    CHROMEOS_CASE_RETURN_LABEL(ColormapNotify);
-    CHROMEOS_CASE_RETURN_LABEL(ConfigureNotify);
-    CHROMEOS_CASE_RETURN_LABEL(ConfigureRequest);
-    CHROMEOS_CASE_RETURN_LABEL(CreateNotify);
-    CHROMEOS_CASE_RETURN_LABEL(DestroyNotify);
-    CHROMEOS_CASE_RETURN_LABEL(EnterNotify);
-    CHROMEOS_CASE_RETURN_LABEL(Expose);
-    CHROMEOS_CASE_RETURN_LABEL(FocusIn);
-    CHROMEOS_CASE_RETURN_LABEL(FocusOut);
-    CHROMEOS_CASE_RETURN_LABEL(GraphicsExpose);
-    CHROMEOS_CASE_RETURN_LABEL(GravityNotify);
-    CHROMEOS_CASE_RETURN_LABEL(KeymapNotify);
-    CHROMEOS_CASE_RETURN_LABEL(KeyPress);
-    CHROMEOS_CASE_RETURN_LABEL(KeyRelease);
-    CHROMEOS_CASE_RETURN_LABEL(LeaveNotify);
-    CHROMEOS_CASE_RETURN_LABEL(MapNotify);
-    CHROMEOS_CASE_RETURN_LABEL(MappingNotify);
-    CHROMEOS_CASE_RETURN_LABEL(MapRequest);
-    CHROMEOS_CASE_RETURN_LABEL(MotionNotify);
-    CHROMEOS_CASE_RETURN_LABEL(NoExpose);
-    CHROMEOS_CASE_RETURN_LABEL(PropertyNotify);
-    CHROMEOS_CASE_RETURN_LABEL(ReparentNotify);
-    CHROMEOS_CASE_RETURN_LABEL(ResizeRequest);
-    CHROMEOS_CASE_RETURN_LABEL(SelectionClear);
-    CHROMEOS_CASE_RETURN_LABEL(SelectionNotify);
-    CHROMEOS_CASE_RETURN_LABEL(SelectionRequest);
-    CHROMEOS_CASE_RETURN_LABEL(UnmapNotify);
-    CHROMEOS_CASE_RETURN_LABEL(VisibilityNotify);
+    CASE_RETURN_LABEL(ButtonPress);
+    CASE_RETURN_LABEL(ButtonRelease);
+    CASE_RETURN_LABEL(CirculateNotify);
+    CASE_RETURN_LABEL(CirculateRequest);
+    CASE_RETURN_LABEL(ClientMessage);
+    CASE_RETURN_LABEL(ColormapNotify);
+    CASE_RETURN_LABEL(ConfigureNotify);
+    CASE_RETURN_LABEL(ConfigureRequest);
+    CASE_RETURN_LABEL(CreateNotify);
+    CASE_RETURN_LABEL(DestroyNotify);
+    CASE_RETURN_LABEL(EnterNotify);
+    CASE_RETURN_LABEL(Expose);
+    CASE_RETURN_LABEL(FocusIn);
+    CASE_RETURN_LABEL(FocusOut);
+    CASE_RETURN_LABEL(GraphicsExpose);
+    CASE_RETURN_LABEL(GravityNotify);
+    CASE_RETURN_LABEL(KeymapNotify);
+    CASE_RETURN_LABEL(KeyPress);
+    CASE_RETURN_LABEL(KeyRelease);
+    CASE_RETURN_LABEL(LeaveNotify);
+    CASE_RETURN_LABEL(MapNotify);
+    CASE_RETURN_LABEL(MappingNotify);
+    CASE_RETURN_LABEL(MapRequest);
+    CASE_RETURN_LABEL(MotionNotify);
+    CASE_RETURN_LABEL(NoExpose);
+    CASE_RETURN_LABEL(PropertyNotify);
+    CASE_RETURN_LABEL(ReparentNotify);
+    CASE_RETURN_LABEL(ResizeRequest);
+    CASE_RETURN_LABEL(SelectionClear);
+    CASE_RETURN_LABEL(SelectionNotify);
+    CASE_RETURN_LABEL(SelectionRequest);
+    CASE_RETURN_LABEL(UnmapNotify);
+    CASE_RETURN_LABEL(VisibilityNotify);
     default: return "Unknown";
   }
 }
@@ -125,24 +125,24 @@ static const char* XEventTypeToName(int type) {
 
 static const char* FocusChangeEventModeToName(int mode) {
   switch (mode) {
-    CHROMEOS_CASE_RETURN_LABEL(NotifyNormal);
-    CHROMEOS_CASE_RETURN_LABEL(NotifyWhileGrabbed);
-    CHROMEOS_CASE_RETURN_LABEL(NotifyGrab);
-    CHROMEOS_CASE_RETURN_LABEL(NotifyUngrab);
+    CASE_RETURN_LABEL(NotifyNormal);
+    CASE_RETURN_LABEL(NotifyWhileGrabbed);
+    CASE_RETURN_LABEL(NotifyGrab);
+    CASE_RETURN_LABEL(NotifyUngrab);
     default: return "Unknown";
   }
 }
 
 static const char* FocusChangeEventDetailToName(int detail) {
   switch (detail) {
-    CHROMEOS_CASE_RETURN_LABEL(NotifyAncestor);
-    CHROMEOS_CASE_RETURN_LABEL(NotifyVirtual);
-    CHROMEOS_CASE_RETURN_LABEL(NotifyInferior);
-    CHROMEOS_CASE_RETURN_LABEL(NotifyNonlinear);
-    CHROMEOS_CASE_RETURN_LABEL(NotifyNonlinearVirtual);
-    CHROMEOS_CASE_RETURN_LABEL(NotifyPointer);
-    CHROMEOS_CASE_RETURN_LABEL(NotifyPointerRoot);
-    CHROMEOS_CASE_RETURN_LABEL(NotifyDetailNone);
+    CASE_RETURN_LABEL(NotifyAncestor);
+    CASE_RETURN_LABEL(NotifyVirtual);
+    CASE_RETURN_LABEL(NotifyInferior);
+    CASE_RETURN_LABEL(NotifyNonlinear);
+    CASE_RETURN_LABEL(NotifyNonlinearVirtual);
+    CASE_RETURN_LABEL(NotifyPointer);
+    CASE_RETURN_LABEL(NotifyPointerRoot);
+    CASE_RETURN_LABEL(NotifyDetailNone);
     default: return "Unknown";
   }
 }
@@ -210,8 +210,8 @@ void WindowManager::StartSendingEventsForWindowToCompositor(XWindow xid) {
 
 void WindowManager::StopSendingEventsForWindowToCompositor(XWindow xid) {
   int num_removed = xids_tracked_by_compositor_.erase(xid);
-  DCHECK_EQ(num_removed, 1) << "Got request to stop sending compositor events "
-                            << "about unregistered window " << XidStr(xid);
+  DCHECK(num_removed == 1) << "Got request to stop sending compositor events "
+                           << "about unregistered window " << XidStr(xid);
 }
 
 bool WindowManager::Init() {
@@ -259,9 +259,9 @@ bool WindowManager::Init() {
     // Create the compositing overlay, put the stage's window inside of it,
     // and make events fall through both to the client windows underneath.
     overlay_xid_ = xconn()->GetCompositingOverlayWindow(root_);
-    CHECK_NE(overlay_xid_, None);
-    VLOG(1) << "Reparenting stage window " << XidStr(stage_xid_)
-            << " into Xcomposite overlay window " << XidStr(overlay_xid_);
+    CHECK(overlay_xid_ != None);
+    LOG(INFO) << "Reparenting stage window " << XidStr(stage_xid_)
+              << " into Xcomposite overlay window " << XidStr(overlay_xid_);
     CHECK(xconn()->ReparentWindow(stage_xid_, overlay_xid_, 0, 0));
     CHECK(xconn()->RemoveInputRegionFromWindow(overlay_xid_));
     CHECK(xconn()->RemoveInputRegionFromWindow(stage_xid_));
@@ -398,10 +398,10 @@ bool WindowManager::Init() {
 void WindowManager::HandleEvent(XEvent* event) {
 #ifdef DEBUG_EVENTS
   if (event->type == xconn()->damage_event_base() + XDamageNotify) {
-    LOG(INFO) << "Got DAMAGE" << " event (" << event->type << ")";
+    DLOG(INFO) << "Got DAMAGE" << " event (" << event->type << ")";
   } else {
-    LOG(INFO) << "Got " << XEventTypeToName(event->type)
-              << " event (" << event->type << ") in window manager.";
+    DLOG(INFO) << "Got " << XEventTypeToName(event->type)
+               << " event (" << event->type << ") in window manager.";
   }
 #endif
   static int damage_notify = xconn()->damage_event_base() + XDamageNotify;
@@ -469,7 +469,7 @@ XWindow WindowManager::CreateInputWindow(
       true,   // override redirect
       true,   // input only
       event_mask);
-  CHECK_NE(xid, None);
+  CHECK(xid != None);
 
   if (FLAGS_wm_use_compositing) {
     // If the stage has been reparented into the overlay window, we need to
@@ -484,9 +484,9 @@ XWindow WindowManager::CreateInputWindow(
 
 bool WindowManager::ConfigureInputWindow(
     XWindow xid, int x, int y, int width, int height) {
-  VLOG(1) << "Configuring input window " << XidStr(xid)
-          << " to (" << x << ", " << y << ") and size "
-          << width << "x" << height;
+  DLOG(INFO) << "Configuring input window " << XidStr(xid)
+             << " to (" << x << ", " << y << ") and size "
+             << width << "x" << height;
   return xconn()->ConfigureWindow(xid, x, y, width, height);
 }
 
@@ -530,7 +530,7 @@ bool WindowManager::SetActiveWindowProperty(XWindow xid) {
   if (active_window_xid_ == xid)
     return true;
 
-  VLOG(1) << "Setting active window to " << XidStr(xid);
+  DLOG(INFO) << "Setting active window to " << XidStr(xid);
   if (!xconn()->SetIntProperty(
           root_, GetXAtom(ATOM_NET_ACTIVE_WINDOW), XA_WINDOW, xid)) {
     return false;
@@ -670,9 +670,9 @@ bool WindowManager::RegisterExistence() {
                                   true,    // override redirect
                                   false,   // input only
                                   PropertyChangeMask);  // event mask
-  CHECK_NE(wm_xid_, None);
-  VLOG(1) << "Created window " << XidStr(wm_xid_)
-          << " for registering ourselves as the window manager";
+  CHECK(wm_xid_ != None);
+  LOG(INFO) << "Created window " << XidStr(wm_xid_)
+            << " for registering ourselves as the window manager";
 
   // Set the window's title and wait for the notify event so we can get a
   // timestamp from the server.
@@ -779,8 +779,8 @@ bool WindowManager::ManageExistingWindows() {
   // the content windows.
   vector<Window*> mapped_panel_content_windows;
 
-  VLOG(1) << "Taking ownership of " << windows.size() << " window"
-          << (windows.size() == 1 ? "" : "s");
+  LOG(INFO) << "Taking ownership of " << windows.size() << " window"
+            << (windows.size() == 1 ? "" : "s");
   for (size_t i = 0; i < windows.size(); ++i) {
     XWindow xid = windows[i];
     XConnection::WindowAttributes attr;
@@ -826,7 +826,7 @@ Window* WindowManager::TrackWindow(XWindow xid, bool override_redirect) {
         XConnection::WindowAttributes::WINDOW_CLASS_INPUT_ONLY)
     return NULL;
 
-  VLOG(1) << "Managing window " << XidStr(xid);
+  DLOG(INFO) << "Managing window " << XidStr(xid);
   Window* win = GetWindow(xid);
   if (win) {
     LOG(WARNING) << "Window " << XidStr(xid) << " is already being managed";
@@ -918,9 +918,9 @@ bool WindowManager::UpdateClientListStackingProperty() {
 }
 
 void WindowManager::HandleButtonPress(const XButtonEvent& e) {
-  VLOG(1) << "Handling button press in window " << XidStr(e.window)
-          << " at relative (" << e.x << ", " << e.y << "), absolute ("
-          << e.x_root << ", " << e.y_root << ") with button " << e.button;
+  DLOG(INFO) << "Handling button press in window " << XidStr(e.window)
+             << " at relative (" << e.x << ", " << e.y << "), absolute ("
+             << e.x_root << ", " << e.y_root << ") with button " << e.button;
   FOR_EACH_EVENT_CONSUMER(window_event_consumers_,
                           e.window,
                           HandleButtonPress(e.window, e.x, e.y, e.x_root,
@@ -928,9 +928,9 @@ void WindowManager::HandleButtonPress(const XButtonEvent& e) {
 }
 
 void WindowManager::HandleButtonRelease(const XButtonEvent& e) {
-  VLOG(1) << "Handling button release in window " << XidStr(e.window)
-          << " at relative (" << e.x << ", " << e.y << "), absolute ("
-          << e.x_root << ", " << e.y_root << ") with button " << e.button;
+  DLOG(INFO) << "Handling button release in window " << XidStr(e.window)
+             << " at relative (" << e.x << ", " << e.y << "), absolute ("
+             << e.x_root << ", " << e.y_root << ") with button " << e.button;
   FOR_EACH_EVENT_CONSUMER(window_event_consumers_,
                           e.window,
                           HandleButtonRelease(e.window, e.x, e.y, e.x_root,
@@ -938,9 +938,9 @@ void WindowManager::HandleButtonRelease(const XButtonEvent& e) {
 }
 
 void WindowManager::HandleClientMessage(const XClientMessageEvent& e) {
-  VLOG(2) << "Handling client message for window " << XidStr(e.window)
-          << " with type " << XidStr(e.message_type) << " ("
-          << GetXAtomName(e.message_type) << ") and format " << e.format;
+  DLOG(INFO) << "Handling client message for window " << XidStr(e.window)
+             << " with type " << XidStr(e.message_type) << " ("
+             << GetXAtomName(e.message_type) << ") and format " << e.format;
   WmIpc::Message msg;
   if (wm_ipc_->GetMessage(e.window, e.message_type, e.format, e.data.l, &msg)) {
     if (msg.type() == WmIpc::Message::WM_NOTIFY_IPC_VERSION) {
@@ -1018,9 +1018,9 @@ void WindowManager::HandleConfigureNotify(const XConfigureEvent& e) {
   Window* win = GetWindow(e.window);
   if (!win)
     return;
-  VLOG(1) << "Handling configure notify for " << XidStr(e.window)
-          << " to pos (" << e.x << ", " << e.y << ") and size "
-          << e.width << "x" << e.height;
+  DLOG(INFO) << "Handling configure notify for " << XidStr(e.window)
+             << " to pos (" << e.x << ", " << e.y << ") and size "
+             << e.width << "x" << e.height;
 
   // There are several cases to consider here:
   //
@@ -1088,17 +1088,18 @@ void WindowManager::HandleConfigureRequest(const XConfigureRequestEvent& e) {
   if (!win)
     return;
 
-  VLOG(1) << "Handling configure request for " << XidStr(e.window)
-          << " to pos ("
-          << ((e.value_mask & CWX) ? StringPrintf("%d", e.x) : string("undef"))
-          << ", "
-          << ((e.value_mask & CWY) ? StringPrintf("%d", e.y) : string("undef"))
-          << ") and size "
-          << ((e.value_mask & CWWidth) ?
-                  StringPrintf("%d", e.width) : string("undef "))
-          << "x"
-          << ((e.value_mask & CWHeight) ?
-                  StringPrintf("%d", e.height) : string(" undef"));
+  DLOG(INFO)
+      << "Handling configure request for " << XidStr(e.window)
+      << " to pos ("
+      << ((e.value_mask & CWX) ? StringPrintf("%d", e.x) : string("undef"))
+      << ", "
+      << ((e.value_mask & CWY) ? StringPrintf("%d", e.y) : string("undef"))
+      << ") and size "
+      << ((e.value_mask & CWWidth) ?
+          StringPrintf("%d", e.width) : string("undef "))
+      << "x"
+      << ((e.value_mask & CWHeight) ?
+          StringPrintf("%d", e.height) : string(" undef"));
   if (win->override_redirect()) {
     LOG(WARNING) << "Huh?  Got a ConfigureRequest event for override-redirect "
                  << "window " << win->xid_str();
@@ -1141,10 +1142,10 @@ void WindowManager::HandleCreateNotify(const XCreateWindowEvent& e) {
     return;
   }
 
-  VLOG(1) << "Handling create notify for "
-          << (e.override_redirect ? "override-redirect" : "normal")
-          << " window " << XidStr(e.window) << " at (" << e.x << ", " << e.y
-          << ") with size " << e.width << "x" << e.height;
+  DLOG(INFO) << "Handling create notify for "
+             << (e.override_redirect ? "override-redirect" : "normal")
+             << " window " << XidStr(e.window) << " at (" << e.x << ", " << e.y
+             << ") with size " << e.width << "x" << e.height;
 
   // Don't bother doing anything else for windows which aren't direct
   // children of the root window.
@@ -1184,7 +1185,7 @@ void WindowManager::HandleDamageNotify(const XDamageNotifyEvent& e) {
 }
 
 void WindowManager::HandleDestroyNotify(const XDestroyWindowEvent& e) {
-  VLOG(1) << "Handling destroy notify for " << XidStr(e.window);
+  DLOG(INFO) << "Handling destroy notify for " << XidStr(e.window);
 
   DCHECK(window_event_consumers_.find(e.window) ==
          window_event_consumers_.end())
@@ -1214,7 +1215,7 @@ void WindowManager::HandleDestroyNotify(const XDestroyWindowEvent& e) {
 }
 
 void WindowManager::HandleEnterNotify(const XEnterWindowEvent& e) {
-  VLOG(1) << "Handling enter notify for " << XidStr(e.window);
+  DLOG(INFO) << "Handling enter notify for " << XidStr(e.window);
   FOR_EACH_EVENT_CONSUMER(
       window_event_consumers_,
       e.window,
@@ -1223,10 +1224,10 @@ void WindowManager::HandleEnterNotify(const XEnterWindowEvent& e) {
 
 void WindowManager::HandleFocusChange(const XFocusChangeEvent& e) {
   bool focus_in = (e.type == FocusIn);
-  VLOG(1) << "Handling focus-" << (focus_in ? "in" : "out") << " event for "
-          << XidStr(e.window) << " with mode "
-          << FocusChangeEventModeToName(e.mode)
-          << " and detail " << FocusChangeEventDetailToName(e.detail);
+  DLOG(INFO) << "Handling focus-" << (focus_in ? "in" : "out") << " event for "
+             << XidStr(e.window) << " with mode "
+             << FocusChangeEventModeToName(e.mode)
+             << " and detail " << FocusChangeEventDetailToName(e.detail);
 
   // Don't bother doing anything when we lose or gain the focus due to a
   // grab, or just hear about it because of the pointer's location.
@@ -1262,7 +1263,7 @@ void WindowManager::HandleKeyRelease(const XKeyEvent& e) {
 }
 
 void WindowManager::HandleLeaveNotify(const XLeaveWindowEvent& e) {
-  VLOG(1) << "Handling leave notify for " << XidStr(e.window);
+  DLOG(INFO) << "Handling leave notify for " << XidStr(e.window);
   FOR_EACH_EVENT_CONSUMER(
       window_event_consumers_,
       e.window,
@@ -1280,13 +1281,13 @@ void WindowManager::HandleMapNotify(const XMapEvent& e) {
     return;
   }
 
-  VLOG(1) << "Handling map notify for " << XidStr(e.window);
+  DLOG(INFO) << "Handling map notify for " << XidStr(e.window);
   win->set_mapped(true);
   HandleMappedWindow(win);
 }
 
 void WindowManager::HandleMapRequest(const XMapRequestEvent& e) {
-  VLOG(1) << "Handling map request for " << XidStr(e.window);
+  DLOG(INFO) << "Handling map request for " << XidStr(e.window);
   Window* win = GetWindow(e.window);
   if (!win) {
     // This probably won't do much good; if we don't know about the window,
@@ -1329,9 +1330,9 @@ void WindowManager::HandlePropertyNotify(const XPropertyEvent& e) {
   Window* win = GetWindow(e.window);
   if (win) {
     bool deleted = (e.state == PropertyDelete);
-    VLOG(2) << "Handling property notify for " << win->xid_str() << " about "
-            << (deleted ? "deleted" : "") << " property "
-            << XidStr(e.atom) << " (" << GetXAtomName(e.atom) << ")";
+    DLOG(INFO) << "Handling property notify for " << win->xid_str() << " about "
+               << (deleted ? "deleted " : "") << "property "
+               << XidStr(e.atom) << " (" << GetXAtomName(e.atom) << ")";
     if (e.atom == GetXAtom(ATOM_NET_WM_NAME)) {
       string title;
       if (deleted || !xconn()->GetStringProperty(win->xid(), e.atom, &title))
@@ -1360,8 +1361,8 @@ void WindowManager::HandlePropertyNotify(const XPropertyEvent& e) {
 }
 
 void WindowManager::HandleReparentNotify(const XReparentEvent& e) {
-  VLOG(1) << "Handling reparent notify for " << XidStr(e.window)
-          << " to " << XidStr(e.parent);
+  DLOG(INFO) << "Handling reparent notify for " << XidStr(e.window)
+             << " to " << XidStr(e.parent);
 
   if (e.parent == root_) {
     // If a window got reparented *to* the root window, we want to track
@@ -1418,7 +1419,8 @@ void WindowManager::HandleReparentNotify(const XReparentEvent& e) {
 
 void WindowManager::HandleRRScreenChangeNotify(
     const XRRScreenChangeNotifyEvent& e) {
-  VLOG(1) << "Got RRScreenChangeNotify event to " << e.width << "x" << e.height;
+  DLOG(INFO) << "Got RRScreenChangeNotify event to "
+             << e.width << "x" << e.height;
   if (e.width == width_ && e.height == height_)
     return;
 
@@ -1445,14 +1447,14 @@ void WindowManager::HandleShapeNotify(const XShapeEvent& e) {
   if (!win)
     return;
 
-  VLOG(1) << "Handling " << (e.kind == ShapeBounding ? "bounding" : "clip")
-          << " shape notify for " << XidStr(e.window);
+  DLOG(INFO) << "Handling " << (e.kind == ShapeBounding ? "bounding" : "clip")
+             << " shape notify for " << XidStr(e.window);
   if (e.kind == ShapeBounding)
     win->FetchAndApplyShape(true);  // update_shadow
 }
 
 void WindowManager::HandleUnmapNotify(const XUnmapEvent& e) {
-  VLOG(1) << "Handling unmap notify for " << XidStr(e.window);
+  DLOG(INFO) << "Handling unmap notify for " << XidStr(e.window);
   Window* win = GetWindow(e.window);
   if (!win)
     return;
@@ -1475,7 +1477,7 @@ void WindowManager::HandleUnmapNotify(const XUnmapEvent& e) {
 }
 
 void WindowManager::LaunchTerminal() {
-  LOG(INFO) << "Launching xterm via: " << FLAGS_wm_xterm_command;
+  DLOG(INFO) << "Launching xterm via: " << FLAGS_wm_xterm_command;
 
   const string command = StringPrintf("%s &", FLAGS_wm_xterm_command.c_str());
   if (system(command.c_str()) < 0)
@@ -1483,15 +1485,15 @@ void WindowManager::LaunchTerminal() {
 }
 
 void WindowManager::LockScreen() {
-  LOG(INFO) << "Locking screen via: " << FLAGS_wm_lock_screen_command;
+  DLOG(INFO) << "Locking screen via: " << FLAGS_wm_lock_screen_command;
   if (system(FLAGS_wm_lock_screen_command.c_str()) < 0)
     LOG(WARNING) << "Unable to lock screen via: "
                  << FLAGS_wm_lock_screen_command;
 }
 
 void WindowManager::ConfigureExternalMonitor() {
-  LOG(INFO) << "Configuring external monitor via: "
-            << FLAGS_wm_configure_monitor_command;
+  DLOG(INFO) << "Configuring external monitor via: "
+             << FLAGS_wm_configure_monitor_command;
   if (system(FLAGS_wm_configure_monitor_command.c_str()) < 0)
     LOG(WARNING) << "Unable to configure the external monitor via: "
                  << FLAGS_wm_configure_monitor_command;
@@ -1503,7 +1505,7 @@ void WindowManager::ToggleClientWindowDebugging() {
     return;
   }
 
-  LOG(INFO) << "Clutter actors:\n" << stage_->GetDebugString();
+  DLOG(INFO) << "Clutter actors:\n" << stage_->GetDebugString();
 
   vector<XWindow> xids;
   if (!xconn()->GetChildWindows(root_, &xids))
@@ -1565,14 +1567,14 @@ void WindowManager::ToggleHotkeyOverlay() {
     group->SetOpacity(0, 0);
     group->SetVisibility(true);
     group->SetOpacity(1, kHotkeyOverlayAnimMs);
-    DCHECK_EQ(query_keyboard_state_timeout_id_, -1);
+    DCHECK(query_keyboard_state_timeout_id_ == -1);
     query_keyboard_state_timeout_id_ =
         event_loop_->AddTimeout(
             NewPermanentCallback(this, &WindowManager::QueryKeyboardState),
             0, kHotkeyOverlayPollMs);
   } else {
     group->SetOpacity(0, kHotkeyOverlayAnimMs);
-    DCHECK_GE(query_keyboard_state_timeout_id_, 0);
+    DCHECK(query_keyboard_state_timeout_id_ >= 0);
     event_loop_->RemoveTimeout(query_keyboard_state_timeout_id_);
     query_keyboard_state_timeout_id_ = -1;
   }

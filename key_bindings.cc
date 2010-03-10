@@ -14,12 +14,10 @@ extern "C" {
 
 #include "base/scoped_ptr.h"
 #include "base/logging.h"
-#include "chromeos/obsolete_logging.h"
 #include "window_manager/x_connection.h"
 
 namespace window_manager {
 
-using chromeos::Closure;
 using std::set;
 using std::string;
 
@@ -92,7 +90,7 @@ KeyBindings::~KeyBindings() {
   }
 
   // Removing all actions should have also removed all bindings.
-  CHECK_EQ(bindings_.size(), 0);
+  CHECK(bindings_.size() == 0);
 }
 
 bool KeyBindings::AddAction(const string& action_name,
@@ -158,11 +156,11 @@ bool KeyBindings::RemoveBinding(const KeyCombo& combo) {
   ActionMap::iterator action_iter = actions_.find(bindings_iter->second);
   CHECK(action_iter != actions_.end());
   Action* action = action_iter->second;
-  CHECK_EQ(action->bindings.erase(combo), 1);
+  CHECK(action->bindings.erase(combo) == 1);
 
   KeySymMap::iterator keysym_iter = action_names_by_keysym_.find(combo.key);
   CHECK(keysym_iter != action_names_by_keysym_.end());
-  CHECK_EQ(keysym_iter->second.erase(bindings_iter->second), 1);
+  CHECK(keysym_iter->second.erase(bindings_iter->second) == 1);
   if (keysym_iter->second.empty()) {
     action_names_by_keysym_.erase(keysym_iter);
   }

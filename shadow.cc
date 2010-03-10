@@ -7,8 +7,6 @@
 #include <cmath>
 #include <gflags/gflags.h>
 
-#include "chromeos/obsolete_logging.h"
-
 DEFINE_string(shadow_image_dir, "../assets/images",
               "Path to directory containing shadow images");
 
@@ -148,9 +146,9 @@ void Shadow::Init() {
   kRightWidth   = right_texture_->GetWidth();
 
   kInset = tl_texture_->GetHeight() - kTopHeight;
-  CHECK_EQ(br_texture_->GetHeight() - kBottomHeight, kInset);
-  CHECK_EQ(tl_texture_->GetWidth() - kLeftWidth, kInset);
-  CHECK_EQ(tr_texture_->GetWidth() - kRightWidth, kInset);
+  CHECK(br_texture_->GetHeight() - kBottomHeight == kInset);
+  CHECK(tl_texture_->GetWidth() - kLeftWidth == kInset);
+  CHECK(tr_texture_->GetWidth() - kRightWidth == kInset);
 }
 
 ClutterInterface::Actor* Shadow::InitTexture(const std::string& filename) {

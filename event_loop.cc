@@ -16,13 +16,11 @@ extern "C" {
 
 #include "base/eintr_wrapper.h"
 #include "base/logging.h"
-#include "chromeos/obsolete_logging.h"
 #include "window_manager/event_loop_subscriber.h"
 #include "window_manager/x_connection.h"
 
 namespace window_manager {
 
-using chromeos::Closure;
 using std::make_pair;
 using std::map;
 using std::max;
@@ -91,7 +89,7 @@ void EventLoop::Run() {
 
     const int num_events = HANDLE_EINTR(
         epoll_wait(epoll_fd_, epoll_events, kMaxEpollEvents, -1));
-    CHECK_NE(num_events, -1) << "epoll_wait: " << strerror(errno);
+    CHECK(num_events != -1) << "epoll_wait: " << strerror(errno);
 
     for (int i = 0; i < num_events; ++i) {
       const int event_fd = epoll_events[i].data.fd;
@@ -101,10 +99,10 @@ void EventLoop::Run() {
 
       if (epoll_events[i].events & EPOLLIN) {
         uint64_t num_expirations = 0;
-        CHECK_EQ(HANDLE_EINTR(read(event_fd,
-                                   &num_expirations,
-                                   sizeof(num_expirations))),
-                 sizeof(num_expirations)) << "Short read on fd " << event_fd;
+        CHECK(HANDLE_EINTR(read(event_fd,
+                                &num_expirations,
+                                sizeof(num_expirations))) ==
+              sizeof(num_expirations)) << "Short read on fd " << event_fd;
         // Make a copy of the callback in case it removes its own timeout.
         shared_ptr<Closure> cb = it->second;
         cb->Run();
@@ -172,7 +170,7 @@ void EventLoop::RemoveTimeout(int id) {
 
   CHECK(epoll_ctl(epoll_fd_, EPOLL_CTL_DEL, id, NULL) != -1) << strerror(errno);
   timeouts_.erase(it);
-  CHECK_EQ(HANDLE_EINTR(close(id)), 0) << strerror(errno);
+  CHECK(HANDLE_EINTR(close(id)) == 0) << strerror(errno);
 }
 
 void EventLoop::SuspendTimeout(int id) {

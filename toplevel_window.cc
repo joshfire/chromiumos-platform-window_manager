@@ -13,10 +13,10 @@ extern "C" {
 
 #include <gflags/gflags.h>
 
-#include "chromeos/callback.h"
 #include "base/string_util.h"
 #include "base/logging.h"
 #include "window_manager/atom_cache.h"
+#include "window_manager/callback.h"
 #include "window_manager/event_consumer_registrar.h"
 #include "window_manager/motion_event_coalescer.h"
 #include "window_manager/stacking_manager.h"
@@ -474,14 +474,14 @@ void LayoutManager::ToplevelWindow::HandleFocusChange(
   DCHECK(focus_win == win_ || GetTransientWindow(*focus_win));
 
   if (focus_in) {
-    VLOG(1) << "Got focus-in for " << focus_win->xid_str()
-            << "; removing passive button grab";
+    DLOG(INFO) << "Got focus-in for " << focus_win->xid_str()
+               << "; removing passive button grab";
     focus_win->RemoveButtonGrab();
   } else {
     // Listen for button presses on this window so we'll know when it
     // should be focused again.
-    VLOG(1) << "Got focus-out for " << focus_win->xid_str()
-            << "; re-adding passive button grab";
+    DLOG(INFO) << "Got focus-out for " << focus_win->xid_str()
+               << "; re-adding passive button grab";
     focus_win->AddButtonGrab();
   }
 }
@@ -574,7 +574,7 @@ void LayoutManager::ToplevelWindow::RestackTransientWindowOnTop(
     return;
 
   DCHECK(stacked_transients_->Contains(transient));
-  DCHECK_GT(stacked_transients_->items().size(), 1U);
+  DCHECK(stacked_transients_->items().size() > 1U);
   TransientWindow* transient_to_stack_above =
       stacked_transients_->items().front();
   stacked_transients_->Remove(transient);

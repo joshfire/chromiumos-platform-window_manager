@@ -463,6 +463,16 @@ TEST_F(WindowTest, DeferRedirection) {
   EXPECT_EQ(xid, mock_actor->xid());
 }
 
+// Test that we remove windows' borders.
+TEST_F(WindowTest, RemoveBorder) {
+  XWindow xid = CreateSimpleWindow();
+  MockXConnection::WindowInfo* info = xconn_->GetWindowInfoOrDie(xid);
+  info->border_width = 1;
+
+  Window win(wm_.get(), xid, false);
+  EXPECT_EQ(0, info->border_width);
+}
+
 }  // namespace window_manager
 
 int main(int argc, char** argv) {
