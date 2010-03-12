@@ -4,7 +4,7 @@
 
 #include "window_manager/login_controller.h"
 
-#include "chromeos/callback.h"
+#include "window_manager/callback.h"
 #include "window_manager/event_loop.h"
 #include "window_manager/stacking_manager.h"
 #include "window_manager/util.h"
@@ -60,7 +60,7 @@ void LoginController::SelectionChangedManager::Schedule(size_t selected_index) {
   // TODO: this is really the wrong place for this. Instead we need a way to
   // know when the animation completes.
   timeout_id_ = layout_->wm_->event_loop()->AddTimeout(
-      chromeos::NewPermanentCallback(this, &SelectionChangedManager::Run),
+      NewPermanentCallback(this, &SelectionChangedManager::Run),
       kAnimationTimeInMs,
       0);
 }
@@ -238,7 +238,7 @@ void LoginController::HandleWindowMap(Window* win) {
 
     if (initial_show_timeout_id_ == kNoTimer) {
       initial_show_timeout_id_ = wm_->event_loop()->AddTimeout(
-          chromeos::NewPermanentCallback(this, &LoginController::InitialShow),
+          NewPermanentCallback(this, &LoginController::InitialShow),
           kInitialShowDelayMs,
           0);
     }
