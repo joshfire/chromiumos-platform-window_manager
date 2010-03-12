@@ -1317,9 +1317,10 @@ void WindowManager::HandleMapRequest(const XMapRequestEvent& e) {
 }
 
 void WindowManager::HandleMappingNotify(const XMappingEvent& e) {
-  XRefreshKeyboardMapping(const_cast<XMappingEvent*>(&e));
+  DLOG(INFO) << "Handling (keyboard) mapping notify";
+  xconn()->RefreshKeyboardMap(e.request, e.first_keycode, e.count);
   hotkey_overlay_->RefreshKeyMappings();
-  // TODO: Also update key bindings.
+  key_bindings_->RefreshKeyMappings();
 }
 
 void WindowManager::HandleMotionNotify(const XMotionEvent& e) {

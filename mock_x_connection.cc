@@ -34,6 +34,7 @@ MockXConnection::MockXConnection()
       next_atom_(1000),
       focused_xid_(None),
       pointer_grab_xid_(None),
+      num_keymap_refreshes_(0),
       pointer_x_(0),
       pointer_y_(0) {
   CHECK(HANDLE_EINTR(pipe(connection_pipe_fds_)) != -1) << strerror(errno);
@@ -519,6 +520,14 @@ bool MockXConnection::GetChildWindows(XWindow xid,
       children_out->push_back(*it);
   }
   return true;
+}
+
+KeySym MockXConnection::GetKeySymFromKeyCode(KeyCode keycode) {
+  return FindWithDefault(keycodes_to_keysyms_, keycode, static_cast<KeySym>(0));
+}
+
+KeyCode MockXConnection::GetKeyCodeFromKeySym(KeySym keysym) {
+  return FindWithDefault(keysyms_to_keycodes_, keysym, static_cast<KeyCode>(0));
 }
 
 MockXConnection::WindowInfo::WindowInfo(XWindow xid, XWindow parent)

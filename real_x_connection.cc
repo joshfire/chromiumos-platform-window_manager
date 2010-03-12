@@ -879,11 +879,27 @@ bool RealXConnection::GetChildWindows(XWindow xid,
   return true;
 }
 
-KeySym RealXConnection::GetKeySymFromKeyCode(uint32 keycode) {
+void RealXConnection::RefreshKeyboardMap(int request,
+                                         KeyCode first_keycode,
+                                         int count) {
+  // Fill an event with enough data for XRefreshKeyboardMapping() to use it
+  // (technically, the 'display' and 'request' fields look like they're all
+  // it actually uses).
+  XMappingEvent event;
+  memset(&event, 0, sizeof(event));
+  event.type = MappingNotify;
+  event.display = display_;
+  event.request = request;
+  event.first_keycode = first_keycode;
+  event.count = count;
+  XRefreshKeyboardMapping(&event);
+}
+
+KeySym RealXConnection::GetKeySymFromKeyCode(KeyCode keycode) {
   return XKeycodeToKeysym(display_, keycode, 0);
 }
 
-uint32 RealXConnection::GetKeyCodeFromKeySym(KeySym keysym) {
+KeyCode RealXConnection::GetKeyCodeFromKeySym(KeySym keysym) {
   return XKeysymToKeycode(display_, keysym);
 }
 

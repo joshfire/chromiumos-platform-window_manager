@@ -56,9 +56,9 @@ class KeyBindings {
     // or Caps Lock is on isn't useful for us) and mask LockMask out of the
     // modifier (so that bindings will still be recognized if Caps Lock is
     // enabled).
-    explicit KeyCombo(KeySym key_param, uint32 modifiers_param = 0);
+    explicit KeyCombo(KeySym keysym_param, uint32 modifiers_param = 0);
 
-    KeySym key;
+    KeySym keysym;
     uint32 modifiers;
   };
 
@@ -95,6 +95,10 @@ class KeyBindings {
   // bound has been removed, in which case the combo was already cleaned up.
   bool RemoveBinding(const KeyCombo& combo);
 
+  // Called after the X server's keymap changes to regrab updated keycodes
+  // if needed.
+  void RefreshKeyMappings();
+
   // These should be called by the window manager in order to process bindings.
   bool HandleKeyPress(KeySym keysym, uint32 modifiers);
   bool HandleKeyRelease(KeySym keysym, uint32 modifiers);
@@ -116,6 +120,12 @@ class KeyBindings {
   // their non-modifier key.
   typedef std::map<KeySym, std::set<std::string> > KeySymMap;
   KeySymMap action_names_by_keysym_;
+
+  // Map from keysyms that we need to watch for to the corresponding
+  // keycodes that we've grabbed (note that the keycodes can be out-of-date
+  // if the X server's keymap has changed; HandleKeyMapChange() will
+  // rectify this).
+  std::map<KeySym, KeyCode> keysyms_to_grabbed_keycodes_;
 
   // See description above setter.
   bool is_enabled_;

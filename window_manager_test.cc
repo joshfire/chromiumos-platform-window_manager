@@ -885,6 +885,37 @@ TEST_F(WindowManagerTest, LoggedInFalse) {
   EXPECT_TRUE(wm_->key_bindings()->is_enabled());
 }
 
+// Test that the window manager refreshes the keyboard map when it gets a
+// MappingNotify event.
+TEST_F(WindowManagerTest, HandleMappingNotify) {
+  // Check that a grab has been installed for an arbitrary key binding
+  // (Ctrl-Alt-l).
+  EXPECT_EQ(0, xconn_->num_keymap_refreshes());
+  const KeyCode old_keycode = xconn_->GetKeyCodeFromKeySym(XK_l);
+  EXPECT_TRUE(xconn_->KeyIsGrabbed(old_keycode, ControlMask | Mod1Mask));
+
+  // Now remap the 'l' key and give the window manager a MappingNotify event.
+  const KeyCode new_keycode = 255;
+  EXPECT_FALSE(xconn_->KeyIsGrabbed(new_keycode, ControlMask | Mod1Mask));
+  xconn_->AddKeyMapping(new_keycode, XK_l);
+
+  XEvent event;
+  XMappingEvent* mapping_event = &(event.xmapping);
+  memset(mapping_event, 0, sizeof(mapping_event));
+  mapping_event->type = MappingNotify;
+  mapping_event->request = MappingKeyboard;
+  mapping_event->first_keycode = 1;
+  mapping_event->count = 6;
+  wm_->HandleEvent(&event);
+
+  // The XConnection should've been told to refresh its keymap, and the
+  // keyboard grab should be updated (there are more-extensive tests of the
+  // latter behavior in KeyBindingsTest).
+  EXPECT_EQ(1, xconn_->num_keymap_refreshes());
+  EXPECT_TRUE(xconn_->KeyIsGrabbed(new_keycode, ControlMask | Mod1Mask));
+  EXPECT_FALSE(xconn_->KeyIsGrabbed(old_keycode, ControlMask | Mod1Mask));
+}
+
 }  // namespace window_manager
 
 int main(int argc, char** argv) {

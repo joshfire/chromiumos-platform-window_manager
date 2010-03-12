@@ -70,6 +70,21 @@ int InitAndRunTests(int* argc, char** argv, bool* log_to_stderr) {
 
 void BasicWindowManagerTest::SetUp() {
   xconn_.reset(new MockXConnection);
+
+  // Register some fake mappings for common keysyms so that we won't get a
+  // bunch of errors in the logs when we try to add bindings for them.
+  KeyCode next_keycode = 1;
+  for (int i = 0; i < 26; ++i, ++next_keycode) {
+    xconn_->AddKeyMapping(next_keycode, XK_A + i);
+    xconn_->AddKeyMapping(next_keycode, XK_a + i);
+  }
+  for (int i = 0; i < 10; ++i, ++next_keycode)
+    xconn_->AddKeyMapping(next_keycode, XK_0 + i);
+  for (int i = 0; i < 12; ++i, ++next_keycode)
+    xconn_->AddKeyMapping(next_keycode, XK_F1 + i);
+  xconn_->AddKeyMapping(next_keycode++, XK_Print);
+  xconn_->AddKeyMapping(next_keycode++, XK_Tab);
+
   event_loop_.reset(new EventLoop(xconn_.get()));
   clutter_.reset(new MockClutterInterface(xconn_.get()));
   wm_.reset(new WindowManager(event_loop_.get(), clutter_.get()));

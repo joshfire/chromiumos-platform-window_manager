@@ -82,8 +82,9 @@ class RealXConnection : public XConnection {
   bool SetSelectionOwner(XAtom atom, XWindow xid, XTime timestamp);
   bool SetWindowCursor(XWindow xid, uint32 shape);
   bool GetChildWindows(XWindow xid, std::vector<XWindow>* children_out);
-  KeySym GetKeySymFromKeyCode(uint32 keycode);
-  uint32 GetKeyCodeFromKeySym(KeySym keysym);
+  void RefreshKeyboardMap(int request, KeyCode first_keycode, int count);
+  KeySym GetKeySymFromKeyCode(KeyCode keycode);
+  KeyCode GetKeyCodeFromKeySym(KeySym keysym);
   std::string GetStringFromKeySym(KeySym keysym);
   bool GrabKey(KeyCode keycode, uint32 modifiers);
   bool UngrabKey(KeyCode keycode, uint32 modifiers);

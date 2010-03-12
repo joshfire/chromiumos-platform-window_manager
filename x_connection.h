@@ -343,12 +343,15 @@ class XConnection {
   virtual bool GetChildWindows(
       XWindow xid, std::vector<XWindow>* children_out) = 0;
 
+  // Refresh the mapping between keysyms and keycodes.
+  // The parameters correspond to the matching fields in the MappingNotify
+  // event.
+  virtual void RefreshKeyboardMap(
+      int request, KeyCode first_keycode, int count) = 0;
+
   // Convert between keysyms and keycodes.
-  // Keycodes fit inside of unsigned 8-bit values, but some of the testing
-  // code relies on keycodes and keysyms being interchangeable, so we use
-  // 32-bit values here instead.
-  virtual KeySym GetKeySymFromKeyCode(uint32 keycode) = 0;
-  virtual uint32 GetKeyCodeFromKeySym(KeySym keysym) = 0;
+  virtual KeySym GetKeySymFromKeyCode(KeyCode keycode) = 0;
+  virtual KeyCode GetKeyCodeFromKeySym(KeySym keysym) = 0;
 
   // Get the string representation of a keysym.  Returns the empty string
   // for unknown keysyms.

@@ -89,9 +89,11 @@ class MockXConnection : public XConnection {
   bool SetSelectionOwner(XAtom atom, XWindow xid, XTime timestamp);
   bool SetWindowCursor(XWindow xid, uint32 shape);
   bool GetChildWindows(XWindow xid, std::vector<XWindow>* children_out);
-  // Treat keycodes and keysyms as equivalent for key_bindings_test.
-  KeySym GetKeySymFromKeyCode(uint32 keycode) { return keycode; }
-  uint32 GetKeyCodeFromKeySym(KeySym keysym) { return keysym; }
+  void RefreshKeyboardMap(int request, KeyCode first_keycode, int count) {
+    num_keymap_refreshes_++;
+  }
+  KeySym GetKeySymFromKeyCode(KeyCode keycode);
+  KeyCode GetKeyCodeFromKeySym(KeySym keysym);
   std::string GetStringFromKeySym(KeySym keysym) { return ""; }
   bool GrabKey(KeyCode keycode, uint32 modifiers);
   bool UngrabKey(KeyCode keycode, uint32 modifiers);
@@ -180,9 +182,16 @@ class MockXConnection : public XConnection {
 
   XWindow focused_xid() const { return focused_xid_; }
   XWindow pointer_grab_xid() const { return pointer_grab_xid_; }
+  int num_keymap_refreshes() const { return num_keymap_refreshes_; }
 
   bool KeyIsGrabbed(KeyCode keycode, uint32 modifiers) {
     return grabbed_keys_.count(std::make_pair(keycode, modifiers)) > 0;
+  }
+
+  // Register a mapping between a keycode and a keysym.
+  void AddKeyMapping(KeyCode keycode, KeySym keysym) {
+    keycodes_to_keysyms_[keycode] = keysym;
+    keysyms_to_keycodes_[keysym] = keycode;
   }
 
   const Stacker<XWindow>& stacked_xids() const {
@@ -286,6 +295,13 @@ class MockXConnection : public XConnection {
 
   // Keys that have been grabbed (pairs are key codes and modifiers).
   std::set<std::pair<KeyCode, uint32> > grabbed_keys_;
+
+  // Mappings from KeyCodes to the corresponding KeySyms and vice versa.
+  std::map<KeyCode, KeySym> keycodes_to_keysyms_;
+  std::map<KeySym, KeyCode> keysyms_to_keycodes_;
+
+  // Number of times that RefreshKeyboardMap() has been called.
+  int num_keymap_refreshes_;
 
   // Mappings from (window, atom) pairs to callbacks that will be invoked
   // when the corresponding properties are changed.

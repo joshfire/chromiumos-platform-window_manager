@@ -4,7 +4,8 @@
 
 #include "window_manager/key_bindings.h"
 
-#include <set>
+#include <utility>
+#include <vector>
 
 extern "C" {
 #include <X11/X.h>
@@ -14,12 +15,16 @@ extern "C" {
 
 #include "base/scoped_ptr.h"
 #include "base/logging.h"
+#include "window_manager/util.h"
 #include "window_manager/x_connection.h"
 
 namespace window_manager {
 
+using std::make_pair;
+using std::pair;
 using std::set;
 using std::string;
+using std::vector;
 
 const uint32 KeyBindings::kShiftMask   = ShiftMask;
 const uint32 KeyBindings::kControlMask = ControlMask;
@@ -32,14 +37,14 @@ const uint32 KeyBindings::kHyperMask   = Mod5Mask;  // TODO: Verify
 KeyBindings::KeyCombo::KeyCombo(KeySym key_param, uint32 modifiers_param) {
   KeySym upper_keysym = None, lower_keysym = None;
   XConvertCase(key_param, &lower_keysym, &upper_keysym);
-  key = lower_keysym;
+  keysym = lower_keysym;
   modifiers = (modifiers_param & ~LockMask);
 }
 
 bool KeyBindings::KeyComboComparator::operator()(const KeyCombo& a,
                                                  const KeyCombo& b) const {
-  return (a.key < b.key) ||
-      ((a.key == b.key) && (a.modifiers < b.modifiers));
+  return (a.keysym < b.keysym) ||
+      ((a.keysym == b.keysym) && (a.modifiers < b.modifiers));
 }
 
 struct Action {
@@ -136,12 +141,23 @@ bool KeyBindings::AddBinding(const KeyCombo& combo, const string& action_name) {
                  << action_name;
     return false;
   }
+
+  KeyCode keycode = FindWithDefault(
+      keysyms_to_grabbed_keycodes_, combo.keysym, static_cast<KeyCode>(0));
+  if (keycode == 0) {
+    keycode = xconn_->GetKeyCodeFromKeySym(combo.keysym);
+    if (keycode == 0) {
+      LOG(WARNING) << "Unable to look up keycode for keysym " << combo.keysym;
+      return false;
+    }
+    keysyms_to_grabbed_keycodes_[combo.keysym] = keycode;
+  }
+
   Action* const action = iter->second;
   CHECK(action->bindings.insert(combo).second);
   CHECK(bindings_.insert(make_pair(combo, action_name)).second);
-  CHECK(action_names_by_keysym_[combo.key].insert(action_name).second);
+  CHECK(action_names_by_keysym_[combo.keysym].insert(action_name).second);
 
-  KeyCode keycode = xconn_->GetKeyCodeFromKeySym(combo.key);
   xconn_->GrabKey(keycode, combo.modifiers);
   // Also grab this key combination plus Caps Lock.
   xconn_->GrabKey(keycode, combo.modifiers | LockMask);
@@ -158,7 +174,7 @@ bool KeyBindings::RemoveBinding(const KeyCombo& combo) {
   Action* action = action_iter->second;
   CHECK(action->bindings.erase(combo) == 1);
 
-  KeySymMap::iterator keysym_iter = action_names_by_keysym_.find(combo.key);
+  KeySymMap::iterator keysym_iter = action_names_by_keysym_.find(combo.keysym);
   CHECK(keysym_iter != action_names_by_keysym_.end());
   CHECK(keysym_iter->second.erase(bindings_iter->second) == 1);
   if (keysym_iter->second.empty()) {
@@ -171,10 +187,59 @@ bool KeyBindings::RemoveBinding(const KeyCombo& combo) {
   // as not running here.
   action->running = false;
 
-  KeyCode keycode = xconn_->GetKeyCodeFromKeySym(combo.key);
+  KeyCode keycode = FindWithDefault(
+      keysyms_to_grabbed_keycodes_, combo.keysym, static_cast<KeyCode>(0));
+  DCHECK(keycode != 0)
+      << "Unable to find cached keycode for keysym " << combo.keysym;
   xconn_->UngrabKey(keycode, combo.modifiers);
   xconn_->UngrabKey(keycode, combo.modifiers | LockMask);
   return true;
+}
+
+void KeyBindings::RefreshKeyMappings() {
+  std::map<KeySym, KeyCode> new_keysyms_to_grabbed_keycodes_;
+
+  vector<pair<KeyCode, uint32> > grabs_to_remove;
+  vector<pair<KeyCode, uint32> > grabs_to_add;
+
+  // Go through all of our combos, looking up the old keycodes and the new
+  // ones and keeping track of things that've changed.
+  for (BindingsMap::const_iterator it = bindings_.begin();
+       it != bindings_.end(); ++it) {
+    const KeyCombo& combo = it->first;
+
+    KeyCode old_keycode = FindWithDefault(
+        keysyms_to_grabbed_keycodes_, combo.keysym, static_cast<KeyCode>(0));
+
+    KeyCode new_keycode = FindWithDefault(new_keysyms_to_grabbed_keycodes_,
+                                          combo.keysym,
+                                          static_cast<KeyCode>(0));
+    if (new_keycode == 0) {
+      new_keycode = xconn_->GetKeyCodeFromKeySym(combo.keysym);
+      DCHECK(new_keycode != 0)
+          << "Unable to look up new keycode for keysym " << combo.keysym;
+      new_keysyms_to_grabbed_keycodes_[combo.keysym] = new_keycode;
+    }
+
+    if (new_keycode != old_keycode) {
+      grabs_to_remove.push_back(make_pair(old_keycode, combo.modifiers));
+      grabs_to_add.push_back(make_pair(new_keycode, combo.modifiers));
+    }
+  }
+
+  // Now actually ungrab and regrab things as needed (this is done in a
+  // separate step in case there's overlap between the old and new mappings).
+  for (vector<pair<KeyCode, uint32> >::const_iterator it =
+         grabs_to_remove.begin(); it != grabs_to_remove.end(); ++it) {
+    xconn_->UngrabKey(it->first, it->second);
+    xconn_->UngrabKey(it->first, it->second | LockMask);
+  }
+  for (vector<pair<KeyCode, uint32> >::const_iterator it =
+         grabs_to_add.begin(); it != grabs_to_add.end(); ++it) {
+    xconn_->GrabKey(it->first, it->second);
+    xconn_->GrabKey(it->first, it->second | LockMask);
+  }
+  keysyms_to_grabbed_keycodes_.swap(new_keysyms_to_grabbed_keycodes_);
 }
 
 bool KeyBindings::HandleKeyPress(KeySym keysym, uint32 modifiers) {
@@ -219,7 +284,7 @@ bool KeyBindings::HandleKeyRelease(KeySym keysym, uint32 modifiers) {
   // the Tab release, so we check all of the non-modifier key's actions
   // here to see if any of them are active.
   KeySymMap::const_iterator keysym_iter =
-      action_names_by_keysym_.find(combo.key);
+      action_names_by_keysym_.find(combo.keysym);
   if (keysym_iter == action_names_by_keysym_.end()) {
     return false;
   }
