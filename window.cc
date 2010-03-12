@@ -670,10 +670,16 @@ void Window::UpdateShadowIfNecessary() {
   if (!shadow_.get())
     return;
 
+  // TODO: make this a setter that the EventConsumer sets.
   bool should_use_shadow =
       !override_redirect_ &&
       type_ != WmIpc::WINDOW_TYPE_CHROME_INFO_BUBBLE &&
       type_ != WmIpc::WINDOW_TYPE_CREATE_BROWSER_WINDOW &&
+      type_ != WmIpc::WINDOW_TYPE_LOGIN_IMAGE &&
+      type_ != WmIpc::WINDOW_TYPE_LOGIN_CONTROLS &&
+      type_ != WmIpc::WINDOW_TYPE_LOGIN_LABEL &&
+      type_ != WmIpc::WINDOW_TYPE_LOGIN_UNSELECTED_LABEL &&
+      type_ != WmIpc::WINDOW_TYPE_LOGIN_GUEST &&
       !shaped_;
 
   if (!should_use_shadow && using_shadow_) {

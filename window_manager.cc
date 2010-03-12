@@ -22,6 +22,7 @@ extern "C" {
 #include "window_manager/hotkey_overlay.h"
 #include "window_manager/key_bindings.h"
 #include "window_manager/layout_manager.h"
+#include "window_manager/login_controller.h"
 #include "window_manager/metrics_reporter.h"
 #include "window_manager/panel_manager.h"
 #include "window_manager/stacking_manager.h"
@@ -344,6 +345,7 @@ bool WindowManager::Init() {
       new LayoutManager(this, layout_manager_x_, layout_manager_y_,
                         layout_manager_width_, layout_manager_height_));
   event_consumers_.insert(layout_manager_.get());
+  event_consumers_.insert(new LoginController(this));
 
   panel_manager_.reset(new PanelManager(this));
   event_consumers_.insert(panel_manager_.get());
@@ -1209,6 +1211,7 @@ void WindowManager::HandleDestroyNotify(const XDestroyWindowEvent& e) {
   // windows from 'client_windows_' directly to simulate windows being
   // destroyed.
   client_windows_.erase(e.window);
+  win = NULL;  // erasing from client_windows_ deletes window.
 
   if (xids_tracked_by_compositor_.count(e.window))
     clutter_->HandleWindowDestroyed(e.window);

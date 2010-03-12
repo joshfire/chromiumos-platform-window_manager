@@ -29,6 +29,7 @@ class EventConsumerRegistrar {
   // These call the similarly-named
   // WindowManager::RegisterEventConsumerFor*() methods.
   void RegisterForWindowEvents(XWindow xid);
+  void UnregisterForWindowEvents(XWindow xid);
   void RegisterForPropertyChanges(XWindow xid, XAtom xatom);
   void RegisterForChromeMessages(WmIpc::Message::Type message_type);
 

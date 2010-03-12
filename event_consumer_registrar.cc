@@ -4,6 +4,8 @@
 
 #include "window_manager/event_consumer_registrar.h"
 
+#include <algorithm>
+
 #include "window_manager/event_consumer.h"
 #include "window_manager/window_manager.h"
 
@@ -43,6 +45,15 @@ EventConsumerRegistrar::~EventConsumerRegistrar() {
 void EventConsumerRegistrar::RegisterForWindowEvents(XWindow xid) {
   wm_->RegisterEventConsumerForWindowEvents(xid, event_consumer_);
   window_event_xids_.push_back(xid);
+}
+
+void EventConsumerRegistrar::UnregisterForWindowEvents(XWindow xid) {
+  wm_->UnregisterEventConsumerForWindowEvents(xid, event_consumer_);
+  std::vector<XWindow>::iterator it = std::find(window_event_xids_.begin(),
+                                                window_event_xids_.end(),
+                                                xid);
+  DCHECK(it != window_event_xids_.end());
+  window_event_xids_.erase(it);
 }
 
 void EventConsumerRegistrar::RegisterForPropertyChanges(XWindow xid,

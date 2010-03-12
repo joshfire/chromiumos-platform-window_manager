@@ -136,6 +136,7 @@ srcs = Split('''\
   image_container.cc
   key_bindings.cc
   layout_manager.cc
+  login_controller.cc
   metrics_reporter.cc
   mock_clutter_interface.cc
   motion_event_coalescer.cc

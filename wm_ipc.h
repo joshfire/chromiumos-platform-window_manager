@@ -61,6 +61,34 @@ class WmIpc {
     //             sum of all tabs in all browsers).
     WINDOW_TYPE_CHROME_TAB_SNAPSHOT,
 
+    // The following types are used for the windows that represent a user that
+    // has already logged into the system.
+    //
+    // Visually the BORDER contains the IMAGE and CONTROLS windows, the LABEL
+    // and UNSELECTED_LABEL are placed beneath the BORDER. The LABEL window is
+    // onscreen when the user is selected, otherwise the UNSELECTED_LABEL is
+    // on screen. The GUEST window is used when the user clicks on the entry
+    // that represents the 'guest' user.
+    //
+    // The following parameters are set for these windows (except GUEST and
+    // BACKGROUND):
+    //   param[0]: the visual index of the user the window corresponds to.
+    //             For example, all windows with an index of 0 occur first,
+    //             followed by windows with an index of 1...
+    //
+    // The following additional params are set on the first BORDER window
+    // (BORDER window whose param[0] == 0).
+    //   param[1]: the total number of users.
+    //   param[2]: size of the unselected image.
+    //   param[3]: gap between image and controls.
+    WINDOW_TYPE_LOGIN_BORDER,
+    WINDOW_TYPE_LOGIN_IMAGE,
+    WINDOW_TYPE_LOGIN_CONTROLS,
+    WINDOW_TYPE_LOGIN_LABEL,
+    WINDOW_TYPE_LOGIN_UNSELECTED_LABEL,
+    WINDOW_TYPE_LOGIN_GUEST,
+    WINDOW_TYPE_LOGIN_BACKGROUND,
+
     kNumWindowTypes,
   };
   // Get or set a property describing a window's type.  The window type
@@ -175,6 +203,21 @@ class WmIpc {
       //   param[0]: X ID of the tab snapshot window
       //   param[1]: state (0 means end magnify, 1 means begin magnify)
       CHROME_NOTIFY_TAB_SNAPSHOT_MAGNIFY,
+
+      // Forces the window manager to hide the login windows.
+      WM_HIDE_LOGIN,
+
+      // Sets whether login is enabled. If true the user can click on any of the
+      // login windows to select one, if false clicks on unselected windows are
+      // ignored. This is used when the user attempts a login to make sure the
+      // user doesn't select another user.
+      //
+      // param[0]: true to enable, false to disable.
+      WM_SET_LOGIN_STATE,
+
+      // Notify chrome when the guest entry is selected and the guest window
+      // hasn't been created yet.
+      CHROME_CREATE_GUEST_WINDOW,
 
       kNumTypes,
     };
