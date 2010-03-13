@@ -207,12 +207,15 @@ void LayoutManager::ToplevelWindow::ConfigureForActiveMode(
       win_->ScaleComposited(
           kWindowFadeSizeFraction, kWindowFadeSizeFraction,
           LayoutManager::kWindowAnimMs);
-    } else if (state_ == STATE_ACTIVE_MODE_OFFSCREEN) {
-      // No need to move it; it was already moved offscreen.
     } else {
       // Move non-active windows offscreen instead of just outside of the
       // layout manager area -- we don't want them to be briefly visible
       // if space opens up on the side due to a panel dock being hidden.
+      //
+      // We even move windows in STATE_ACTIVE_MODE_OFFSCREEN; the layout
+      // manager size might've just changed due to a panel being undocked,
+      // and we don't want the edges of these windows to be peeking
+      // onscreen.
       int x = to_left_of_active ?  0 - overview_width_ : wm()->width();
       win_->MoveComposited(x, GetAbsoluteOverviewY(),
                            LayoutManager::kWindowAnimMs);
