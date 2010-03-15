@@ -597,7 +597,8 @@ Panel::Panel(MockChrome* chrome,
       width_(image_->get_width()),
       height_(image_->get_height()),
       expanded_(false),
-      title_(title) {
+      title_(title),
+      fullscreen_(false) {
   set_size_request(width_, height_);
   realize();
   xid_ = GDK_WINDOW_XWINDOW(Glib::unwrap(get_window()));
@@ -632,6 +633,12 @@ bool Panel::on_key_press_event(GdkEventKey* event) {
     width_ = max(width_ - 10, 1);
     height_ = max(height_ - 10, 1);
     resize(width_, height_);
+  } else if (strcmp(event->string, "f") == 0) {
+    fullscreen_ = !fullscreen_;
+    if (fullscreen_)
+      fullscreen();
+    else
+      unfullscreen();
   } else if (strcmp(event->string, "u") == 0) {
     set_urgency_hint(!get_urgency_hint());
   } else {
@@ -669,6 +676,12 @@ bool Panel::on_focus_out_event(GdkEventFocus* event) {
   titlebar_->Draw();
   return true;
 }
+
+bool Panel::on_window_state_event(GdkEventWindowState* event) {
+  fullscreen_ = (event->new_window_state & GDK_WINDOW_STATE_FULLSCREEN);
+  return true;
+}
+
 
 MockChrome::MockChrome()
     : xconn_(new RealXConnection(GDK_DISPLAY())),

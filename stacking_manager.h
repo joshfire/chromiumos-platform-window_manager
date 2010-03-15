@@ -37,6 +37,9 @@ class StackingManager {
     // Hotkey overlay images.
     LAYER_HOTKEY_OVERLAY,
 
+    // A fullscreen panel content window.
+    LAYER_FULLSCREEN_PANEL,
+
     // A panel as it's being dragged.  This is a separate layer so that the
     // panel's shadow will be cast over stationary panels.
     LAYER_DRAGGED_PANEL,
@@ -59,14 +62,6 @@ class StackingManager {
     // Panel docks along the sides of the screen (specifically, their
     // backgrounds).
     LAYER_PANEL_DOCK,
-
-    // Window representing a Chrome tab as it's being dragged out of the
-    // tab summary window.
-    LAYER_FLOATING_TAB,
-
-    // Tab summary popup displayed when hovering over a window in overview
-    // mode.
-    LAYER_TAB_SUMMARY,
 
     // Toplevel windows, along with their transient windows and input
     // windows.
@@ -105,6 +100,7 @@ class StackingManager {
       Window* win, Window* sibling, bool above, Layer layer);
 
  private:
+  friend class BasicWindowManagerTest;  // uses Get*ForLayer()
   FRIEND_TEST(LayoutManagerTest, InitialWindowStacking);  // uses 'layer_to_*'
 
   // Get a layer's name.

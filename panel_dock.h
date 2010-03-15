@@ -76,7 +76,7 @@ class PanelDock : public PanelContainer {
   void HandleSetPanelStateMessage(Panel* panel, bool expand);
   bool HandleNotifyPanelDraggedMessage(Panel* panel, int drag_x, int drag_y);
   void HandleNotifyPanelDragCompleteMessage(Panel* panel);
-  void HandleFocusPanelMessage(Panel* panel);
+  void HandleFocusPanelMessage(Panel* panel, XTime timestamp);
   void HandlePanelResize(Panel* panel);
   void HandleScreenResize();
   void HandlePanelUrgencyChange(Panel* panel) {}

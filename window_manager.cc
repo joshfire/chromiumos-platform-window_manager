@@ -1128,7 +1128,7 @@ void WindowManager::HandleConfigureRequest(const XConfigureRequestEvent& e) {
     if (req_x != win->client_x() || req_y != win->client_y())
       win->MoveClient(req_x, req_y);
     if (req_width != win->client_width() || req_height != win->client_height())
-      win->ResizeClient(req_width, req_height, Window::GRAVITY_NORTHWEST);
+      win->ResizeClient(req_width, req_height, GRAVITY_NORTHWEST);
   } else {
     FOR_EACH_EVENT_CONSUMER(
         window_event_consumers_,

@@ -4,6 +4,8 @@
 
 #include "window_manager/panel_manager.h"
 
+#include <utility>
+
 #include "base/logging.h"
 #include "window_manager/atom_cache.h"
 #include "window_manager/event_consumer_registrar.h"
@@ -20,6 +22,7 @@ namespace window_manager {
 
 using std::make_pair;
 using std::map;
+using std::pair;
 using std::tr1::shared_ptr;
 using std::vector;
 
@@ -35,6 +38,7 @@ const int PanelManager::kPanelDockWidth = 256;
 PanelManager::PanelManager(WindowManager* wm)
     : wm_(wm),
       dragged_panel_(NULL),
+      fullscreen_panel_(NULL),
       dragged_panel_event_coalescer_(
           new MotionEventCoalescer(
               wm_->event_loop(),
@@ -138,6 +142,10 @@ void PanelManager::HandleWindowMap(Window* win) {
       AddPanelToContainer(panel.get(),
                           panel_bar_.get(),
                           PanelContainer::PANEL_SOURCE_NEW);
+
+      if (win->wm_state_fullscreen())
+        MakePanelFullscreen(panel.get());
+
       break;
     }
 
@@ -157,6 +165,8 @@ void PanelManager::HandleWindowUnmap(Window* win) {
     RemovePanelFromContainer(panel, container);
   if (panel == dragged_panel_)
     HandlePanelDragComplete(panel, true);  // removed=true
+  if (panel == fullscreen_panel_)
+    fullscreen_panel_ = NULL;
 
   // If the panel was focused, assign the focus to another panel, or
   // failing that, let the window manager decide what to do with it.
@@ -355,7 +365,23 @@ void PanelManager::HandleClientMessage(XWindow xid,
                << XidStr(wm_->active_window_xid()) << ")";
     PanelContainer* container = GetContainerForPanel(*panel);
     if (container)
-      container->HandleFocusPanelMessage(panel);
+      container->HandleFocusPanelMessage(panel, data[1]);
+  } else if (message_type == wm_->GetXAtom(ATOM_NET_WM_STATE)) {
+    if (panel->content_xid() == xid) {
+      map<XAtom, bool> states;
+      panel->content_win()->ParseWmStateMessage(data, &states);
+      map<XAtom, bool>::const_iterator it =
+          states.find(wm_->GetXAtom(ATOM_NET_WM_STATE_FULLSCREEN));
+      if (it != states.end()) {
+        bool fullscreen = it->second;
+        DLOG(INFO) << "Panel " << panel->xid_str() << " "
+                   << (fullscreen ? "set" : "unset") << " its fullscreen hint";
+        if (fullscreen)
+          MakePanelFullscreen(panel);
+        else
+          RestoreFullscreenPanel(panel);
+      }
+    }
   }
 }
 
@@ -363,6 +389,10 @@ void PanelManager::HandleFocusChange(XWindow xid, bool focus_in) {
   Panel* panel = GetPanelByXid(xid);
   if (!panel)
     return;
+
+  if (panel->is_fullscreen() && !focus_in)
+    RestoreFullscreenPanel(panel);
+
   PanelContainer* container = GetContainerForPanel(*panel);
   if (container)
     container->HandlePanelFocusChange(panel, focus_in);
@@ -395,6 +425,8 @@ void PanelManager::HandleScreenResize() {
        it != containers_.end(); ++it) {
     (*it)->HandleScreenResize();
   }
+  for (PanelMap::iterator it = panels_.begin(); it != panels_.end(); ++it)
+    it->second->HandleScreenResize();
   UpdateAvailableArea();
 }
 
@@ -546,6 +578,36 @@ void PanelManager::UpdateAvailableArea() {
 
   wm_->HandleLayoutManagerAreaChange(
       avail_x, avail_y, avail_width, avail_height);
+}
+
+void PanelManager::MakePanelFullscreen(Panel* panel) {
+  DCHECK(panel);
+  if (panel->is_fullscreen()) {
+    LOG(WARNING) << "Ignoring request to fullscreen already-fullscreened "
+                 << "panel " << panel->xid_str();
+    return;
+  }
+
+  // If there's already another fullscreen panel, unfullscreen it.
+  if (fullscreen_panel_)
+    RestoreFullscreenPanel(fullscreen_panel_);
+  DCHECK(!fullscreen_panel_);
+
+  panel->SetFullscreenState(true);
+  fullscreen_panel_ = panel;
+}
+
+void PanelManager::RestoreFullscreenPanel(Panel* panel) {
+  DCHECK(panel);
+  if (!panel->is_fullscreen()) {
+    LOG(WARNING) << "Ignoring request to restore non-fullscreen panel "
+                 << panel->xid_str();
+    return;
+  }
+
+  panel->SetFullscreenState(false);
+  if (fullscreen_panel_ == panel)
+    fullscreen_panel_ = NULL;
 }
 
 }  // namespace window_manager

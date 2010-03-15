@@ -230,6 +230,136 @@ TEST_F(PanelManagerTest, ChromeInitiatedPanelResize) {
   EXPECT_EQ(initial_titlebar_y - 100, panel->titlebar_y());
 }
 
+TEST_F(PanelManagerTest, Fullscreen) {
+  const int titlebar_height = 20;
+  const int content_width = 200;
+  const int content_height = 400;
+
+  // Create three panels, sending the appropriate FocusOut and FocusIn
+  // events as we go.
+  Panel* panel1 =
+      CreatePanel(content_width, titlebar_height, content_height, true);
+  EXPECT_EQ(panel1->content_xid(), xconn_->focused_xid());
+  SendFocusEvents(xconn_->GetRootWindow(), panel1->content_xid());
+
+  Panel* panel2 =
+      CreatePanel(content_width, titlebar_height, content_height, true);
+  EXPECT_EQ(panel2->content_xid(), xconn_->focused_xid());
+  SendFocusEvents(panel1->content_xid(), panel2->content_xid());
+
+  Panel* panel3 =
+      CreatePanel(content_width, titlebar_height, content_height, true);
+  EXPECT_EQ(panel3->content_xid(), xconn_->focused_xid());
+  SendFocusEvents(panel2->content_xid(), panel3->content_xid());
+
+  // Check that they're positioned as expecded.
+  const int rightmost_panel_right =
+      wm_->width() - PanelBar::kPixelsBetweenPanels;
+  const int middle_panel_right =
+      rightmost_panel_right - content_width - PanelBar::kPixelsBetweenPanels;
+  const int leftmost_panel_right =
+      middle_panel_right - content_width - PanelBar::kPixelsBetweenPanels;
+  EXPECT_EQ(rightmost_panel_right, panel1->right());
+  EXPECT_EQ(middle_panel_right, panel2->right());
+  EXPECT_EQ(leftmost_panel_right, panel3->right());
+  EXPECT_TRUE(WindowIsInLayer(panel1->content_win(),
+                              StackingManager::LAYER_STATIONARY_PANEL_IN_BAR));
+  EXPECT_TRUE(WindowIsInLayer(panel2->content_win(),
+                              StackingManager::LAYER_STATIONARY_PANEL_IN_BAR));
+  EXPECT_TRUE(WindowIsInLayer(panel3->content_win(),
+                              StackingManager::LAYER_STATIONARY_PANEL_IN_BAR));
+
+  const XAtom wm_state_atom = wm_->GetXAtom(ATOM_NET_WM_STATE);
+  const XAtom fullscreen_atom = wm_->GetXAtom(ATOM_NET_WM_STATE_FULLSCREEN);
+
+  // Ask the window manager to make the second (middle) panel fullscreen.
+  XEvent fullscreen_event;
+  MockXConnection::InitClientMessageEvent(
+      &fullscreen_event,
+      panel2->content_xid(),
+      wm_state_atom,
+      1,  // add
+      fullscreen_atom, 0, 0, 0);
+  wm_->HandleEvent(&fullscreen_event);
+
+  // Check that the second panel is focused automatically, covering the
+  // whole screen, and stacked above the other panels.
+  EXPECT_TRUE(panel2->is_fullscreen());
+  EXPECT_EQ(panel2->content_xid(), xconn_->focused_xid());
+  SendFocusEvents(panel3->content_xid(), panel2->content_xid());
+  TestPanelContentBounds(panel2, 0, 0, wm_->width(), wm_->height());
+  EXPECT_TRUE(WindowIsInLayer(panel2->content_win(),
+                              StackingManager::LAYER_FULLSCREEN_PANEL));
+  TestIntArrayProperty(
+      panel2->content_xid(), wm_state_atom, 1, fullscreen_atom);
+
+  // Now send a message making the third (leftmost) panel fullscreen.  The
+  // second panel should be made non-fullscreen.
+  fullscreen_event.xclient.window = panel3->content_xid();
+  wm_->HandleEvent(&fullscreen_event);
+  EXPECT_TRUE(panel3->is_fullscreen());
+  EXPECT_EQ(panel3->content_xid(), xconn_->focused_xid());
+  SendFocusEvents(panel2->content_xid(), panel3->content_xid());
+  TestPanelContentBounds(panel3, 0, 0, wm_->width(), wm_->height());
+  EXPECT_TRUE(WindowIsInLayer(panel3->content_win(),
+                              StackingManager::LAYER_FULLSCREEN_PANEL));
+  TestIntArrayProperty(
+      panel3->content_xid(), wm_state_atom, 1, fullscreen_atom);
+
+  EXPECT_FALSE(panel2->is_fullscreen());
+  TestPanelContentBounds(panel2,
+                         middle_panel_right - content_width,  // x
+                         wm_->height() - content_height,      // y
+                         content_width, content_height);
+  EXPECT_TRUE(WindowIsInLayer(panel2->content_win(),
+                              StackingManager::LAYER_STATIONARY_PANEL_IN_BAR));
+  TestIntArrayProperty(panel2->content_xid(), wm_state_atom, 0);
+
+  // Unmap the first (rightmost) panel.  The third panel's content window
+  // should still be fullscreened, but its stored position should be
+  // updated in response to the panel closure -- it should move to the
+  // middle position.
+  XEvent event;
+  MockXConnection::InitUnmapEvent(&event, panel1->content_xid());
+  wm_->HandleEvent(&event);
+  EXPECT_TRUE(panel3->is_fullscreen());
+  TestPanelContentBounds(panel3, 0, 0, wm_->width(), wm_->height());
+  EXPECT_TRUE(WindowIsInLayer(panel3->content_win(),
+                              StackingManager::LAYER_FULLSCREEN_PANEL));
+  EXPECT_EQ(rightmost_panel_right, panel2->right());
+  EXPECT_EQ(middle_panel_right, panel3->right());
+
+  // Now send a message asking to unfullscreen the third panel and check
+  // that it gets restored to its regular middle position.  It should still
+  // keep the focus.
+  fullscreen_event.xclient.data.l[0] = 0;  // remove
+  wm_->HandleEvent(&fullscreen_event);
+  EXPECT_FALSE(panel3->is_fullscreen());
+  EXPECT_EQ(panel3->content_xid(), xconn_->focused_xid());
+  TestPanelContentBounds(panel3,
+                         middle_panel_right - content_width,  // x
+                         wm_->height() - content_height,      // y
+                         content_width, content_height);
+  EXPECT_TRUE(WindowIsInLayer(panel3->content_win(),
+                              StackingManager::LAYER_STATIONARY_PANEL_IN_BAR));
+  TestIntArrayProperty(panel3->content_xid(), wm_state_atom, 0);
+
+  // Fullscreen the second panel and then unmap one of its windows.  Check
+  // that the panel manager's fullscreen panel pointer is cleared.
+  fullscreen_event.xclient.window = panel2->content_xid();
+  fullscreen_event.xclient.data.l[0] = 1;  // add
+  wm_->HandleEvent(&fullscreen_event);
+  EXPECT_TRUE(panel2->is_fullscreen());
+  EXPECT_EQ(panel2->content_xid(), xconn_->focused_xid());
+  SendFocusEvents(panel3->content_xid(), panel2->content_xid());
+
+  MockXConnection::InitUnmapEvent(&event, panel2->content_xid());
+  wm_->HandleEvent(&event);
+  EXPECT_TRUE(panel_manager_->fullscreen_panel_ == NULL);
+  EXPECT_EQ(panel3->content_xid(), xconn_->focused_xid());
+  SendFocusEvents(xconn_->GetRootWindow(), panel3->content_xid());
+}
+
 }  // namespace window_manager
 
 int main(int argc, char** argv) {

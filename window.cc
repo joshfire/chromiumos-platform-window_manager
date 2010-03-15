@@ -11,6 +11,7 @@
 #include "base/logging.h"
 #include "base/string_util.h"
 #include "window_manager/atom_cache.h"
+#include "window_manager/geometry.h"
 #include "window_manager/shadow.h"
 #include "window_manager/util.h"
 #include "window_manager/window_manager.h"
@@ -21,6 +22,13 @@ DEFINE_bool(window_drop_shadows, true, "Display drop shadows under windows");
 DECLARE_bool(wm_use_compositing);  // from window_manager.cc
 
 namespace window_manager {
+
+using std::map;
+using std::max;
+using std::min;
+using std::set;
+using std::string;
+using std::vector;
 
 Window::Window(WindowManager* wm, XWindow xid, bool override_redirect)
     : xid_(xid),
@@ -93,8 +101,7 @@ Window::Window(WindowManager* wm, XWindow xid, bool override_redirect)
   wm_->stage()->AddActor(actor_.get());
 
   if (shadow_.get()) {
-    shadow_->group()->SetName(
-        std::string("shadow group for window " + xid_str()));
+    shadow_->group()->SetName(string("shadow group for window " + xid_str()));
     wm_->stage()->AddActor(shadow_->group());
     shadow_->Move(composited_x_, composited_y_, 0);
     shadow_->SetOpacity(shadow_opacity_, 0);
@@ -119,15 +126,14 @@ Window::Window(WindowManager* wm, XWindow xid, bool override_redirect)
 Window::~Window() {
 }
 
-void Window::SetTitle(const std::string& title) {
+void Window::SetTitle(const string& title) {
   DLOG(INFO) << "Setting " << xid_str() << "'s title to \"" << title << "\"";
   title_ = title;
   if (actor_.get() != NULL) {
     if (title_.empty()) {
-      actor_->SetName(std::string("window ") + xid_str());
+      actor_->SetName(string("window ") + xid_str());
     } else {
-      actor_->SetName(std::string("window '") + title_ +
-                      "' (" + xid_str() + ")");
+      actor_->SetName(string("window '") + title_ + "' (" + xid_str() + ")");
     }
   }
 }
@@ -194,7 +200,7 @@ void Window::FetchAndApplyWindowOpacity() {
 }
 
 void Window::FetchAndApplyWmHints() {
-  std::vector<int> wm_hints;
+  vector<int> wm_hints;
   if (!wm_->xconn()->GetIntArrayProperty(
           xid_, wm_->GetXAtom(ATOM_WM_HINTS), &wm_hints)) {
     return;
@@ -208,7 +214,7 @@ void Window::FetchAndApplyWmProtocols() {
   supports_wm_take_focus_ = false;
   supports_wm_delete_window_ = false;
 
-  std::vector<int> wm_protocols;
+  vector<int> wm_protocols;
   if (!wm_->xconn()->GetIntArrayProperty(
           xid_, wm_->GetXAtom(ATOM_WM_PROTOCOLS), &wm_protocols)) {
     return;
@@ -216,7 +222,7 @@ void Window::FetchAndApplyWmProtocols() {
 
   XAtom wm_take_focus = wm_->GetXAtom(ATOM_WM_TAKE_FOCUS);
   XAtom wm_delete_window = wm_->GetXAtom(ATOM_WM_DELETE_WINDOW);
-  for (std::vector<int>::const_iterator it = wm_protocols.begin();
+  for (vector<int>::const_iterator it = wm_protocols.begin();
        it != wm_protocols.end(); ++it) {
     if (static_cast<XAtom>(*it) == wm_take_focus) {
       DLOG(INFO) << "Window " << xid_str() << " supports WM_TAKE_FOCUS";
@@ -234,7 +240,7 @@ void Window::FetchAndApplyWmState() {
   wm_state_maximized_vert_ = false;
   wm_state_modal_ = false;
 
-  std::vector<int> state_atoms;
+  vector<int> state_atoms;
   if (!wm_->xconn()->GetIntArrayProperty(
           xid_, wm_->GetXAtom(ATOM_NET_WM_STATE), &state_atoms)) {
     return;
@@ -244,7 +250,7 @@ void Window::FetchAndApplyWmState() {
   XAtom max_horz_atom = wm_->GetXAtom(ATOM_NET_WM_STATE_MAXIMIZED_HORZ);
   XAtom max_vert_atom = wm_->GetXAtom(ATOM_NET_WM_STATE_MAXIMIZED_VERT);
   XAtom modal_atom = wm_->GetXAtom(ATOM_NET_WM_STATE_MODAL);
-  for (std::vector<int>::const_iterator it = state_atoms.begin();
+  for (vector<int>::const_iterator it = state_atoms.begin();
        it != state_atoms.end(); ++it) {
     XAtom atom = static_cast<XAtom>(*it);
     if (atom == fullscreen_atom)
@@ -267,12 +273,12 @@ void Window::FetchAndApplyWmState() {
 void Window::FetchAndApplyChromeState() {
   XAtom state_xatom = wm_->GetXAtom(ATOM_CHROME_STATE);
   chrome_state_xatoms_.clear();
-  std::vector<int> state_xatoms;
+  vector<int> state_xatoms;
   if (!wm_->xconn()->GetIntArrayProperty(xid_, state_xatom, &state_xatoms))
     return;
 
-  std::string debug_str;
-  for (std::vector<int>::const_iterator it = state_xatoms.begin();
+  string debug_str;
+  for (vector<int>::const_iterator it = state_xatoms.begin();
        it != state_xatoms.end(); ++it) {
     chrome_state_xatoms_.insert(static_cast<XAtom>(*it));
     if (!debug_str.empty())
@@ -314,26 +320,31 @@ bool Window::FetchMapState() {
   return (attr.map_state != XConnection::WindowAttributes::MAP_STATE_UNMAPPED);
 }
 
-bool Window::HandleWmStateMessage(const long data[5]) {
+void Window::ParseWmStateMessage(const long data[5],
+                                 map<XAtom, bool>* states_out) const {
+  DCHECK(states_out);
+  states_out->clear();
+
   XAtom fullscreen_atom = wm_->GetXAtom(ATOM_NET_WM_STATE_FULLSCREEN);
   if (static_cast<XAtom>(data[1]) == fullscreen_atom ||
       static_cast<XAtom>(data[2]) == fullscreen_atom) {
-    SetWmStateInternal(data[0], &wm_state_fullscreen_);
+    bool value = wm_state_fullscreen_;
+    SetWmStateInternal(data[0], &value);
+    (*states_out)[fullscreen_atom] = value;
   }
-
   XAtom modal_atom = wm_->GetXAtom(ATOM_NET_WM_STATE_MODAL);
   if (static_cast<XAtom>(data[1]) == modal_atom ||
       static_cast<XAtom>(data[2]) == modal_atom) {
-    SetWmStateInternal(data[0], &wm_state_modal_);
+    bool value = wm_state_modal_;
+    SetWmStateInternal(data[0], &value);
+    (*states_out)[modal_atom] = value;
   }
 
   // We don't let clients toggle their maximized state currently.
-
-  return UpdateWmStateProperty();
 }
 
-bool Window::ChangeWmState(const std::vector<std::pair<XAtom, bool> >& states) {
-  for (std::vector<std::pair<XAtom, bool> >::const_iterator it = states.begin();
+bool Window::ChangeWmState(const map<XAtom, bool>& states) {
+  for (map<XAtom, bool>::const_iterator it = states.begin();
        it != states.end(); ++it) {
     XAtom xatom = it->first;
     int action = it->second;  // 0 is remove, 1 is add
@@ -353,9 +364,8 @@ bool Window::ChangeWmState(const std::vector<std::pair<XAtom, bool> >& states) {
   return UpdateWmStateProperty();
 }
 
-bool Window::ChangeChromeState(
-    const std::vector<std::pair<XAtom, bool> >& states) {
-  for (std::vector<std::pair<XAtom, bool> >::const_iterator it = states.begin();
+bool Window::ChangeChromeState(const map<XAtom, bool>& states) {
+  for (map<XAtom, bool>::const_iterator it = states.begin();
        it != states.end(); ++it) {
     if (it->second)
       chrome_state_xatoms_.insert(it->first);
@@ -416,9 +426,9 @@ void Window::GetMaxSize(int desired_width, int desired_height,
   CHECK(desired_height > 0);
 
   if (size_hints_.max_width > 0)
-    desired_width = std::min(size_hints_.max_width, desired_width);
+    desired_width = min(size_hints_.max_width, desired_width);
   if (size_hints_.min_width > 0)
-    desired_width = std::max(size_hints_.min_width, desired_width);
+    desired_width = max(size_hints_.min_width, desired_width);
 
   if (size_hints_.width_increment > 0) {
     int base_width =
@@ -433,9 +443,9 @@ void Window::GetMaxSize(int desired_width, int desired_height,
   }
 
   if (size_hints_.max_height > 0)
-    desired_height = std::min(size_hints_.max_height, desired_height);
+    desired_height = min(size_hints_.max_height, desired_height);
   if (size_hints_.min_height > 0)
-    desired_height = std::max(size_hints_.min_height, desired_height);
+    desired_height = max(size_hints_.min_height, desired_height);
 
   if (size_hints_.height_increment > 0) {
     int base_height =
@@ -666,6 +676,14 @@ ClutterInterface::Actor* Window::GetBottomActor() {
   return (shadow_.get() ? shadow_->group() : actor_.get());
 }
 
+void Window::CopyClientBoundsToRect(Rect* rect) const {
+  DCHECK(rect);
+  rect->x = client_x_;
+  rect->y = client_y_;
+  rect->width = client_width_;
+  rect->height = client_height_;
+}
+
 void Window::UpdateShadowIfNecessary() {
   if (!shadow_.get())
     return;
@@ -692,7 +710,7 @@ void Window::UpdateShadowIfNecessary() {
   }
 }
 
-void Window::SetWmStateInternal(int action, bool* value) {
+void Window::SetWmStateInternal(int action, bool* value) const {
   switch (action) {
     case 0:  // _NET_WM_STATE_REMOVE
       *value = false;
@@ -710,7 +728,7 @@ void Window::SetWmStateInternal(int action, bool* value) {
 }
 
 bool Window::UpdateWmStateProperty() {
-  std::vector<int> values;
+  vector<int> values;
   if (wm_state_fullscreen_)
     values.push_back(wm_->GetXAtom(ATOM_NET_WM_STATE_FULLSCREEN));
   if (wm_state_maximized_horz_)
@@ -735,8 +753,8 @@ bool Window::UpdateWmStateProperty() {
 }
 
 bool Window::UpdateChromeStateProperty() {
-  std::vector<int> values;
-  for (std::set<XAtom>::const_iterator it = chrome_state_xatoms_.begin();
+  vector<int> values;
+  for (set<XAtom>::const_iterator it = chrome_state_xatoms_.begin();
        it != chrome_state_xatoms_.end(); ++it) {
     values.push_back(static_cast<int>(*it));
   }

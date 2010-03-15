@@ -364,11 +364,11 @@ void PanelBar::HandleNotifyPanelDragCompleteMessage(Panel* panel) {
   HandlePanelDragComplete(panel);
 }
 
-void PanelBar::HandleFocusPanelMessage(Panel* panel) {
+void PanelBar::HandleFocusPanelMessage(Panel* panel, XTime timestamp) {
   DCHECK(panel);
   if (!panel->is_expanded())
     ExpandPanel(panel, false, kPanelStateAnimMs);
-  FocusPanel(panel, false, wm()->GetCurrentTimeFromServer());
+  FocusPanel(panel, false, timestamp);
 }
 
 void PanelBar::HandlePanelResize(Panel* panel) {

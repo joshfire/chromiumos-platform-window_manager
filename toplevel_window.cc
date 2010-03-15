@@ -7,10 +7,10 @@
 #include <algorithm>
 #include <cmath>
 #include <tr1/memory>
+
 extern "C" {
 #include <X11/Xatom.h>
 }
-
 #include <gflags/gflags.h>
 
 #include "base/string_util.h"
@@ -34,8 +34,6 @@ namespace window_manager {
 
 using std::map;
 using std::vector;
-using std::pair;
-using std::make_pair;
 using std::list;
 using std::tr1::shared_ptr;
 
@@ -82,17 +80,15 @@ LayoutManager::ToplevelWindow::ToplevelWindow(Window* win,
   int height = layout_manager_->height();
   if (FLAGS_lm_honor_window_size_hints)
     win->GetMaxSize(width, height, &width, &height);
-  win->ResizeClient(width, height, Window::GRAVITY_NORTHWEST);
+  win->ResizeClient(width, height, GRAVITY_NORTHWEST);
 
   wm()->stacking_manager()->StackXidAtTopOfLayer(
       input_xid_, StackingManager::LAYER_TOPLEVEL_WINDOW);
 
   // Let the window know that it's maximized.
-  vector<pair<XAtom, bool> > wm_state;
-  wm_state.push_back(
-      make_pair(wm()->GetXAtom(ATOM_NET_WM_STATE_MAXIMIZED_HORZ), true));
-  wm_state.push_back(
-      make_pair(wm()->GetXAtom(ATOM_NET_WM_STATE_MAXIMIZED_VERT), true));
+  map<XAtom, bool> wm_state;
+  wm_state[wm()->GetXAtom(ATOM_NET_WM_STATE_MAXIMIZED_HORZ)] = true;
+  wm_state[wm()->GetXAtom(ATOM_NET_WM_STATE_MAXIMIZED_VERT)] = true;
   win->ChangeWmState(wm_state);
 
   win->MoveClientOffscreen();
@@ -460,8 +456,7 @@ void LayoutManager::ToplevelWindow::HandleTransientWindowConfigureRequest(
 
   if (req_width != transient_win->client_width() ||
       req_height != transient_win->client_height()) {
-    transient_win->ResizeClient(
-        req_width, req_height, Window::GRAVITY_NORTHWEST);
+    transient_win->ResizeClient(req_width, req_height, GRAVITY_NORTHWEST);
     if (transient->centered) {
       transient->UpdateOffsetsToCenterOverOwnerWindow(win_);
       moved = true;

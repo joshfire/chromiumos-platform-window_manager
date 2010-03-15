@@ -235,6 +235,31 @@ XWindow BasicWindowManagerTest::GetActiveWindowProperty() {
   return active_window;
 }
 
+bool BasicWindowManagerTest::WindowIsInLayer(Window* win,
+                                             StackingManager::Layer layer) {
+  const StackingManager::Layer next_layer =
+      static_cast<StackingManager::Layer>(layer + 1);
+
+  int win_index = xconn_->stacked_xids().GetIndex(win->xid());
+  int layer_index = xconn_->stacked_xids().GetIndex(
+      wm_->stacking_manager()->GetXidForLayer(layer));
+  int next_layer_index = xconn_->stacked_xids().GetIndex(
+      wm_->stacking_manager()->GetXidForLayer(next_layer));
+  if (win_index <= layer_index || win_index >= next_layer_index)
+    return false;
+
+  MockClutterInterface::StageActor* stage = clutter_->GetDefaultStage();
+  win_index = stage->GetStackingIndex(win->actor());
+  layer_index = stage->GetStackingIndex(
+      wm_->stacking_manager()->GetActorForLayer(layer));
+  next_layer_index = stage->GetStackingIndex(
+      wm_->stacking_manager()->GetActorForLayer(next_layer));
+  if (win_index <= layer_index || win_index >= next_layer_index)
+    return false;
+
+  return true;
+}
+
 void BasicWindowManagerTest::TestIntArrayProperty(
     XWindow xid, XAtom atom, int num_values, ...) {
   std::vector<int> expected;
@@ -258,6 +283,19 @@ void BasicWindowManagerTest::TestIntArrayProperty(
     for (size_t i = 0; i < actual.size(); ++i)
       EXPECT_EQ(expected[i], actual[i]);
   }
+}
+
+void BasicWindowManagerTest::TestPanelContentBounds(
+    Panel* panel, int x, int y, int width, int height) {
+  EXPECT_EQ(x, panel->content_win()->client_x());
+  EXPECT_EQ(y, panel->content_win()->client_y());
+  EXPECT_EQ(width, panel->content_win()->client_width());
+  EXPECT_EQ(height, panel->content_win()->client_height());
+
+  EXPECT_EQ(x, panel->content_win()->actor()->GetX());
+  EXPECT_EQ(y, panel->content_win()->actor()->GetY());
+  EXPECT_EQ(width, panel->content_win()->actor()->GetWidth());
+  EXPECT_EQ(height, panel->content_win()->actor()->GetHeight());
 }
 
 }  // namespace window_manager

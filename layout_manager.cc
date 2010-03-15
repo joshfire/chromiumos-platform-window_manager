@@ -18,6 +18,7 @@ extern "C" {
 #include "window_manager/atom_cache.h"
 #include "window_manager/callback.h"
 #include "window_manager/event_consumer_registrar.h"
+#include "window_manager/geometry.h"
 #include "window_manager/motion_event_coalescer.h"
 #include "window_manager/stacking_manager.h"
 #include "window_manager/system_metrics.pb.h"
@@ -40,6 +41,7 @@ DEFINE_string(lm_overview_gradient_image,
 
 namespace window_manager {
 
+using std::map;
 using std::tr1::shared_ptr;
 
 // Amount of padding that should be used between windows in overview mode.
@@ -369,7 +371,7 @@ void LayoutManager::HandleWindowConfigureRequest(
     if (req_width != toplevel->win()->client_width() ||
         req_height != toplevel->win()->client_height()) {
       toplevel->win()->ResizeClient(
-          req_width, req_height, Window::GRAVITY_NORTHWEST);
+          req_width, req_height, GRAVITY_NORTHWEST);
     }
     return;
   }
@@ -519,7 +521,10 @@ void LayoutManager::HandleClientMessage(XWindow xid,
     return;
 
   if (message_type == wm_->GetXAtom(ATOM_NET_WM_STATE)) {
-    win->HandleWmStateMessage(data);
+    // Just blindly apply whatever state properties the window asked for.
+    map<XAtom, bool> states;
+    win->ParseWmStateMessage(data, &states);
+    win->ChangeWmState(states);
   } else if (message_type == wm_->GetXAtom(ATOM_NET_ACTIVE_WINDOW)) {
     DLOG(INFO) << "Got _NET_ACTIVE_WINDOW request to focus " << XidStr(xid)
                << " (requestor says its currently-active window is "
@@ -576,10 +581,10 @@ void LayoutManager::MoveAndResize(int x, int y, int width, int height) {
   // If there's a larger difference between our new and old left edge than
   // between the new and old right edge, then we keep the right sides of the
   // windows fixed while resizing.
-  Window::Gravity resize_gravity =
+  Gravity resize_gravity =
       abs(x - x_) > abs(x + width - (x_ + width_)) ?
-      Window::GRAVITY_NORTHEAST :
-      Window::GRAVITY_NORTHWEST;
+      GRAVITY_NORTHEAST :
+      GRAVITY_NORTHWEST;
 
   x_ = x;
   y_ = y;

@@ -6,6 +6,7 @@
 
 #include "window_manager/callback.h"
 #include "window_manager/event_loop.h"
+#include "window_manager/geometry.h"
 #include "window_manager/stacking_manager.h"
 #include "window_manager/util.h"
 #include "window_manager/window.h"
@@ -317,7 +318,7 @@ void LoginController::HandleWindowConfigureRequest(Window* win,
     return;
 
   // We manage the x/y, but let Chrome manage the width/height.
-  win->ResizeClient(req_width, req_height, Window::GRAVITY_NORTHWEST);
+  win->ResizeClient(req_width, req_height, GRAVITY_NORTHWEST);
 }
 
 void LoginController::HandleButtonPress(XWindow xid,
@@ -743,7 +744,7 @@ void LoginController::SelectGuest() {
 void LoginController::CalculateIdealOrigins(
     size_t entry_count,
     size_t selected_index,
-    std::vector<LoginController::Point>* origins) {
+    std::vector<Point>* origins) {
   DCHECK(entry_count > 1);  // We should at least have a guest and non-guest
                             // user.
 

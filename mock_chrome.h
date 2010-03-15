@@ -330,6 +330,7 @@ class Panel : public Gtk::Window {
   bool on_client_event(GdkEventClient* event);
   bool on_focus_in_event(GdkEventFocus* event);
   bool on_focus_out_event(GdkEventFocus* event);
+  bool on_window_state_event(GdkEventWindowState* event);
 
   MockChrome* chrome_;  // not owned
   XWindow xid_;
@@ -339,6 +340,7 @@ class Panel : public Gtk::Window {
   int height_;
   bool expanded_;
   std::string title_;
+  bool fullscreen_;
 
   DISALLOW_COPY_AND_ASSIGN(Panel);
 };

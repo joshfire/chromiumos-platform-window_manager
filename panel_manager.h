@@ -126,8 +126,11 @@ class PanelManager : public EventConsumer {
   friend class PanelManagerTest;
   FRIEND_TEST(PanelManagerTest, AttachAndDetach);
   FRIEND_TEST(PanelManagerTest, DragFocusedPanel);
+  FRIEND_TEST(PanelManagerTest, Fullscreen);
   FRIEND_TEST(WindowManagerTest, RandR);  // uses 'panel_bar_'
   FRIEND_TEST(WindowManagerTest, KeepPanelsAfterRestart);  // uses 'panel_bar_'
+
+  typedef std::map<XWindow, std::tr1::shared_ptr<Panel> > PanelMap;
 
   // Get the panel with the passed-in content or titlebar window.
   // Returns NULL for unknown windows.
@@ -176,16 +179,29 @@ class PanelManager : public EventConsumer {
   // by visible panel docks) and update the window manager.
   void UpdateAvailableArea();
 
+  // Make the passed-in panel be displayed fullscreen.  If another panel is
+  // already fullscreened, restores it to its original position and size
+  // first.  Updates 'fullscreen_panel_' to point at this panel.
+  void MakePanelFullscreen(Panel* panel);
+
+  // Unfullscreen the passed-in panel, restoring its original position and
+  // size.  Sets 'fullscreen_panel_' to NULL if it was previously pointing
+  // at this panel.
+  void RestoreFullscreenPanel(Panel* panel);
+
   WindowManager* wm_;  // not owned
 
   // Map from a panel's content window's XID to the Panel object itself.
-  std::map<XWindow, std::tr1::shared_ptr<Panel> > panels_;
+  PanelMap panels_;
 
   // Map from a panel's titlebar window's XID to a pointer to the panel.
   std::map<XWindow, Panel*> panels_by_titlebar_xid_;
 
-  // The panel that's currently being dragged.
+  // The panel that's currently being dragged, or NULL if none is.
   Panel* dragged_panel_;
+
+  // The panel that's currently fullscreen, or NULL if none is.
+  Panel* fullscreen_panel_;
 
   // Batches motion events for dragged panels so that we can rate-limit the
   // frequency of their processing.

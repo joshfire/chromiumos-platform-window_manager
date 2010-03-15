@@ -104,7 +104,7 @@ class PanelContainer {
   virtual void HandleNotifyPanelDragCompleteMessage(Panel* panel) = 0;
 
   // Handle a message asking us to focus one of our panels.
-  virtual void HandleFocusPanelMessage(Panel* panel) = 0;
+  virtual void HandleFocusPanelMessage(Panel* panel, XTime timestamp) = 0;
 
   // Notification that one of this container's panels has been resized.
   virtual void HandlePanelResize(Panel* panel) = 0;

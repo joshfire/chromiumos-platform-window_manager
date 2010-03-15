@@ -13,6 +13,8 @@
 
 namespace window_manager {
 
+struct Point;
+struct Rect;
 class WindowManager;
 
 // LoginController is an EventConsumer responsible for positioning the windows
@@ -135,24 +137,6 @@ class LoginController : public EventConsumer {
     Window* controls_window;
     Window* label_window;
     Window* unselected_label_window;
-  };
-
-  struct Rect {
-    Rect() : x(0), y(0), width(0), height(0) {}
-    Rect(int x, int y, int w, int h) : x(x), y(y), width(w), height(h) {}
-
-    int x;
-    int y;
-    int width;
-    int height;
-  };
-
-  struct Point {
-    Point() : x(0), y(0) {}
-    Point(int x, int y) : x(x), y(y) {}
-
-    int x;
-    int y;
   };
 
   typedef std::vector<Entry> Entries;

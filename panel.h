@@ -12,9 +12,10 @@
 #include "base/basictypes.h"
 #include "base/scoped_ptr.h"
 #include "window_manager/clutter_interface.h"
+#include "window_manager/geometry.h"
 #include "window_manager/motion_event_coalescer.h"
 #include "window_manager/stacking_manager.h"
-#include "window_manager/window.h"  // for Window::Gravity
+#include "window_manager/window.h"
 #include "window_manager/x_types.h"
 
 namespace window_manager {
@@ -41,6 +42,7 @@ class Panel {
   ~Panel();
 
   bool is_expanded() const { return is_expanded_; }
+  bool is_fullscreen() const { return is_fullscreen_; }
 
   const Window* const_content_win() const { return content_win_; }
   Window* content_win() { return content_win_; }
@@ -57,19 +59,19 @@ class Panel {
 
   // The current left edge of the content or titlebar window (that is, its
   // composited position).
-  int content_x() const { return content_win_->composited_x(); }
-  int titlebar_x() const { return titlebar_win_->composited_x(); }
+  int content_x() const { return content_bounds_.x; }
+  int titlebar_x() const { return titlebar_bounds_.x; }
   int content_center() const { return content_x() + 0.5 * content_width(); }
 
-  int titlebar_y() const { return titlebar_win_->composited_y(); }
+  int titlebar_y() const { return titlebar_bounds_.y; }
 
   // TODO: Remove content and titlebar width.
-  int content_width() const { return content_win_->client_width(); }
-  int titlebar_width() const { return titlebar_win_->client_width(); }
-  int width() const { return content_win_->client_width(); }
+  int content_width() const { return content_bounds_.width; }
+  int titlebar_width() const { return titlebar_bounds_.width; }
+  int width() const { return content_bounds_.width; }
 
-  int content_height() const { return content_win_->client_height(); }
-  int titlebar_height() const { return titlebar_win_->client_height(); }
+  int content_height() const { return content_bounds_.height; }
+  int titlebar_height() const { return titlebar_bounds_.height; }
   int total_height() const { return content_height() + titlebar_height(); }
 
   // Fill the passed-in vector with all of the panel's input windows (in an
@@ -113,10 +115,6 @@ class Panel {
   // passed-in layer.  Input windows are included.
   void StackAtTopOfLayer(StackingManager::Layer layer);
 
-  // Stack the panel's client, composited, and input windows directly above
-  // another panel.
-  void StackAbovePanel(Panel* sibling, StackingManager::Layer layer);
-
   // Update 'is_expanded_'.  If it has changed, also notify Chrome about the
   // panel's current visibility state and update the content window's
   // _CHROME_STATE property.  Returns false if notifying Chrome fails (but
@@ -135,7 +133,21 @@ class Panel {
   // window is moved above the content window if necessary and resized to
   // match the content window's width.  Additionally, the input windows are
   // configured.
-  void ResizeContent(int width, int height, Window::Gravity gravity);
+  void ResizeContent(int width, int height, Gravity gravity);
+
+  // Make the panel be fullscreen or not fullscreen.  When entering
+  // fullscreen mode, we restack the content window and configure it to
+  // cover the whole screen.  Any changes to the panel's position or
+  // stacking while it's fullscreened are saved to 'content_bounds_',
+  // 'titlebar_bounds_', and 'stacking_layer_', but are otherwise deferred
+  // until the panel gets unfullscreened.
+  void SetFullscreenState(bool fullscreen);
+
+  // Handle the screen being resized.  Most of the time any changes that
+  // need to be made to the panel's position will be handled by its
+  // container, but this gives fullscreen panels a change to resize
+  // themselves to match the new screen size.
+  void HandleScreenResize();
 
  private:
   FRIEND_TEST(PanelBarTest, PackPanelsAfterPanelResize);
@@ -144,6 +156,13 @@ class Panel {
   FRIEND_TEST(PanelTest, Resize);        // uses '*_input_xid_'
 
   WindowManager* wm();
+
+  // Can we configure 'client_win_' and 'titlebar_win_' right now?  If not,
+  // we only store changes to their size, position, and stacking in
+  // 'client_bounds_', 'titlebar_bounds_', and 'stacking_layer_'.
+  bool CanConfigureWindows() const {
+    return !is_fullscreen_;
+  }
 
   // Move and resize the input windows appropriately for the panel's
   // current configuration.
@@ -167,6 +186,19 @@ class Panel {
   // with this information; most work is left to PanelContainer
   // implementations.
   bool is_expanded_;
+
+  // Is the content window currently fullscreen?
+  bool is_fullscreen_;
+
+  // Saved position and size of the content and titlebar windows.  Note
+  // that these may differ from the actual current configuration of these
+  // windows (e.g. the content window may be fullscreened).
+  Rect content_bounds_;
+  Rect titlebar_bounds_;
+
+  // Stacking layer at which the panel should be stacked.  We use this to
+  // restore the panel's stacking once it exits fullscreen mode.
+  StackingManager::Layer stacking_layer_;
 
   // Translucent resize box used when opaque resizing is disabled.
   scoped_ptr<ClutterInterface::Actor> resize_actor_;
@@ -211,7 +243,7 @@ class Panel {
 
   // Gravity holding a corner in place as the panel is being resized (e.g.
   // GRAVITY_SOUTHEAST if 'top_left_input_xid_' is being dragged).
-  Window::Gravity drag_gravity_;
+  Gravity drag_gravity_;
 
   // Pointer coordinates where the resize drag started.
   int drag_start_x_;

@@ -124,7 +124,7 @@ TEST_F(PanelTest, InputWindows) {
   // resizable (so they'll be stacked correctly if it becomes resizable
   // later).
   panel.SetResizable(false);
-  panel.StackAtTopOfLayer(StackingManager::LAYER_FLOATING_TAB);
+  panel.StackAtTopOfLayer(StackingManager::LAYER_DRAGGED_PANEL);
   EXPECT_LT(xconn_->stacked_xids().GetIndex(titlebar_xid),
             xconn_->stacked_xids().GetIndex(content_xid));
   EXPECT_LT(xconn_->stacked_xids().GetIndex(content_xid),

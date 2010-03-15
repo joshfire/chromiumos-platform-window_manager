@@ -9,6 +9,7 @@
 
 #include "base/scoped_ptr.h"
 #include "base/logging.h"
+#include "window_manager/stacking_manager.h"
 #include "window_manager/wm_ipc.h"
 #include "window_manager/x_types.h"
 
@@ -95,10 +96,18 @@ class BasicWindowManagerTest : public ::testing::Test {
   // window.
   XWindow GetActiveWindowProperty();
 
+  // Are the passed-in window's composited and client windows stacked
+  // between the passed-in layer and the layer underneath it?
+  bool WindowIsInLayer(Window* win, StackingManager::Layer layer);
+
   // Fetch an int array property on a window and check that it contains the
   // expected values.  'num_values' is the number of expected values passed
   // as varargs.
   void TestIntArrayProperty(XWindow xid, XAtom atom, int num_values, ...);
+
+  // Test the bounds of a panel's content window.
+  void TestPanelContentBounds(
+      Panel* panel, int x, int y, int width, int height);
 
   scoped_ptr<MockXConnection> xconn_;
   scoped_ptr<EventLoop> event_loop_;

@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include <utility>
+#include <map>
 #include <vector>
 
 #include <gflags/gflags.h>
@@ -24,8 +24,7 @@ DEFINE_bool(logtostderr, false,
 
 namespace window_manager {
 
-using std::make_pair;
-using std::pair;
+using std::map;
 using std::vector;
 
 class WindowTest : public BasicWindowManagerTest {};
@@ -78,7 +77,7 @@ TEST_F(WindowTest, ChangeClient) {
   EXPECT_EQ(200, window.client_y());
 
   // Resize the window.
-  EXPECT_TRUE(window.ResizeClient(300, 400, Window::GRAVITY_NORTHWEST));
+  EXPECT_TRUE(window.ResizeClient(300, 400, GRAVITY_NORTHWEST));
   EXPECT_EQ(300, info->width);
   EXPECT_EQ(400, info->height);
   EXPECT_EQ(300, window.client_width());
@@ -289,14 +288,17 @@ TEST_F(WindowTest, WmState) {
   memset(data, 0, sizeof(data));
   data[0] = 0;  // remove
   data[1] = modal_atom;
-  EXPECT_TRUE(win.HandleWmStateMessage(data));
+  map<XAtom, bool> states;
+  win.ParseWmStateMessage(data, &states);
+  EXPECT_TRUE(win.ChangeWmState(states));
   EXPECT_FALSE(win.wm_state_fullscreen());
   EXPECT_FALSE(win.wm_state_modal());
 
   // ... and one adding the fullscreen state.
   data[0] = 1;  // add
   data[1] = fullscreen_atom;
-  EXPECT_TRUE(win.HandleWmStateMessage(data));
+  win.ParseWmStateMessage(data, &states);
+  EXPECT_TRUE(win.ChangeWmState(states));
   EXPECT_TRUE(win.wm_state_fullscreen());
   EXPECT_FALSE(win.wm_state_modal());
 
@@ -312,7 +314,8 @@ TEST_F(WindowTest, WmState) {
   data[0] = 2;  // toggle
   data[1] = fullscreen_atom;
   data[2] = modal_atom;
-  EXPECT_TRUE(win.HandleWmStateMessage(data));
+  win.ParseWmStateMessage(data, &states);
+  EXPECT_TRUE(win.ChangeWmState(states));
   EXPECT_FALSE(win.wm_state_fullscreen());
   EXPECT_TRUE(win.wm_state_modal());
 
@@ -323,10 +326,10 @@ TEST_F(WindowTest, WmState) {
 
   // Test that ChangeWmState() works for clearing the modal state and
   // setting both maximized states.
-  vector<pair<XAtom, bool> > changed_states;
-  changed_states.push_back(make_pair(modal_atom, false));
-  changed_states.push_back(make_pair(max_horz_atom, true));
-  changed_states.push_back(make_pair(max_vert_atom, true));
+  map<XAtom, bool> changed_states;
+  changed_states[modal_atom] = false;
+  changed_states[max_horz_atom] = true;
+  changed_states[max_vert_atom] = true;
   EXPECT_TRUE(win.ChangeWmState(changed_states));
   values.clear();
   ASSERT_TRUE(xconn_->GetIntArrayProperty(xid, wm_state_atom, &values));
@@ -353,8 +356,8 @@ TEST_F(WindowTest, ChromeState) {
   Window win(wm_.get(), xid, false);
 
   // Tell the window to set the other atom.
-  vector<pair<XAtom, bool> > states;
-  states.push_back(make_pair(other_atom, true));
+  map<XAtom, bool> states;
+  states[other_atom] = true;
   EXPECT_TRUE(win.ChangeChromeState(states));
 
   // Check that both atoms are included in the property.
@@ -367,7 +370,7 @@ TEST_F(WindowTest, ChromeState) {
   // Now tell the window to unset the "collapsed" atom, and make sure that
   // only the other atom is present.
   states.clear();
-  states.push_back(make_pair(collapsed_atom, false));
+  states[collapsed_atom] = false;
   EXPECT_TRUE(win.ChangeChromeState(states));
   values.clear();
   ASSERT_TRUE(xconn_->GetIntArrayProperty(xid, state_atom, &values));
@@ -376,7 +379,7 @@ TEST_F(WindowTest, ChromeState) {
 
   // If we also unset the other atom, the property should be removed.
   states.clear();
-  states.push_back(make_pair(other_atom, false));
+  states[other_atom] = false;
   EXPECT_TRUE(win.ChangeChromeState(states));
   EXPECT_FALSE(xconn_->GetIntArrayProperty(xid, state_atom, &values));
 }

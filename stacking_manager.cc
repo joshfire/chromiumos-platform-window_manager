@@ -91,13 +91,12 @@ const char* StackingManager::LayerToName(Layer layer) {
   switch (layer) {
     case LAYER_DEBUGGING:                return "debugging";
     case LAYER_HOTKEY_OVERLAY:           return "hotkey overlay";
+    case LAYER_FULLSCREEN_PANEL:         return "fullscreen panel";
     case LAYER_DRAGGED_PANEL:            return "dragged panel";
     case LAYER_ACTIVE_TRANSIENT_WINDOW:  return "active transient window";
     case LAYER_PANEL_BAR_INPUT_WINDOW:   return "panel bar input window";
     case LAYER_STATIONARY_PANEL_IN_BAR:  return "static panel in bar";
     case LAYER_STATIONARY_PANEL_IN_DOCK: return "stationary panel in dock";
-    case LAYER_FLOATING_TAB:             return "floating tab";
-    case LAYER_TAB_SUMMARY:              return "tab summary";
     case LAYER_TOPLEVEL_WINDOW:          return "toplevel window";
     case LAYER_BACKGROUND:               return "background";
     default:                             return "unknown";

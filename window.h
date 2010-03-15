@@ -5,22 +5,26 @@
 #ifndef WINDOW_MANAGER_WINDOW_H_
 #define WINDOW_MANAGER_WINDOW_H_
 
-#include <gtest/gtest_prod.h>  // for FRIEND_TEST() macro
+#include <map>
 #include <set>
 #include <string>
 #include <vector>
+
+#include <gtest/gtest_prod.h>  // for FRIEND_TEST() macro
 
 #include "base/basictypes.h"
 #include "base/logging.h"
 #include "base/scoped_ptr.h"
 #include "window_manager/atom_cache.h"  // for Atom enum
 #include "window_manager/clutter_interface.h"
+#include "window_manager/geometry.h"
 #include "window_manager/wm_ipc.h"
 #include "window_manager/x_connection.h"
 #include "window_manager/x_types.h"
 
 namespace window_manager {
 
+struct Rect;
 class Shadow;
 template<class T> class Stacker;  // from util.h
 class WindowManager;
@@ -131,20 +135,20 @@ class Window {
   // at startup; use mapped() after that.
   bool FetchMapState();
 
-  // Handle a _NET_WM_STATE message about this window.  The passed-in data
-  // is from the ClientMessage event.  Updates our internal copy of the
-  // state and the window's _NET_WM_STATE property.
-  bool HandleWmStateMessage(const long data[5]);
+  // Parse a _NET_WM_STATE message about this window, storing the requested
+  // state changes in 'states_out'.  The passed-in data is from the
+  // ClientMessage event.
+  void ParseWmStateMessage(
+      const long data[5], std::map<XAtom, bool>* states_out) const;
 
-  // Set or unset _NET_WM_STATE values for this window.  Note that this is
-  // for WM-initiated state changes -- client-initiated changes come in
-  // through HandleWmStateMessage().
-  bool ChangeWmState(const std::vector<std::pair<XAtom, bool> >& states);
+  // Set or unset _NET_WM_STATE values for this window.  Updates our
+  // internal copy of the state and the window's _NET_WM_STATE property.
+  bool ChangeWmState(const std::map<XAtom, bool>& states);
 
   // Set or unset particular _CHROME_STATE values for this window (each
   // atom's bool value states whether it should be added or removed).
   // Other existing values in the property remain unchanged.
-  bool ChangeChromeState(const std::vector<std::pair<XAtom, bool> >& states);
+  bool ChangeChromeState(const std::map<XAtom, bool>& states);
 
   // Give keyboard focus to the client window, using a WM_TAKE_FOCUS
   // message if the client supports it or a SetInputFocus request
@@ -199,12 +203,9 @@ class Window {
   // Center the client window over the passed-in window.
   bool CenterClientOverWindow(Window* owner);
 
-  enum Gravity {
-    GRAVITY_NORTHWEST = 0,
-    GRAVITY_NORTHEAST,
-    GRAVITY_SOUTHWEST,
-    GRAVITY_SOUTHEAST,
-  };
+  // Resize the client window.  A southeast gravity means that the
+  // bottom-right corner of the window will remain fixed while the
+  // upper-left corner will move to accomodate the new size.
   bool ResizeClient(int width, int height, Gravity gravity);
 
   // Raise the client window to the top of the stacking order.
@@ -252,14 +253,17 @@ class Window {
   // stacking another actor underneath this window.
   ClutterInterface::Actor* GetBottomActor();
 
+  // Store the client window's position and size in 'rect'.
+  void CopyClientBoundsToRect(Rect* rect) const;
+
  private:
   // Hide or show the window's shadow if necessary.
   void UpdateShadowIfNecessary();
 
-  // Helper method for HandleWmStateMessage() and ChangeWmState().  Given
-  // an action from a _NET_WM_STATE message (i.e. the XClientMessageEvent's
+  // Helper method for ParseWmStateMessage() and ChangeWmState().  Given an
+  // action from a _NET_WM_STATE message (i.e. the XClientMessageEvent's
   // data.l[0] field), updates 'value' accordingly.
-  void SetWmStateInternal(int action, bool* value);
+  void SetWmStateInternal(int action, bool* value) const;
 
   // Update the window's _NET_WM_STATE property based on the current values
   // of the 'wm_state_*' members.

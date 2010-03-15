@@ -223,9 +223,7 @@ void PanelDock::HandleNotifyPanelDragCompleteMessage(Panel* panel) {
   if (panel->width() != width_) {
     panel->ResizeContent(
         width_, panel->content_height(),
-        type_ == DOCK_TYPE_RIGHT ?
-          Window::GRAVITY_NORTHEAST :
-          Window::GRAVITY_NORTHWEST);
+        type_ == DOCK_TYPE_RIGHT ?  GRAVITY_NORTHEAST : GRAVITY_NORTHWEST);
   }
   panel->SetShadowOpacity(0, kPanelShadowAnimMs);
   panel->StackAtTopOfLayer(StackingManager::LAYER_STATIONARY_PANEL_IN_DOCK);
@@ -233,8 +231,8 @@ void PanelDock::HandleNotifyPanelDragCompleteMessage(Panel* panel) {
   PackPanels(NULL);
 }
 
-void PanelDock::HandleFocusPanelMessage(Panel* panel) {
-  FocusPanel(panel, false, wm()->GetCurrentTimeFromServer());
+void PanelDock::HandleFocusPanelMessage(Panel* panel, XTime timestamp) {
+  FocusPanel(panel, false, timestamp);
 }
 
 void PanelDock::HandlePanelResize(Panel* panel) {
