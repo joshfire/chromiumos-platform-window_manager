@@ -36,7 +36,9 @@ class EventConsumer;
 class EventLoop;
 class HotkeyOverlay;
 class KeyBindings;
+class KeyBindingsGroup;
 class LayoutManager;
+class LoginController;
 class MetricsReporter;
 class PanelManager;
 class StackingManager;
@@ -169,6 +171,8 @@ class WindowManager : public CompositorEventSource,
   FRIEND_TEST(WindowManagerTest, EventConsumer);
   FRIEND_TEST(WindowManagerTest, RandR);
   FRIEND_TEST(WindowManagerTest, KeepPanelsAfterRestart);
+  FRIEND_TEST(WindowManagerTest, KeyBindingsDisabled);
+  FRIEND_TEST(WindowManagerTest, LoggedInFalse);
 
   typedef std::map<XWindow, std::set<EventConsumer*> > WindowEventConsumerMap;
   typedef std::map<std::pair<XWindow, XAtom>, std::set<EventConsumer*> >
@@ -358,6 +362,7 @@ class WindowManager : public CompositorEventSource,
   scoped_ptr<LayoutManager> layout_manager_;
   scoped_ptr<PanelManager> panel_manager_;
   scoped_ptr<MetricsReporter> metrics_reporter_;
+  scoped_ptr<LoginController> login_controller_;
 
   // ID for the timeout that invokes metrics_reporter_->AttemptReport().
   int metrics_reporter_timeout_id_;
@@ -380,6 +385,10 @@ class WindowManager : public CompositorEventSource,
   int layout_manager_y_;
   int layout_manager_width_;
   int layout_manager_height_;
+
+  // Key bindings that should only be enabled when a user is logged in (e.g.
+  // starting a terminal).
+  scoped_ptr<KeyBindingsGroup> logged_in_key_bindings_group_;
 
   // See description above setter. This effects whether key bindings are enabled
   // or not.

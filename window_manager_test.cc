@@ -872,7 +872,8 @@ TEST_F(WindowManagerTest, KeepPanelsAfterRestart) {
 
 // Makes sure key bindings are disabled by default.
 TEST_F(WindowManagerTest, KeyBindingsDisabled) {
-  EXPECT_FALSE(wm_->key_bindings()->is_enabled());
+  EXPECT_FALSE(wm_->logged_in_key_bindings_group_->enabled());
+  EXPECT_FALSE(wm_->layout_manager_->key_bindings_enabled());
 }
 
 // Makes sure the user isn't logged in by default and that toggling logged in
@@ -882,12 +883,16 @@ TEST_F(WindowManagerTest, LoggedInFalse) {
 
   wm_->SetLoggedIn(true);
   EXPECT_TRUE(wm_->logged_in());
-  EXPECT_TRUE(wm_->key_bindings()->is_enabled());
+  EXPECT_TRUE(wm_->logged_in_key_bindings_group_->enabled());
+  EXPECT_TRUE(wm_->layout_manager_->key_bindings_enabled());
 }
 
 // Test that the window manager refreshes the keyboard map when it gets a
 // MappingNotify event.
 TEST_F(WindowManagerTest, HandleMappingNotify) {
+  // Some key bindings only get enabled after the user has logged in.
+  wm_->SetLoggedIn(true);
+
   // Check that a grab has been installed for an arbitrary key binding
   // (Ctrl-Alt-l).
   EXPECT_EQ(0, xconn_->num_keymap_refreshes());

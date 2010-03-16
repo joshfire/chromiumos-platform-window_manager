@@ -443,30 +443,6 @@ TEST_F(KeyBindingsTest, ModifierReleasedFirst) {
   EXPECT_EQ(1, actions_[0]->end_call_count);
 }
 
-// Makes sure actions are notified when key bindings are dispatched and that
-// when key bindings are reenabled the action is correctly notified.
-TEST_F(KeyBindingsTest, EnableDisable) {
-  xconn_->AddKeyMapping(1, XK_e);
-  AddAction(0, true, true, true);
-  ASSERT_TRUE(bindings_->AddBinding(
-                  KeyBindings::KeyCombo(XK_e, KeyBindings::kControlMask),
-                  actions_[0]->name));
-
-  bindings_->set_is_enabled(false);
-
-  EXPECT_FALSE(bindings_->HandleKeyPress(XK_e, KeyBindings::kControlMask));
-  EXPECT_EQ(0, actions_[0]->begin_call_count);
-  EXPECT_EQ(0, actions_[0]->repeat_call_count);
-  EXPECT_EQ(0, actions_[0]->end_call_count);
-
-  bindings_->set_is_enabled(true);
-
-  EXPECT_TRUE(bindings_->HandleKeyPress(XK_e, KeyBindings::kControlMask));
-  EXPECT_EQ(1, actions_[0]->begin_call_count);
-  EXPECT_EQ(0, actions_[0]->repeat_call_count);
-  EXPECT_EQ(0, actions_[0]->end_call_count);
-}
-
 TEST_F(KeyBindingsTest, RefreshKeyMappings) {
   const KeySym keysym = XK_a;
   const uint32_t mods = KeyBindings::kControlMask;
@@ -525,6 +501,36 @@ TEST_F(KeyBindingsTest, OverlappingKeyMappings) {
   bindings_->RefreshKeyMappings();
   EXPECT_TRUE(xconn_->KeyIsGrabbed(1, mods));
   EXPECT_TRUE(xconn_->KeyIsGrabbed(2, mods));
+}
+
+TEST_F(KeyBindingsTest, KeyBindingsGroup) {
+  const KeySym keysym_a = XK_a;
+  const KeySym keysym_b = XK_b;
+  const uint32_t mods = KeyBindings::kControlMask;
+  xconn_->AddKeyMapping(1, keysym_a);
+  xconn_->AddKeyMapping(2, keysym_b);
+
+  AddAction(0, true, false, false);
+  scoped_ptr<KeyBindingsGroup> group(new KeyBindingsGroup(bindings_.get()));
+  EXPECT_TRUE(group->enabled());
+  group->AddBinding(KeyBindings::KeyCombo(keysym_a, mods), actions_[0]->name);
+  EXPECT_TRUE(xconn_->KeyIsGrabbed(1, mods));
+
+  group->Disable();
+  EXPECT_FALSE(group->enabled());
+  EXPECT_FALSE(xconn_->KeyIsGrabbed(1, mods));
+
+  group->AddBinding(KeyBindings::KeyCombo(keysym_b, mods), actions_[0]->name);
+  EXPECT_FALSE(xconn_->KeyIsGrabbed(1, mods));
+  EXPECT_FALSE(xconn_->KeyIsGrabbed(2, mods));
+
+  group->Enable();
+  EXPECT_TRUE(xconn_->KeyIsGrabbed(1, mods));
+  EXPECT_TRUE(xconn_->KeyIsGrabbed(2, mods));
+
+  group.reset();
+  EXPECT_FALSE(xconn_->KeyIsGrabbed(1, mods));
+  EXPECT_FALSE(xconn_->KeyIsGrabbed(2, mods));
 }
 
 }  // namespace window_manager

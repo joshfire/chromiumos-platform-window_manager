@@ -85,7 +85,14 @@ LayoutManager::LayoutManager
               kOverviewDragUpdateMs)),
       overview_drag_last_x_(-1),
       saw_map_request_(false),
-      event_consumer_registrar_(new EventConsumerRegistrar(wm, this)) {
+      event_consumer_registrar_(new EventConsumerRegistrar(wm, this)),
+      key_bindings_enabled_(true),
+      active_mode_key_bindings_group_(new KeyBindingsGroup(wm->key_bindings())),
+      overview_mode_key_bindings_group_(
+          new KeyBindingsGroup(wm->key_bindings())) {
+  // Disable the overview key bindings, since we start in active mode.
+  overview_mode_key_bindings_group_->Disable();
+
   event_consumer_registrar_->RegisterForChromeMessages(
       WmIpc::Message::WM_SWITCH_TO_OVERVIEW_MODE);
 
@@ -97,73 +104,148 @@ LayoutManager::LayoutManager
   event_consumer_registrar_->RegisterForWindowEvents(wm_->background_xid());
 
   KeyBindings* kb = wm_->key_bindings();
+
   kb->AddAction(
       "switch-to-overview-mode",
       NewPermanentCallback(this, &LayoutManager::SetMode, MODE_OVERVIEW),
       NULL, NULL);
+  active_mode_key_bindings_group_->AddBinding(
+      KeyBindings::KeyCombo(XK_F12, 0), "switch-to-overview-mode");
+
   kb->AddAction(
       "switch-to-active-mode",
       NewPermanentCallback(this, &LayoutManager::SwitchToActiveMode, false),
       NULL, NULL);
+  overview_mode_key_bindings_group_->AddBinding(
+      KeyBindings::KeyCombo(XK_Escape, 0), "switch-to-active-mode");
+  overview_mode_key_bindings_group_->AddBinding(
+      KeyBindings::KeyCombo(XK_F12, 0), "switch-to-active-mode");
+
   kb->AddAction(
       "cycle-active-forward",
       NewPermanentCallback(
           this, &LayoutManager::CycleActiveToplevelWindow, true),
       NULL, NULL);
+  active_mode_key_bindings_group_->AddBinding(
+      KeyBindings::KeyCombo(XK_Tab, KeyBindings::kAltMask),
+      "cycle-active-forward");
+  active_mode_key_bindings_group_->AddBinding(
+      KeyBindings::KeyCombo(XK_F2, KeyBindings::kAltMask),
+      "cycle-active-forward");
+
   kb->AddAction(
       "cycle-active-backward",
       NewPermanentCallback(
           this, &LayoutManager::CycleActiveToplevelWindow, false),
       NULL, NULL);
+  active_mode_key_bindings_group_->AddBinding(
+      KeyBindings::KeyCombo(
+          XK_Tab, KeyBindings::kAltMask | KeyBindings::kShiftMask),
+      "cycle-active-backward");
+  active_mode_key_bindings_group_->AddBinding(
+      KeyBindings::KeyCombo(XK_F1, KeyBindings::kAltMask),
+      "cycle-active-backward");
+
   kb->AddAction(
       "cycle-magnification-forward",
       NewPermanentCallback(
           this, &LayoutManager::CycleMagnifiedToplevelWindow, true),
       NULL, NULL);
+  overview_mode_key_bindings_group_->AddBinding(
+      KeyBindings::KeyCombo(XK_Right, 0), "cycle-magnification-forward");
+  overview_mode_key_bindings_group_->AddBinding(
+      KeyBindings::KeyCombo(XK_Tab, KeyBindings::kAltMask),
+      "cycle-magnification-forward");
+  overview_mode_key_bindings_group_->AddBinding(
+      KeyBindings::KeyCombo(XK_F2, KeyBindings::kAltMask),
+      "cycle-magnification-forward");
+
   kb->AddAction(
       "cycle-magnification-backward",
       NewPermanentCallback(
           this, &LayoutManager::CycleMagnifiedToplevelWindow, false),
       NULL, NULL);
+  overview_mode_key_bindings_group_->AddBinding(
+      KeyBindings::KeyCombo(XK_Left, 0), "cycle-magnification-backward");
+  overview_mode_key_bindings_group_->AddBinding(
+      KeyBindings::KeyCombo(
+          XK_Tab, KeyBindings::kAltMask | KeyBindings::kShiftMask),
+      "cycle-magnification-backward");
+  overview_mode_key_bindings_group_->AddBinding(
+      KeyBindings::KeyCombo(XK_F1, KeyBindings::kAltMask),
+      "cycle-magnification-backward");
+
   kb->AddAction(
       "switch-to-active-mode-for-magnified",
       NewPermanentCallback(this, &LayoutManager::SwitchToActiveMode, true),
       NULL, NULL);
+  overview_mode_key_bindings_group_->AddBinding(
+      KeyBindings::KeyCombo(XK_Return, 0),
+      "switch-to-active-mode-for-magnified");
+
   for (int i = 0; i < 8; ++i) {
     kb->AddAction(
         StringPrintf("activate-toplevel-with-index-%d", i),
         NewPermanentCallback(
             this, &LayoutManager::ActivateToplevelWindowByIndex, i),
         NULL, NULL);
+    active_mode_key_bindings_group_->AddBinding(
+        KeyBindings::KeyCombo(XK_1 + i, KeyBindings::kAltMask),
+        StringPrintf("activate-toplevel-with-index-%d", i));
+
     kb->AddAction(
         StringPrintf("magnify-toplevel-with-index-%d", i),
         NewPermanentCallback(
             this, &LayoutManager::MagnifyToplevelWindowByIndex, i),
         NULL, NULL);
+    overview_mode_key_bindings_group_->AddBinding(
+        KeyBindings::KeyCombo(XK_1 + i, KeyBindings::kAltMask),
+        StringPrintf("magnify-toplevel-with-index-%d", i));
   }
+
   kb->AddAction(
       "activate-last-toplevel",
       NewPermanentCallback(
           this, &LayoutManager::ActivateToplevelWindowByIndex, -1),
       NULL, NULL);
+  active_mode_key_bindings_group_->AddBinding(
+      KeyBindings::KeyCombo(XK_9, KeyBindings::kAltMask),
+      "activate-last-toplevel");
+
   kb->AddAction(
       "magnify-last-toplevel",
       NewPermanentCallback(
           this, &LayoutManager::MagnifyToplevelWindowByIndex, -1),
       NULL, NULL);
+  overview_mode_key_bindings_group_->AddBinding(
+      KeyBindings::KeyCombo(XK_9, KeyBindings::kAltMask),
+      "magnify-last-toplevel");
+
   kb->AddAction(
       "delete-active-window",
       NewPermanentCallback(
           this, &LayoutManager::SendDeleteRequestToActiveWindow),
       NULL, NULL);
+  active_mode_key_bindings_group_->AddBinding(
+      KeyBindings::KeyCombo(
+          XK_w, KeyBindings::kControlMask | KeyBindings::kShiftMask),
+      "delete-active-window");
+
   kb->AddAction(
       "pan-overview-mode-left",
       NewPermanentCallback(this, &LayoutManager::PanOverviewMode, -50),
       NULL, NULL);
+  overview_mode_key_bindings_group_->AddBinding(
+      KeyBindings::KeyCombo(XK_h, KeyBindings::kAltMask),
+      "pan-overview-mode-left");
+
   kb->AddAction(
       "pan-overview-mode-right",
       NewPermanentCallback(this, &LayoutManager::PanOverviewMode, 50),
       NULL, NULL);
+  overview_mode_key_bindings_group_->AddBinding(
+      KeyBindings::KeyCombo(XK_l, KeyBindings::kAltMask),
+      "pan-overview-mode-right");
 
   SetMode(MODE_ACTIVE);
 }
@@ -612,6 +694,20 @@ void LayoutManager::MoveAndResize(int x, int y, int width, int height) {
   }
 }
 
+void LayoutManager::EnableKeyBindings() {
+  if (key_bindings_enabled_)
+    return;
+  EnableKeyBindingsForModeInternal(mode_);
+  key_bindings_enabled_ = true;
+}
+
+void LayoutManager::DisableKeyBindings() {
+  if (!key_bindings_enabled_)
+    return;
+  DisableKeyBindingsForModeInternal(mode_);
+  key_bindings_enabled_ = false;
+}
+
 // static
 bool LayoutManager::IsHandledWindowType(WmIpc::WindowType type) {
   return (type == WmIpc::WINDOW_TYPE_CHROME_INFO_BUBBLE ||
@@ -738,7 +834,9 @@ void LayoutManager::Metrics::Populate(chrome_os_pb::SystemMetrics *metrics_pb) {
 }
 
 void LayoutManager::SetMode(Mode mode) {
-  RemoveKeyBindingsForMode(mode_);
+  if (key_bindings_enabled_)
+    DisableKeyBindingsForModeInternal(mode_);
+
   mode_ = mode;
   switch (mode_) {
     case MODE_ACTIVE: {
@@ -771,7 +869,9 @@ void LayoutManager::SetMode(Mode mode) {
       break;
     }
   }
-  AddKeyBindingsForMode(mode_);
+
+  if (key_bindings_enabled_)
+    EnableKeyBindingsForModeInternal(mode_);
 
   // Let all Chrome windows know about the new layout mode.
   for (ToplevelWindows::iterator it = toplevels_.begin();
@@ -884,116 +984,6 @@ LayoutManager::ToplevelWindow* LayoutManager::GetOverviewToplevelWindowAtPoint(
   return NULL;
 }
 
-void LayoutManager::AddKeyBindingsForMode(Mode mode) {
-  DLOG(INFO) << "Adding key bindings for mode " << mode;
-  KeyBindings* kb = wm_->key_bindings();
-
-  switch (mode) {
-    case MODE_ACTIVE:
-      kb->AddBinding(KeyBindings::KeyCombo(XK_F12, 0),
-                     "switch-to-overview-mode");
-      kb->AddBinding(KeyBindings::KeyCombo(XK_Tab, KeyBindings::kAltMask),
-                     "cycle-active-forward");
-      kb->AddBinding(KeyBindings::KeyCombo(XK_F2, KeyBindings::kAltMask),
-                     "cycle-active-forward");
-      kb->AddBinding(
-          KeyBindings::KeyCombo(
-              XK_Tab, KeyBindings::kAltMask | KeyBindings::kShiftMask),
-          "cycle-active-backward");
-      kb->AddBinding(KeyBindings::KeyCombo(XK_F1, KeyBindings::kAltMask),
-                     "cycle-active-backward");
-      for (int i = 0; i < 8; ++i) {
-        kb->AddBinding(KeyBindings::KeyCombo(XK_1 + i, KeyBindings::kAltMask),
-                       StringPrintf("activate-toplevel-with-index-%d", i));
-      }
-      kb->AddBinding(KeyBindings::KeyCombo(XK_9, KeyBindings::kAltMask),
-                     "activate-last-toplevel");
-      kb->AddBinding(
-          KeyBindings::KeyCombo(
-              XK_w, KeyBindings::kControlMask | KeyBindings::kShiftMask),
-              "delete-active-window");
-      break;
-    case MODE_OVERVIEW:
-      kb->AddBinding(KeyBindings::KeyCombo(XK_Escape, 0),
-                     "switch-to-active-mode");
-      kb->AddBinding(KeyBindings::KeyCombo(XK_F12, 0),
-                     "switch-to-active-mode");
-      kb->AddBinding(KeyBindings::KeyCombo(XK_Return, 0),
-                     "switch-to-active-mode-for-magnified");
-      kb->AddBinding(KeyBindings::KeyCombo(XK_Right, 0),
-                     "cycle-magnification-forward");
-      kb->AddBinding(KeyBindings::KeyCombo(XK_Tab, KeyBindings::kAltMask),
-                     "cycle-magnification-forward");
-      kb->AddBinding(KeyBindings::KeyCombo(XK_F2, KeyBindings::kAltMask),
-                     "cycle-magnification-forward");
-      kb->AddBinding(KeyBindings::KeyCombo(XK_Left, 0),
-                     "cycle-magnification-backward");
-      kb->AddBinding(
-          KeyBindings::KeyCombo(
-              XK_Tab, KeyBindings::kAltMask | KeyBindings::kShiftMask),
-          "cycle-magnification-backward");
-      kb->AddBinding(KeyBindings::KeyCombo(XK_F1, KeyBindings::kAltMask),
-                     "cycle-magnification-backward");
-      for (int i = 0; i < 8; ++i) {
-        kb->AddBinding(KeyBindings::KeyCombo(XK_1 + i, KeyBindings::kAltMask),
-                       StringPrintf("magnify-toplevel-with-index-%d", i));
-      }
-      kb->AddBinding(KeyBindings::KeyCombo(XK_9, KeyBindings::kAltMask),
-                     "magnify-last-toplevel");
-      kb->AddBinding(KeyBindings::KeyCombo(XK_h, KeyBindings::kAltMask),
-                     "pan-overview-mode-left");
-      kb->AddBinding(KeyBindings::KeyCombo(XK_l, KeyBindings::kAltMask),
-                     "pan-overview-mode-right");
-      break;
-  }
-}
-
-void LayoutManager::RemoveKeyBindingsForMode(Mode mode) {
-  DLOG(INFO) << "Removing key bindings for mode " << mode;
-  KeyBindings* kb = wm_->key_bindings();
-
-  switch (mode) {
-    case MODE_ACTIVE:
-      // TODO: Add some sort of "key bindings group" feature to the
-      // KeyBindings class so that we don't need to explicitly repeat all
-      // of the bindings from AddKeyBindingsForMode() here.
-      kb->RemoveBinding(KeyBindings::KeyCombo(XK_F12, 0));
-      kb->RemoveBinding(KeyBindings::KeyCombo(XK_Tab, KeyBindings::kAltMask));
-      kb->RemoveBinding(KeyBindings::KeyCombo(XK_F2, KeyBindings::kAltMask));
-      kb->RemoveBinding(
-          KeyBindings::KeyCombo(
-              XK_Tab, KeyBindings::kAltMask | KeyBindings::kShiftMask));
-      kb->RemoveBinding(KeyBindings::KeyCombo(XK_F1, KeyBindings::kAltMask));
-      for (int i = 0; i < 9; ++i) {
-        kb->RemoveBinding(
-            KeyBindings::KeyCombo(XK_1 + i, KeyBindings::kAltMask));
-      }
-      kb->RemoveBinding(
-          KeyBindings::KeyCombo(
-              XK_w, KeyBindings::kControlMask | KeyBindings::kShiftMask));
-      break;
-    case MODE_OVERVIEW:
-      kb->RemoveBinding(KeyBindings::KeyCombo(XK_Escape, 0));
-      kb->RemoveBinding(KeyBindings::KeyCombo(XK_F12, 0));
-      kb->RemoveBinding(KeyBindings::KeyCombo(XK_Return, 0));
-      kb->RemoveBinding(KeyBindings::KeyCombo(XK_Right, 0));
-      kb->RemoveBinding(KeyBindings::KeyCombo(XK_Tab, KeyBindings::kAltMask));
-      kb->RemoveBinding(KeyBindings::KeyCombo(XK_F2, KeyBindings::kAltMask));
-      kb->RemoveBinding(KeyBindings::KeyCombo(XK_Left, 0));
-      kb->RemoveBinding(
-          KeyBindings::KeyCombo(
-              XK_Tab, KeyBindings::kAltMask | KeyBindings::kShiftMask));
-      kb->RemoveBinding(KeyBindings::KeyCombo(XK_F1, KeyBindings::kAltMask));
-      for (int i = 0; i < 9; ++i) {
-        kb->RemoveBinding(
-            KeyBindings::KeyCombo(XK_1 + i, KeyBindings::kAltMask));
-      }
-      kb->RemoveBinding(KeyBindings::KeyCombo(XK_h, KeyBindings::kAltMask));
-      kb->RemoveBinding(KeyBindings::KeyCombo(XK_l, KeyBindings::kAltMask));
-      break;
-  }
-}
-
 void LayoutManager::CycleActiveToplevelWindow(bool forward) {
   if (mode_ != MODE_ACTIVE) {
     LOG(WARNING) << "Ignoring request to cycle active toplevel outside of "
@@ -1104,6 +1094,32 @@ void LayoutManager::UpdateOverviewPanningForMotion() {
   overview_drag_last_x_ = overview_background_event_coalescer_->x();
   overview_panning_offset_ -= dx;
   ConfigureWindowsForOverviewMode(true);  // incremental=true
+}
+
+void LayoutManager::EnableKeyBindingsForModeInternal(Mode mode) {
+  switch (mode) {
+    case MODE_ACTIVE:
+      active_mode_key_bindings_group_->Enable();
+      break;
+    case MODE_OVERVIEW:
+      overview_mode_key_bindings_group_->Enable();
+      break;
+    default:
+      NOTREACHED() << "Unhandled mode " << mode;
+  }
+}
+
+void LayoutManager::DisableKeyBindingsForModeInternal(Mode mode) {
+  switch (mode) {
+    case MODE_ACTIVE:
+      active_mode_key_bindings_group_->Disable();
+      break;
+    case MODE_OVERVIEW:
+      overview_mode_key_bindings_group_->Disable();
+      break;
+    default:
+      NOTREACHED() << "Unhandled mode " << mode;
+  }
 }
 
 }  // namespace window_manager

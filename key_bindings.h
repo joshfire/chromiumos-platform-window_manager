@@ -7,8 +7,8 @@
 
 // KeyBindings
 //
-// The KeyBindings class supports installing named actions and keyboard combos
-// that trigger an installed action.
+// The KeyBindings class supports installing named actions and keyboard
+// combos that trigger an installed action.
 //
 // A named action can have begin, repeat, and end callbacks associated with it
 // which correspond to key down, key repeat, and key release respectively.
@@ -58,22 +58,14 @@ class KeyBindings {
     // enabled).
     explicit KeyCombo(KeySym keysym_param, uint32 modifiers_param = 0);
 
+    bool operator<(const KeyCombo& o) const;
+
     KeySym keysym;
     uint32 modifiers;
   };
 
-  struct KeyComboComparator {
-    bool operator()(const KeyCombo& a,
-                    const KeyCombo& b) const;
-  };
-
   KeyBindings(XConnection* xconn);
   ~KeyBindings();
-
-  // Are the key bindings enabled? If not, HandleKeyXXX does nothing.
-  // The default is enabled.
-  void set_is_enabled(bool enabled) { is_enabled_ = enabled; }
-  bool is_enabled() const { return is_enabled_; }
 
   // Add a new action. This will fail if the action already exists.
   // NOTE: The KeyBindings class will take ownership of passed-in
@@ -113,7 +105,7 @@ class KeyBindings {
   typedef std::map<std::string, Action*> ActionMap;
   ActionMap actions_;
 
-  typedef std::map<KeyCombo, std::string, KeyComboComparator> BindingsMap;
+  typedef std::map<KeyCombo, std::string> BindingsMap;
   BindingsMap bindings_;
 
   // Map from a keysym to the names of all of the actions that use it as
@@ -127,10 +119,37 @@ class KeyBindings {
   // rectify this).
   std::map<KeySym, KeyCode> keysyms_to_grabbed_keycodes_;
 
-  // See description above setter.
-  bool is_enabled_;
-
   DISALLOW_COPY_AND_ASSIGN(KeyBindings);
+};
+
+// This helper class can be used to easily enable or disable a group of key
+// bindings.
+class KeyBindingsGroup {
+ public:
+  // The group is initially enabled.
+  explicit KeyBindingsGroup(KeyBindings* bindings);
+  ~KeyBindingsGroup();
+
+  bool enabled() const { return enabled_; }
+
+  // Add a binding to the group.
+  void AddBinding(const KeyBindings::KeyCombo& combo,
+                  const std::string& action_name);
+
+  // Enable or disable all bindings in this group.
+  void Enable();
+  void Disable();
+
+ private:
+  KeyBindings* bindings_;  // not owned
+
+  // Are this group's bindings active?
+  bool enabled_;
+
+  // Bindings under this group's control.
+  std::map<KeyBindings::KeyCombo, std::string> combos_to_action_names_;
+
+  DISALLOW_COPY_AND_ASSIGN(KeyBindingsGroup);
 };
 
 }  // namespace window_manager

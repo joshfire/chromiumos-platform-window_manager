@@ -194,13 +194,19 @@ WindowManager::~WindowManager() {
 XConnection* WindowManager::xconn() { return event_loop_->xconn(); }
 
 void WindowManager::SetLoggedIn(bool logged_in) {
+  CHECK(key_bindings_.get()) << "Init() must be invoked first";
   if (logged_in == logged_in_)
     return;
 
-  CHECK(key_bindings_.get());  // Init should have been invoked first.
-
   logged_in_ = logged_in;
-  key_bindings_->set_is_enabled(logged_in_);
+
+  if (logged_in_) {
+    logged_in_key_bindings_group_->Enable();
+    layout_manager_->EnableKeyBindings();
+  } else {
+    logged_in_key_bindings_group_->Disable();
+    layout_manager_->DisableKeyBindings();
+  }
 }
 
 void WindowManager::StartSendingEventsForWindowToCompositor(XWindow xid) {
@@ -272,35 +278,42 @@ bool WindowManager::Init() {
   stacking_manager_->StackXidAtTopOfLayer(
       background_xid_, StackingManager::LAYER_BACKGROUND);
 
-  // Set up keybindings.
   key_bindings_.reset(new KeyBindings(xconn()));
-  key_bindings_->set_is_enabled(logged_in_);
+
+  logged_in_key_bindings_group_.reset(
+      new KeyBindingsGroup(key_bindings_.get()));
+  if (!logged_in_)
+    logged_in_key_bindings_group_->Disable();
+
   if (!FLAGS_wm_xterm_command.empty()) {
     key_bindings_->AddAction(
         "launch-terminal",
         NewPermanentCallback(this, &WindowManager::LaunchTerminal),
         NULL, NULL);
-    key_bindings_->AddBinding(
+    logged_in_key_bindings_group_->AddBinding(
         KeyBindings::KeyCombo(
             XK_t, KeyBindings::kControlMask | KeyBindings::kAltMask),
         "launch-terminal");
   }
+
   key_bindings_->AddAction(
       "toggle-client-window-debugging",
       NewPermanentCallback(this, &WindowManager::ToggleClientWindowDebugging),
       NULL, NULL);
   key_bindings_->AddBinding(
       KeyBindings::KeyCombo(XK_F9), "toggle-client-window-debugging");
+
   if (!FLAGS_wm_lock_screen_command.empty()) {
     key_bindings_->AddAction(
         "lock-screen",
         NewPermanentCallback(this, &WindowManager::LockScreen),
         NULL, NULL);
-    key_bindings_->AddBinding(
+    logged_in_key_bindings_group_->AddBinding(
         KeyBindings::KeyCombo(
             XK_l, KeyBindings::kControlMask | KeyBindings::kAltMask),
         "lock-screen");
   }
+
   if (!FLAGS_wm_configure_monitor_command.empty()) {
     key_bindings_->AddAction(
         "configure-monitor",
@@ -335,8 +348,6 @@ bool WindowManager::Init() {
         "take-window-screenshot");
   }
 
-  // We need to create the layout manager after the stage so we can stack
-  // its input windows correctly.
   layout_manager_x_ = 0;
   layout_manager_y_ = 0;
   layout_manager_width_ = width_;
@@ -344,8 +355,12 @@ bool WindowManager::Init() {
   layout_manager_.reset(
       new LayoutManager(this, layout_manager_x_, layout_manager_y_,
                         layout_manager_width_, layout_manager_height_));
+  if (!logged_in_)
+    layout_manager_->DisableKeyBindings();
   event_consumers_.insert(layout_manager_.get());
-  event_consumers_.insert(new LoginController(this));
+
+  login_controller_.reset(new LoginController(this));
+  event_consumers_.insert(login_controller_.get());
 
   panel_manager_.reset(new PanelManager(this));
   event_consumers_.insert(panel_manager_.get());

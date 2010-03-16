@@ -28,6 +28,7 @@ class SystemMetrics;
 namespace window_manager {
 
 class EventConsumerRegistrar;
+class KeyBindingsGroup;
 class MotionEventCoalescer;
 class Window;
 class WindowManager;
@@ -79,6 +80,7 @@ class LayoutManager : public EventConsumer {
   int width() const { return width_; }
   int height() const { return height_; }
   int overview_panning_offset() const { return overview_panning_offset_; }
+  bool key_bindings_enabled() const { return key_bindings_enabled_; }
 
   // Returns a pointer to the struct in which LayoutManager tracks
   // relevant user metrics.
@@ -139,6 +141,10 @@ class LayoutManager : public EventConsumer {
 
   // Change the area allocated to the layout manager.
   void MoveAndResize(int x, int y, int width, int height);
+
+  // Enable or disable key bindings.
+  void EnableKeyBindings();
+  void DisableKeyBindings();
 
  private:
   FRIEND_TEST(LayoutManagerTest, Basic);  // uses SetMode()
@@ -275,6 +281,11 @@ class LayoutManager : public EventConsumer {
   // 'overview_background_event_coalescer_'.  Invoked by a timer.
   void UpdateOverviewPanningForMotion();
 
+  // Helper method that enables or disables the key bindings group for the
+  // passed-in mode (irrespective of 'key_bindings_enabled_').
+  void EnableKeyBindingsForModeInternal(Mode mode);
+  void DisableKeyBindingsForModeInternal(Mode mode);
+
   WindowManager* wm_;  // not owned
 
   // The current mode.
@@ -338,6 +349,13 @@ class LayoutManager : public EventConsumer {
 
   // Event registrations for the layout manager itself.
   scoped_ptr<EventConsumerRegistrar> event_consumer_registrar_;
+
+  // Are key bindings currently enabled?
+  bool key_bindings_enabled_;
+
+  // Groups of key bindings that are relevant to different modes.
+  scoped_ptr<KeyBindingsGroup> active_mode_key_bindings_group_;
+  scoped_ptr<KeyBindingsGroup> overview_mode_key_bindings_group_;
 
   DISALLOW_COPY_AND_ASSIGN(LayoutManager);
 };

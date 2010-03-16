@@ -21,6 +21,7 @@ extern "C" {
 namespace window_manager {
 
 using std::make_pair;
+using std::map;
 using std::pair;
 using std::set;
 using std::string;
@@ -41,10 +42,9 @@ KeyBindings::KeyCombo::KeyCombo(KeySym key_param, uint32 modifiers_param) {
   modifiers = (modifiers_param & ~LockMask);
 }
 
-bool KeyBindings::KeyComboComparator::operator()(const KeyCombo& a,
-                                                 const KeyCombo& b) const {
-  return (a.keysym < b.keysym) ||
-      ((a.keysym == b.keysym) && (a.modifiers < b.modifiers));
+bool KeyBindings::KeyCombo::operator<(const KeyCombo& o) const {
+  return (keysym < o.keysym) ||
+         ((keysym == o.keysym) && (modifiers < o.modifiers));
 }
 
 struct Action {
@@ -75,14 +75,12 @@ struct Action {
   scoped_ptr<Closure> end_closure;
 
   // The set of key combinations currently bound to this action.
-  set<KeyBindings::KeyCombo, KeyBindings::KeyComboComparator> bindings;
+  set<KeyBindings::KeyCombo> bindings;
 
   DISALLOW_COPY_AND_ASSIGN(Action);
 };
 
-KeyBindings::KeyBindings(XConnection* xconn)
-    : xconn_(xconn),
-      is_enabled_(true) {
+KeyBindings::KeyBindings(XConnection* xconn) : xconn_(xconn) {
   CHECK(xconn_);
   if (!xconn_->SetDetectableKeyboardAutoRepeat(true)) {
     LOG(WARNING) << "Unable to enable detectable keyboard autorepeat";
@@ -197,7 +195,7 @@ bool KeyBindings::RemoveBinding(const KeyCombo& combo) {
 }
 
 void KeyBindings::RefreshKeyMappings() {
-  std::map<KeySym, KeyCode> new_keysyms_to_grabbed_keycodes_;
+  map<KeySym, KeyCode> new_keysyms_to_grabbed_keycodes_;
 
   vector<pair<KeyCode, uint32> > grabs_to_remove;
   vector<pair<KeyCode, uint32> > grabs_to_add;
@@ -243,9 +241,6 @@ void KeyBindings::RefreshKeyMappings() {
 }
 
 bool KeyBindings::HandleKeyPress(KeySym keysym, uint32 modifiers) {
-  if (!is_enabled_)
-    return false;
-
   KeyCombo combo(keysym, modifiers);
   BindingsMap::const_iterator bindings_iter = bindings_.find(combo);
   if (bindings_iter == bindings_.end()) {
@@ -271,9 +266,6 @@ bool KeyBindings::HandleKeyPress(KeySym keysym, uint32 modifiers) {
 }
 
 bool KeyBindings::HandleKeyRelease(KeySym keysym, uint32 modifiers) {
-  if (!is_enabled_)
-    return false;
-
   KeyCombo combo(keysym, modifiers);
 
   // It's possible that a combo's modifier key(s) will get released before
@@ -331,6 +323,48 @@ uint32 KeyBindings::KeySymToModifier(uint32 keysym) {
       return kHyperMask;
   }
   return 0;
+}
+
+
+KeyBindingsGroup::KeyBindingsGroup(KeyBindings* bindings)
+    : bindings_(bindings),
+      enabled_(true) {
+  DCHECK(bindings);
+}
+
+KeyBindingsGroup::~KeyBindingsGroup() {
+  Disable();
+}
+
+void KeyBindingsGroup::AddBinding(const KeyBindings::KeyCombo& combo,
+                                  const string& action_name) {
+  combos_to_action_names_.insert(make_pair(combo, action_name));
+  if (enabled_)
+    bindings_->AddBinding(combo, action_name);
+}
+
+void KeyBindingsGroup::Enable() {
+  if (enabled_)
+    return;
+
+  for (map<KeyBindings::KeyCombo, string>::const_iterator it =
+         combos_to_action_names_.begin();
+       it != combos_to_action_names_.end(); ++it) {
+    bindings_->AddBinding(it->first, it->second);
+  }
+  enabled_ = true;
+}
+
+void KeyBindingsGroup::Disable() {
+  if (!enabled_)
+    return;
+
+  for (map<KeyBindings::KeyCombo, string>::const_iterator it =
+         combos_to_action_names_.begin();
+       it != combos_to_action_names_.end(); ++it) {
+    bindings_->RemoveBinding(it->first);
+  }
+  enabled_ = false;
 }
 
 }  // namespace window_manager
