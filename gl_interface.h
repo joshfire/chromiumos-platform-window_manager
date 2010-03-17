@@ -99,6 +99,8 @@ class GLInterface : virtual public GLInterfaceBase {
   virtual void Translatef(GLfloat x, GLfloat y, GLfloat z) = 0;
   virtual void VertexPointer(GLint size, GLenum type, GLsizei stride,
                              const GLvoid* pointer) = 0;
+  virtual void ColorPointer(GLint size, GLenum type, GLsizei stride,
+                             const GLvoid* pointer) = 0;
 
  private:
   DISALLOW_COPY_AND_ASSIGN(GLInterface);

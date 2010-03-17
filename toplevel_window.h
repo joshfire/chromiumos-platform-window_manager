@@ -238,10 +238,6 @@ class LayoutManager::ToplevelWindow {
   // windows.
   void RestackTransientWindowOnTop(TransientWindow* transient);
 
-  // Static texture actor that we clone for each actor to draw a gradient
-  // over windows when they're inactive.
-  static ClutterInterface::Actor* static_gradient_texture_;
-
   // Window object for the toplevel client window.
   Window* win_;  // not owned
 
@@ -263,9 +259,6 @@ class LayoutManager::ToplevelWindow {
   int overview_width_;
   int overview_height_;
   double overview_scale_;
-
-  // Cloned copy of 'static_gradient_texture_'.
-  scoped_ptr<ClutterInterface::Actor> gradient_actor_;
 
   // Transient windows belonging to this toplevel window, keyed by XID.
   std::map<XWindow, std::tr1::shared_ptr<TransientWindow> > transients_;

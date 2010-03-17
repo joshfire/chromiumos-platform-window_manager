@@ -70,6 +70,7 @@ class ClutterInterface {
     virtual void RaiseToTop() = 0;
     virtual void LowerToBottom() = 0;
 
+    virtual void ShowDimmed(bool dimmed, int anim_ms) = 0;
    private:
     DISALLOW_COPY_AND_ASSIGN(Actor);
   };
@@ -210,6 +211,7 @@ class MockClutterInterface : public ClutterInterface {
     void Lower(ClutterInterface::Actor* other);
     void RaiseToTop();
     void LowerToBottom();
+    void ShowDimmed(bool dimmed, int anim_ms) { is_dimmed_ = dimmed; }
     // End ClutterInterface::Actor methods
 
    protected:
@@ -218,6 +220,7 @@ class MockClutterInterface : public ClutterInterface {
     double scale_x_, scale_y_;
     double opacity_;
     bool visible_;
+    bool is_dimmed_;
 
     MockClutterInterface::ContainerActor* parent_;  // not owned
 

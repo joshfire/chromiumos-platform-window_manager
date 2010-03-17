@@ -147,7 +147,8 @@ TidyInterface::Actor::Actor(TidyInterface* interface)
       scale_x_(1.f),
       scale_y_(1.f),
       opacity_(1.f),
-      is_opaque_(true),
+      is_opaque_(false),
+      dimmed_opacity_(0.f),
       has_children_(false),
       visible_(true) {
   interface_->AddActor(this);
@@ -252,6 +253,11 @@ void TidyInterface::Actor::Update(int* count, AnimationTime now) {
   SetDirty();
   UpdateInternal(&int_animations_, now);
   UpdateInternal(&float_animations_, now);
+}
+
+void TidyInterface::Actor::ShowDimmed(bool dimmed, int anim_ms) {
+  AnimateField(&float_animations_, &dimmed_opacity_,
+               dimmed ? 1.f : 0.f, anim_ms);
 }
 
 template<class T> void TidyInterface::Actor::AnimateField(

@@ -243,11 +243,18 @@ class TidyInterface : public ClutterInterface {
     // flag.
     bool is_opaque() const { return is_opaque_; }
 
-    bool IsVisible() const { return visible_ && opacity_ > 0.001; }
+    bool IsVisible() const { return visible_ && opacity_ > 0.001f; }
     float opacity() const { return opacity_; }
     float scale_x() const { return scale_x_; }
     float scale_y() const { return scale_y_; }
     void SetDirty() { interface_->SetDirty(); }
+
+    // Shows a horizontal gradient (transparent on left to black on
+    // right) over the window's client area if true.  Does nothing if
+    // false.  Defaults to false.
+    void ShowDimmed(bool dimmed, int anim_ms);
+    bool is_dimmed() const { return dimmed_opacity_ > 0.001f; }
+    float dimmed_opacity() const { return dimmed_opacity_; }
 
     // Sets the drawing data of the given type on this object.
     void SetDrawingData(int32 id, DrawingDataPtr data) {
@@ -323,6 +330,9 @@ class TidyInterface : public ClutterInterface {
 
     // This says whether or not to show this actor.
     bool visible_;
+
+    // The opacity of the dimming quad.
+    float dimmed_opacity_;
 
     // This is a name used for identifying the actor (most useful for
     // debugging).

@@ -34,11 +34,6 @@ DEFINE_bool(lm_honor_window_size_hints, false,
             "size increment, etc.) instead of automatically making it fill the "
             "screen");
 
-DEFINE_string(lm_overview_gradient_image,
-              "../assets/images/window_overview_gradient.png",
-              "Image to use for gradients on inactive windows in "
-              "overview mode");
-
 namespace window_manager {
 
 using std::map;

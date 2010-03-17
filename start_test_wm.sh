@@ -35,5 +35,4 @@ export IMAGES=$script_dir/../assets/images
 
 $script_dir/wm --logtostderr                                            \
   --wm_background_image="${IMAGES}/background_1024x600.png"             \
-  --lm_overview_gradient_image="${IMAGES}/window_overview_gradient.png" \
   "$@"

@@ -15,6 +15,7 @@
 #include <algorithm>
 #include <string>
 
+#include "base/basictypes.h"
 #include "base/logging.h"
 #include "window_manager/gl_interface.h"
 #include "window_manager/image_container.h"
@@ -55,6 +56,7 @@ OpenGlQuadDrawingData::OpenGlQuadDrawingData(GLInterface* gl_interface)
 
   gl_interface_->BufferData(GL_ARRAY_BUFFER, sizeof(kQuad),
                             kQuad, GL_STATIC_DRAW);
+  color_buffer_.reset(new float[4*4]);
 }
 
 OpenGlQuadDrawingData::~OpenGlQuadDrawingData() {
@@ -62,11 +64,18 @@ OpenGlQuadDrawingData::~OpenGlQuadDrawingData() {
     gl_interface_->DeleteBuffers(1, &vertex_buffer_);
 }
 
-void OpenGlQuadDrawingData::set_vertex_buffer(GLuint vertex_buffer) {
-  // Delete the old one first.
-  if (vertex_buffer_)
-    gl_interface_->DeleteBuffers(1, &vertex_buffer_);
-  vertex_buffer_ = vertex_buffer;
+void OpenGlQuadDrawingData::set_vertex_color(int index,
+                                             float r,
+                                             float g,
+                                             float b,
+                                             float a) {
+  // Calculate member index
+  index *= 4;
+  // Assign the color.
+  color_buffer_[index++] = r;
+  color_buffer_[index++] = g;
+  color_buffer_[index++] = b;
+  color_buffer_[index++] = a;
 }
 
 OpenGlPixmapData::OpenGlPixmapData(GLInterface* gl_interface,
@@ -366,12 +375,32 @@ void OpenGlDrawVisitor::VisitQuad(TidyInterface::QuadActor* actor) {
     draw_data = dynamic_cast<OpenGlQuadDrawingData*>(quad_drawing_data_.get());
   }
 
-  gl_interface_->BindBuffer(GL_ARRAY_BUFFER, draw_data->vertex_buffer());
+  // Calculate the vertex colors, taking into account the actor color,
+  // opacity and the dimming gradient.
+  float actor_opacity = actor->opacity() * ancestor_opacity_;
+  float dimmed_transparency = 1.f - actor->dimmed_opacity();
+  float red = actor->color().red;
+  float green = actor->color().green;
+  float blue = actor->color().blue;
 
-  gl_interface_->Color4f(actor->color().red,
-                         actor->color().green,
-                         actor->color().blue,
-                         actor->opacity() * ancestor_opacity_);
+  // Scale the vertex colors on the right by the transparency, since
+  // we want it to fade to black as transparency of the dimming
+  // overlay goes to zero. (note that the dimming is not *really* an
+  // overlay -- it's just multiplied in here to simulate that).
+  float dim_red = red * dimmed_transparency;
+  float dim_green = green * dimmed_transparency;
+  float dim_blue = blue * dimmed_transparency;
+
+  draw_data->set_vertex_color(0, red, green, blue, actor_opacity);
+  draw_data->set_vertex_color(1, red, green, blue, actor_opacity);
+  draw_data->set_vertex_color(2, dim_red, dim_green, dim_blue, actor_opacity);
+  draw_data->set_vertex_color(3, dim_red, dim_green, dim_blue, actor_opacity);
+
+  // Have to un-bind the array buffer to set the color pointer so that
+  // it uses the color buffer instead of the vertex buffer memory.
+  gl_interface_->BindBuffer(GL_ARRAY_BUFFER, 0);
+  gl_interface_->ColorPointer(4, GL_FLOAT, 0, draw_data->color_buffer());
+  gl_interface_->BindBuffer(GL_ARRAY_BUFFER, draw_data->vertex_buffer());
 
   // Find out if this quad has pixmap or texture data to bind.
   OpenGlPixmapData* pixmap_data = dynamic_cast<OpenGlPixmapData*>(
@@ -448,6 +477,7 @@ void OpenGlDrawVisitor::VisitStage(TidyInterface::StageActor* actor) {
   gl_interface_->VertexPointer(2, GL_FLOAT, 0, 0);
   gl_interface_->EnableClientState(GL_TEXTURE_COORD_ARRAY);
   gl_interface_->TexCoordPointer(2, GL_FLOAT, 0, 0);
+  gl_interface_->EnableClientState(GL_COLOR_ARRAY);
   CHECK_GL_ERROR();
 
   // Set the z-depths for the actors, update is_opaque.

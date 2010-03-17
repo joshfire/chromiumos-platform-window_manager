@@ -357,4 +357,9 @@ void RealGLInterface::VertexPointer(GLint size, GLenum type,
   glVertexPointer(size, type, stride, pointer);
 }
 
+void RealGLInterface::ColorPointer(GLint size, GLenum type,
+                                   GLsizei stride, const GLvoid* pointer) {
+  glColorPointer(size, type, stride, pointer);
+}
+
 }  // namespace window_manager

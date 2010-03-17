@@ -27,7 +27,11 @@ class OpenGlQuadDrawingData : public TidyInterface::DrawingData  {
   virtual ~OpenGlQuadDrawingData();
 
   GLuint vertex_buffer() { return vertex_buffer_; }
-  void set_vertex_buffer(GLuint vertex_buffer);
+  float* color_buffer() { return color_buffer_.get(); }
+
+  // Sets the vertex color of the give vertex index.
+  // Has no effect on drawing until the next call to SetBufferData.
+  void set_vertex_color(int index, float r, float g, float b, float a);
 
  private:
   // This is the gl interface to use for communicating with GL.
@@ -36,6 +40,8 @@ class OpenGlQuadDrawingData : public TidyInterface::DrawingData  {
   // This is the vertex buffer that holds the rect we use for
   // rendering quads.
   GLuint vertex_buffer_;
+
+  scoped_array<float> color_buffer_;
 };
 
 class OpenGlPixmapData : public TidyInterface::DrawingData  {
