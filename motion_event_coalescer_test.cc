@@ -25,8 +25,7 @@ class MotionEventCoalescerTest : public ::testing::Test {
 // restarting the coalescer if the first values it received matched the
 // last ones it'd seen before it was restarted.
 TEST_F(MotionEventCoalescerTest, InitialValues) {
-  MockXConnection xconn;
-  EventLoop event_loop(&xconn);
+  EventLoop event_loop;
 
   TestCallbackCounter counter;
   MotionEventCoalescer coalescer(

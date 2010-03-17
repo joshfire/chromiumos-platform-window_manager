@@ -31,8 +31,10 @@ namespace window_manager {
 
 class TestInterface : virtual public TidyInterface {
  public:
-  TestInterface(EventLoop* event_loop, GLInterfaceBase* gl_interface)
-      : TidyInterface(event_loop, gl_interface) {}
+  TestInterface(EventLoop* event_loop,
+                XConnection* x_connection,
+                GLInterfaceBase* gl_interface)
+      : TidyInterface(event_loop, x_connection, gl_interface) {}
  private:
   DISALLOW_COPY_AND_ASSIGN(TestInterface);
 };
@@ -42,8 +44,10 @@ class OpenGlVisitorTest : public ::testing::Test {
   OpenGlVisitorTest() : interface_(NULL),
                         gl_interface_(new MockGLInterface),
                         x_connection_(new MockXConnection),
-                        event_loop_(new EventLoop(x_connection_.get())) {
-    interface_.reset(new TestInterface(event_loop_.get(), gl_interface_.get()));
+                        event_loop_(new EventLoop) {
+    interface_.reset(new TestInterface(event_loop_.get(),
+                                       x_connection_.get(),
+                                       gl_interface_.get()));
   }
   virtual ~OpenGlVisitorTest() {
     interface_.reset(NULL);  // Must explicitly delete so that we get

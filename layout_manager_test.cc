@@ -694,7 +694,7 @@ TEST_F(LayoutManagerTest, InitialWindowStacking) {
   // Reset everything so we can start from scratch.
   wm_.reset(NULL);
   xconn_.reset(new MockXConnection);
-  event_loop_.reset(new EventLoop(xconn_.get()));
+  event_loop_.reset(new EventLoop);
   clutter_.reset(new MockClutterInterface(xconn_.get()));
   lm_ = NULL;
 
@@ -704,7 +704,7 @@ TEST_F(LayoutManagerTest, InitialWindowStacking) {
 
   // Now create a new WindowManager object that will see the toplevel
   // window as already existing.
-  wm_.reset(new WindowManager(event_loop_.get(), clutter_.get()));
+  wm_.reset(new WindowManager(event_loop_.get(), xconn_.get(), clutter_.get()));
   CHECK(wm_->Init());
 
   // Get the stacking reference points for toplevel windows and for the

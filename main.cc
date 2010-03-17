@@ -22,6 +22,7 @@ extern "C" {
 #ifdef USE_BREAKPAD
 #include "handler/exception_handler.h"
 #endif
+#include "window_manager/callback.h"
 #include "window_manager/clutter_interface.h"
 #include "window_manager/event_loop.h"
 #include "window_manager/tidy_interface.h"
@@ -129,7 +130,7 @@ int main(int argc, char** argv) {
     xconn.GetCompositingOverlayWindow(root);
   }
 
-  EventLoop event_loop(&xconn);
+  EventLoop event_loop;
 
   scoped_ptr<ClutterInterface> clutter;
 #if defined(TIDY_OPENGL)
@@ -144,14 +145,22 @@ int main(int argc, char** argv) {
 #elif defined(TIDY_OPENGLES)
     gl_interface.reset(new RealGles2Interface(&xconn));
 #endif
-    clutter.reset(new TidyInterface(&event_loop, gl_interface.get()));
+    clutter.reset(new TidyInterface(&event_loop, &xconn, gl_interface.get()));
   } else {
     clutter.reset(new MockClutterInterface(&xconn));
   }
 
-  WindowManager wm(&event_loop, clutter.get());
+  WindowManager wm(&event_loop, &xconn, clutter.get());
   wm.Init();
   wm.SetLoggedIn(FLAGS_logged_in);
+
+  // TODO: Need to also use XAddConnectionWatch()?
+  const int x11_fd = xconn.GetConnectionFileDescriptor();
+  LOG(INFO) << "X11 connection is on fd " << x11_fd;
+  event_loop.AddFileDescriptor(
+      x11_fd, NewPermanentCallback(&wm, &WindowManager::ProcessPendingEvents));
+  event_loop.AddPrePollCallback(
+      NewPermanentCallback(&wm, &WindowManager::ProcessPendingEvents));
 
   event_loop.Run();
   return 0;

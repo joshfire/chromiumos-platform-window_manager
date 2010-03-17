@@ -508,7 +508,9 @@ class TidyInterface : public ClutterInterface {
     DISALLOW_COPY_AND_ASSIGN(StageActor);
   };
 
-  TidyInterface(EventLoop* event_loop, GLInterfaceBase* gl_interface);
+  TidyInterface(EventLoop* event_loop,
+                XConnection* x_conn,
+                GLInterfaceBase* gl_interface);
   ~TidyInterface();
 
   // Begin ClutterInterface methods
@@ -529,7 +531,7 @@ class TidyInterface : public ClutterInterface {
   void HandleWindowDamaged(XWindow xid);
   // End ClutterInterface methods
 
-  XConnection* x_conn();
+  XConnection* x_conn() { return x_conn_; }
   int actor_count() { return actor_count_; }
   bool dirty() const { return dirty_; }
   void set_current_time_ms_for_testing(int64_t time_ms) {
@@ -580,6 +582,7 @@ class TidyInterface : public ClutterInterface {
   void DisableDrawTimeout();
 
   EventLoop* event_loop_;  // not owned
+  XConnection* x_conn_;    // not owned
 
   // The source that will be sending us X events related to windows used
   // for TexturePixmapActors (typically WindowManager).  We need to be able

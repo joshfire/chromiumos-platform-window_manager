@@ -31,8 +31,8 @@ struct WatcherContainer {
 };
 
 TEST_F(PointerPositionWatcherTest, Basic) {
+  EventLoop event_loop;
   MockXConnection xconn;
-  EventLoop event_loop(&xconn);
   xconn.SetPointerPosition(0, 0);
 
   // Watch for the pointer moving into a 20x30 rectangle at (50, 100).
@@ -95,8 +95,8 @@ TEST_F(PointerPositionWatcherTest, Basic) {
 
 // Test that we don't crash if a callback deletes the watcher that ran it.
 TEST_F(PointerPositionWatcherTest, DeleteFromCallback) {
+  EventLoop event_loop;
   MockXConnection xconn;
-  EventLoop event_loop(&xconn);
   xconn.SetPointerPosition(0, 0);
 
   // Register a callback that deletes its own watcher.

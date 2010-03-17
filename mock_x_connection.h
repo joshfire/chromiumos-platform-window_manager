@@ -209,8 +209,11 @@ class MockXConnection : public XConnection {
   void set_pointer_grab_xid(XWindow xid) { pointer_grab_xid_ = xid; }
 
   // Append an event to the queue used by IsEventPending() and
-  // GetNextEvent() and write a single byte to 'connection_pipe_fds_'.
-  void AppendEventToQueue(const XEvent& event);
+  // GetNextEvent() and optionally write a single byte to
+  // 'connection_pipe_fds_' (not writing allows us to simulate the case
+  // where Xlib has read the FD itself before we had a chance to see it
+  // become ready).
+  void AppendEventToQueue(const XEvent& event, bool write_to_fd);
 
   // Register a callback to be invoked whenever a given property on a given
   // window is changed.  Takes ownership of 'cb'.
@@ -314,11 +317,14 @@ class MockXConnection : public XConnection {
 
   // Read and write ends of a pipe that we use to simulate events arriving
   // on an X connection.  We don't actually write any events here --
-  // rather, we write a single byte for each event added by
-  // AppendEventToQueue() and read a byte each time that GetNextEvent() is
-  // called.  We hand out the read end of the pipe in
-  // GetConnectionFileDescriptor() so that EventLoop can epoll() on it.
+  // rather, we optionally write a single byte when AppendEventToQueue() is
+  // called and read the byte if present when GetNextEvent() is called.  We
+  // hand out the read end of the pipe in GetConnectionFileDescriptor() so
+  // that EventLoop can epoll() on it.
   int connection_pipe_fds_[2];
+
+  // Is there currently a byte written to 'connection_pipe_fds_'?
+  bool connection_pipe_has_data_;
 
   // Event queue used by IsEventPending() and GetNextEvent().
   std::queue<XEvent> queued_events_;

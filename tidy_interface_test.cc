@@ -35,8 +35,10 @@ namespace window_manager {
 
 class TestInterface : virtual public TidyInterface {
  public:
-  TestInterface(EventLoop* event_loop, GLInterface* gl_interface)
-      : TidyInterface(event_loop, gl_interface) {}
+  TestInterface(EventLoop* event_loop,
+                XConnection* x_connection,
+                GLInterface* gl_interface)
+      : TidyInterface(event_loop, x_connection, gl_interface) {}
  private:
   DISALLOW_COPY_AND_ASSIGN(TestInterface);
 };
@@ -70,9 +72,11 @@ class TidyTest : public ::testing::Test {
       : interface_(NULL),
         gl_interface_(new MockGLInterface),
         x_connection_(new MockXConnection),
-        event_loop_(new EventLoop(x_connection_.get())),
+        event_loop_(new EventLoop),
         event_source_(new TestCompositorEventSource) {
-    interface_.reset(new TestInterface(event_loop_.get(), gl_interface_.get()));
+    interface_.reset(new TestInterface(event_loop_.get(),
+                                       x_connection_.get(),
+                                       gl_interface_.get()));
     interface_->SetEventSource(event_source_.get());
   }
   virtual ~TidyTest() {

@@ -36,7 +36,8 @@ MockXConnection::MockXConnection()
       pointer_grab_xid_(None),
       num_keymap_refreshes_(0),
       pointer_x_(0),
-      pointer_y_(0) {
+      pointer_y_(0),
+      connection_pipe_has_data_(false) {
   CHECK(HANDLE_EINTR(pipe(connection_pipe_fds_)) != -1) << strerror(errno);
   CHECK(HANDLE_EINTR(fcntl(connection_pipe_fds_[0], F_SETFL, O_NONBLOCK)) != -1)
         << strerror(errno);
@@ -430,9 +431,12 @@ void MockXConnection::GetNextEvent(void* event) {
       << "testing code -- we would block forever";
   *(reinterpret_cast<XEvent*>(event)) = queued_events_.front();
   queued_events_.pop();
-  unsigned char data = 1;
-  CHECK(HANDLE_EINTR(read(connection_pipe_fds_[0], &data, 1)) == 1)
-      << strerror(errno);
+  if (connection_pipe_has_data_) {
+    unsigned char data = 0;
+    CHECK(HANDLE_EINTR(read(connection_pipe_fds_[0], &data, 1)) == 1)
+        << strerror(errno);
+    connection_pipe_has_data_ = false;
+  }
 }
 
 bool MockXConnection::SendClientMessageEvent(XWindow dest_xid,
@@ -560,11 +564,15 @@ MockXConnection::WindowInfo* MockXConnection::GetWindowInfo(XWindow xid) {
   return (it != windows_.end()) ? it->second.get() : NULL;
 }
 
-void MockXConnection::AppendEventToQueue(const XEvent& event) {
+void MockXConnection::AppendEventToQueue(const XEvent& event,
+                                         bool write_to_fd) {
   queued_events_.push(event);
-  unsigned char data = 1;
-  CHECK(HANDLE_EINTR(write(connection_pipe_fds_[1], &data, 1)) == 1)
-      << strerror(errno);
+  if (write_to_fd && !connection_pipe_has_data_) {
+    unsigned char data = 1;
+    CHECK(HANDLE_EINTR(write(connection_pipe_fds_[1], &data, 1)) == 1)
+        << strerror(errno);
+    connection_pipe_has_data_ = true;
+  }
 }
 
 void MockXConnection::RegisterPropertyCallback(

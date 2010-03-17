@@ -109,8 +109,8 @@ class BasicWindowManagerTest : public ::testing::Test {
   void TestPanelContentBounds(
       Panel* panel, int x, int y, int width, int height);
 
-  scoped_ptr<MockXConnection> xconn_;
   scoped_ptr<EventLoop> event_loop_;
+  scoped_ptr<MockXConnection> xconn_;
   scoped_ptr<MockClutterInterface> clutter_;
   scoped_ptr<WindowManager> wm_;
 };

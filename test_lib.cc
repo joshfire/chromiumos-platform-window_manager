@@ -69,6 +69,7 @@ int InitAndRunTests(int* argc, char** argv, bool* log_to_stderr) {
 
 
 void BasicWindowManagerTest::SetUp() {
+  event_loop_.reset(new EventLoop);
   xconn_.reset(new MockXConnection);
 
   // Register some fake mappings for common keysyms so that we won't get a
@@ -85,9 +86,8 @@ void BasicWindowManagerTest::SetUp() {
   xconn_->AddKeyMapping(next_keycode++, XK_Print);
   xconn_->AddKeyMapping(next_keycode++, XK_Tab);
 
-  event_loop_.reset(new EventLoop(xconn_.get()));
   clutter_.reset(new MockClutterInterface(xconn_.get()));
-  wm_.reset(new WindowManager(event_loop_.get(), clutter_.get()));
+  wm_.reset(new WindowManager(event_loop_.get(), xconn_.get(), clutter_.get()));
   CHECK(wm_->Init());
 
   // Tell the WM that we implement a recent-enough version of the IPC

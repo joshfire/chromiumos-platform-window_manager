@@ -541,8 +541,10 @@ void TidyInterface::StageActor::SetSizeImpl(int* width, int* height) {
 
 
 TidyInterface::TidyInterface(EventLoop* event_loop,
+                             XConnection* xconn,
                              GLInterfaceBase* gl_interface)
     : event_loop_(event_loop),
+      x_conn_(xconn),
       event_source_(NULL),
       dirty_(true),
       num_animations_(0),
@@ -582,8 +584,6 @@ TidyInterface::~TidyInterface() {
     draw_timeout_id_ = -1;
   }
 }
-
-XConnection* TidyInterface::x_conn() { return event_loop_->xconn(); }
 
 TidyInterface::ContainerActor* TidyInterface::CreateGroup() {
   return new ContainerActor(this);

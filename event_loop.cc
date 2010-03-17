@@ -9,6 +9,7 @@
 #include <cstring>
 #include <sys/epoll.h>
 #include <sys/timerfd.h>
+#include <vector>
 
 extern "C" {
 #include <X11/Xlib.h>
@@ -16,8 +17,6 @@ extern "C" {
 
 #include "base/eintr_wrapper.h"
 #include "base/logging.h"
-#include "window_manager/event_loop_subscriber.h"
-#include "window_manager/x_connection.h"
 
 namespace window_manager {
 
@@ -25,7 +24,9 @@ using std::make_pair;
 using std::map;
 using std::max;
 using std::pop_heap;
+using std::set;
 using std::tr1::shared_ptr;
+using std::vector;
 
 static void FillTimerSpec(struct itimerspec* spec,
                           int initial_timeout_ms,
@@ -42,13 +43,10 @@ static void FillTimerSpec(struct itimerspec* spec,
   spec->it_interval.tv_nsec = (recurring_timeout_ms % 1000) * 1000000;
 }
 
-EventLoop::EventLoop(XConnection* xconn)
-    : xconn_(xconn),
-      subscriber_(NULL),
-      exit_requested_(false),
+EventLoop::EventLoop()
+    : exit_requested_(false),
       epoll_fd_(epoll_create(10)),  // argument is ignored since 2.6.8
       timerfd_supported_(IsTimerFdSupported()) {
-  DCHECK(xconn_);
   CHECK(epoll_fd_ != -1) << "epoll_create: " << strerror(errno);
   if (!timerfd_supported_) {
     LOG(ERROR) << "timerfd doesn't work on this system (perhaps your kernel "
@@ -59,68 +57,91 @@ EventLoop::EventLoop(XConnection* xconn)
 
 EventLoop::~EventLoop() {
   close(epoll_fd_);
+  for (set<int>::iterator it = timeout_fds_.begin();
+       it != timeout_fds_.end(); ++it) {
+    CHECK(HANDLE_EINTR(close(*it)) == 0) << strerror(errno);
+  }
 }
 
 void EventLoop::Run() {
-  CHECK(subscriber_) << "SetSubscriber() must be called before the event loop "
-                     << "is started";
-  CHECK(timerfd_supported_) << "timerfd is unsupported -- look for earlier "
-                            << "errors";
-
-  int x11_fd = xconn_->GetConnectionFileDescriptor();
-  LOG(INFO) << "X11 connection is on fd " << x11_fd;
-  // TODO: Need to also use XAddConnectionWatch()?
-
-  struct epoll_event x11_epoll_event;
-  x11_epoll_event.events = EPOLLIN;
-  x11_epoll_event.data.fd = x11_fd;
-  CHECK(epoll_ctl(epoll_fd_, EPOLL_CTL_ADD, x11_fd, &x11_epoll_event) != -1)
-      << strerror(errno);
+  CHECK(timerfd_supported_)
+      << "timerfd is unsupported -- look for earlier errors";
 
   static const int kMaxEpollEvents = 256;
   struct epoll_event epoll_events[kMaxEpollEvents];
+  vector<shared_ptr<Closure> > callbacks_to_run;
+  callbacks_to_run.reserve(kMaxEpollEvents);
 
   while (true) {
+    for (CallbackVector::iterator it = pre_poll_callbacks_.begin();
+         it != pre_poll_callbacks_.end(); ++it) {
+      (*it)->Run();
+    }
+
     if (exit_requested_) {
-      LOG(INFO) << "Exiting event loop";
+      LOG(INFO) << "Exiting event loop as requested";
       exit_requested_ = false;
       break;
     }
 
+    CHECK(!callbacks_.empty())
+        << "No event sources for event loop; would sleep forever";
     const int num_events = HANDLE_EINTR(
         epoll_wait(epoll_fd_, epoll_events, kMaxEpollEvents, -1));
     CHECK(num_events != -1) << "epoll_wait: " << strerror(errno);
 
     for (int i = 0; i < num_events; ++i) {
       const int event_fd = epoll_events[i].data.fd;
-      TimeoutMap::iterator it = timeouts_.find(event_fd);
-      if (it == timeouts_.end())
-        continue;
+      FdCallbackMap::iterator it = callbacks_.find(event_fd);
+      CHECK(it != callbacks_.end()) << "Got event for unknown fd " << event_fd;
 
-      if (epoll_events[i].events & EPOLLIN) {
+      if (!(epoll_events[i].events & EPOLLIN)) {
+        LOG(WARNING) << "Got unexpected event mask for fd " << event_fd
+                     << ": 0x" << std::hex << epoll_events[i].events;
+        continue;
+      }
+
+      // We have to read from timer fds to reset their ready state.
+      if (timeout_fds_.count(event_fd) > 0) {
         uint64_t num_expirations = 0;
         CHECK(HANDLE_EINTR(read(event_fd,
                                 &num_expirations,
                                 sizeof(num_expirations))) ==
               sizeof(num_expirations)) << "Short read on fd " << event_fd;
-        // Make a copy of the callback in case it removes its own timeout.
-        shared_ptr<Closure> cb = it->second;
-        cb->Run();
-      } else {
-        LOG(WARNING) << "Got unexpected event mask for timer fd " << event_fd
-                     << ": 0x" << std::hex << epoll_events[i].events;
       }
+
+      // Save all the callbacks so we can run them later -- they may add or
+      // remove FDs, and we don't want things to be changed underneath us.
+      callbacks_to_run.push_back(it->second);
     }
 
-    while (xconn_->IsEventPending()) {
-      XEvent event;
-      xconn_->GetNextEvent(&event);
-      subscriber_->HandleEvent(&event);
+    for (vector<shared_ptr<Closure> >::iterator it = callbacks_to_run.begin();
+         it != callbacks_to_run.end(); ++it) {
+      (*it)->Run();
     }
+    callbacks_to_run.clear();
   }
+}
 
-  CHECK(epoll_ctl(epoll_fd_, EPOLL_CTL_DEL, x11_fd, NULL) != -1)
+void EventLoop::AddFileDescriptor(int fd, Closure* cb) {
+  struct epoll_event epoll_event;
+  epoll_event.events = EPOLLIN;
+  epoll_event.data.fd = fd;
+  CHECK(epoll_ctl(epoll_fd_, EPOLL_CTL_ADD, fd, &epoll_event) != -1)
       << strerror(errno);
+  CHECK(callbacks_.insert(make_pair(fd, shared_ptr<Closure>(cb))).second)
+      << "fd " << fd << " is already being watched";
+}
+
+void EventLoop::RemoveFileDescriptor(int fd) {
+  FdCallbackMap::iterator it = callbacks_.find(fd);
+  CHECK(it != callbacks_.end()) << "Got request to remove unknown fd " << fd;
+  callbacks_.erase(it);
+  CHECK(epoll_ctl(epoll_fd_, EPOLL_CTL_DEL, fd, NULL) != -1) << strerror(errno);
+}
+
+void EventLoop::AddPrePollCallback(Closure* cb) {
+  pre_poll_callbacks_.push_back(shared_ptr<Closure>(cb));
 }
 
 int EventLoop::AddTimeout(Closure* cb,
@@ -143,20 +164,15 @@ int EventLoop::AddTimeout(Closure* cb,
   // by changes to the system time.
   const int timer_fd = timerfd_create(CLOCK_MONOTONIC, TFD_NONBLOCK);
   CHECK(timer_fd != 1) << "timerfd_create: " << strerror(errno);
-  struct epoll_event event;
-  event.events = EPOLLIN;
-  event.data.fd = timer_fd;
-  CHECK(epoll_ctl(epoll_fd_, EPOLL_CTL_ADD, timer_fd, &event) != -1)
-      << strerror(errno);
+
+  AddFileDescriptor(timer_fd, cb);
+  CHECK(timeout_fds_.insert(timer_fd).second);
 
   struct itimerspec new_timer_spec;
   struct itimerspec old_timer_spec;
   FillTimerSpec(&new_timer_spec, initial_timeout_ms, recurring_timeout_ms);
   CHECK(timerfd_settime(timer_fd, 0, &new_timer_spec, &old_timer_spec) == 0)
       << strerror(errno);
-
-  CHECK(timeouts_.insert(make_pair(timer_fd, shared_ptr<Closure>(cb))).second)
-      << "timer fd " << timer_fd << " already exists";
   return timer_fd;
 }
 
@@ -164,12 +180,8 @@ void EventLoop::RemoveTimeout(int id) {
   if (!timerfd_supported_)
     return;
 
-  TimeoutMap::iterator it = timeouts_.find(id);
-  CHECK(it != timeouts_.end())
-      << "Got request to add nonexistent timeout with ID " << id;
-
-  CHECK(epoll_ctl(epoll_fd_, EPOLL_CTL_DEL, id, NULL) != -1) << strerror(errno);
-  timeouts_.erase(it);
+  RemoveFileDescriptor(id);
+  CHECK(timeout_fds_.erase(id) == 1);
   CHECK(HANDLE_EINTR(close(id)) == 0) << strerror(errno);
 }
 

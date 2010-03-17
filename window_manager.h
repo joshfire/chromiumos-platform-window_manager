@@ -26,7 +26,6 @@ extern "C" {
 #include "window_manager/atom_cache.h"  // for Atom enum
 #include "window_manager/clutter_interface.h"
 #include "window_manager/compositor_event_source.h"
-#include "window_manager/event_loop_subscriber.h"
 #include "window_manager/wm_ipc.h"
 #include "window_manager/x_types.h"
 
@@ -47,14 +46,15 @@ class WmIpc;
 class XConnection;
 template<class T> class Stacker;
 
-class WindowManager : public CompositorEventSource,
-                      public EventLoopSubscriber {
+class WindowManager : public CompositorEventSource {
  public:
-  WindowManager(EventLoop *event_loop, ClutterInterface* clutter);
+  WindowManager(EventLoop* event_loop,
+                XConnection* xconn,
+                ClutterInterface* clutter);
   ~WindowManager();
 
   EventLoop* event_loop() { return event_loop_; }
-  XConnection* xconn();
+  XConnection* xconn() { return xconn_; }
   ClutterInterface* clutter() { return clutter_; }
   StackingManager* stacking_manager() { return stacking_manager_.get(); }
 
@@ -90,6 +90,9 @@ class WindowManager : public CompositorEventSource,
   // Perform initial setup.  This must be called immediately after the
   // WindowManager object is created.
   bool Init();
+
+  // Process all pending events from 'x_conn_', invoking HandleEvent() for each.
+  void ProcessPendingEvents();
 
   // Handle an event from the X server.
   void HandleEvent(XEvent* event);
@@ -280,6 +283,7 @@ class WindowManager : public CompositorEventSource,
   void QueryKeyboardState();
 
   EventLoop* event_loop_;      // not owned
+  XConnection* xconn_;         // not owned
   ClutterInterface* clutter_;  // not owned
 
   XWindow root_;
