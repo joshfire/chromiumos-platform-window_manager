@@ -10,6 +10,7 @@ extern "C" {
 #include <stdlib.h>
 #include <X11/cursorfont.h>
 #include <X11/Xatom.h>
+#include <X11/XF86keysym.h>
 #include <X11/Xcursor/Xcursor.h>
 }
 #include <gflags/gflags.h>
@@ -37,11 +38,17 @@ DEFINE_string(wm_lock_screen_command, "xscreensaver-command -l",
 DEFINE_string(wm_configure_monitor_command,
               "/usr/sbin/monitor_reconfigure",
               "Command to configure an external monitor");
-DEFINE_string(screenshot_binary,
+DEFINE_string(wm_screenshot_binary,
               "/usr/bin/screenshot",
               "Path to the screenshot binary");
-DEFINE_string(screenshot_output_dir,
+DEFINE_string(wm_screenshot_output_dir,
               ".", "Output directory for screenshots");
+DEFINE_string(wm_increase_volume_command,
+              "/usr/bin/amixer -- sset Master unmute 5%+",
+              "Command to increase audio volume");
+DEFINE_string(wm_decrease_volume_command,
+              "/usr/bin/amixer -- sset Master unmute 5%-",
+              "Command to decrease audio volume");
 
 DEFINE_bool(wm_use_compositing, true, "Use compositing");
 
@@ -279,74 +286,11 @@ bool WindowManager::Init() {
       background_xid_, StackingManager::LAYER_BACKGROUND);
 
   key_bindings_.reset(new KeyBindings(xconn()));
-
   logged_in_key_bindings_group_.reset(
       new KeyBindingsGroup(key_bindings_.get()));
   if (!logged_in_)
     logged_in_key_bindings_group_->Disable();
-
-  if (!FLAGS_wm_xterm_command.empty()) {
-    key_bindings_->AddAction(
-        "launch-terminal",
-        NewPermanentCallback(this, &WindowManager::LaunchTerminal),
-        NULL, NULL);
-    logged_in_key_bindings_group_->AddBinding(
-        KeyBindings::KeyCombo(
-            XK_t, KeyBindings::kControlMask | KeyBindings::kAltMask),
-        "launch-terminal");
-  }
-
-  key_bindings_->AddAction(
-      "toggle-client-window-debugging",
-      NewPermanentCallback(this, &WindowManager::ToggleClientWindowDebugging),
-      NULL, NULL);
-  key_bindings_->AddBinding(
-      KeyBindings::KeyCombo(XK_F9), "toggle-client-window-debugging");
-
-  if (!FLAGS_wm_lock_screen_command.empty()) {
-    key_bindings_->AddAction(
-        "lock-screen",
-        NewPermanentCallback(this, &WindowManager::LockScreen),
-        NULL, NULL);
-    logged_in_key_bindings_group_->AddBinding(
-        KeyBindings::KeyCombo(
-            XK_l, KeyBindings::kControlMask | KeyBindings::kAltMask),
-        "lock-screen");
-  }
-
-  if (!FLAGS_wm_configure_monitor_command.empty()) {
-    key_bindings_->AddAction(
-        "configure-monitor",
-        NewPermanentCallback(this, &WindowManager::ConfigureExternalMonitor),
-        NULL, NULL);
-    key_bindings_->AddBinding(
-        KeyBindings::KeyCombo(
-            XK_m, KeyBindings::kControlMask | KeyBindings::kAltMask),
-        "configure-monitor");
-  }
-
-  key_bindings_->AddAction(
-      "toggle-hotkey-overlay",
-      NewPermanentCallback(this, &WindowManager::ToggleHotkeyOverlay),
-      NULL, NULL);
-  key_bindings_->AddBinding(
-      KeyBindings::KeyCombo(XK_F8), "toggle-hotkey-overlay");
-
-  if (!FLAGS_screenshot_binary.empty()) {
-    key_bindings_->AddAction(
-        "take-root-screenshot",
-        NewPermanentCallback(this, &WindowManager::TakeScreenshot, false),
-        NULL, NULL);
-    key_bindings_->AddAction(
-        "take-window-screenshot",
-        NewPermanentCallback(this, &WindowManager::TakeScreenshot, true),
-        NULL, NULL);
-    key_bindings_->AddBinding(
-        KeyBindings::KeyCombo(XK_Print), "take-root-screenshot");
-    key_bindings_->AddBinding(
-        KeyBindings::KeyCombo(XK_Print, KeyBindings::kShiftMask),
-        "take-window-screenshot");
-  }
+  RegisterKeyBindings();
 
   layout_manager_x_ = 0;
   layout_manager_y_ = 0;
@@ -770,17 +714,81 @@ bool WindowManager::SetEwmhSizeProperties() {
   return success;
 }
 
-ClutterInterface::Actor* WindowManager::CreateActorAbove(
-    ClutterInterface::Actor* bottom_actor) {
-  ClutterInterface::Actor* actor = clutter_->CreateGroup();
-  stage_->AddActor(actor);
-  if (bottom_actor) {
-    actor->Raise(bottom_actor);
-  } else {
-    actor->LowerToBottom();
-  }
-  actor->SetName("stacking reference");
-  return actor;
+void WindowManager::RegisterKeyBindings() {
+  key_bindings_->AddAction(
+      "launch-terminal",
+      NewPermanentCallback(
+          this, &WindowManager::RunCommand, FLAGS_wm_xterm_command),
+      NULL, NULL);
+  logged_in_key_bindings_group_->AddBinding(
+      KeyBindings::KeyCombo(
+          XK_t, KeyBindings::kControlMask | KeyBindings::kAltMask),
+      "launch-terminal");
+
+  key_bindings_->AddAction(
+      "toggle-client-window-debugging",
+      NewPermanentCallback(this, &WindowManager::ToggleClientWindowDebugging),
+      NULL, NULL);
+  key_bindings_->AddBinding(
+      KeyBindings::KeyCombo(XK_F9), "toggle-client-window-debugging");
+
+  key_bindings_->AddAction(
+      "lock-screen",
+      NewPermanentCallback(
+          this, &WindowManager::RunCommand, FLAGS_wm_lock_screen_command),
+      NULL, NULL);
+  logged_in_key_bindings_group_->AddBinding(
+      KeyBindings::KeyCombo(
+          XK_l, KeyBindings::kControlMask | KeyBindings::kAltMask),
+      "lock-screen");
+
+  key_bindings_->AddAction(
+      "configure-monitor",
+      NewPermanentCallback(this, &WindowManager::RunCommand,
+                           FLAGS_wm_configure_monitor_command),
+      NULL, NULL);
+  key_bindings_->AddBinding(
+      KeyBindings::KeyCombo(
+          XK_m, KeyBindings::kControlMask | KeyBindings::kAltMask),
+      "configure-monitor");
+
+  key_bindings_->AddAction(
+      "toggle-hotkey-overlay",
+      NewPermanentCallback(this, &WindowManager::ToggleHotkeyOverlay),
+      NULL, NULL);
+  key_bindings_->AddBinding(
+      KeyBindings::KeyCombo(XK_F8), "toggle-hotkey-overlay");
+
+  key_bindings_->AddAction(
+      "take-root-screenshot",
+      NewPermanentCallback(this, &WindowManager::TakeScreenshot, false),
+      NULL, NULL);
+  key_bindings_->AddBinding(
+      KeyBindings::KeyCombo(XK_Print), "take-root-screenshot");
+
+  key_bindings_->AddAction(
+      "take-window-screenshot",
+      NewPermanentCallback(this, &WindowManager::TakeScreenshot, true),
+      NULL, NULL);
+  key_bindings_->AddBinding(
+      KeyBindings::KeyCombo(XK_Print, KeyBindings::kShiftMask),
+      "take-window-screenshot");
+
+  key_bindings_->AddAction(
+      "increase-audio-volume",
+      NewPermanentCallback(
+          this, &WindowManager::RunCommand, FLAGS_wm_increase_volume_command),
+      NULL, NULL);
+  key_bindings_->AddBinding(
+      KeyBindings::KeyCombo(XF86XK_AudioRaiseVolume), "increase-audio-volume");
+
+  key_bindings_->AddAction(
+      "decrease-audio-volume",
+      NewPermanentCallback(
+          this, &WindowManager::RunCommand, FLAGS_wm_decrease_volume_command),
+      NULL, NULL);
+  key_bindings_->AddBinding(
+      KeyBindings::KeyCombo(XF86XK_AudioLowerVolume), "decrease-audio-volume");
 }
 
 bool WindowManager::ManageExistingWindows() {
@@ -1495,27 +1503,14 @@ void WindowManager::HandleUnmapNotify(const XUnmapEvent& e) {
     SetActiveWindowProperty(None);
 }
 
-void WindowManager::LaunchTerminal() {
-  DLOG(INFO) << "Launching xterm via: " << FLAGS_wm_xterm_command;
+void WindowManager::RunCommand(string command) {
+  if (command.empty())
+    return;
 
-  const string command = StringPrintf("%s &", FLAGS_wm_xterm_command.c_str());
+  command += " &";
+  DLOG(INFO) << "Running command \"" << command << "\"";
   if (system(command.c_str()) < 0)
-    LOG(WARNING) << "Unable to launch xterm via: " << command;
-}
-
-void WindowManager::LockScreen() {
-  DLOG(INFO) << "Locking screen via: " << FLAGS_wm_lock_screen_command;
-  if (system(FLAGS_wm_lock_screen_command.c_str()) < 0)
-    LOG(WARNING) << "Unable to lock screen via: "
-                 << FLAGS_wm_lock_screen_command;
-}
-
-void WindowManager::ConfigureExternalMonitor() {
-  DLOG(INFO) << "Configuring external monitor via: "
-             << FLAGS_wm_configure_monitor_command;
-  if (system(FLAGS_wm_configure_monitor_command.c_str()) < 0)
-    LOG(WARNING) << "Unable to configure the external monitor via: "
-                 << FLAGS_wm_configure_monitor_command;
+    LOG(WARNING) << "Got error while running \"" << command << "\"";
 }
 
 void WindowManager::ToggleClientWindowDebugging() {
@@ -1616,11 +1611,11 @@ void WindowManager::TakeScreenshot(bool use_active_window) {
 
   if (xid != None) {
     // TODO: Include the date and time in the screenshot.
-    string filename =
-        StringPrintf("%s/screenshot.png", FLAGS_screenshot_output_dir.c_str());
+    string filename = StringPrintf("%s/screenshot.png",
+                                   FLAGS_wm_screenshot_output_dir.c_str());
     const string command =
         StringPrintf("%s %s 0x%lx",
-                     FLAGS_screenshot_binary.c_str(), filename.c_str(), xid);
+                     FLAGS_wm_screenshot_binary.c_str(), filename.c_str(), xid);
     if (system(command.c_str()) < 0) {
       message = StringPrintf("Taking screenshot via \"%s\" failed",
                              command.c_str());

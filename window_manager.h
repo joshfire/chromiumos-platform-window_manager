@@ -203,10 +203,8 @@ class WindowManager : public CompositorEventSource,
   // size (as stored in 'width_' and 'height_').
   bool SetEwmhSizeProperties();
 
-  // Create a new ClutterGroup directly above 'bottom_actor'.  This is used
-  // to create all of the '_depth' actors that are used for stacking.
-  ClutterInterface::Actor* CreateActorAbove(
-      ClutterInterface::Actor* bottom_actor);
+  // Register all of our key bindings.  Called by Init().
+  void RegisterKeyBindings();
 
   // Query the X server for all top-level windows and start tracking (and
   // possibly managing) them.
@@ -260,14 +258,9 @@ class WindowManager : public CompositorEventSource,
   void HandleShapeNotify(const XShapeEvent& e);
   void HandleUnmapNotify(const XUnmapEvent& e);
 
-  // Callback when the hotkey for launching an xterm is pressed.
-  void LaunchTerminal();
-
-  // Locks the screen by calling xscreensaver-command.
-  void LockScreen();
-
-  // Enable and configure an external monitor.
-  void ConfigureExternalMonitor();
+  // Run a command using system().  "&" will be appended to the command to
+  // run it in the background.
+  void RunCommand(std::string command);
 
   // Callback to show or hide debugging information about client windows.
   void ToggleClientWindowDebugging();
