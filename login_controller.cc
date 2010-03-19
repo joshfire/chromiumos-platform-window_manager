@@ -231,29 +231,15 @@ void LoginController::HandleWindowMap(Window* win) {
 
   known_windows_.insert(win->xid());
 
-  CheckIfHasAllWindows();
+  OnGotNewWindowOrPropertyChange();
 
   // TODO(sky): there is a race condition here. If we die and restart with the
   // login already running we don't really know what state it was in. We need
   // Chrome to keep the current state as a parameter on one of the windows so
   // that we know what state it was in.
 
-  if (win == guest_window_ && waiting_for_guest_) {
+  if (win == guest_window_ && waiting_for_guest_)
     SelectGuest();
-  } else if (entries_.empty() && guest_window_ && background_window_) {
-    background_window_->RaiseClient();
-
-    guest_window_->MoveComposited(
-        (wm_->width() - guest_window_->client_width()) / 2,
-        (wm_->height() - guest_window_->client_height()) / 2,
-        0);
-    guest_window_->StackCompositedAbove(
-        background_window_->actor(), NULL, true);
-    guest_window_->ShowComposited();
-
-    // Make sure the guest window is above the background.
-    guest_window_->RaiseClient();
-  }
 }
 
 void LoginController::HandleWindowUnmap(Window* win) {
@@ -358,7 +344,7 @@ void LoginController::HandleWindowPropertyChange(XWindow xid, XAtom xatom) {
   // Currently only listen for property changes on the background window.
   DCHECK(background_window_ && background_window_->xid() == xid);
 
-  CheckIfHasAllWindows();
+  OnGotNewWindowOrPropertyChange();
 }
 
 void LoginController::InitSizes(int unselected_image_size, int padding) {
@@ -896,9 +882,7 @@ void LoginController::ProcessSelectionChangeCompleted(
 }
 
 bool LoginController::HasAllWindows() {
-  // Wait until chrome painted the background window, otherwise we get an ugly
-  // gray flash.
-  if (!background_window_ || background_window_->type_params()[0] != 1)
+  if (!IsBackgroundWindowReady())
     return false;
 
   if (entries_.empty())
@@ -919,7 +903,7 @@ bool LoginController::HasAllWindows() {
   return true;
 }
 
-void LoginController::CheckIfHasAllWindows() {
+void LoginController::OnGotNewWindowOrPropertyChange() {
   if (!has_all_windows_ && HasAllWindows()) {
     if (!inited_sizes_) {
       if (entries_[0].border_window->type_params().size() != 4) {
@@ -943,6 +927,31 @@ void LoginController::CheckIfHasAllWindows() {
           0);
     }
   }
+
+  if (entries_.empty() && guest_window_ && IsBackgroundWindowReady()) {
+    background_window_->MoveComposited(0, 0, 0);
+    background_window_->ShowComposited();
+    background_window_->MoveClientToComposited();
+    background_window_->RaiseClient();
+
+    guest_window_->MoveComposited(
+        (wm_->width() - guest_window_->client_width()) / 2,
+        (wm_->height() - guest_window_->client_height()) / 2,
+        0);
+    guest_window_->StackCompositedAbove(
+        background_window_->actor(), NULL, true);
+    guest_window_->ShowComposited();
+    guest_window_->MoveClientToComposited();
+
+    // Make sure the guest window is above the background.
+    guest_window_->RaiseClient();
+  }
+}
+
+bool LoginController::IsBackgroundWindowReady() {
+  // Wait until chrome painted the background window, otherwise we get an ugly
+  // gray flash.
+  return background_window_ && background_window_->type_params()[0] == 1;
 }
 
 }  // namespace window_manager

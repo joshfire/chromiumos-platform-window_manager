@@ -211,9 +211,15 @@ class LoginController : public EventConsumer {
   // Have we gotten all the windows we need?
   bool HasAllWindows();
 
-  // If we just got all the windows, this stacks the windows and starts the
-  // initial animation.
-  void CheckIfHasAllWindows();
+  // Invoked when a new window is mapped, or a property changes on the
+  // background window. This may do one of the following:
+  // . If we just got all the windows, this stacks the windows and starts the
+  //   initial animation.
+  // . If the background and guest windows are ready, they are shown.
+  void OnGotNewWindowOrPropertyChange();
+
+  // Returns true if the background window is valid and has painted.
+  bool IsBackgroundWindowReady();
 
   WindowManager* wm_;
 
