@@ -62,6 +62,17 @@ void EventConsumerRegistrar::RegisterForPropertyChanges(XWindow xid,
   property_change_pairs_.push_back(make_pair(xid, xatom));
 }
 
+void EventConsumerRegistrar::UnregisterForPropertyChanges(XWindow xid,
+                                                          XAtom xatom) {
+  wm_->UnregisterEventConsumerForPropertyChanges(xid, xatom, event_consumer_);
+
+  PropertyChangePairs::iterator it = std::find(property_change_pairs_.begin(),
+                                               property_change_pairs_.end(),
+                                               make_pair(xid, xatom));
+  DCHECK(it != property_change_pairs_.end());
+  property_change_pairs_.erase(it);
+}
+
 void EventConsumerRegistrar::RegisterForChromeMessages(
     WmIpc::Message::Type message_type) {
   wm_->RegisterEventConsumerForChromeMessages(message_type, event_consumer_);

@@ -31,15 +31,18 @@ class EventConsumerRegistrar {
   void RegisterForWindowEvents(XWindow xid);
   void UnregisterForWindowEvents(XWindow xid);
   void RegisterForPropertyChanges(XWindow xid, XAtom xatom);
+  void UnregisterForPropertyChanges(XWindow xid, XAtom xatom);
   void RegisterForChromeMessages(WmIpc::Message::Type message_type);
 
  private:
+  typedef std::vector<std::pair<XWindow, XAtom> > PropertyChangePairs;
+
   WindowManager* wm_;              // not owned
   EventConsumer* event_consumer_;  // not owned
 
   // Various interests to be unregistered at destruction.
   std::vector<XWindow> window_event_xids_;
-  std::vector<std::pair<XWindow, XAtom> > property_change_pairs_;
+  PropertyChangePairs property_change_pairs_;
   std::vector<WmIpc::Message::Type> chrome_message_types_;
 
   DISALLOW_COPY_AND_ASSIGN(EventConsumerRegistrar);

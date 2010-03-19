@@ -148,9 +148,9 @@ TidyInterface::Actor::Actor(TidyInterface* interface)
       scale_y_(1.f),
       opacity_(1.f),
       is_opaque_(false),
-      dimmed_opacity_(0.f),
       has_children_(false),
-      visible_(true) {
+      visible_(true),
+      dimmed_opacity_(0.f) {
   interface_->AddActor(this);
 }
 

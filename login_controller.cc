@@ -17,6 +17,9 @@ namespace window_manager {
 // Time for the animations.
 static const int kAnimationTimeInMs = 200;
 
+// Time for the initial show animation.
+static const int kInitialShowAnimationTimeInMs = 400;
+
 // Amount of time we delay between when all the windows have been mapped and the
 // animation is started.
 static const int kInitialShowDelayMs = 50;
@@ -206,13 +209,20 @@ void LoginController::HandleWindowMap(Window* win) {
       break;
     }
     case WmIpc::WINDOW_TYPE_LOGIN_BACKGROUND: {
+      if (win->type_params().empty()) {
+        LOG(WARNING) << " background window missing expected param";
+        return;
+      }
+
       if (background_window_)
         LOG(WARNING) << "two background windows encountered.";
 
+      LOG(INFO) << "background mapped " << win->xid_str();
+
       background_window_ = win;
-      background_window_->MoveComposited(0, 0, 0);
-      background_window_->ShowComposited();
-      background_window_->MoveClientToComposited();
+      registrar_.RegisterForPropertyChanges(
+          background_window_->xid(),
+          wm_->GetXAtom(ATOM_CHROME_WINDOW_TYPE));
       break;
     }
     default:
@@ -221,29 +231,7 @@ void LoginController::HandleWindowMap(Window* win) {
 
   known_windows_.insert(win->xid());
 
-  if (!has_all_windows_ && HasAllWindows()) {
-    if (!inited_sizes_) {
-      if (entries_[0].border_window->type_params().size() != 4) {
-        LOG(WARNING) << "first border window must have 4 parameters";
-        return;
-      }
-
-      InitSizes(entries_[0].border_window->type_params()[2],
-                entries_[0].border_window->type_params()[3]);
-    }
-
-    DCHECK(!entries_.empty() && entries_[0].border_window);
-    has_all_windows_ = true;
-
-    StackWindows();
-
-    if (initial_show_timeout_id_ == kNoTimer) {
-      initial_show_timeout_id_ = wm_->event_loop()->AddTimeout(
-          NewPermanentCallback(this, &LoginController::InitialShow),
-          kInitialShowDelayMs,
-          0);
-    }
-  }
+  CheckIfHasAllWindows();
 
   // TODO(sky): there is a race condition here. If we die and restart with the
   // login already running we don't really know what state it was in. We need
@@ -275,6 +263,9 @@ void LoginController::HandleWindowUnmap(Window* win) {
   has_all_windows_ = false;
 
   if (win == background_window_) {
+    registrar_.UnregisterForPropertyChanges(
+        background_window_->xid(),
+        wm_->GetXAtom(ATOM_CHROME_WINDOW_TYPE));
     background_window_ = NULL;
   } else if (win == guest_window_) {
     guest_window_ = NULL;
@@ -364,6 +355,10 @@ void LoginController::HandleFocusChange(XWindow xid, bool focus_in) {
 }
 
 void LoginController::HandleWindowPropertyChange(XWindow xid, XAtom xatom) {
+  // Currently only listen for property changes on the background window.
+  DCHECK(background_window_ && background_window_->xid() == xid);
+
+  CheckIfHasAllWindows();
 }
 
 void LoginController::InitSizes(int unselected_image_size, int padding) {
@@ -454,20 +449,20 @@ void LoginController::InitialShow() {
     entry.border_window->MoveComposited(border_bounds.x, max_y, 0);
     entry.border_window->ShowComposited();
     entry.border_window->MoveComposited(border_bounds.x, border_bounds.y,
-                                        kAnimationTimeInMs);
+                                        kInitialShowAnimationTimeInMs);
 
     entry.image_window->MoveComposited(image_bounds.x, max_y +
                                        (image_bounds.y - border_bounds.y), 0);
     entry.image_window->ShowComposited();
     entry.image_window->MoveComposited(image_bounds.x, image_bounds.y,
-                                       kAnimationTimeInMs);
+                                       kInitialShowAnimationTimeInMs);
 
     entry.controls_window->MoveComposited(
         controls_bounds.x, max_y + (controls_bounds.y - border_bounds.y),
         0);
     entry.controls_window->ShowComposited();
     entry.controls_window->MoveComposited(controls_bounds.x, controls_bounds.y,
-                                          kAnimationTimeInMs);
+                                          kInitialShowAnimationTimeInMs);
 
     Window* label_window =
         selected ? entry.label_window : entry.unselected_label_window;
@@ -475,11 +470,15 @@ void LoginController::InitialShow() {
         image_bounds.x, max_y + (label_bounds.y - border_bounds.y),
         0);
     label_window->MoveComposited(label_bounds.x, label_bounds.y,
-                                 kAnimationTimeInMs);
+                                 kInitialShowAnimationTimeInMs);
   }
 }
 
 void LoginController::StackWindows() {
+  background_window_->MoveComposited(0, 0, 0);
+  background_window_->ShowComposited();
+  background_window_->MoveClientToComposited();
+
   for (size_t i = 0; i < entries_.size(); ++i) {
     const Entry& entry = entries_[i];
     entry.border_window->StackCompositedAbove(
@@ -679,9 +678,9 @@ void LoginController::SelectGuest() {
   // Move the guest window to its original location of guest border.
   const int guest_width = guest_window_->client_width();
   const int guest_height = guest_window_->client_height();
-  const float x_scale = (static_cast<float>(border_width_) /
+  const float x_scale = (static_cast<float>(unselected_border_width_) /
                          static_cast<float>(guest_width));
-  const float y_scale = (static_cast<float>(border_height_) /
+  const float y_scale = (static_cast<float>(unselected_border_height_) /
                          static_cast<float>(guest_height));
   guest_window_->ScaleComposited(x_scale, y_scale, 0);
   guest_window_->SetCompositedOpacity(0, 0);
@@ -897,7 +896,9 @@ void LoginController::ProcessSelectionChangeCompleted(
 }
 
 bool LoginController::HasAllWindows() {
-  if (!background_window_)
+  // Wait until chrome painted the background window, otherwise we get an ugly
+  // gray flash.
+  if (!background_window_ || background_window_->type_params()[0] != 1)
     return false;
 
   if (entries_.empty())
@@ -916,6 +917,32 @@ bool LoginController::HasAllWindows() {
       return false;
   }
   return true;
+}
+
+void LoginController::CheckIfHasAllWindows() {
+  if (!has_all_windows_ && HasAllWindows()) {
+    if (!inited_sizes_) {
+      if (entries_[0].border_window->type_params().size() != 4) {
+        LOG(WARNING) << "first border window must have 4 parameters";
+        return;
+      }
+
+      InitSizes(entries_[0].border_window->type_params()[2],
+                entries_[0].border_window->type_params()[3]);
+    }
+
+    DCHECK(!entries_.empty() && entries_[0].border_window);
+    has_all_windows_ = true;
+
+    StackWindows();
+
+    if (initial_show_timeout_id_ == kNoTimer) {
+      initial_show_timeout_id_ = wm_->event_loop()->AddTimeout(
+          NewPermanentCallback(this, &LoginController::InitialShow),
+          kInitialShowDelayMs,
+          0);
+    }
+  }
 }
 
 }  // namespace window_manager

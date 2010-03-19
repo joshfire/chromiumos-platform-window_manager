@@ -211,6 +211,10 @@ class LoginController : public EventConsumer {
   // Have we gotten all the windows we need?
   bool HasAllWindows();
 
+  // If we just got all the windows, this stacks the windows and starts the
+  // initial animation.
+  void CheckIfHasAllWindows();
+
   WindowManager* wm_;
 
   EventConsumerRegistrar registrar_;
