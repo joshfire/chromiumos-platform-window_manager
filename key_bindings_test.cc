@@ -248,9 +248,6 @@ TEST_F(KeyBindingsTest, InvalidOperations) {
   KeyBindings::KeyCombo combo(XK_e);
   EXPECT_TRUE(bindings_->AddBinding(combo, "test"));
   EXPECT_FALSE(bindings_->AddBinding(combo, "test"));  // Double add
-
-  combo.keysym = XK_r;
-  EXPECT_FALSE(bindings_->AddBinding(combo, "test"));  // keysym with no keycode
 }
 
 TEST_F(KeyBindingsTest, ManyActionsAndBindings) {
@@ -352,7 +349,7 @@ TEST_F(KeyBindingsTest, ManyActionsAndBindings) {
 // Test that we use the lowercase versions of keysyms.
 TEST_F(KeyBindingsTest, Lowercase) {
   // Add the uppercase versions first so that the keycode-to-keysym mappings
-  // will ultimately contain the lowercase versions.
+  // will return the lowercase versions.
   xconn_->AddKeyMapping(1, XK_E);
   xconn_->AddKeyMapping(1, XK_e);
   xconn_->AddKeyMapping(2, XK_J);
@@ -460,6 +457,7 @@ TEST_F(KeyBindingsTest, RefreshKeyMappings) {
 
   // After we remap the 'a' keysym to a different keycode, KeyBindings
   // should update its grabs.
+  xconn_->RemoveKeyMapping(old_keycode, keysym);
   xconn_->AddKeyMapping(new_keycode, keysym);
   bindings_->RefreshKeyMappings();
   EXPECT_FALSE(xconn_->KeyIsGrabbed(old_keycode, mods));
@@ -467,6 +465,7 @@ TEST_F(KeyBindingsTest, RefreshKeyMappings) {
   EXPECT_FALSE(xconn_->KeyIsGrabbed(newest_keycode, mods));
 
   // Remap it one more time.
+  xconn_->RemoveKeyMapping(new_keycode, keysym);
   xconn_->AddKeyMapping(newest_keycode, keysym);
   bindings_->RefreshKeyMappings();
   EXPECT_FALSE(xconn_->KeyIsGrabbed(old_keycode, mods));
@@ -496,6 +495,8 @@ TEST_F(KeyBindingsTest, OverlappingKeyMappings) {
 
   // Now swap things so that keycode 1 maps to 'b' and 2 maps to 'a', and
   // make sure that both keycodes are still grabbed.
+  xconn_->RemoveKeyMapping(1, keysym_a);
+  xconn_->RemoveKeyMapping(2, keysym_b);
   xconn_->AddKeyMapping(1, keysym_b);
   xconn_->AddKeyMapping(2, keysym_a);
   bindings_->RefreshKeyMappings();
@@ -529,6 +530,44 @@ TEST_F(KeyBindingsTest, KeyBindingsGroup) {
   EXPECT_TRUE(xconn_->KeyIsGrabbed(2, mods));
 
   group.reset();
+  EXPECT_FALSE(xconn_->KeyIsGrabbed(1, mods));
+  EXPECT_FALSE(xconn_->KeyIsGrabbed(2, mods));
+}
+
+// Check that we do something reasonable when handling bindings with
+// keysyms that don't have keycodes.
+TEST_F(KeyBindingsTest, MissingKeycodes) {
+  // Add a mapping between 'a' and keycode 1.
+  const KeySym keysym_a = XK_a;
+  const KeySym keysym_b = XK_b;
+  const uint32_t mods = KeyBindings::kControlMask;
+  xconn_->AddKeyMapping(1, keysym_a);
+
+  // Add bindings for both 'a' and 'b', and check that the keycode for 'a'
+  // is grabbed (and that we don't do something stupid like trying to grab
+  // keycode 0).
+  AddAction(0, true, false, false);
+  ASSERT_TRUE(bindings_->AddBinding(KeyBindings::KeyCombo(keysym_a, mods),
+                                    actions_[0]->name));
+  ASSERT_TRUE(bindings_->AddBinding(KeyBindings::KeyCombo(keysym_b, mods),
+                                    actions_[0]->name));
+  bindings_->RefreshKeyMappings();
+  EXPECT_FALSE(xconn_->KeyIsGrabbed(0, mods));
+  EXPECT_TRUE(xconn_->KeyIsGrabbed(1, mods));
+
+  // Now remove the keycode for 'a' and map 'b' to keycode 2.  When we
+  // refresh the mappings, the grab for keycode 1 should be removed and a
+  // grab should be added for keycode 2.
+  xconn_->RemoveKeyMapping(1, keysym_a);
+  xconn_->AddKeyMapping(2, keysym_b);
+  bindings_->RefreshKeyMappings();
+  EXPECT_FALSE(xconn_->KeyIsGrabbed(0, mods));
+  EXPECT_FALSE(xconn_->KeyIsGrabbed(1, mods));
+  EXPECT_TRUE(xconn_->KeyIsGrabbed(2, mods));
+
+  // Everything should be ungrabbed after the KeyBindings object is destroyed.
+  bindings_.reset();
+  EXPECT_FALSE(xconn_->KeyIsGrabbed(0, mods));
   EXPECT_FALSE(xconn_->KeyIsGrabbed(1, mods));
   EXPECT_FALSE(xconn_->KeyIsGrabbed(2, mods));
 }

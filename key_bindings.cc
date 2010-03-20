@@ -140,33 +140,36 @@ bool KeyBindings::AddBinding(const KeyCombo& combo, const string& action_name) {
     return false;
   }
 
-  KeyCode keycode = FindWithDefault(
-      keysyms_to_grabbed_keycodes_, combo.keysym, static_cast<KeyCode>(0));
-  if (keycode == 0) {
-    keycode = xconn_->GetKeyCodeFromKeySym(combo.keysym);
-    if (keycode == 0) {
-      LOG(WARNING) << "Unable to look up keycode for keysym " << combo.keysym;
-      return false;
-    }
-    keysyms_to_grabbed_keycodes_[combo.keysym] = keycode;
-  }
-
   Action* const action = iter->second;
   CHECK(action->bindings.insert(combo).second);
   CHECK(bindings_.insert(make_pair(combo, action_name)).second);
   CHECK(action_names_by_keysym_[combo.keysym].insert(action_name).second);
 
-  xconn_->GrabKey(keycode, combo.modifiers);
-  // Also grab this key combination plus Caps Lock.
-  xconn_->GrabKey(keycode, combo.modifiers | LockMask);
+  KeyCode keycode = FindWithDefault(
+      keysyms_to_grabbed_keycodes_, combo.keysym, static_cast<KeyCode>(0));
+  if (keycode == 0) {
+    keycode = xconn_->GetKeyCodeFromKeySym(combo.keysym);
+    if (keycode != 0)
+      keysyms_to_grabbed_keycodes_[combo.keysym] = keycode;
+  }
+
+  if (keycode == 0) {
+    // We'll try again if the keymap changes.
+    LOG(WARNING) << "Unable to look up keycode for keysym " << combo.keysym
+                 << "; not grabbing key";
+  } else {
+    xconn_->GrabKey(keycode, combo.modifiers);
+    // Also grab this key combination plus Caps Lock.
+    xconn_->GrabKey(keycode, combo.modifiers | LockMask);
+  }
   return true;
 }
 
 bool KeyBindings::RemoveBinding(const KeyCombo& combo) {
   BindingsMap::iterator bindings_iter = bindings_.find(combo);
-  if (bindings_iter == bindings_.end()) {
+  if (bindings_iter == bindings_.end())
     return false;
-  }
+
   ActionMap::iterator action_iter = actions_.find(bindings_iter->second);
   CHECK(action_iter != actions_.end());
   Action* action = action_iter->second;
@@ -187,10 +190,10 @@ bool KeyBindings::RemoveBinding(const KeyCombo& combo) {
 
   KeyCode keycode = FindWithDefault(
       keysyms_to_grabbed_keycodes_, combo.keysym, static_cast<KeyCode>(0));
-  DCHECK(keycode != 0)
-      << "Unable to find cached keycode for keysym " << combo.keysym;
-  xconn_->UngrabKey(keycode, combo.modifiers);
-  xconn_->UngrabKey(keycode, combo.modifiers | LockMask);
+  if (keycode != 0) {
+    xconn_->UngrabKey(keycode, combo.modifiers);
+    xconn_->UngrabKey(keycode, combo.modifiers | LockMask);
+  }
   return true;
 }
 
@@ -214,14 +217,19 @@ void KeyBindings::RefreshKeyMappings() {
                                           static_cast<KeyCode>(0));
     if (new_keycode == 0) {
       new_keycode = xconn_->GetKeyCodeFromKeySym(combo.keysym);
-      DCHECK(new_keycode != 0)
-          << "Unable to look up new keycode for keysym " << combo.keysym;
-      new_keysyms_to_grabbed_keycodes_[combo.keysym] = new_keycode;
+      if (new_keycode != 0)
+        new_keysyms_to_grabbed_keycodes_[combo.keysym] = new_keycode;
     }
 
     if (new_keycode != old_keycode) {
-      grabs_to_remove.push_back(make_pair(old_keycode, combo.modifiers));
-      grabs_to_add.push_back(make_pair(new_keycode, combo.modifiers));
+      if (old_keycode != 0)
+        grabs_to_remove.push_back(make_pair(old_keycode, combo.modifiers));
+      if (new_keycode != 0) {
+        grabs_to_add.push_back(make_pair(new_keycode, combo.modifiers));
+      } else {
+        LOG(WARNING) << "Unable to look up new keycode for keysym "
+                     << combo.keysym << "; not grabbing key";
+      }
     }
   }
 

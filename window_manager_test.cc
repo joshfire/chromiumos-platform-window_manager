@@ -902,6 +902,7 @@ TEST_F(WindowManagerTest, HandleMappingNotify) {
   // Now remap the 'l' key and give the window manager a MappingNotify event.
   const KeyCode new_keycode = 255;
   EXPECT_FALSE(xconn_->KeyIsGrabbed(new_keycode, ControlMask | Mod1Mask));
+  xconn_->RemoveKeyMapping(old_keycode, XK_l);
   xconn_->AddKeyMapping(new_keycode, XK_l);
 
   XEvent event;

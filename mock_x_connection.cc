@@ -527,7 +527,11 @@ bool MockXConnection::GetChildWindows(XWindow xid,
 }
 
 KeySym MockXConnection::GetKeySymFromKeyCode(KeyCode keycode) {
-  return FindWithDefault(keycodes_to_keysyms_, keycode, static_cast<KeySym>(0));
+  map<KeyCode, vector<KeySym> >::iterator it =
+      keycodes_to_keysyms_.find(keycode);
+  if (it == keycodes_to_keysyms_.end() || it->second.empty())
+    return 0;
+  return it->second.front();
 }
 
 KeyCode MockXConnection::GetKeyCodeFromKeySym(KeySym keysym) {
@@ -564,8 +568,35 @@ MockXConnection::WindowInfo* MockXConnection::GetWindowInfo(XWindow xid) {
   return (it != windows_.end()) ? it->second.get() : NULL;
 }
 
+void MockXConnection::AddKeyMapping(KeyCode keycode, KeySym keysym) {
+  keycodes_to_keysyms_[keycode].push_back(keysym);
+  CHECK(keysyms_to_keycodes_.insert(make_pair(keysym, keycode)).second)
+      << "Keysym " << keysym << " is already mapped to a keycode";
+}
+
+void MockXConnection::RemoveKeyMapping(KeyCode keycode, KeySym keysym) {
+  map<KeyCode, vector<KeySym> >::iterator keycode_it =
+      keycodes_to_keysyms_.find(keycode);
+  CHECK(keycode_it != keycodes_to_keysyms_.end())
+      << "Keycode " << keycode << " isn't mapped to anything";
+  vector<KeySym>::iterator keysym_vector_it =
+      find(keycode_it->second.begin(), keycode_it->second.end(), keysym);
+  CHECK(keysym_vector_it != keycode_it->second.end())
+      << "Keycode " << keycode << " isn't mapped to keysym " << keysym;
+  keycode_it->second.erase(keysym_vector_it);
+
+  map<KeySym, KeyCode>::iterator keysym_it =
+      keysyms_to_keycodes_.find(keysym);
+  CHECK(keysym_it != keysyms_to_keycodes_.end())
+      << "Keysym " << keysym << " isn't mapped";
+  CHECK(keysym_it->second == keycode)
+      << "Keysym " << keysym << " is mapped to keycode " << keysym_it->second
+      << " rather than " << keycode;
+  keysyms_to_keycodes_.erase(keysym_it);
+}
+
 void MockXConnection::AppendEventToQueue(const XEvent& event,
-                                         bool write_to_fd) {
+                                       bool write_to_fd) {
   queued_events_.push(event);
   if (write_to_fd && !connection_pipe_has_data_) {
     unsigned char data = 1;

@@ -188,11 +188,12 @@ class MockXConnection : public XConnection {
     return grabbed_keys_.count(std::make_pair(keycode, modifiers)) > 0;
   }
 
-  // Register a mapping between a keycode and a keysym.
-  void AddKeyMapping(KeyCode keycode, KeySym keysym) {
-    keycodes_to_keysyms_[keycode] = keysym;
-    keysyms_to_keycodes_[keysym] = keycode;
-  }
+  // Add or remove a two-way mapping between a keycode and a keysym.
+  // Keycode-to-keysym mappings are one-to-many within this class.  If a
+  // keycode is mapped to multiple keysyms, GetKeySymFromKeyCode() will
+  // return the first one that was registered.
+  void AddKeyMapping(KeyCode keycode, KeySym keysym);
+  void RemoveKeyMapping(KeyCode keycode, KeySym keysym);
 
   const Stacker<XWindow>& stacked_xids() const {
     return *(stacked_xids_.get());
@@ -300,7 +301,7 @@ class MockXConnection : public XConnection {
   std::set<std::pair<KeyCode, uint32> > grabbed_keys_;
 
   // Mappings from KeyCodes to the corresponding KeySyms and vice versa.
-  std::map<KeyCode, KeySym> keycodes_to_keysyms_;
+  std::map<KeyCode, std::vector<KeySym> > keycodes_to_keysyms_;
   std::map<KeySym, KeyCode> keysyms_to_keycodes_;
 
   // Number of times that RefreshKeyboardMap() has been called.
