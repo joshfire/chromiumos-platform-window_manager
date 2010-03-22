@@ -238,6 +238,7 @@ void LayoutManager::ToplevelWindow::ConfigureForOverviewMode(
 
     win_->ScaleComposited(overview_scale_, overview_scale_, anim_ms);
     win_->SetCompositedOpacity(1.0, anim_ms);
+    win_->actor()->ShowDimmed(!window_is_magnified, anim_ms);
     win_->MoveClientOffscreen();
     wm()->ConfigureInputWindow(input_xid_,
                                GetAbsoluteOverviewX(), GetAbsoluteOverviewY(),

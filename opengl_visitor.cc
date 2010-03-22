@@ -444,6 +444,7 @@ void OpenGlDrawVisitor::DrawNeedle() {
   gl_interface_->EnableClientState(GL_VERTEX_ARRAY);
   gl_interface_->VertexPointer(2, GL_FLOAT, 0, 0);
   gl_interface_->DisableClientState(GL_TEXTURE_COORD_ARRAY);
+  gl_interface_->DisableClientState(GL_COLOR_ARRAY);
   gl_interface_->Disable(GL_TEXTURE_2D);
   gl_interface_->PushMatrix();
   gl_interface_->Disable(GL_DEPTH_TEST);
