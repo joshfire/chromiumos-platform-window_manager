@@ -133,6 +133,9 @@ void OpenGlesDrawVisitor::BindImage(const ImageContainer* container,
 }
 
 void OpenGlesDrawVisitor::VisitStage(TidyInterface::StageActor* actor) {
+  if (!actor->IsVisible())
+    return;
+
   // TODO: We don't need to clear color, remove this when background
   // images work correctly.
   gl_->ClearColor(.86f, .2f, .44f, 1.f);
@@ -176,6 +179,9 @@ void OpenGlesDrawVisitor::VisitStage(TidyInterface::StageActor* actor) {
 
 void OpenGlesDrawVisitor::VisitTexturePixmap(
     TidyInterface::TexturePixmapActor* actor) {
+  if (!actor->IsVisible())
+    return;
+
   OpenGlesEglImageData* image_data = dynamic_cast<OpenGlesEglImageData*>(
       actor->GetDrawingData(kEglImageData).get());
 
@@ -199,6 +205,9 @@ void OpenGlesDrawVisitor::VisitTexturePixmap(
 }
 
 void OpenGlesDrawVisitor::VisitQuad(TidyInterface::QuadActor* actor) {
+  if (!actor->IsVisible())
+    return;
+
   // color
   gl_->Uniform4f(tex_color_shader_->ColorLocation(), actor->color().red,
                  actor->color().green, actor->color().blue,
@@ -227,10 +236,12 @@ void OpenGlesDrawVisitor::VisitQuad(TidyInterface::QuadActor* actor) {
 
 void OpenGlesDrawVisitor::VisitContainer(
     TidyInterface::ContainerActor* actor) {
+  if (!actor->IsVisible())
+    return;
+
   LOG(INFO) << "Visit container: " << actor->name();
   Matrix4 old_model_view = model_view_;
-  model_view_ *= Matrix4::translation(Vector3(actor->x(), actor->y(),
-                                              actor->z()));
+  model_view_ *= Matrix4::translation(Vector3(actor->x(), actor->y(), 0.f));
   model_view_ *= Matrix4::scale(Vector3(actor->width() * actor->scale_x(),
                                         actor->height() * actor->scale_y(),
                                         1.f));
