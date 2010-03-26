@@ -391,6 +391,11 @@ class WindowManager : public CompositorEventSource {
   // or not.
   bool logged_in_;
 
+  // Has a toplevel Chrome window been mapped?  Depending on
+  // --wm_initial_chrome_window_mapped_file, we may create a file when this
+  // happens to help in testing.
+  bool chrome_window_has_been_mapped_;
+
   DISALLOW_COPY_AND_ASSIGN(WindowManager);
 };
 

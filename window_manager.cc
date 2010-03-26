@@ -4,10 +4,13 @@
 
 #include "window_manager/window_manager.h"
 
+#include <cerrno>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
 #include <queue>
 
 extern "C" {
-#include <stdlib.h>
 #include <X11/cursorfont.h>
 #include <X11/Xatom.h>
 #include <X11/XF86keysym.h>
@@ -49,6 +52,11 @@ DEFINE_string(wm_increase_volume_command,
 DEFINE_string(wm_decrease_volume_command,
               "/usr/bin/amixer -- sset Master unmute 5%-",
               "Command to decrease audio volume");
+DEFINE_string(wm_initial_chrome_window_mapped_file,
+              "", "When we first see a toplevel Chrome window get mapped, "
+              "we write its ID as an ASCII decimal number to this file.  "
+              "Tests can watch for the file to know when the user is fully "
+              "logged in.  Leave empty to disable.");
 
 DEFINE_bool(wm_use_compositing, true, "Use compositing");
 
@@ -182,7 +190,8 @@ WindowManager::WindowManager(EventLoop* event_loop,
       layout_manager_y_(0),
       layout_manager_width_(1),
       layout_manager_height_(1),
-      logged_in_(false) {
+      logged_in_(false),
+      chrome_window_has_been_mapped_(false) {
   CHECK(event_loop_);
   CHECK(xconn_);
   CHECK(clutter_);
@@ -891,6 +900,23 @@ void WindowManager::HandleMappedWindow(Window* win) {
   for (set<EventConsumer*>::iterator it = event_consumers_.begin();
        it != event_consumers_.end(); ++it) {
     (*it)->HandleWindowMap(win);
+  }
+
+  if (win->type() == WmIpc::WINDOW_TYPE_CHROME_TOPLEVEL &&
+      !chrome_window_has_been_mapped_) {
+    chrome_window_has_been_mapped_ = true;
+    if (!FLAGS_wm_initial_chrome_window_mapped_file.empty()) {
+      DLOG(INFO) << "Writing initial Chrome window's ID to file "
+                 << FLAGS_wm_initial_chrome_window_mapped_file;
+      FILE* file = fopen(
+          FLAGS_wm_initial_chrome_window_mapped_file.c_str(), "w+");
+      if (!file) {
+        LOG(ERROR) << "Unable to open file: " << strerror(errno);
+      } else {
+        fprintf(file, "%lu", win->xid());
+        fclose(file);
+      }
+    }
   }
 }
 
