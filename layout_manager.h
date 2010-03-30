@@ -152,6 +152,7 @@ class LayoutManager : public EventConsumer {
   FRIEND_TEST(LayoutManagerTest, FocusTransient);
   FRIEND_TEST(LayoutManagerTest, OverviewFocus);
   FRIEND_TEST(LayoutManagerTest, StackTransientsAbovePanels);
+  FRIEND_TEST(LayoutManagerTest, NoDimmingInActiveMode);
 
   // Animation speed used for windows.
   static const int kWindowAnimMs;

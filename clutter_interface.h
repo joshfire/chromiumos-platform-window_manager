@@ -176,6 +176,7 @@ class MockClutterInterface : public ClutterInterface {
     double scale_y() const { return scale_y_; }
     double opacity() const { return opacity_; }
     bool visible() const { return visible_; }
+    bool is_dimmed() const { return is_dimmed_; }
 
     MockClutterInterface::ContainerActor* parent() { return parent_; }
     void set_parent(MockClutterInterface::ContainerActor* new_parent) {

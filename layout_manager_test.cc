@@ -845,6 +845,42 @@ TEST_F(LayoutManagerTest, ActiveWindowHintOnTransientUnmap) {
   EXPECT_EQ(1, counter.num_calls());
 }
 
+// Check that we don't dim windows in active mode, to guard against a
+// regression of http://crosbug.com/2278.
+TEST_F(LayoutManagerTest, NoDimmingInActiveMode) {
+  // Create two toplevel windows.
+  const XWindow xid1 = CreateSimpleWindow();
+  SendInitialEventsForWindow(xid1);
+  EXPECT_EQ(xid1, xconn_->focused_xid());
+  SendFocusEvents(xconn_->GetRootWindow(), xid1);
+
+  const XWindow xid2 = CreateSimpleWindow();
+  SendInitialEventsForWindow(xid2);
+  EXPECT_EQ(xid2, xconn_->focused_xid());
+  SendFocusEvents(xid1, xid2);
+
+  // Switch to overview mode and then back to active mode.
+  lm_->SetMode(LayoutManager::MODE_OVERVIEW);
+  lm_->SetMode(LayoutManager::MODE_ACTIVE);
+
+  // Check that the second window is focused and not dimmed.
+  EXPECT_EQ(xid2, xconn_->focused_xid());
+  MockClutterInterface::Actor* actor2 =
+      dynamic_cast<MockClutterInterface::Actor*>(wm_->GetWindow(xid2)->actor());
+  CHECK(actor2);
+  EXPECT_FALSE(actor2->is_dimmed());
+
+  // Now switch back to the first window (which was dimmed when we displayed
+  // it in overview mode) and check that it's not dimmed in active mode.
+  lm_->CycleActiveToplevelWindow(true);
+  EXPECT_EQ(xid1, xconn_->focused_xid());
+  SendFocusEvents(xid2, xid1);
+  MockClutterInterface::Actor* actor1 =
+      dynamic_cast<MockClutterInterface::Actor*>(wm_->GetWindow(xid1)->actor());
+  CHECK(actor1);
+  EXPECT_FALSE(actor1->is_dimmed());
+}
+
 }  // namespace window_manager
 
 int main(int argc, char** argv) {

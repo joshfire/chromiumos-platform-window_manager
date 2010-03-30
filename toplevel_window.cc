@@ -206,6 +206,7 @@ void LayoutManager::ToplevelWindow::ConfigureForActiveMode(
     win_->MoveClientOffscreen();
   }
 
+  win_->actor()->ShowDimmed(false, 0);
   ApplyStackingForAllTransientWindows(false);  // stack in upper layer
   MoveAndScaleAllTransientWindows(LayoutManager::kWindowAnimMs);
 
