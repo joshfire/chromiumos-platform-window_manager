@@ -21,14 +21,14 @@ DEFINE_bool(window_drop_shadows, true, "Display drop shadows under windows");
 
 DECLARE_bool(wm_use_compositing);  // from window_manager.cc
 
-namespace window_manager {
-
 using std::map;
 using std::max;
 using std::min;
 using std::set;
 using std::string;
 using std::vector;
+
+namespace window_manager {
 
 Window::Window(WindowManager* wm, XWindow xid, bool override_redirect)
     : xid_(xid),

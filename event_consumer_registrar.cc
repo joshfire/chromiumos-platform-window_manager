@@ -9,11 +9,12 @@
 #include "window_manager/event_consumer.h"
 #include "window_manager/window_manager.h"
 
-namespace window_manager {
-
+using std::find;
 using std::make_pair;
 using std::pair;
 using std::vector;
+
+namespace window_manager {
 
 EventConsumerRegistrar::EventConsumerRegistrar(WindowManager* wm,
                                                EventConsumer* event_consumer)
@@ -49,9 +50,9 @@ void EventConsumerRegistrar::RegisterForWindowEvents(XWindow xid) {
 
 void EventConsumerRegistrar::UnregisterForWindowEvents(XWindow xid) {
   wm_->UnregisterEventConsumerForWindowEvents(xid, event_consumer_);
-  std::vector<XWindow>::iterator it = std::find(window_event_xids_.begin(),
-                                                window_event_xids_.end(),
-                                                xid);
+  vector<XWindow>::iterator it = find(window_event_xids_.begin(),
+                                      window_event_xids_.end(),
+                                      xid);
   DCHECK(it != window_event_xids_.end());
   window_event_xids_.erase(it);
 }
@@ -66,9 +67,9 @@ void EventConsumerRegistrar::UnregisterForPropertyChanges(XWindow xid,
                                                           XAtom xatom) {
   wm_->UnregisterEventConsumerForPropertyChanges(xid, xatom, event_consumer_);
 
-  PropertyChangePairs::iterator it = std::find(property_change_pairs_.begin(),
-                                               property_change_pairs_.end(),
-                                               make_pair(xid, xatom));
+  PropertyChangePairs::iterator it = find(property_change_pairs_.begin(),
+                                          property_change_pairs_.end(),
+                                          make_pair(xid, xatom));
   DCHECK(it != property_change_pairs_.end());
   property_change_pairs_.erase(it);
 }

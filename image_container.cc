@@ -9,11 +9,11 @@
 #include "base/logging.h"
 #include "base/scoped_ptr.h"
 
+using std::string;
+
 namespace window_manager {
 
 static const int kPngSignatureSize = 8;
-
-using std::string;
 
 // static
 ImageContainer* ImageContainer::CreateContainer(const string& filename) {

@@ -7,6 +7,7 @@
 
 #include <map>
 #include <tr1/memory>
+#include <vector>
 
 #include <gtest/gtest_prod.h>  // for FRIEND_TEST() macro
 

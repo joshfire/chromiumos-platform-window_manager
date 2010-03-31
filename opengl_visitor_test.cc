@@ -4,8 +4,6 @@
 
 #include <algorithm>
 #include <cstdarg>
-#include <string>
-#include <vector>
 
 #include <gflags/gflags.h>
 #include <gtest/gtest.h>
@@ -23,9 +21,6 @@
 
 DEFINE_bool(logtostderr, false,
             "Print debugging messages to stderr (suppressed otherwise)");
-
-using std::string;
-using std::vector;
 
 namespace window_manager {
 

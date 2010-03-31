@@ -22,10 +22,13 @@ extern "C" {
 DEFINE_bool(logtostderr, false,
             "Print debugging messages to stderr (suppressed otherwise)");
 
+using std::string;
+using std::vector;
+
 namespace window_manager {
 
 struct TestAction {
-  explicit TestAction(const std::string& name_param)
+  explicit TestAction(const string& name_param)
       : name(name_param),
         begin_call_count(0),
         repeat_call_count(0),
@@ -44,7 +47,7 @@ struct TestAction {
   void inc_repeat_call_count() { ++repeat_call_count; }
   void inc_end_call_count() { ++end_call_count; }
 
-  std::string name;
+  string name;
   int begin_call_count;
   int repeat_call_count;
   int end_call_count;
@@ -87,7 +90,7 @@ class KeyBindingsTest : public ::testing::Test {
 
   scoped_ptr<window_manager::MockXConnection> xconn_;
   scoped_ptr<window_manager::KeyBindings> bindings_;
-  std::vector<TestAction*> actions_;
+  vector<TestAction*> actions_;
 
   static const int kNumActions = 10;
 };

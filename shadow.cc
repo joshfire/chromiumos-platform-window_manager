@@ -10,6 +10,8 @@
 DEFINE_string(shadow_image_dir, "../assets/images",
               "Path to directory containing shadow images");
 
+using std::string;
+
 namespace window_manager {
 
 // Static members.
@@ -151,7 +153,7 @@ void Shadow::Init() {
   CHECK(tr_texture_->GetWidth() - kRightWidth == kInset);
 }
 
-ClutterInterface::Actor* Shadow::InitTexture(const std::string& filename) {
+ClutterInterface::Actor* Shadow::InitTexture(const string& filename) {
   ClutterInterface::Actor* actor = clutter_->CreateImage(
       FLAGS_shadow_image_dir + "/" + filename);
   actor->SetName(filename);

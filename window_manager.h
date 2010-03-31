@@ -7,9 +7,10 @@
 
 #include <map>
 #include <set>
-#include <vector>
+#include <string>
 #include <tr1/memory>
 #include <utility>
+#include <vector>
 
 extern "C" {
 // TODO: Move the event-handling methods (all private) into a separate

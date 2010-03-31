@@ -9,7 +9,6 @@
 #include "window_manager/window.h"
 #include "window_manager/x_connection.h"
 
-using std::map;
 using std::set;
 using std::tr1::shared_ptr;
 

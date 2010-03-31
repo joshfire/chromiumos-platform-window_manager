@@ -8,6 +8,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <list>
 #include <queue>
 
 extern "C" {
@@ -60,8 +61,6 @@ DEFINE_string(wm_initial_chrome_window_mapped_file,
 
 DEFINE_bool(wm_use_compositing, true, "Use compositing");
 
-namespace window_manager {
-
 using std::list;
 using std::make_pair;
 using std::map;
@@ -69,6 +68,8 @@ using std::set;
 using std::string;
 using std::tr1::shared_ptr;
 using std::vector;
+
+namespace window_manager {
 
 // Time to spend fading the hotkey overlay in or out, in milliseconds.
 static const int kHotkeyOverlayAnimMs = 100;
@@ -232,8 +233,8 @@ void WindowManager::StartSendingEventsForWindowToCompositor(XWindow xid) {
 
 void WindowManager::StopSendingEventsForWindowToCompositor(XWindow xid) {
   int num_removed = xids_tracked_by_compositor_.erase(xid);
-  DCHECK(num_removed == 1) << "Got request to stop sending compositor events "
-                           << "about unregistered window " << XidStr(xid);
+  DCHECK_EQ(num_removed, 1) << "Got request to stop sending compositor events "
+                            << "about unregistered window " << XidStr(xid);
 }
 
 bool WindowManager::Init() {
@@ -1052,9 +1053,10 @@ void WindowManager::HandleConfigureNotify(const XConfigureEvent& e) {
 
   // Check whether the stacking order changed.
   const XWindow* prev_above = stacked_xids_->GetUnder(e.window);
-  if (// On bottom, but not previously
-      (e.above == None && prev_above != NULL) ||
-      // Not on bottom, but previously on bottom or above different sibling
+  // If we're on the bottom but weren't previously, or aren't on the bottom
+  // now but previously were or are now above a different sibling, update
+  // the order.
+  if ((e.above == None && prev_above != NULL) ||
       (e.above != None && (prev_above == NULL || *prev_above != e.above))) {
     restacked = true;
     stacked_xids_->Remove(e.window);
@@ -1614,14 +1616,14 @@ void WindowManager::ToggleHotkeyOverlay() {
     group->SetOpacity(0, 0);
     group->SetVisibility(true);
     group->SetOpacity(1, kHotkeyOverlayAnimMs);
-    DCHECK(query_keyboard_state_timeout_id_ == -1);
+    DCHECK_EQ(query_keyboard_state_timeout_id_, -1);
     query_keyboard_state_timeout_id_ =
         event_loop_->AddTimeout(
             NewPermanentCallback(this, &WindowManager::QueryKeyboardState),
             0, kHotkeyOverlayPollMs);
   } else {
     group->SetOpacity(0, kHotkeyOverlayAnimMs);
-    DCHECK(query_keyboard_state_timeout_id_ >= 0);
+    DCHECK_GE(query_keyboard_state_timeout_id_, 0);
     event_loop_->RemoveTimeout(query_keyboard_state_timeout_id_);
     query_keyboard_state_timeout_id_ = -1;
   }

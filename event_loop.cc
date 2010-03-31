@@ -4,11 +4,12 @@
 
 #include "window_manager/event_loop.h"
 
+#include <sys/epoll.h>
+#include <sys/timerfd.h>
+
 #include <algorithm>
 #include <cerrno>
 #include <cstring>
-#include <sys/epoll.h>
-#include <sys/timerfd.h>
 #include <vector>
 
 extern "C" {
@@ -18,15 +19,13 @@ extern "C" {
 #include "base/eintr_wrapper.h"
 #include "base/logging.h"
 
-namespace window_manager {
-
+using std::hex;
 using std::make_pair;
-using std::map;
-using std::max;
-using std::pop_heap;
 using std::set;
 using std::tr1::shared_ptr;
 using std::vector;
+
+namespace window_manager {
 
 static void FillTimerSpec(struct itimerspec* spec,
                           int initial_timeout_ms,
@@ -97,7 +96,7 @@ void EventLoop::Run() {
 
       if (!(epoll_events[i].events & EPOLLIN)) {
         LOG(WARNING) << "Got unexpected event mask for fd " << event_fd
-                     << ": 0x" << std::hex << epoll_events[i].events;
+                     << ": 0x" << hex << epoll_events[i].events;
         continue;
       }
 
@@ -148,8 +147,8 @@ int EventLoop::AddTimeout(Closure* cb,
                           int initial_timeout_ms,
                           int recurring_timeout_ms) {
   DCHECK(cb);
-  DCHECK(initial_timeout_ms >= 0);
-  DCHECK(recurring_timeout_ms >= 0);
+  DCHECK_GE(initial_timeout_ms, 0);
+  DCHECK_GE(recurring_timeout_ms, 0);
 
   if (!timerfd_supported_) {
     // If we previously established that timerfd doesn't work on this

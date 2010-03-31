@@ -2,6 +2,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#include <vector>
+
 #include <gflags/gflags.h>
 #include <gtest/gtest.h>
 
@@ -22,6 +24,9 @@
 
 DEFINE_bool(logtostderr, false,
             "Print debugging messages to stderr (suppressed otherwise)");
+
+using std::vector;
+using std::tr1::shared_ptr;
 
 namespace window_manager {
 
@@ -547,7 +552,7 @@ TEST_F(LayoutManagerTest, SetWmStateMaximized) {
   XWindow xid = CreateSimpleWindow();
   SendInitialEventsForWindow(xid);
 
-  std::vector<int> atoms;
+  vector<int> atoms;
   ASSERT_TRUE(xconn_->GetIntArrayProperty(
                   xid, wm_->GetXAtom(ATOM_NET_WM_STATE), &atoms));
   ASSERT_EQ(2, atoms.size());
@@ -717,7 +722,7 @@ TEST_F(LayoutManagerTest, InitialWindowStacking) {
   ClutterInterface::Actor* toplevel_stacking_actor = FindWithDefault(
       wm_->stacking_manager()->layer_to_actor_,
       StackingManager::LAYER_TOPLEVEL_WINDOW,
-      std::tr1::shared_ptr<ClutterInterface::Actor>()).get();
+      shared_ptr<ClutterInterface::Actor>()).get();
   ASSERT_TRUE(toplevel_stacking_actor != None);
 
   XWindow lower_stacking_xid = FindWithDefault(
@@ -730,7 +735,7 @@ TEST_F(LayoutManagerTest, InitialWindowStacking) {
       wm_->stacking_manager()->layer_to_actor_,
       static_cast<StackingManager::Layer>(
           StackingManager::LAYER_TOPLEVEL_WINDOW + 1),
-      std::tr1::shared_ptr<ClutterInterface::Actor>()).get();
+      shared_ptr<ClutterInterface::Actor>()).get();
   ASSERT_TRUE(lower_stacking_actor != None);
 
   // Check that the toplevel window is stacked between the two reference

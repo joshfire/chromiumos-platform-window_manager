@@ -1,12 +1,17 @@
-// Copyright (c) 2009 The Chromium OS Authors. All rights reserved.
+// Copyright (c) 2010 The Chromium OS Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "window_manager/util.h"
 
+#include <algorithm>
 #include <cstring>
 
 #include "base/string_util.h"
+
+using std::max;
+using std::min;
+using std::string;
 
 namespace window_manager {
 
@@ -37,10 +42,10 @@ void ByteMap::Clear(unsigned char value) {
 void ByteMap::SetRectangle(int rect_x, int rect_y,
                            int rect_width, int rect_height,
                            unsigned char value) {
-  const int limit_x = std::min(rect_x + rect_width, width_);
-  const int limit_y = std::min(rect_y + rect_height, height_);
-  rect_x = std::max(rect_x, 0);
-  rect_y = std::max(rect_y, 0);
+  const int limit_x = min(rect_x + rect_width, width_);
+  const int limit_y = min(rect_y + rect_height, height_);
+  rect_x = max(rect_x, 0);
+  rect_y = max(rect_y, 0);
 
   if (rect_x >= limit_x)
     return;
@@ -50,7 +55,7 @@ void ByteMap::SetRectangle(int rect_x, int rect_y,
 }
 
 
-std::string XidStr(unsigned long xid) {
+string XidStr(unsigned long xid) {
   return StringPrintf("0x%lx", xid);
 }
 

@@ -95,7 +95,7 @@ class GLInterface : virtual public GLInterfaceBase {
                           GLint border,
                           GLenum format,
                           GLenum type,
-                          const GLvoid *pixels ) = 0;
+                          const GLvoid *pixels) = 0;
   virtual void Translatef(GLfloat x, GLfloat y, GLfloat z) = 0;
   virtual void VertexPointer(GLint size, GLenum type, GLsizei stride,
                              const GLvoid* pointer) = 0;

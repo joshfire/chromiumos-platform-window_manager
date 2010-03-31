@@ -18,13 +18,13 @@
 #include "window_manager/window.h"
 #include "window_manager/window_manager.h"
 
-namespace window_manager {
-
 using std::make_pair;
 using std::map;
 using std::pair;
 using std::tr1::shared_ptr;
 using std::vector;
+
+namespace window_manager {
 
 // Frequency with which we should update the position of dragged panels.
 static const int kDraggedPanelUpdateMs = 25;

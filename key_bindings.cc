@@ -18,14 +18,14 @@ extern "C" {
 #include "window_manager/util.h"
 #include "window_manager/x_connection.h"
 
-namespace window_manager {
-
 using std::make_pair;
 using std::map;
 using std::pair;
 using std::set;
 using std::string;
 using std::vector;
+
+namespace window_manager {
 
 const uint32 KeyBindings::kShiftMask   = ShiftMask;
 const uint32 KeyBindings::kControlMask = ControlMask;

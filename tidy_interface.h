@@ -149,7 +149,7 @@ class TidyInterface : public ClutterInterface {
     static const float kMinDepth;
     static const float kMaxDepth;
 
-    LayerVisitor(int32 count)
+    explicit LayerVisitor(int32 count)
         : depth_(0.0f),
           layer_thickness_(0.0f),
           count_(count) {}
@@ -495,7 +495,10 @@ class TidyInterface : public ClutterInterface {
       visitor->VisitStage(this);
     }
 
-    virtual Actor* Clone() { NOTIMPLEMENTED(); return NULL; }
+    virtual Actor* Clone() {
+      NOTIMPLEMENTED();
+      return NULL;
+    }
 
     XWindow GetStageXWindow() { return window_; }
     void SetStageColor(const ClutterInterface::Color& color);
@@ -616,7 +619,7 @@ class TidyInterface : public ClutterInterface {
   AnimationTime now_;
 
   typedef base::hash_map<XWindow, TexturePixmapActor*>
-  XIDToTexturePixmapActorMap;
+      XIDToTexturePixmapActorMap;
 
   // This is a map that allows us to look up the texture associated
   // with an XWindow.

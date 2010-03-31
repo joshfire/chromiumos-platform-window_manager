@@ -20,13 +20,12 @@ DEFINE_string(panel_dock_background_image,
               "../assets/images/panel_dock_bg.png",
               "Image to use for panel dock backgrounds");
 
-namespace window_manager {
-
 using std::find;
 using std::make_pair;
 using std::tr1::shared_ptr;
 using std::vector;
 
+namespace window_manager {
 
 // Amount of time to take for sliding the dock background in or out when
 // the dock is shown or hidden.
@@ -89,7 +88,7 @@ PanelDock::~PanelDock() {
   dragged_panel_ = NULL;
 }
 
-void PanelDock::GetInputWindows(std::vector<XWindow>* windows_out) {
+void PanelDock::GetInputWindows(vector<XWindow>* windows_out) {
   DCHECK(windows_out);
   windows_out->clear();
   windows_out->push_back(bg_input_xid_);

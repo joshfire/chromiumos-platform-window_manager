@@ -17,4 +17,3 @@ typedef Vectormath::Aos::Matrix4 Matrix4;
 }  // window_manager
 
 #endif  // WINDOW_MANAGER_GLES_MATH_TYPES_H_
-

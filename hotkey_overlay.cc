@@ -15,6 +15,11 @@ extern "C" {
 DEFINE_string(hotkey_overlay_image_dir, "../assets/images",
               "Path to directory containing hotkey overlay images");
 
+using std::map;
+using std::string;
+using std::tr1::shared_ptr;
+using std::vector;
+
 namespace window_manager {
 
 // Time to spend in image transitions, in milliseconds.
@@ -61,7 +66,7 @@ void HotkeyOverlay::RefreshKeyMappings() {
 // state in a bit vector and updates the corresponding data member in the
 // overlay and returns true if it changed.
 static bool UpdateState(
-    const std::vector<uint8_t>& states, KeyCode keycode, bool* old_pressed) {
+    const vector<uint8_t>& states, KeyCode keycode, bool* old_pressed) {
   bool pressed = XConnection::GetKeyCodeState(states, keycode);
   if (pressed != *old_pressed) {
     *old_pressed = pressed;
@@ -71,7 +76,7 @@ static bool UpdateState(
   }
 }
 
-void HotkeyOverlay::HandleKeyboardState(const std::vector<uint8_t>& states) {
+void HotkeyOverlay::HandleKeyboardState(const vector<uint8_t>& states) {
   bool changed = false;
   changed |= UpdateState(states, left_ctrl_keycode_, &left_ctrl_pressed_);
   changed |= UpdateState(states, right_ctrl_keycode_, &right_ctrl_pressed_);
@@ -115,13 +120,11 @@ void HotkeyOverlay::UpdateImage() {
   }
 }
 
-void HotkeyOverlay::ShowImage(const std::string& filename) {
-  std::map<std::string,
-           std::tr1::shared_ptr<ClutterInterface::Actor> >::iterator
-      it = images_.find(filename);
+void HotkeyOverlay::ShowImage(const string& filename) {
+  map<string, shared_ptr<ClutterInterface::Actor> >::iterator it =
+      images_.find(filename);
   if (it == images_.end()) {
-    std::tr1::shared_ptr<ClutterInterface::Actor>
-        image(clutter_->CreateImage(filename));
+    shared_ptr<ClutterInterface::Actor> image(clutter_->CreateImage(filename));
     image->SetName("hotkey overlay image");
     image->SetOpacity(0, 0);
     image->SetVisibility(true);

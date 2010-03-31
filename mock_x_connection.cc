@@ -4,25 +4,26 @@
 
 #include "window_manager/mock_x_connection.h"
 
-#include <cerrno>
-#include <cstring>
 #include <fcntl.h>
 #include <unistd.h>
+
+#include <cerrno>
+#include <cstring>
+#include <list>
 
 #include "base/logging.h"
 #include "base/eintr_wrapper.h"
 #include "window_manager/util.h"
 
-namespace window_manager {
-
 using std::list;
 using std::make_pair;
 using std::map;
 using std::pair;
-using std::queue;
 using std::string;
 using std::tr1::shared_ptr;
 using std::vector;
+
+namespace window_manager {
 
 MockXConnection::MockXConnection()
     : windows_(),
@@ -596,7 +597,7 @@ void MockXConnection::RemoveKeyMapping(KeyCode keycode, KeySym keysym) {
 }
 
 void MockXConnection::AppendEventToQueue(const XEvent& event,
-                                       bool write_to_fd) {
+                                         bool write_to_fd) {
   queued_events_.push(event);
   if (write_to_fd && !connection_pipe_has_data_) {
     unsigned char data = 1;

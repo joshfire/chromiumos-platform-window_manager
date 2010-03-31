@@ -5,6 +5,10 @@
 #ifndef WINDOW_MANAGER_REAL_X_CONNECTION_H_
 #define WINDOW_MANAGER_REAL_X_CONNECTION_H_
 
+#include <map>
+#include <string>
+#include <vector>
+
 extern "C" {
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>

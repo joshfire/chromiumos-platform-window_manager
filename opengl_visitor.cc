@@ -4,16 +4,17 @@
 
 #include "window_manager/opengl_visitor.h"
 
+#include <sys/time.h>
+
+#include <algorithm>
+#include <ctime>
+#include <string>
+
 #include <GL/gl.h>
 #include <GL/glext.h>
 #include <GL/glx.h>
 #include <gflags/gflags.h>
-#include <sys/time.h>
-#include <time.h>
 #include <xcb/damage.h>
-
-#include <algorithm>
-#include <string>
 
 #include "base/basictypes.h"
 #include "base/logging.h"

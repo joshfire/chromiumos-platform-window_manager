@@ -27,11 +27,11 @@
 DEFINE_bool(logtostderr, false,
             "Print debugging messages to stderr (suppressed otherwise)");
 
-namespace window_manager {
-
 using std::find;
 using std::string;
 using std::vector;
+
+namespace window_manager {
 
 class WindowManagerTest : public BasicWindowManagerTest {};
 

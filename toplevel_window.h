@@ -5,6 +5,9 @@
 #ifndef WINDOW_MANAGER_TOPLEVEL_WINDOW_H_
 #define WINDOW_MANAGER_TOPLEVEL_WINDOW_H_
 
+#include <map>
+
+#include "base/scoped_ptr.h"
 #include "window_manager/layout_manager.h"
 
 namespace window_manager {
@@ -162,7 +165,7 @@ class LayoutManager::ToplevelWindow {
   // TODO: Make this into a class that uses EventConsumerRegistrar.
   struct TransientWindow {
    public:
-    TransientWindow(Window* win)
+    explicit TransientWindow(Window* win)
         : win(win),
           x_offset(0),
           y_offset(0),

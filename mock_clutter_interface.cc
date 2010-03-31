@@ -8,6 +8,8 @@
 #include "window_manager/util.h"
 #include "window_manager/x_connection.h"
 
+using std::list;
+
 namespace window_manager {
 
 MockClutterInterface::Actor::~Actor() {
@@ -61,7 +63,7 @@ MockClutterInterface::ContainerActor::ContainerActor()
 }
 
 MockClutterInterface::ContainerActor::~ContainerActor() {
-  typedef std::list<Actor*>::const_iterator iterator;
+  typedef list<Actor*>::const_iterator iterator;
 
   for (iterator it = stacked_children_->items().begin();
        it != stacked_children_->items().end(); ++it) {

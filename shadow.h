@@ -5,6 +5,8 @@
 #ifndef WINDOW_MANAGER_SHADOW_H_
 #define WINDOW_MANAGER_SHADOW_H_
 
+#include <string>
+
 #include <gtest/gtest_prod.h>  // for FRIEND_TEST() macro
 
 #include "base/basictypes.h"

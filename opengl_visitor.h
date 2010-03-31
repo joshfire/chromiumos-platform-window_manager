@@ -1,4 +1,4 @@
-// Copyright (c) 2009 The Chromium OS Authors. All rights reserved.
+// Copyright (c) 2010 The Chromium OS Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -139,10 +139,10 @@ class OpenGlDrawVisitor : virtual public TidyInterface::ActorVisitor {
   // This draws a debugging "needle" in the upper left corner.
   void DrawNeedle();
 
-  GLInterface* gl_interface_;  // Not owned.
-  TidyInterface* interface_;  // Not owned.
-  XConnection* x_conn_;  // Not owned.
-  TidyInterface::StageActor* stage_; // Not owned.
+  GLInterface* gl_interface_;         // Not owned.
+  TidyInterface* interface_;          // Not owned.
+  XConnection* x_conn_;               // Not owned.
+  TidyInterface::StageActor* stage_;  // Not owned.
 
   // This holds the drawing data used for quads.  Note that only
   // QuadActors use this drawing data, and they all share the same

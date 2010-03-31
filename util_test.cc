@@ -1,6 +1,8 @@
-// Copyright (c) 2009 The Chromium OS Authors. All rights reserved.
+// Copyright (c) 2010 The Chromium OS Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
+
+#include <vector>
 
 #include <gflags/gflags.h>
 #include <gtest/gtest.h>
@@ -13,6 +15,10 @@
 DEFINE_bool(logtostderr, false,
             "Print debugging messages to stderr (suppressed otherwise)");
 
+using std::list;
+using std::string;
+using std::vector;
+
 namespace window_manager {
 
 class UtilTest : public ::testing::Test {
@@ -20,14 +26,14 @@ class UtilTest : public ::testing::Test {
   // Helper function for the Stacker test.
   // 'expected' is a space-separated list of strings in the order in which
   // they should appear in 'actual'.
-  void CheckStackerOutput(const std::list<std::string>& actual,
-                          const std::string& expected) {
-    std::vector<std::string> expected_parts;
+  void CheckStackerOutput(const list<string>& actual,
+                          const string& expected) {
+    vector<string> expected_parts;
     SplitString(expected, ' ', &expected_parts);
     ASSERT_EQ(actual.size(), expected_parts.size());
 
     int i = 0;
-    for (std::list<std::string>::const_iterator it = actual.begin();
+    for (list<string>::const_iterator it = actual.begin();
          it != actual.end(); ++it, ++i) {
       EXPECT_EQ(*it, expected_parts[i]);
     }
@@ -35,7 +41,7 @@ class UtilTest : public ::testing::Test {
 };
 
 TEST_F(UtilTest, Stacker) {
-  Stacker<std::string> stacker;
+  Stacker<string> stacker;
 
   stacker.AddOnTop("b");
   stacker.AddOnBottom("c");
@@ -60,7 +66,7 @@ TEST_F(UtilTest, Stacker) {
 
   EXPECT_EQ(NULL, stacker.GetUnder("not-present"));
   EXPECT_EQ(NULL, stacker.GetUnder("d"));
-  const std::string* str = NULL;
+  const string* str = NULL;
   ASSERT_TRUE((str = stacker.GetUnder("c2")) != NULL);
   EXPECT_EQ("d", *str);
   ASSERT_TRUE((str = stacker.GetUnder("b")) != NULL);

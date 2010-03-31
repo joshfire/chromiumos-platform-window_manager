@@ -5,6 +5,7 @@
 #ifndef WINDOW_MANAGER_WM_IPC_H_
 #define WINDOW_MANAGER_WM_IPC_H_
 
+#include <string>
 #include <vector>
 
 #include "base/basictypes.h"
@@ -225,7 +226,7 @@ class WmIpc {
     Message() {
       Init(UNKNOWN);
     }
-    Message(Type type) {
+    explicit Message(Type type) {
       Init(type);
     }
 

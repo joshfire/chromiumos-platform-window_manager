@@ -24,15 +24,14 @@
 DEFINE_string(panel_anchor_image, "../assets/images/panel_anchor.png",
               "Image to use for anchors on the panel bar");
 
-namespace window_manager {
-
 using std::find;
 using std::make_pair;
-using std::map;
 using std::max;
 using std::min;
 using std::tr1::shared_ptr;
 using std::vector;
+
+namespace window_manager {
 
 const int PanelBar::kPixelsBetweenPanels = 3;
 const int PanelBar::kShowCollapsedPanelsDistancePixels = 1;
@@ -261,7 +260,7 @@ void PanelBar::HandleInputWindowPointerEnter(XWindow xid,
       if (collapsed_panel_state_ != COLLAPSED_PANEL_STATE_SHOWN &&
           collapsed_panel_state_ != COLLAPSED_PANEL_STATE_WAITING_TO_SHOW) {
         collapsed_panel_state_ = COLLAPSED_PANEL_STATE_WAITING_TO_SHOW;
-        DCHECK(show_collapsed_panels_timeout_id_ == -1);
+        DCHECK_EQ(show_collapsed_panels_timeout_id_, -1);
         show_collapsed_panels_timeout_id_ =
             wm()->event_loop()->AddTimeout(
                 NewPermanentCallback(

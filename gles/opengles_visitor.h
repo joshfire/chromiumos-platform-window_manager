@@ -73,7 +73,7 @@ class OpenGlesDrawVisitor
 
 class OpenGlesTextureData : public TidyInterface::DrawingData {
  public:
-  OpenGlesTextureData(Gles2Interface* gl);
+  explicit OpenGlesTextureData(Gles2Interface* gl);
   virtual ~OpenGlesTextureData();
 
   void SetTexture(GLuint texture, bool has_alpha);

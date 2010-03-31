@@ -25,12 +25,12 @@ DEFINE_int32(panel_max_height, -1,
              "Maximum height for panels (0 or less means unconstrained)");
 DEFINE_bool(panel_opaque_resize, false, "Resize panels opaquely");
 
-namespace window_manager {
-
 using std::map;
 using std::max;
 using std::min;
 using std::vector;
+
+namespace window_manager {
 
 // Amount of time to take to fade in the actor used for non-opaque resizes.
 static const int kResizeActorOpacityAnimMs = 150;
@@ -397,8 +397,8 @@ WindowManager* Panel::wm() {
 }
 
 void Panel::ResizeContent(int width, int height, Gravity gravity) {
-  DCHECK(width > 0);
-  DCHECK(height > 0);
+  DCHECK_GT(width, 0);
+  DCHECK_GT(height, 0);
 
   bool changing_height = (height != content_bounds_.height);
 

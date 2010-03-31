@@ -5,6 +5,7 @@
 #include "window_manager/mock_chrome.h"
 
 #include <algorithm>
+#include <string>
 
 #include <cairomm/context.h>
 
@@ -35,7 +36,11 @@ DEFINE_int32(tabs_per_window, 3, "Number of tabs to add to each window");
 DEFINE_int32(window_height, 640, "Window height");
 DEFINE_int32(window_width, 920, "Window width");
 
+using std::make_pair;
 using std::max;
+using std::string;
+using std::tr1::shared_ptr;
+using std::vector;
 using window_manager::AtomCache;
 using window_manager::RealXConnection;
 using window_manager::WmIpc;
@@ -86,7 +91,7 @@ static bool GetWmIpcMessage(const GdkEventClient& event,
       msg_out);
 }
 
-static void DrawImage(Glib::RefPtr<Gdk::Pixbuf>& image,
+static void DrawImage(Glib::RefPtr<Gdk::Pixbuf>& image,  // NOLINT
                       Gtk::Widget* widget,
                       int dest_x, int dest_y,
                       int dest_width, int dest_height) {
@@ -110,7 +115,7 @@ static void DrawImage(Glib::RefPtr<Gdk::Pixbuf>& image,
       0, 0);  // x and y dither
 }
 
-Tab::Tab(const std::string& image_filename, const std::string& title)
+Tab::Tab(const string& image_filename, const string& title)
     : image_(Gdk::Pixbuf::create_from_file(image_filename)),
       title_(title) {
 }
@@ -148,7 +153,7 @@ ChromeWindow::ChromeWindow(MockChrome* chrome, int width, int height)
 }
 
 void ChromeWindow::InsertTab(Tab* tab, size_t index) {
-  std::tr1::shared_ptr<TabInfo> info(new TabInfo(tab));
+  shared_ptr<TabInfo> info(new TabInfo(tab));
   if (index > tabs_.size()) {
     index = tabs_.size();
   }
@@ -166,7 +171,7 @@ void ChromeWindow::InsertTab(Tab* tab, size_t index) {
 
 Tab* ChromeWindow::RemoveTab(size_t index) {
   CHECK(index < tabs_.size());
-  std::tr1::shared_ptr<TabInfo> info = tabs_[index];
+  shared_ptr<TabInfo> info = tabs_[index];
   tabs_.erase(tabs_.begin() + index);
   if (active_tab_index_ >= static_cast<int>(tabs_.size())) {
     active_tab_index_ = static_cast<int>(tabs_.size()) - 1;
@@ -588,8 +593,8 @@ bool PanelTitlebar::on_motion_notify_event(GdkEventMotion* event) {
 }
 
 Panel::Panel(MockChrome* chrome,
-             const std::string& image_filename,
-             const std::string& title,
+             const string& image_filename,
+             const string& title,
              bool expanded)
     : chrome_(chrome),
       titlebar_(new PanelTitlebar(this)),
@@ -602,7 +607,7 @@ Panel::Panel(MockChrome* chrome,
   set_size_request(width_, height_);
   realize();
   xid_ = GDK_WINDOW_XWINDOW(Glib::unwrap(get_window()));
-  std::vector<int> type_params;
+  vector<int> type_params;
   type_params.push_back(titlebar_->xid());
   type_params.push_back(expanded);
   CHECK(chrome_->wm_ipc()->SetWindowType(
@@ -693,8 +698,8 @@ MockChrome::MockChrome()
 }
 
 ChromeWindow* MockChrome::CreateWindow(int width, int height) {
-  std::tr1::shared_ptr<ChromeWindow> win(new ChromeWindow(this, width, height));
-  CHECK(windows_.insert(std::make_pair(win->xid(), win)).second);
+  shared_ptr<ChromeWindow> win(new ChromeWindow(this, width, height));
+  CHECK(windows_.insert(make_pair(win->xid(), win)).second);
   return win.get();
 }
 
@@ -703,12 +708,12 @@ void MockChrome::CloseWindow(ChromeWindow* win) {
   CHECK(windows_.erase(win->xid()) == 1);
 }
 
-Panel* MockChrome::CreatePanel(const std::string& image_filename,
-                               const std::string& title,
+Panel* MockChrome::CreatePanel(const string& image_filename,
+                               const string& title,
                                bool expanded) {
-  std::tr1::shared_ptr<Panel> panel(
+  shared_ptr<Panel> panel(
       new Panel(this, image_filename, title, expanded));
-  CHECK(panels_.insert(std::make_pair(panel->xid(), panel)).second);
+  CHECK(panels_.insert(make_pair(panel->xid(), panel)).second);
   return panel.get();
 }
 
@@ -729,12 +734,12 @@ int main(int argc, char** argv) {
                        logging::DONT_LOCK_LOG_FILE,
                        logging::APPEND_TO_OLD_LOG_FILE);
 
-  std::vector<std::string> filenames;
+  vector<string> filenames;
   SplitString(FLAGS_tab_images, ',', &filenames);
   CHECK(!filenames.empty())
       << "At least one image must be supplied using --tab_images";
 
-  std::vector<std::string> titles;
+  vector<string> titles;
   SplitString(FLAGS_tab_titles, ',', &titles);
   CHECK(filenames.size() == titles.size())
       << "Must specify same number of tab images and titles";

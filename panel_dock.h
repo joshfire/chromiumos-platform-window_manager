@@ -5,8 +5,9 @@
 #ifndef WINDOW_MANAGER_PANEL_DOCK_H_
 #define WINDOW_MANAGER_PANEL_DOCK_H_
 
-#include <vector>
+#include <map>
 #include <tr1/memory>
+#include <vector>
 
 #include "base/basictypes.h"
 #include "base/scoped_ptr.h"

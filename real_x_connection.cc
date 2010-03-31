@@ -21,11 +21,11 @@ extern "C" {
 #include "base/string_util.h"
 #include "window_manager/util.h"
 
-namespace window_manager {
-
 using std::map;
 using std::string;
 using std::vector;
+
+namespace window_manager {
 
 // Used by RealXConnection's constructor to negotiate the version of an X
 // extension that we'll be using with the X server.  'name' is the
@@ -212,7 +212,7 @@ bool RealXConnection::ReparentWindow(
 }
 
 bool RealXConnection::SetWindowBorderWidth(XWindow xid, int width) {
-  DCHECK(width >= 0);
+  DCHECK_GE(width, 0);
   const uint32_t values[] = { width };
   xcb_configure_window(xcb_conn_, xid, XCB_CONFIG_WINDOW_BORDER_WIDTH, values);
   return true;

@@ -7,21 +7,24 @@
 #include <string>
 #include <vector>
 
+using std::string;
+using std::vector;
+
 namespace window_manager {
 
-void GLInterfaceBase::ParseExtensionString(std::vector<std::string>* out,
+void GLInterfaceBase::ParseExtensionString(vector<string>* out,
                                            const char* extensions) {
-  std::string ext(extensions);
-  for (std::string::size_type pos = 0; pos != std::string::npos;) {
-    std::string::size_type last_pos = ext.find_first_of(" ", pos);
+  string ext(extensions);
+  for (string::size_type pos = 0; pos != string::npos;) {
+    string::size_type last_pos = ext.find_first_of(" ", pos);
     out->push_back(ext.substr(pos, last_pos - pos));
     pos = ext.find_first_not_of(" ", last_pos);
   }
 }
 
-bool GLInterfaceBase::HasExtension(const std::vector<std::string>& extensions,
+bool GLInterfaceBase::HasExtension(const vector<string>& extensions,
                                    const char* extension) {
-  for (std::vector<std::string>::const_iterator i = extensions.begin();
+  for (vector<string>::const_iterator i = extensions.begin();
        i != extensions.end(); ++i) {
     if (*i == extension)
       return true;
@@ -29,5 +32,4 @@ bool GLInterfaceBase::HasExtension(const std::vector<std::string>& extensions,
   return false;
 }
 
-}
-
+}  // namespace window_manager

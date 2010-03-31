@@ -186,9 +186,9 @@ class MockClutterInterface : public ClutterInterface {
     // Begin ClutterInterface::Actor methods
     void SetName(const std::string& name) {}
     int GetWidth() { return width_; }
-    int GetHeight() { return height_; };
+    int GetHeight() { return height_; }
     int GetX() { return x_; }
-    int GetY() { return y_; };
+    int GetY() { return y_; }
     double GetXScale() { return scale_x_; }
     double GetYScale() { return scale_y_; }
     void SetVisibility(bool visible) { visible_ = visible; }
@@ -263,7 +263,7 @@ class MockClutterInterface : public ClutterInterface {
   class TexturePixmapActor : public MockClutterInterface::Actor,
                              public ClutterInterface::TexturePixmapActor {
    public:
-    TexturePixmapActor(XConnection* xconn)
+    explicit TexturePixmapActor(XConnection* xconn)
         : xconn_(xconn),
           alpha_mask_bytes_(NULL),
           xid_(0) {}
@@ -290,7 +290,7 @@ class MockClutterInterface : public ClutterInterface {
     DISALLOW_COPY_AND_ASSIGN(TexturePixmapActor);
   };
 
-  MockClutterInterface(XConnection* xconn) : xconn_(xconn) {}
+  explicit MockClutterInterface(XConnection* xconn) : xconn_(xconn) {}
   ~MockClutterInterface() {}
 
   // Begin ClutterInterface methods

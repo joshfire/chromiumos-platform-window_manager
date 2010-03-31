@@ -4,6 +4,8 @@
 
 #include "window_manager/login_controller.h"
 
+#include <string>
+
 #include "window_manager/callback.h"
 #include "window_manager/event_loop.h"
 #include "window_manager/geometry.h"
@@ -11,6 +13,9 @@
 #include "window_manager/util.h"
 #include "window_manager/window.h"
 #include "window_manager/window_manager.h"
+
+using std::string;
+using std::vector;
 
 namespace window_manager {
 
@@ -406,7 +411,7 @@ void LoginController::InitialShow() {
 
   selected_entry_index_ = 0;
 
-  std::vector<Point> origins;
+  vector<Point> origins;
   CalculateIdealOrigins(entries_.size(), selected_entry_index_, &origins);
 
   const int max_y = wm_->height();
@@ -517,7 +522,7 @@ void LoginController::SelectEntryAt(size_t index) {
 
   selected_entry_index_ = index;
 
-  std::vector<Point> origins;
+  vector<Point> origins;
   CalculateIdealOrigins(entries_.size(), selected_entry_index_, &origins);
 
   for (size_t i = 0; i < entries_.size(); ++i) {
@@ -591,7 +596,7 @@ void LoginController::Hide() {
     return;  // Guest entry is selected and all the windows are already
              // offscreen.
 
-  std::vector<Point> origins;
+  vector<Point> origins;
   CalculateIdealOrigins(entries_.size(), selected_entry_index_, &origins);
 
   const int max_y = wm_->height();
@@ -729,9 +734,9 @@ void LoginController::SelectGuest() {
 void LoginController::CalculateIdealOrigins(
     size_t entry_count,
     size_t selected_index,
-    std::vector<Point>* origins) {
-  DCHECK(entry_count > 1);  // We should at least have a guest and non-guest
-                            // user.
+    vector<Point>* origins) {
+  // We should at least have a guest and non-guest user.
+  DCHECK_GT(entry_count, static_cast<size_t>(1));
 
   const int selected_width = border_width_;
   const int selected_height = border_height_ + label_height_;
@@ -743,7 +748,7 @@ void LoginController::CalculateIdealOrigins(
   const int unselected_y = (wm_->height() - unselected_height) / 2;
 
   int width = entry_count * unselected_width + (entry_count - 1) * padding_;
-  if (selected_index != std::string::npos)
+  if (selected_index != string::npos)
     width += selected_width - unselected_width;
   int x = (wm_->width() - width) / 2;
   for (size_t i = 0; i < entry_count; ++i) {
@@ -892,7 +897,7 @@ bool LoginController::HasAllWindows() {
     return false;
 
   int user_count = entries_[0].border_window->type_params()[1];
-  DCHECK(user_count > 1);
+  DCHECK_GT(user_count, 1);
   if (entries_.size() != static_cast<size_t>(user_count))
     return false;
 

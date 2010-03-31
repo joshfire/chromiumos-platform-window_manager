@@ -22,6 +22,8 @@
 DEFINE_bool(logtostderr, false,
             "Print debugging messages to stderr (suppressed otherwise)");
 
+using std::vector;
+
 namespace window_manager {
 
 class PanelTest : public BasicWindowManagerTest {
@@ -239,7 +241,7 @@ TEST_F(PanelTest, ChromeState) {
   // The panel's content window should have have a collapsed state in
   // _CHROME_STATE initially (since we told it to start collapsed).
   EXPECT_FALSE(panel.is_expanded());
-  std::vector<int> values;
+  vector<int> values;
   ASSERT_TRUE(xconn_->GetIntArrayProperty(content_xid, state_atom, &values));
   ASSERT_EQ(1, values.size());
   EXPECT_EQ(collapsed_atom, values[0]);

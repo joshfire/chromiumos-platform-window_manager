@@ -34,10 +34,12 @@ DEFINE_bool(lm_honor_window_size_hints, false,
             "size increment, etc.) instead of automatically making it fill the "
             "screen");
 
-namespace window_manager {
-
 using std::map;
+using std::max;
+using std::min;
 using std::tr1::shared_ptr;
+
+namespace window_manager {
 
 // Amount of padding that should be used between windows in overview mode.
 static const int kWindowPadding = 10;
@@ -470,7 +472,7 @@ void LayoutManager::HandleButtonPress(XWindow xid,
       }
       if (toplevel != magnified_toplevel_) {
         SetMagnifiedToplevelWindow(toplevel);
-        LayoutToplevelWindowsForOverviewMode(std::max(x_root - x_, 0));
+        LayoutToplevelWindowsForOverviewMode(max(x_root - x_, 0));
       } else {
         active_toplevel_ = toplevel;
         SetMode(MODE_ACTIVE);
@@ -905,11 +907,11 @@ void LayoutManager::CalculatePositionsForOverviewMode(int magnified_x) {
     return;
 
   const int width_limit =
-      std::min(static_cast<double>(width_) / sqrt(toplevels_.size()),
-               kOverviewWindowMaxSizeRatio * width_);
+      min(static_cast<double>(width_) / sqrt(toplevels_.size()),
+          kOverviewWindowMaxSizeRatio * width_);
   const int height_limit =
-      std::min(static_cast<double>(height_) / sqrt(toplevels_.size()),
-               kOverviewWindowMaxSizeRatio * height_);
+      min(static_cast<double>(height_) / sqrt(toplevels_.size()),
+          kOverviewWindowMaxSizeRatio * height_);
   int running_width = kWindowPadding;
 
   for (int i = 0; static_cast<size_t>(i) < toplevels_.size(); ++i) {

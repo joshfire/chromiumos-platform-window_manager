@@ -18,7 +18,7 @@ class RealXConnection;
 // testing
 class RealGles2Interface : public Gles2Interface {
  public:
-  RealGles2Interface(RealXConnection* x);
+  explicit RealGles2Interface(RealXConnection* x);
   virtual ~RealGles2Interface();
 
   bool InitExtensions();

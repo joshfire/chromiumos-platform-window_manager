@@ -4,6 +4,7 @@
 
 #include "window_manager/test_lib.h"
 
+#include <string>
 #include <vector>
 
 #include <gflags/gflags.h>
@@ -20,6 +21,9 @@
 #include "window_manager/window_manager.h"
 #include "window_manager/wm_ipc.h"
 
+using std::string;
+using std::vector;
+
 namespace window_manager {
 
 testing::AssertionResult BytesAreEqual(
@@ -32,7 +36,7 @@ testing::AssertionResult BytesAreEqual(
   for (size_t i = 0; i < size; ++i) {
     if (expected[i] != actual[i]) {
       testing::Message msg;
-      std::string expected_str, actual_str, hl_str;
+      string expected_str, actual_str, hl_str;
       bool first = true;
       for (size_t j = 0; j < size; ++j) {
         expected_str +=
@@ -128,7 +132,7 @@ XWindow BasicWindowManagerTest::CreatePanelTitlebarWindow(
 XWindow BasicWindowManagerTest::CreatePanelContentWindow(
     int width, int height, XWindow titlebar_xid, bool expanded) {
   XWindow xid = CreateToplevelWindow(0, 0, width, height);
-  std::vector<int> params;
+  vector<int> params;
   params.push_back(titlebar_xid);
   params.push_back(expanded ? 1 : 0);
   wm_->wm_ipc()->SetWindowType(
@@ -262,7 +266,7 @@ bool BasicWindowManagerTest::WindowIsInLayer(Window* win,
 
 void BasicWindowManagerTest::TestIntArrayProperty(
     XWindow xid, XAtom atom, int num_values, ...) {
-  std::vector<int> expected;
+  vector<int> expected;
 
   va_list args;
   va_start(args, num_values);
@@ -273,7 +277,7 @@ void BasicWindowManagerTest::TestIntArrayProperty(
   }
   va_end(args);
 
-  std::vector<int> actual;
+  vector<int> actual;
   int exists = xconn_->GetIntArrayProperty(xid, atom, &actual);
   if (expected.empty()) {
     EXPECT_FALSE(exists);

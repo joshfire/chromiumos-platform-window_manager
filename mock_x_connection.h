@@ -14,6 +14,7 @@ extern "C" {
 #include <string>
 #include <tr1/memory>
 #include <utility>
+#include <vector>
 
 #include "base/logging.h"
 #include "window_manager/callback.h"

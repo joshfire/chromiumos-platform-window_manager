@@ -189,7 +189,8 @@ template<class K, class V>
 V FindWithDefault(const base::hash_map<K, V>& the_map,
                   const K& key,
                   const V& def) {
-  typename base::hash_map<K, V>::const_iterator it = the_map.find(key);
+  typename base::hash_map<K, V>::const_iterator it =
+      the_map.find(key);
   if (it == the_map.end()) {
     return def;
   }

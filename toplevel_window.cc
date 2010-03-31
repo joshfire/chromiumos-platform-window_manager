@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <list>
 #include <tr1/memory>
 
 extern "C" {
@@ -29,12 +30,13 @@ extern "C" {
 // Defined in layout_manager.cc
 DECLARE_bool(lm_honor_window_size_hints);
 
-namespace window_manager {
-
-using std::map;
-using std::vector;
 using std::list;
+using std::map;
+using std::max;
+using std::min;
 using std::tr1::shared_ptr;
+
+namespace window_manager {
 
 // Animation speed for windows in new overview mode.
 static const int kOverviewAnimMs = 100;
@@ -117,14 +119,14 @@ void LayoutManager::ToplevelWindow::ConfigureForActiveMode(
 
   // Center window vertically.
   const int win_y =
-      layout_y + std::max(0, (layout_height - win_->client_height())) / 2;
+      layout_y + max(0, (layout_height - win_->client_height())) / 2;
 
   // TODO: This is a pretty huge mess.  Replace it with a saner way of
   // tracking animation state for windows.
   if (window_is_active) {
     // Center window horizontally.
     const int win_x =
-        layout_x + std::max(0, (layout_width - win_->client_width())) / 2;
+        layout_x + max(0, (layout_width - win_->client_width())) / 2;
     if (state_ == STATE_NEW ||
         state_ == STATE_ACTIVE_MODE_OFFSCREEN ||
         state_ == STATE_ACTIVE_MODE_IN_FROM_RIGHT ||
@@ -266,7 +268,7 @@ void LayoutManager::ToplevelWindow::UpdateOverviewScaling(int max_width,
                                                           int max_height) {
   double scale_x = max_width / static_cast<double>(win_->client_width());
   double scale_y = max_height / static_cast<double>(win_->client_height());
-  double tmp_scale = std::min(scale_x, scale_y);
+  double tmp_scale = min(scale_x, scale_y);
 
   overview_width_  = tmp_scale * win_->client_width();
   overview_height_ = tmp_scale * win_->client_height();
@@ -539,7 +541,7 @@ void LayoutManager::ToplevelWindow::RestackTransientWindowOnTop(
     return;
 
   DCHECK(stacked_transients_->Contains(transient));
-  DCHECK(stacked_transients_->items().size() > 1U);
+  DCHECK_GT(stacked_transients_->items().size(), 1U);
   TransientWindow* transient_to_stack_above =
       stacked_transients_->items().front();
   stacked_transients_->Remove(transient);

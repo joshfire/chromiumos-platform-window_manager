@@ -1,4 +1,4 @@
-// Copyright (c) 2009 The Chromium OS Authors. All rights reserved.
+// Copyright (c) 2010 The Chromium OS Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,8 +6,9 @@
 #define WINDOW_MANAGER_MOCK_CHROME_H_
 
 #include <map>
-#include <vector>
+#include <string>
 #include <tr1/memory>
+#include <vector>
 
 #include <gflags/gflags.h>
 #include <gtkmm.h>
@@ -166,7 +167,7 @@ class ChromeWindow : public Gtk::Window {
 
  private:
   struct TabInfo {
-    TabInfo(Tab* tab)
+    explicit TabInfo(Tab* tab)
         : tab(tab),
           start_x(0),
           width(0) {

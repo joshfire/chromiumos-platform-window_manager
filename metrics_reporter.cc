@@ -4,18 +4,20 @@
 
 #include "window_manager/metrics_reporter.h"
 
-#include <stdio.h>
+#include <cstdio>
 
 #include "window_manager/layout_manager.h"
 #include "window_manager/system_metrics.pb.h"
 #include "window_manager/window.h"
+
+using std::string;
 
 namespace window_manager {
 
 // This is the path to a file that's created by boot scripts, which contains
 // the boot time drawn from bootchart.
 // TODO: communicate this information over something like DBus.
-const char kBootTimeFilename[] = "/tmp/boot-time";
+static const char kBootTimeFilename[] = "/tmp/boot-time";
 
 class ScopedFilePointer {
  public:
@@ -47,14 +49,14 @@ void MetricsReporter::AttemptReport() {
     remove(kBootTimeFilename);
   }
 
-  std::string encoded_metrics;
+  string encoded_metrics;
   metrics_pb.SerializeToString(&encoded_metrics);
   if (ipc_->SetSystemMetricsProperty(chrome_window->xid(), encoded_metrics)) {
     metrics->Reset();
   }
 }
 
-bool MetricsReporter::GatherBootTime(const std::string& filename,
+bool MetricsReporter::GatherBootTime(const string& filename,
                                      chrome_os_pb::SystemMetrics* metrics) {
   ScopedFilePointer fp(fopen(filename.c_str(), "r"));
   if (!fp.get()) {

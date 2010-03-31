@@ -2,10 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#include <unistd.h>
+
 #include <cmath>
 #include <cstdlib>
 #include <ctime>
-#include <unistd.h>
 
 extern "C" {
 #include <X11/Xlib.h>
@@ -33,6 +34,8 @@ extern "C" {
 #endif
 #include "window_manager/real_x_connection.h"
 #include "window_manager/window_manager.h"
+
+using std::string;
 
 DECLARE_bool(wm_use_compositing);  // from window_manager.cc
 
@@ -66,18 +69,18 @@ using window_manager::RealXConnection;
 using window_manager::WindowManager;
 
 // Get the current time in the local time zone as "YYYYMMDD-HHMMSS".
-static std::string GetCurrentTimeAsString() {
+static string GetCurrentTimeAsString() {
   time_t now = time(NULL);
   CHECK(now >= 0);
   struct tm now_tm;
   CHECK(localtime_r(&now, &now_tm) == &now_tm);
   char now_str[16];
   CHECK(strftime(now_str, sizeof(now_str), "%Y%m%d-%H%M%S", &now_tm) == 15);
-  return std::string(now_str);
+  return string(now_str);
 }
 
 // Handler called by Chrome logging code on failed asserts.
-static void HandleLogAssert(const std::string& str) {
+static void HandleLogAssert(const string& str) {
   abort();
 }
 
@@ -102,7 +105,7 @@ int main(int argc, char** argv) {
     if (!file_util::CreateDirectory(FilePath(FLAGS_log_dir)))
       LOG(ERROR) << "Unable to create logging directory " << FLAGS_log_dir;
   }
-  std::string log_filename = StringPrintf(
+  string log_filename = StringPrintf(
       "%s/%s.%s", FLAGS_log_dir.c_str(), WindowManager::GetWmName(),
       GetCurrentTimeAsString().c_str());
   logging::InitLogging(log_filename.c_str(),

@@ -64,7 +64,7 @@ class KeyBindings {
     uint32 modifiers;
   };
 
-  KeyBindings(XConnection* xconn);
+  explicit KeyBindings(XConnection* xconn);
   ~KeyBindings();
 
   // Add a new action. This will fail if the action already exists.

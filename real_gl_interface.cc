@@ -4,12 +4,16 @@
 
 #include "window_manager/real_gl_interface.h"
 
+#include <string>
+
 #include "base/logging.h"
 #include "window_manager/real_x_connection.h"
 
+using std::string;
+
 namespace window_manager {
 
-static std::string kGlxExtensions;
+static string kGlxExtensions;
 static PFNGLXBINDTEXIMAGEEXTPROC _gl_bind_tex_image = NULL;
 static PFNGLXRELEASETEXIMAGEEXTPROC _gl_release_tex_image = NULL;
 static PFNGLXCREATEPIXMAPPROC _gl_create_pixmap = NULL;
@@ -22,11 +26,11 @@ void RealGLInterface::GlxFree(void* item) {
 RealGLInterface::RealGLInterface(RealXConnection* connection)
     : xconn_(connection) {
   if (kGlxExtensions.size() == 0) {
-    kGlxExtensions = std::string(glXQueryExtensionsString(
+    kGlxExtensions = string(glXQueryExtensionsString(
         xconn_->GetDisplay(), DefaultScreen(xconn_->GetDisplay())));
     LOG(INFO) << "Supported extensions: " << kGlxExtensions;
   }
-  if (kGlxExtensions.find("GLX_EXT_texture_from_pixmap") != std::string::npos) {
+  if (kGlxExtensions.find("GLX_EXT_texture_from_pixmap") != string::npos) {
     if (_gl_bind_tex_image == NULL) {
       _gl_bind_tex_image = reinterpret_cast<PFNGLXBINDTEXIMAGEEXTPROC>(
           glXGetProcAddress(
@@ -45,7 +49,7 @@ RealGLInterface::RealGLInterface(RealXConnection* connection)
   } else {
     CHECK(false) << "Texture from pixmap not supported on this device.";
   }
-  if (kGlxExtensions.find("GLX_SGIX_fbconfig") != std::string::npos) {
+  if (kGlxExtensions.find("GLX_SGIX_fbconfig") != string::npos) {
     if (_gl_create_pixmap == NULL) {
       _gl_create_pixmap = reinterpret_cast<PFNGLXCREATEPIXMAPPROC>(
           glXGetProcAddress(

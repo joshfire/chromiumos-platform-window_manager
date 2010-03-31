@@ -29,15 +29,18 @@ DEFINE_bool(tidy_display_debug_needle, false,
             "Specify this to turn on a debugging aid for seeing when "
             "frames are being drawn.");
 
+using std::find;
+using std::make_pair;
+using std::map;
+using std::max;
+using std::min;
+using std::string;
+using std::tr1::shared_ptr;
+
 // Turn this on if you want to debug the visitor traversal.
 #undef EXTRA_LOGGING
 
 namespace window_manager {
-
-using std::make_pair;
-using std::max;
-using std::min;
-using std::tr1::shared_ptr;
 
 const float TidyInterface::LayerVisitor::kMinDepth = -2048.0f;
 const float TidyInterface::LayerVisitor::kMaxDepth = 2048.0f;
@@ -261,7 +264,7 @@ void TidyInterface::Actor::ShowDimmed(bool dimmed, int anim_ms) {
 }
 
 template<class T> void TidyInterface::Actor::AnimateField(
-    std::map<T*, std::tr1::shared_ptr<Animation<T> > >* animation_map,
+    map<T*, shared_ptr<Animation<T> > >* animation_map,
     T* field, T value, int duration_ms) {
   typeof(animation_map->begin()) iterator = animation_map->find(field);
   // If we're not currently animating the field and it's already at the
@@ -275,7 +278,7 @@ template<class T> void TidyInterface::Actor::AnimateField(
       Animation<T>* animation = iterator->second.get();
       animation->Reset(value, now, now + duration_ms);
     } else {
-      std::tr1::shared_ptr<Animation<T> > animation(
+      shared_ptr<Animation<T> > animation(
           new Animation<T>(field, value, now, now + duration_ms));
       animation_map->insert(make_pair(field, animation));
       interface_->IncrementNumAnimations();
@@ -291,7 +294,7 @@ template<class T> void TidyInterface::Actor::AnimateField(
 }
 
 template<class T> void TidyInterface::Actor::UpdateInternal(
-    std::map<T*, std::tr1::shared_ptr<Animation<T> > >* animation_map,
+    map<T*, shared_ptr<Animation<T> > >* animation_map,
     AnimationTime now) {
   typeof(animation_map->begin()) iterator = animation_map->begin();
   while (iterator != animation_map->end()) {
@@ -330,8 +333,8 @@ void TidyInterface::ContainerActor::AddActor(
 // rely on the contents of the Actor.
 void TidyInterface::ContainerActor::RemoveActor(
     ClutterInterface::Actor* actor) {
-  ActorVector::iterator iterator = std::find(children_.begin(), children_.end(),
-                                             actor);
+  ActorVector::iterator iterator =
+      find(children_.begin(), children_.end(), actor);
   if (iterator != children_.end()) {
     children_.erase(iterator);
     set_has_children(!children_.empty());
@@ -355,7 +358,7 @@ void TidyInterface::ContainerActor::RaiseChild(
     return;
   }
   ActorVector::iterator iterator =
-      std::find(children_.begin(), children_.end(), child);
+      find(children_.begin(), children_.end(), child);
   if (iterator == children_.end()) {
     LOG(WARNING) << "Attempted to raise a child (" << child
                  << ") that isn't a child of this container (" << this << ")";
@@ -364,7 +367,7 @@ void TidyInterface::ContainerActor::RaiseChild(
   if (above) {
     // Check and make sure 'above' is an existing child.
     ActorVector::iterator iterator_above =
-        std::find(children_.begin(), children_.end(), above);
+        find(children_.begin(), children_.end(), above);
     if (iterator_above == children_.end()) {
       LOG(WARNING) << "Attempted to raise a child (" << child
                    << ") above a sibling (" << above << ") that isn't "
@@ -376,7 +379,7 @@ void TidyInterface::ContainerActor::RaiseChild(
       children_.erase(iterator);
       // Find the above child again after erasing, because the old
       // iterator is invalid.
-      iterator_above = std::find(children_.begin(), children_.end(), above);
+      iterator_above = find(children_.begin(), children_.end(), above);
     } else {
       children_.erase(iterator);
     }
@@ -397,7 +400,7 @@ void TidyInterface::ContainerActor::LowerChild(
     return;
   }
   ActorVector::iterator iterator =
-      std::find(children_.begin(), children_.end(), child);
+      find(children_.begin(), children_.end(), child);
   if (iterator == children_.end()) {
     LOG(WARNING) << "Attempted to lower a child (" << child
                  << ") that isn't a child of this container (" << this << ")";
@@ -406,7 +409,7 @@ void TidyInterface::ContainerActor::LowerChild(
   if (below) {
     // Check and make sure 'below' is an existing child.
     ActorVector::iterator iterator_below =
-        std::find(children_.begin(), children_.end(), below);
+        find(children_.begin(), children_.end(), below);
     if (iterator_below == children_.end()) {
       LOG(WARNING) << "Attempted to lower a child (" << child
                    << ") below a sibling (" << below << ") that isn't "
@@ -418,7 +421,7 @@ void TidyInterface::ContainerActor::LowerChild(
       children_.erase(iterator);
       // Find the below child again after erasing, because the old
       // iterator is invalid.
-      iterator_below = std::find(children_.begin(), children_.end(), below);
+      iterator_below = find(children_.begin(), children_.end(), below);
     } else {
       children_.erase(iterator);
     }
@@ -604,8 +607,7 @@ TidyInterface::Actor* TidyInterface::CreateRectangle(
   return actor;
 }
 
-TidyInterface::Actor* TidyInterface::CreateImage(
-    const std::string& filename) {
+TidyInterface::Actor* TidyInterface::CreateImage(const string& filename) {
   QuadActor* actor = new QuadActor(this);
   scoped_ptr<ImageContainer> container(
       ImageContainer::CreateContainer(filename));
@@ -627,8 +629,8 @@ TidyInterface::CreateTexturePixmap() {
 }
 
 TidyInterface::Actor* TidyInterface::CreateText(
-    const std::string& font_name,
-    const std::string& text,
+    const string& font_name,
+    const string& text,
     const ClutterInterface::Color& color) {
   QuadActor* actor = new QuadActor(this);
   // TODO: Actually create the text.
@@ -675,8 +677,7 @@ void TidyInterface::HandleWindowDamaged(XWindow xid) {
 }
 
 void TidyInterface::RemoveActor(Actor* actor) {
-  ActorVector::iterator iterator = std::find(actors_.begin(), actors_.end(),
-                                             actor);
+  ActorVector::iterator iterator = find(actors_.begin(), actors_.end(), actor);
   if (iterator != actors_.end()) {
     actors_.erase(iterator);
   }
@@ -721,7 +722,7 @@ void TidyInterface::IncrementNumAnimations() {
 
 void TidyInterface::DecrementNumAnimations() {
   num_animations_--;
-  DCHECK(num_animations_ >= 0) << "Decrementing animation count below zero";
+  DCHECK_GE(num_animations_, 0) << "Decrementing animation count below zero";
 }
 
 void TidyInterface::Draw() {

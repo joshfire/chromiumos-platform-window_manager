@@ -4,14 +4,13 @@
 
 #include "window_manager/x_connection.h"
 
-namespace window_manager {
-
 using std::string;
 using std::vector;
 
+namespace window_manager {
+
 const int XConnection::kByteFormat = 8;
 const int XConnection::kLongFormat = 32;
-
 
 bool XConnection::GetIntProperty(XWindow xid, XAtom xatom, int* value) {
   CHECK(value);

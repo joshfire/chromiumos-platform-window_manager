@@ -22,10 +22,10 @@
 DEFINE_bool(logtostderr, false,
             "Print debugging messages to stderr (suppressed otherwise)");
 
-namespace window_manager {
-
 using std::map;
 using std::vector;
+
+namespace window_manager {
 
 class WindowTest : public BasicWindowManagerTest {};
 

@@ -5,6 +5,7 @@
 #ifndef WINDOW_MANAGER_PANEL_H_
 #define WINDOW_MANAGER_PANEL_H_
 
+#include <string>
 #include <vector>
 
 #include <gtest/gtest_prod.h>  // for FRIEND_TEST() macro

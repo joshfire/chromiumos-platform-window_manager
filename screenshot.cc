@@ -11,7 +11,10 @@
 
 #include "base/logging.h"
 
-const static char* kUsage =
+using std::hex;
+using std::istringstream;
+
+static const char* kUsage =
     "Usage: screenshot FILENAME [WINDOW]\n"
     "\n"
     "Writes the contents of the root window, by default, or a client\n"
@@ -32,8 +35,8 @@ int main(int argc, char** argv) {
   if (argc == 2) {
     win = DefaultRootWindow(display);
   } else {
-    std::istringstream input(argv[2]);
-    if ((input >> std::hex >> win).fail()) {
+    istringstream input(argv[2]);
+    if ((input >> hex >> win).fail()) {
       fprintf(stderr, "%s", kUsage);
       return 1;
     }
