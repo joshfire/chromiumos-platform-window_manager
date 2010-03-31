@@ -54,6 +54,7 @@ static const AtomInfo kAtomInfos[] = {
   { ATOM_PRIMARY,                      "PRIMARY" },
   { ATOM_WM_DELETE_WINDOW,             "WM_DELETE_WINDOW" },
   { ATOM_WM_HINTS,                     "WM_HINTS" },
+  { ATOM_WM_NAME,                      "WM_NAME" },
   { ATOM_WM_NORMAL_HINTS,              "WM_NORMAL_HINTS" },
   { ATOM_WM_PROTOCOLS,                 "WM_PROTOCOLS" },
   { ATOM_WM_S0,                        "WM_S0" },

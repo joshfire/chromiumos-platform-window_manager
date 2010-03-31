@@ -4,29 +4,39 @@
 
 #include "window_manager/stacking_manager.h"
 
+#include <string>
+
 #include "base/string_util.h"
+#include "window_manager/atom_cache.h"
 #include "window_manager/util.h"
 #include "window_manager/window.h"
 #include "window_manager/x_connection.h"
 
 using std::set;
+using std::string;
 using std::tr1::shared_ptr;
 
 namespace window_manager {
 
-StackingManager::StackingManager(XConnection* xconn, ClutterInterface* clutter)
+StackingManager::StackingManager(XConnection* xconn,
+                                 ClutterInterface* clutter,
+                                 AtomCache* atom_cache)
     : xconn_(xconn) {
   XWindow root = xconn_->GetRootWindow();
 
   for (int i = kNumLayers - 1; i >= 0; --i) {
     Layer layer = static_cast<Layer>(i);
+    string name = StringPrintf("%s layer", LayerToName(layer));
 
     XWindow xid = xconn_->CreateWindow(root, -1, -1, 1, 1, true, true, 0);
+    xconn_->SetStringProperty(xid, atom_cache->GetXAtom(ATOM_WM_NAME), name);
+    xconn_->SetStringProperty(
+        xid, atom_cache->GetXAtom(ATOM_NET_WM_NAME), name);
     layer_to_xid_[layer] = xid;
     xids_.insert(xid);
 
     shared_ptr<ClutterInterface::Actor> actor(clutter->CreateGroup());
-    actor->SetName(StringPrintf("%s layer", LayerToName(layer)));
+    actor->SetName(name);
     actor->SetVisibility(false);
     clutter->GetDefaultStage()->AddActor(actor.get());
     actor->RaiseToTop();
@@ -96,6 +106,7 @@ const char* StackingManager::LayerToName(Layer layer) {
     case LAYER_PANEL_BAR_INPUT_WINDOW:   return "panel bar input window";
     case LAYER_STATIONARY_PANEL_IN_BAR:  return "static panel in bar";
     case LAYER_STATIONARY_PANEL_IN_DOCK: return "stationary panel in dock";
+    case LAYER_PANEL_DOCK:               return "panel dock";
     case LAYER_TOPLEVEL_WINDOW:          return "toplevel window";
     case LAYER_BACKGROUND:               return "background";
     default:                             return "unknown";

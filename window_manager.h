@@ -137,6 +137,9 @@ class WindowManager : public CompositorEventSource {
   // display toplevel windows.
   void HandleLayoutManagerAreaChange(int x, int y, int width, int height);
 
+  // Set the WM_NAME and NET_WM_NAME properties on a window.
+  bool SetNamePropertiesForXid(XWindow xid, const std::string& name);
+
   // Register an event consumer as being interested in non-property-change
   // events on a particular window.
   void RegisterEventConsumerForWindowEvents(

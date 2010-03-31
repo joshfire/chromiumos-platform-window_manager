@@ -63,6 +63,8 @@ PanelDock::PanelDock(PanelManager* panel_manager, DockType type, int width)
 
   wm()->stacking_manager()->StackXidAtTopOfLayer(
       bg_input_xid_, StackingManager::LAYER_PANEL_DOCK);
+  wm()->SetNamePropertiesForXid(
+      bg_input_xid_, "panel dock background input window");
 
   const int bg_x = (type == DOCK_TYPE_LEFT) ? x_ - width_ : x_ + width_;
   bg_shadow_->group()->SetName("panel dock background shadow");

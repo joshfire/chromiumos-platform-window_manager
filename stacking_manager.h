@@ -16,6 +16,7 @@
 
 namespace window_manager {
 
+class AtomCache;
 class Window;
 class XConnection;
 
@@ -26,7 +27,9 @@ class StackingManager {
  public:
   // The layer reference points will be created at the top of the current stack
   // of X windows and children of the default Clutter stage.
-  StackingManager(XConnection* xconn, ClutterInterface* clutter);
+  StackingManager(XConnection* xconn,
+                  ClutterInterface* clutter,
+                  AtomCache* atom_cache);
   ~StackingManager();
 
   // Layers into which windows can be stacked, in top-to-bottom order.

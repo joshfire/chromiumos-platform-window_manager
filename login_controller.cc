@@ -855,6 +855,8 @@ void LoginController::CreateAndRegisterInputWindow(Entry* entry) {
   // Real bounds is set later on.
   entry->input_window_xid =
       wm_->CreateInputWindow(-1, -1, 1, 1, ButtonPressMask);
+  wm_->SetNamePropertiesForXid(
+      entry->input_window_xid, "input window for login entry");
 
   known_windows_.insert(entry->input_window_xid);
 

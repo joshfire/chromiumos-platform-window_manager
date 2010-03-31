@@ -265,7 +265,8 @@ bool WindowManager::Init() {
   stage_->SetStageColor(ClutterInterface::Color(0.12549f, 0.12549f, 0.12549f));
   stage_->SetVisibility(true);
 
-  stacking_manager_.reset(new StackingManager(xconn_, clutter_));
+  stacking_manager_.reset(
+      new StackingManager(xconn_, clutter_, atom_cache_.get()));
 
   if (!FLAGS_wm_background_image.empty()) {
     background_.reset(clutter_->CreateImage(FLAGS_wm_background_image));
@@ -293,6 +294,7 @@ bool WindowManager::Init() {
   background_xid_ = CreateInputWindow(0, 0, width_, height_, 0);  // no events
   stacking_manager_->StackXidAtTopOfLayer(
       background_xid_, StackingManager::LAYER_BACKGROUND);
+  SetNamePropertiesForXid(background_xid_, "background input window");
 
   key_bindings_.reset(new KeyBindings(xconn()));
   logged_in_key_bindings_group_.reset(
@@ -508,6 +510,14 @@ void WindowManager::HandleLayoutManagerAreaChange(
   layout_manager_->MoveAndResize(x, y, width, height);
 }
 
+bool WindowManager::SetNamePropertiesForXid(XWindow xid, const string& name) {
+  bool success = xconn_->SetStringProperty(
+      xid, atom_cache_->GetXAtom(ATOM_WM_NAME), name);
+  success &= xconn_->SetStringProperty(
+      xid, atom_cache_->GetXAtom(ATOM_NET_WM_NAME), name);
+  return success;
+}
+
 void WindowManager::RegisterEventConsumerForWindowEvents(
     XWindow xid, EventConsumer* event_consumer) {
   DCHECK(event_consumer);
@@ -636,8 +646,7 @@ bool WindowManager::RegisterExistence() {
 
   // Set the window's title and wait for the notify event so we can get a
   // timestamp from the server.
-  CHECK(xconn_->SetStringProperty(
-            wm_xid_, GetXAtom(ATOM_NET_WM_NAME), GetWmName()));
+  CHECK(SetNamePropertiesForXid(wm_xid_, GetWmName()));
   XTime timestamp = 0;
   xconn_->WaitForPropertyChange(wm_xid_, &timestamp);
 

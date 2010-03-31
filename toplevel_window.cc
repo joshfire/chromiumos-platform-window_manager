@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <cmath>
 #include <list>
+#include <string>
 #include <tr1/memory>
 
 extern "C" {
@@ -14,7 +15,6 @@ extern "C" {
 }
 #include <gflags/gflags.h>
 
-#include "base/string_util.h"
 #include "base/logging.h"
 #include "window_manager/atom_cache.h"
 #include "window_manager/callback.h"
@@ -34,6 +34,7 @@ using std::list;
 using std::map;
 using std::max;
 using std::min;
+using std::string;
 using std::tr1::shared_ptr;
 
 namespace window_manager {
@@ -74,6 +75,9 @@ LayoutManager::ToplevelWindow::ToplevelWindow(Window* win,
 
   wm()->stacking_manager()->StackXidAtTopOfLayer(
       input_xid_, StackingManager::LAYER_TOPLEVEL_WINDOW);
+  wm()->SetNamePropertiesForXid(
+      input_xid_, string("input window for toplevel ") + win_->xid_str());
+
 
   // Let the window know that it's maximized.
   map<XAtom, bool> wm_state;

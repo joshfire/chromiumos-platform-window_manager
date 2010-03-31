@@ -98,6 +98,10 @@ PanelBar::PanelBar(PanelManager* panel_manager)
       StackingManager::LAYER_PANEL_BAR_INPUT_WINDOW);
   wm()->stacking_manager()->StackXidAtTopOfLayer(
       anchor_input_xid_, StackingManager::LAYER_PANEL_BAR_INPUT_WINDOW);
+
+  wm()->SetNamePropertiesForXid(anchor_input_xid_, "panel anchor input window");
+  wm()->SetNamePropertiesForXid(
+      show_collapsed_panels_input_xid_, "show-collapsed-panels input window");
 }
 
 PanelBar::~PanelBar() {

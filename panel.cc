@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <map>
+#include <string>
 
 extern "C" {
 #include <X11/cursorfont.h>
@@ -28,6 +29,7 @@ DEFINE_bool(panel_opaque_resize, false, "Resize panels opaquely");
 using std::map;
 using std::max;
 using std::min;
+using std::string;
 using std::vector;
 
 namespace window_manager {
@@ -147,6 +149,19 @@ Panel::Panel(PanelManager* panel_manager,
   wm()->xconn()->SetWindowCursor(top_right_input_xid_, XC_top_right_corner);
   wm()->xconn()->SetWindowCursor(left_input_xid_, XC_left_side);
   wm()->xconn()->SetWindowCursor(right_input_xid_, XC_right_side);
+
+  wm()->SetNamePropertiesForXid(
+      top_input_xid_, string("top input window for panel ") + xid_str());
+  wm()->SetNamePropertiesForXid(
+      top_left_input_xid_,
+      string("top-left input window for panel ") + xid_str());
+  wm()->SetNamePropertiesForXid(
+      top_right_input_xid_,
+      string("top-right input window for panel ") + xid_str());
+  wm()->SetNamePropertiesForXid(
+      left_input_xid_, string("left input window for panel ") + xid_str());
+  wm()->SetNamePropertiesForXid(
+      right_input_xid_, string("right input window for panel ") + xid_str());
 
   UpdateChromeStateProperty();
 }
