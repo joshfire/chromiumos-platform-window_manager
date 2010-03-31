@@ -30,11 +30,6 @@ class XConnection {
   }
   virtual ~XConnection() {}
 
-  // Get the base event ID for extension events.
-  int damage_event_base() const { return damage_event_base_; }
-  int shape_event_base() const { return shape_event_base_; }
-  int randr_event_base() const { return randr_event_base_; }
-
   // Data returned by GetWindowGeometry().
   struct WindowGeometry {
     WindowGeometry()
@@ -53,6 +48,98 @@ class XConnection {
     int border_width;
     int depth;
   };
+
+  // Data returned by GetSizeHintsForWindow().
+  struct SizeHints {
+    SizeHints() {
+      reset();
+    }
+
+    // Reset all of the hints to -1.
+    void reset() {
+      width = -1;
+      height = -1;
+      min_width = -1;
+      min_height = -1;
+      max_width = -1;
+      max_height = -1;
+      width_increment = -1;
+      height_increment = -1;
+      min_aspect_x = -1;
+      min_aspect_y = -1;
+      max_aspect_x = -1;
+      max_aspect_y = -1;
+      base_width = -1;
+      base_height = -1;
+      win_gravity = -1;
+    }
+
+    // Hints are set to -1 if not defined.
+    int width;
+    int height;
+    int min_width;
+    int min_height;
+    int max_width;
+    int max_height;
+    int width_increment;
+    int height_increment;
+    int min_aspect_x;
+    int min_aspect_y;
+    int max_aspect_x;
+    int max_aspect_y;
+    int base_width;
+    int base_height;
+    int win_gravity;
+  };
+
+  // Data returned by GetWindowAttributes().
+  struct WindowAttributes {
+    enum WindowClass {
+      WINDOW_CLASS_INPUT_OUTPUT = 0,
+      WINDOW_CLASS_INPUT_ONLY,
+    };
+
+    enum MapState {
+      MAP_STATE_UNMAPPED = 0,
+      MAP_STATE_UNVIEWABLE,
+      MAP_STATE_VIEWABLE,
+    };
+
+    WindowAttributes()
+        : window_class(WINDOW_CLASS_INPUT_OUTPUT),
+          map_state(MAP_STATE_UNMAPPED),
+          override_redirect(false),
+          visual_id(0) {
+    }
+
+    WindowClass window_class;
+    MapState map_state;
+    bool override_redirect;
+    XVisualID visual_id;
+  };
+
+  // RAII-type object returned by CreateScopedServerGrab() that grabs the
+  // X server in its constructor and releases the grab in its destructor.
+  class ScopedServerGrab {
+   public:
+    explicit ScopedServerGrab(XConnection* xconn) : xconn_(xconn) {
+      xconn_->GrabServer();
+    }
+
+    ~ScopedServerGrab() {
+      xconn_->UngrabServer();
+    }
+
+   private:
+    XConnection* xconn_;
+
+    DISALLOW_COPY_AND_ASSIGN(ScopedServerGrab);
+  };
+
+  // Get the base event ID for extension events.
+  int damage_event_base() const { return damage_event_base_; }
+  int shape_event_base() const { return shape_event_base_; }
+  int randr_event_base() const { return randr_event_base_; }
 
   // Get a window's geometry.
   virtual bool GetWindowGeometry(XWindow xid, WindowGeometry* geom_out) = 0;
@@ -103,6 +190,10 @@ class XConnection {
   bool GrabServer();
   bool UngrabServer();
 
+  // Grab the server, returning an object (ownership of which is
+  // transferred to the caller) that will ungrab the server when destroyed.
+  ScopedServerGrab* CreateScopedServerGrab();
+
   // Install a passive button grab on a window.  When the specified button
   // is pressed, an active pointer grab will be installed.  Only events
   // matched by 'event_mask' will be reported.  If 'synchronous' is false,
@@ -134,80 +225,11 @@ class XConnection {
   // Remove the input region from a window, so that events fall through it.
   virtual bool RemoveInputRegionFromWindow(XWindow xid) = 0;
 
-  // Data returned by GetSizeHintsForWindow().
-  struct SizeHints {
-    SizeHints() {
-      Reset();
-    }
-
-    // Reset all of the hints to -1.
-    void Reset() {
-      width = -1;
-      height = -1;
-      min_width = -1;
-      min_height = -1;
-      max_width = -1;
-      max_height = -1;
-      width_increment = -1;
-      height_increment = -1;
-      min_aspect_x = -1;
-      min_aspect_y = -1;
-      max_aspect_x = -1;
-      max_aspect_y = -1;
-      base_width = -1;
-      base_height = -1;
-      win_gravity = -1;
-    }
-
-    // Hints are set to -1 if not defined.
-    int width;
-    int height;
-    int min_width;
-    int min_height;
-    int max_width;
-    int max_height;
-    int width_increment;
-    int height_increment;
-    int min_aspect_x;
-    int min_aspect_y;
-    int max_aspect_x;
-    int max_aspect_y;
-    int base_width;
-    int base_height;
-    int win_gravity;
-  };
-
   // Get the size hints for a window.
   virtual bool GetSizeHintsForWindow(XWindow xid, SizeHints* hints_out) = 0;
 
   // Get the transient-for hint for a window.
   virtual bool GetTransientHintForWindow(XWindow xid, XWindow* owner_out) = 0;
-
-  // Data returned by GetWindowAttributes().
-  struct WindowAttributes {
-    WindowAttributes()
-        : window_class(WINDOW_CLASS_INPUT_OUTPUT),
-          map_state(MAP_STATE_UNMAPPED),
-          override_redirect(false) {
-    }
-
-    enum WindowClass {
-      WINDOW_CLASS_INPUT_OUTPUT = 0,
-      WINDOW_CLASS_INPUT_ONLY,
-    };
-    WindowClass window_class;
-
-    enum MapState {
-      MAP_STATE_UNMAPPED = 0,
-      MAP_STATE_UNVIEWABLE,
-      MAP_STATE_VIEWABLE,
-    };
-    MapState map_state;
-
-    bool override_redirect;
-
-    XVisualID visual_id;
-  };
 
   // Get a window's attributes.
   virtual bool GetWindowAttributes(XWindow xid, WindowAttributes* attr_out) = 0;

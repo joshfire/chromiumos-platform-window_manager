@@ -49,6 +49,10 @@ bool XConnection::UngrabServer() {
   return false;
 }
 
+XConnection::ScopedServerGrab* XConnection::CreateScopedServerGrab() {
+  return new ScopedServerGrab(this);
+}
+
 bool XConnection::GetAtom(const string& name, XAtom* atom_out) {
   vector<string> names;
   names.push_back(name);

@@ -326,33 +326,15 @@ bool WindowManager::Init() {
 
   // Look up existing windows (note that this includes windows created
   // earlier in this method) and select window management events.
-  //
-  // TODO: We should be grabbing the server here, calling
-  // ManageExistingWindows(), selecting SubstructureRedirectMask, and then
-  // releasing the grab.  The grabs lead to deadlocks, though, since
-  // Clutter is using its own X connection (so Clutter calls that we make
-  // while grabbing the server via GDK's connection will block forever).
-  // We would ideally just use a single X connection for everything, but I
-  // haven't found a way to do this without causing issues with Clutter not
-  // getting all events.  It doesn't seem to receive any when we call
-  // clutter_x11_disable_event_retrieval() and forward all events using
-  // clutter_x11_handle_event(), and it seems to be missing some events
-  // when we use clutter_x11_add_filter() to sidestep GDK entirely (even if
-  // the filter returns CLUTTER_X11_FILTER_CONTINUE for everything).
-  //
-  // As a workaround, the order of these operations is reversed -- we
-  // select SubstructureRedirectMask and then query for all windows, so
-  // there's no period where new windows could sneak in unnoticed.  This
-  // creates the possibility of us getting double-notified about windows
-  // being created or mapped, so HandleCreateNotify() and HandleMapNotify()
-  // are careful to bail out early if it looks like they're dealing with a
-  // window that was already handled by ManageExistingWindows().
+  scoped_ptr<XConnection::ScopedServerGrab> grab(
+      xconn_->CreateScopedServerGrab());
+  ManageExistingWindows();
   CHECK(xconn_->SelectInputOnWindow(
             root_,
             SubstructureRedirectMask | StructureNotifyMask |
               SubstructureNotifyMask,
-            true));  // preserve GDK's existing event mask
-  ManageExistingWindows();
+            true));  // preserve the existing event mask
+  grab.reset();
 
   metrics_reporter_.reset(new MetricsReporter(layout_manager_.get(),
                                               wm_ipc_.get()));
@@ -1212,18 +1194,10 @@ void WindowManager::HandleCreateNotify(const XCreateWindowEvent& e) {
   if (e.parent != root_)
     return;
 
-  // CreateWindow stacks the new window on top of its siblings.
-  DCHECK(!stacked_xids_->Contains(e.window));
-  stacked_xids_->AddOnTop(e.window);
-
-  // TODO: We should grab the server while we're getting everything set up
-  // so we can make sure that the window doesn't go away on us (if it does,
-  // we'll get a huge flood of errors triggered by the X requests in
-  // Window's c'tor).  Grabbing the server "too much" should be avoided
-  // since it blocks other clients, but this bit of initialization takes at
-  // most about a fifth of a millisecond (at least from brief testing).
-  // But, we can't currently grab the server here for the same reason
-  // described above the call to ManageExistingWindows() in Init().
+  // Grab the server while we're doing all of this; we can get a ton of
+  // errors when trying to track short-lived windows otherwise.
+  scoped_ptr<XConnection::ScopedServerGrab> grab(
+      xconn_->CreateScopedServerGrab());
 
   XConnection::WindowAttributes attr;
   if (!xconn_->GetWindowAttributes(e.window, &attr)) {
@@ -1231,6 +1205,10 @@ void WindowManager::HandleCreateNotify(const XCreateWindowEvent& e) {
                  << " went away while we were handling its CreateNotify event";
     return;
   }
+
+  // CreateWindow stacks the new window on top of its siblings.
+  DCHECK(!stacked_xids_->Contains(e.window));
+  stacked_xids_->AddOnTop(e.window);
 
   // override-redirect means that the window manager isn't going to
   // intercept this window's structure events, but we still need to

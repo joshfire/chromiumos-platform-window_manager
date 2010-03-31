@@ -163,7 +163,7 @@ TEST_F(WindowManagerTest, ExistingWindows) {
   EXPECT_TRUE(dynamic_cast<const MockClutterInterface::Actor*>(
                   win->actor())->visible());
 
-  // Now handle the case where the window starts out unmapped and
+  // Now test the case where the window starts out unmapped and
   // WindowManager misses the CreateNotify event but receives the
   // MapRequest (and subsequent MapNotify).
   wm_.reset(NULL);
@@ -182,38 +182,6 @@ TEST_F(WindowManagerTest, ExistingWindows) {
                    win->actor())->visible());
 
   XEvent event;
-  MockXConnection::InitMapRequestEvent(&event, *info);
-  wm_->HandleEvent(&event);
-  EXPECT_TRUE(info->mapped);
-
-  MockXConnection::InitMapEvent(&event, xid);
-  wm_->HandleEvent(&event);
-  EXPECT_TRUE(win->mapped());
-  EXPECT_TRUE(dynamic_cast<const MockClutterInterface::Actor*>(
-                  win->actor())->visible());
-
-  // Here, we mimic the case where the window is created after
-  // WindowManager selects SubstructureRedirect but before it queries for
-  // existing windows, so it sees the window immediately but also gets a
-  // CreateNotify event about it.
-  wm_.reset(NULL);
-  xconn_.reset(new MockXConnection);
-  event_loop_.reset(new EventLoop);
-  clutter_.reset(new MockClutterInterface(xconn_.get()));
-  xid = CreateSimpleWindow();
-  info = xconn_->GetWindowInfoOrDie(xid);
-
-  wm_.reset(new WindowManager(event_loop_.get(), xconn_.get(), clutter_.get()));
-  CHECK(wm_->Init());
-  EXPECT_FALSE(info->mapped);
-  win = wm_->GetWindowOrDie(xid);
-  EXPECT_FALSE(win->mapped());
-  EXPECT_FALSE(dynamic_cast<const MockClutterInterface::Actor*>(
-                   win->actor())->visible());
-
-  MockXConnection::InitCreateWindowEvent(&event, *info);
-  wm_->HandleEvent(&event);
-
   MockXConnection::InitMapRequestEvent(&event, *info);
   wm_->HandleEvent(&event);
   EXPECT_TRUE(info->mapped);

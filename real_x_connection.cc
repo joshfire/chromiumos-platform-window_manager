@@ -339,7 +339,7 @@ bool RealXConnection::RemoveInputRegionFromWindow(XWindow xid) {
 
 bool RealXConnection::GetSizeHintsForWindow(XWindow xid, SizeHints* hints_out) {
   CHECK(hints_out);
-  hints_out->Reset();
+  hints_out->reset();
 
   vector<int> values;
   if (!GetIntArrayProperty(xid, XA_WM_NORMAL_HINTS, &values))
