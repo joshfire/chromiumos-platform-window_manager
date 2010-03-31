@@ -53,6 +53,9 @@ DEFINE_string(wm_increase_volume_command,
 DEFINE_string(wm_decrease_volume_command,
               "/usr/bin/amixer -- sset Master unmute 5%-",
               "Command to decrease audio volume");
+DEFINE_string(wm_mute_audio_command,
+              "/usr/bin/amixer -- sset Master mute",
+              "Command to mute audio");
 DEFINE_string(wm_initial_chrome_window_mapped_file,
               "", "When we first see a toplevel Chrome window get mapped, "
               "we write its ID as an ASCII decimal number to this file.  "
@@ -797,6 +800,14 @@ void WindowManager::RegisterKeyBindings() {
       NULL, NULL);
   key_bindings_->AddBinding(
       KeyBindings::KeyCombo(XF86XK_AudioLowerVolume), "decrease-audio-volume");
+
+  key_bindings_->AddAction(
+      "mute-audio",
+      NewPermanentCallback(
+          this, &WindowManager::RunCommand, FLAGS_wm_mute_audio_command),
+      NULL, NULL);
+  key_bindings_->AddBinding(
+      KeyBindings::KeyCombo(XF86XK_AudioMute), "mute-audio");
 }
 
 bool WindowManager::ManageExistingWindows() {
