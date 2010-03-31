@@ -486,9 +486,11 @@ Window* WindowManager::GetWindowOrDie(XWindow xid) {
   return win;
 }
 
-void WindowManager::TakeFocus() {
-  if (!layout_manager_->TakeFocus() && !panel_manager_->TakeFocus())
-    xconn_->FocusWindow(root_, CurrentTime);
+void WindowManager::TakeFocus(XTime timestamp) {
+  if (!layout_manager_->TakeFocus(timestamp) &&
+      !panel_manager_->TakeFocus(timestamp)) {
+    xconn_->FocusWindow(root_, timestamp);
+  }
 }
 
 bool WindowManager::SetActiveWindowProperty(XWindow xid) {

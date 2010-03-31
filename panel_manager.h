@@ -117,7 +117,7 @@ class PanelManager : public EventConsumer {
   // Take the input focus if possible.  Returns 'false' if it doesn't make
   // sense to take the focus (currently, we only take the focus if there's
   // at least one expanded panel).
-  bool TakeFocus();
+  bool TakeFocus(XTime timestamp);
 
  private:
   friend class BasicWindowManagerTest;  // uses 'dragged_panel_event_coalescer_'

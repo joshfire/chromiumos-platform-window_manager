@@ -171,8 +171,9 @@ void PanelManager::HandleWindowUnmap(Window* win) {
   // If the panel was focused, assign the focus to another panel, or
   // failing that, let the window manager decide what to do with it.
   if (panel->content_win()->focused()) {
-    if (!panel_bar_->TakeFocus())
-      wm_->TakeFocus();
+    XTime timestamp = wm()->GetCurrentTimeFromServer();
+    if (!TakeFocus(timestamp))
+      wm_->TakeFocus(timestamp);
   }
 
   vector<XWindow> input_windows;
@@ -430,8 +431,10 @@ void PanelManager::HandleScreenResize() {
   UpdateAvailableArea();
 }
 
-bool PanelManager::TakeFocus() {
-  return panel_bar_->TakeFocus();
+bool PanelManager::TakeFocus(XTime timestamp) {
+  return panel_bar_->TakeFocus(timestamp) ||
+         left_panel_dock_->TakeFocus(timestamp) ||
+         right_panel_dock_->TakeFocus(timestamp);
 }
 
 Panel* PanelManager::GetPanelByXid(XWindow xid) {

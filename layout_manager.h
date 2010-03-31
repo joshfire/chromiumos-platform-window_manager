@@ -137,7 +137,7 @@ class LayoutManager : public EventConsumer {
   // Take the input focus if possible.  Returns 'false' if it doesn't make
   // sense to take the focus (currently, we take the focus if we're in
   // active mode but refuse to in overview mode).
-  bool TakeFocus();
+  bool TakeFocus(XTime timestamp);
 
   // Change the area allocated to the layout manager.
   void MoveAndResize(int x, int y, int width, int height);

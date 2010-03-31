@@ -360,6 +360,39 @@ TEST_F(PanelManagerTest, Fullscreen) {
   SendFocusEvents(xconn_->GetRootWindow(), panel3->content_xid());
 }
 
+// Test that panels in the dock take the focus when they get the chance.
+// Otherwise, we can get in a state where the root window has the focus
+// but it gets transferred to a docked panel when the pointer moves over
+// it.  See http://crosbug.com/1619.
+TEST_F(PanelManagerTest, FocusPanelInDock) {
+  Panel* panel_in_bar = CreatePanel(20, 200, 400, true);
+  Panel* panel_in_dock = CreatePanel(20, 200, 400, true);
+
+  XConnection::WindowGeometry root_geometry;
+  ASSERT_TRUE(
+      xconn_->GetWindowGeometry(xconn_->GetRootWindow(), &root_geometry));
+
+  // Drag the second panel to the dock and check that it sticks there.
+  SendPanelDraggedMessage(panel_in_dock, root_geometry.width - 1, 0);
+  SendPanelDragCompleteMessage(panel_in_dock);
+  EXPECT_EQ(root_geometry.width, panel_in_dock->right());
+  EXPECT_EQ(0, panel_in_dock->titlebar_y());
+
+  // The docked panel should have the focus, since it was opened second.
+  // Send a message asking the WM to focus the panel in the bar.
+  EXPECT_EQ(panel_in_dock->content_xid(), xconn_->focused_xid());
+  SendActiveWindowMessage(panel_in_bar->content_xid());
+  EXPECT_EQ(panel_in_bar->content_xid(), xconn_->focused_xid());
+  SendFocusEvents(panel_in_dock->content_xid(), panel_in_bar->content_xid());
+
+  // Now unmap the panel in the bar and check that the docked panel gets
+  // the focus.
+  XEvent event;
+  MockXConnection::InitUnmapEvent(&event, panel_in_bar->content_xid());
+  wm_->HandleEvent(&event);
+  EXPECT_EQ(panel_in_dock->content_xid(), xconn_->focused_xid());
+}
+
 }  // namespace window_manager
 
 int main(int argc, char** argv) {

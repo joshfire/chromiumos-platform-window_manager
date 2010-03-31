@@ -269,6 +269,14 @@ void PanelDock::HandleScreenResize() {
   }
 }
 
+bool PanelDock::TakeFocus(XTime timestamp) {
+  if (panels_.empty())
+    return false;
+
+  PanelDock::FocusPanel(panels_[0], false, timestamp);
+  return true;
+}
+
 WindowManager* PanelDock::wm() { return panel_manager_->wm(); }
 
 PanelDock::PanelInfo* PanelDock::GetPanelInfoOrDie(Panel* panel) {

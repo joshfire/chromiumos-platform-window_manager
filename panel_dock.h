@@ -81,6 +81,7 @@ class PanelDock : public PanelContainer {
   void HandlePanelResize(Panel* panel);
   void HandleScreenResize();
   void HandlePanelUrgencyChange(Panel* panel) {}
+  bool TakeFocus(XTime timestamp);
   // End PanelContainer implementation.
 
  private:

@@ -69,12 +69,8 @@ class PanelBar : public PanelContainer {
   void HandlePanelResize(Panel* panel);
   void HandleScreenResize();
   void HandlePanelUrgencyChange(Panel* panel);
+  bool TakeFocus(XTime timestamp);
   // End PanelContainer implementation.
-
-  // Take the input focus if possible.  Returns 'false' if it doesn't make
-  // sense to take the focus (currently, we only take the focus if there's
-  // at least one expanded panel).
-  bool TakeFocus();
 
   // Amount of horizontal padding to place between panels, in pixels.
   static const int kPixelsBetweenPanels;

@@ -126,7 +126,7 @@ class WindowManager : public CompositorEventSource {
   // Do something reasonable with the input focus.
   // This is intended to be called by EventConsumers when they give up the
   // focus and aren't sure what to do with it.
-  void TakeFocus();
+  void TakeFocus(XTime timestamp);
 
   // Set the _NET_ACTIVE_WINDOW property, which contains the ID of the
   // currently-active window (in our case, this is the top-level window or

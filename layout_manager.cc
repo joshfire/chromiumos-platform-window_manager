@@ -424,7 +424,7 @@ void LayoutManager::HandleWindowUnmap(Window* win) {
         } else {
           if (win->focused()) {
             wm_->SetActiveWindowProperty(None);
-            wm_->TakeFocus();
+            wm_->TakeFocus(wm_->GetCurrentTimeFromServer());
           }
         }
       }
@@ -645,11 +645,11 @@ Window* LayoutManager::GetChromeWindow() {
   return NULL;
 }
 
-bool LayoutManager::TakeFocus() {
+bool LayoutManager::TakeFocus(XTime timestamp) {
   if (mode_ != MODE_ACTIVE || !active_toplevel_)
     return false;
 
-  active_toplevel_->TakeFocus(wm_->GetCurrentTimeFromServer());
+  active_toplevel_->TakeFocus(timestamp);
   return true;
 }
 
@@ -860,7 +860,7 @@ void LayoutManager::SetMode(Mode mode) {
         // previously-focused window would continue to get keyboard events
         // in overview mode.  Let the WindowManager decide what to do with it.
         wm_->SetActiveWindowProperty(None);
-        wm_->TakeFocus();
+        wm_->TakeFocus(wm_->GetCurrentTimeFromServer());
       }
       LayoutToplevelWindowsForOverviewMode(0.5 * width_);
       break;

@@ -409,9 +409,7 @@ void PanelBar::HandlePanelUrgencyChange(Panel* panel) {
   }
 }
 
-bool PanelBar::TakeFocus() {
-  XTime timestamp = wm()->GetCurrentTimeFromServer();
-
+bool PanelBar::TakeFocus(XTime timestamp) {
   // If we already decided on a panel to focus, use it.
   if (desired_panel_to_focus_) {
     FocusPanel(desired_panel_to_focus_, false, timestamp);
@@ -497,9 +495,10 @@ void PanelBar::CollapsePanel(Panel* panel, int anim_ms) {
   // Give up the focus if this panel had it.
   if (panel->content_win()->focused()) {
     desired_panel_to_focus_ = panel_to_focus;
-    if (!TakeFocus()) {
+    XTime timestamp = wm()->GetCurrentTimeFromServer();
+    if (!TakeFocus(timestamp)) {
       wm()->SetActiveWindowProperty(None);
-      wm()->TakeFocus();
+      wm()->TakeFocus(timestamp);
     }
   }
 

@@ -92,6 +92,10 @@ class BasicWindowManagerTest : public ::testing::Test {
   // Send a WM_NOTIFY_PANEL_DRAG_COMPLETE message.
   void SendPanelDragCompleteMessage(Panel* panel);
 
+  // Send a _NET_ACTIVE_WINDOW message asking the window manager to focus a
+  // window.
+  void SendActiveWindowMessage(XWindow xid);
+
   // Get the current value of the _NET_ACTIVE_WINDOW property on the root
   // window.
   XWindow GetActiveWindowProperty();

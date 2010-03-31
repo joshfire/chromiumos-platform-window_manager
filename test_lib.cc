@@ -229,6 +229,17 @@ void BasicWindowManagerTest::SendPanelDragCompleteMessage(Panel* panel) {
   SendWmIpcMessage(msg);
 }
 
+void BasicWindowManagerTest::SendActiveWindowMessage(XWindow xid) {
+  XEvent event;
+  MockXConnection::InitClientMessageEvent(
+      &event, xid, wm_->GetXAtom(ATOM_NET_ACTIVE_WINDOW),
+      1,      // source indication (1 is from application)
+      0,      // timestamp
+      0,      // requestor's currently-active window
+      0, 0);  // unused
+  wm_->HandleEvent(&event);
+}
+
 XWindow BasicWindowManagerTest::GetActiveWindowProperty() {
   int active_window;
   if (!xconn_->GetIntProperty(xconn_->GetRootWindow(),
