@@ -60,6 +60,7 @@ class Gles2Interface : virtual public GLInterfaceBase {
   virtual void AttachShader(GLuint program, GLuint shader) = 0;
   virtual void BindBuffer(GLenum target, GLuint buffer) = 0;
   virtual void BindTexture(GLenum target, GLuint texture) = 0;
+  virtual void BlendFunc(GLenum sfactor, GLenum dfactor) = 0;
   virtual void BufferData(GLenum target, GLsizeiptr size, const void* data,
                           GLenum usage) = 0;
   virtual void Clear(GLbitfield mask) = 0;

@@ -165,6 +165,7 @@ void OpenGlesDrawVisitor::VisitStage(TidyInterface::StageActor* actor) {
 
   // Back to front rendering
   // TODO: Switch to two pass Z-buffered rendering
+  gl_->BlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
   gl_->Enable(GL_BLEND);
 
   // Back to front rendering

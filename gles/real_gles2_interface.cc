@@ -184,6 +184,11 @@ void RealGles2Interface::BindTexture(GLenum target, GLuint texture) {
   GLES2_DCHECK_ERROR();
 }
 
+void RealGles2Interface::BlendFunc(GLenum sfactor, GLenum dfactor) {
+  glBlendFunc(sfactor, dfactor);
+  GLES2_DCHECK_ERROR();
+}
+
 void RealGles2Interface::BufferData(GLenum target, GLsizeiptr size,
                                     const void* data, GLenum usage) {
   glBufferData(target, size, data, usage);

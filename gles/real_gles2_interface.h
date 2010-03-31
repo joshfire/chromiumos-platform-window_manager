@@ -57,6 +57,7 @@ class RealGles2Interface : public Gles2Interface {
   void AttachShader(GLuint program, GLuint shader);
   void BindBuffer(GLenum target, GLuint buffer);
   void BindTexture(GLenum target, GLuint texture);
+  void BlendFunc(GLenum sfactor, GLenum dfactor);
   void BufferData(GLenum target, GLsizeiptr size, const void* data,
                   GLenum usage);
   void Clear(GLbitfield mask);
