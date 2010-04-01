@@ -30,8 +30,7 @@ bool XConnection::GetIntProperty(XWindow xid, XAtom xatom, int* value) {
 }
 
 bool XConnection::GrabServer() {
-  if (server_grabbed_)
-    LOG(ERROR) << "Attempting to grab already-grabbed server";
+  DCHECK(!server_grabbed_) << "Attempting to grab already-grabbed server";
   if (GrabServerImpl()) {
     server_grabbed_ = true;
     return true;
@@ -40,8 +39,7 @@ bool XConnection::GrabServer() {
 }
 
 bool XConnection::UngrabServer() {
-  if (!server_grabbed_)
-    LOG(ERROR) << "Attempting to ungrab not-grabbed server";
+  DCHECK(server_grabbed_) << "Attempting to ungrab not-grabbed server";
   if (UngrabServerImpl()) {
     server_grabbed_ = false;
     return true;

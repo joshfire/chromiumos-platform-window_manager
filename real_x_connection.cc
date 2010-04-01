@@ -225,7 +225,6 @@ bool RealXConnection::SelectInputOnWindow(
     XWindow xid, int event_mask, bool preserve_existing) {
   TrapErrors();
   if (preserve_existing) {
-    GrabServer();
     XWindowAttributes attr;
     XGetWindowAttributes(display_, xid, &attr);
     event_mask |= attr.your_event_mask;
@@ -235,8 +234,6 @@ bool RealXConnection::SelectInputOnWindow(
     // previous one to avoid blowing away the previous mask on failure.
     XSelectInput(display_, xid, event_mask);
   }
-  if (preserve_existing)
-    UngrabServer();
   if (int error = UntrapErrors()) {
     LOG(WARNING) << "Got X error while selecting input on window "
                  << XidStr(xid) << ": " << GetErrorText(error);
