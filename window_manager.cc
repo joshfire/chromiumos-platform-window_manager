@@ -1554,7 +1554,7 @@ void WindowManager::ToggleClientWindowDebugging() {
     return;
   }
 
-  DLOG(INFO) << "Clutter actors:\n" << stage_->GetDebugString();
+  DLOG(INFO) << "Clutter actors:\n" << stage_->GetDebugString(0);
 
   vector<XWindow> xids;
   if (!xconn_->GetChildWindows(root_, &xids))

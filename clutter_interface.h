@@ -70,6 +70,11 @@ class ClutterInterface {
     virtual void RaiseToTop() = 0;
     virtual void LowerToBottom() = 0;
 
+    // Get a string that briefly describes this actor and everything under
+    // it in the tree.  The string will be indented two spaces for each
+    // successive value of 'indent_level'.
+    virtual std::string GetDebugString(int indent_level) = 0;
+
     virtual void ShowDimmed(bool dimmed, int anim_ms) = 0;
    private:
     DISALLOW_COPY_AND_ASSIGN(Actor);
@@ -90,7 +95,6 @@ class ClutterInterface {
     virtual ~StageActor() {}
     virtual XWindow GetStageXWindow() = 0;
     virtual void SetStageColor(const Color &color) = 0;
-    virtual std::string GetDebugString() = 0;
    private:
     DISALLOW_COPY_AND_ASSIGN(StageActor);
   };
@@ -212,6 +216,7 @@ class MockClutterInterface : public ClutterInterface {
     void Lower(ClutterInterface::Actor* other);
     void RaiseToTop();
     void LowerToBottom();
+    virtual std::string GetDebugString(int debug_level) { return ""; }
     void ShowDimmed(bool dimmed, int anim_ms) { is_dimmed_ = dimmed; }
     // End ClutterInterface::Actor methods
 
@@ -255,7 +260,6 @@ class MockClutterInterface : public ClutterInterface {
     virtual ~StageActor() {}
     XWindow GetStageXWindow() { return 0; }
     void SetStageColor(const ClutterInterface::Color& color) {}
-    std::string GetDebugString() { return ""; }
    private:
     DISALLOW_COPY_AND_ASSIGN(StageActor);
   };

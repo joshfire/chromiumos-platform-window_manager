@@ -12,6 +12,7 @@
 #include <sys/time.h>
 
 #include "base/logging.h"
+#include "base/string_util.h"
 #include "window_manager/callback.h"
 #include "window_manager/compositor_event_source.h"
 #include "window_manager/event_loop.h"
@@ -239,6 +240,25 @@ void TidyInterface::Actor::LowerToBottom() {
   SetDirty();
 }
 
+string TidyInterface::Actor::GetDebugStringInternal(const string& type_name,
+                                                    int indent_level) {
+  string out;
+  for (int i = 0; i < indent_level; ++i)
+    out += "  ";
+
+  out += StringPrintf("\"%s\" %p (%s%s) (%d, %d) %dx%d "
+                        "scale=(%.2f, %.2f) %.2f%%\n",
+                      !name_.empty() ? name_.c_str() : "",
+                      this,
+                      visible_ ? "" : "inv ",
+                      type_name.c_str(),
+                      x_, y_,
+                      width_, height_,
+                      scale_x_, scale_y_,
+                      opacity_);
+  return out;
+}
+
 TidyInterface::DrawingDataPtr TidyInterface::Actor::GetDrawingData(
     int32 id) const {
   DrawingDataMap::const_iterator iterator = drawing_data_.find(id);
@@ -316,6 +336,15 @@ TidyInterface::ContainerActor::~ContainerActor() {
        iterator != children_.end(); ++iterator) {
     dynamic_cast<TidyInterface::Actor*>(*iterator)->set_parent(NULL);
   }
+}
+
+string TidyInterface::ContainerActor::GetDebugString(int indent_level) {
+  string out = GetDebugStringInternal("ContainerActor", indent_level);
+  for (ActorVector::iterator iterator = children_.begin();
+       iterator != children_.end(); ++iterator) {
+    out += (*iterator)->GetDebugString(indent_level + 1);
+  }
+  return out;
 }
 
 void TidyInterface::ContainerActor::AddActor(

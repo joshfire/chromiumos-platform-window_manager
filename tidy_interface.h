@@ -214,6 +214,9 @@ class TidyInterface : public ClutterInterface {
     void Lower(ClutterInterface::Actor* other);
     void RaiseToTop();
     void LowerToBottom();
+    virtual std::string GetDebugString(int indent_level) {
+      return GetDebugStringInternal("Actor", indent_level);
+    }
     // End ClutterInterface::Actor methods
 
     // Updates the actor in response to time passing, and counts the
@@ -275,6 +278,12 @@ class TidyInterface : public ClutterInterface {
 
     void CloneImpl(Actor* clone);
     virtual void SetSizeImpl(int* width, int* height) {}
+
+    // Helper method that can be invoked by derived classes.  Returns a
+    // string defining this actor, saying that its type is 'type_name'
+    // (e.g. "RectangleActor", "TexturePixmapActor", etc.).
+    std::string GetDebugStringInternal(const std::string& type_name,
+                                       int indent_level);
 
     void set_has_children(bool has_children) { has_children_ = has_children; }
     void set_is_opaque(bool opaque) { is_opaque_ = opaque; }
@@ -364,14 +373,23 @@ class TidyInterface : public ClutterInterface {
       visitor->VisitContainer(this);
     }
 
+    // Begin ClutterInterface::Actor methods
     virtual Actor* Clone() {
       NOTIMPLEMENTED();
       CHECK(false);
       return NULL;
     }
-    virtual ActorVector GetChildren() { return children_; }
+    virtual std::string GetDebugString(int indent_level);
+    // End ClutterInterface::Actor methods
 
+    // Begin TidyInterface::Actor methods
+    virtual ActorVector GetChildren() { return children_; }
+    // End TidyInterface::Actor methods
+
+    // Begin ClutterInterface::ContainerActor methods
     void AddActor(ClutterInterface::Actor* actor);
+    // End ClutterInterface::ContainerActor methods
+
     void RemoveActor(ClutterInterface::Actor* actor);
     virtual void Update(int32* count, AnimationTime now);
 
@@ -399,6 +417,12 @@ class TidyInterface : public ClutterInterface {
   class QuadActor : public TidyInterface::Actor {
    public:
     explicit QuadActor(TidyInterface* interface);
+
+    // Begin ClutterInterface::Actor methods
+    virtual std::string GetDebugString(int indent_level) {
+      return GetDebugStringInternal("QuadActor", indent_level);
+    }
+    // End ClutterInterface::Actor methods
 
     void SetColor(const ClutterInterface::Color& color,
                   const ClutterInterface::Color& border_color,
@@ -439,20 +463,29 @@ class TidyInterface : public ClutterInterface {
     explicit TexturePixmapActor(TidyInterface* interface);
     virtual ~TexturePixmapActor() { Reset(); }
 
+    XWindow texture_pixmap_window() const { return window_; }
+
+    // Begin ClutterInterface::Actor methods
+    virtual std::string GetDebugString(int indent_level) {
+      return GetDebugStringInternal("TexturePixmapActor", indent_level);
+    }
+    // End ClutterInterface::Actor methods
+
     // Implement VisitorDestination for visitor.
     void Accept(ActorVisitor* visitor) {
       CHECK(visitor);
       visitor->VisitTexturePixmap(this);
     }
 
+    // Begin ClutterInterface::TexturePixmapActor methods
     bool SetTexturePixmapWindow(XWindow xid);
-    XWindow texture_pixmap_window() const { return window_; }
     bool IsUsingTexturePixmapExtension() { return true; }
     bool SetAlphaMask(const unsigned char* bytes, int width, int height) {
       NOTIMPLEMENTED();
       return true;
     }
     void ClearAlphaMask() { NOTIMPLEMENTED(); }
+    // End ClutterInterface::TexturePixmapActor methods
 
     // Refresh the current pixmap.
     void RefreshPixmap();
@@ -504,10 +537,6 @@ class TidyInterface : public ClutterInterface {
     void SetStageColor(const ClutterInterface::Color& color);
     const ClutterInterface::Color& stage_color() const {
       return stage_color_;
-    }
-    virtual std::string GetDebugString() {
-      NOTIMPLEMENTED();
-      return "";
     }
 
    protected:
