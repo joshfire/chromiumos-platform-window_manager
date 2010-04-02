@@ -8,8 +8,6 @@
 #include <sys/timerfd.h>
 
 #include <algorithm>
-#include <cerrno>
-#include <cstring>
 #include <vector>
 
 extern "C" {
@@ -44,9 +42,10 @@ static void FillTimerSpec(struct itimerspec* spec,
 
 EventLoop::EventLoop()
     : exit_requested_(false),
-      epoll_fd_(epoll_create(10)),  // argument is ignored since 2.6.8
+      epoll_fd_(-1),
       timerfd_supported_(IsTimerFdSupported()) {
-  CHECK(epoll_fd_ != -1) << "epoll_create: " << strerror(errno);
+  epoll_fd_ = epoll_create(10);  // argument is ignored since 2.6.8
+  PCHECK(epoll_fd_ != -1) << "epoll_create() failed";
   if (!timerfd_supported_) {
     LOG(ERROR) << "timerfd doesn't work on this system (perhaps your kernel "
                << "doesn't support it).  EventLoop::Run() will crash if "
@@ -58,7 +57,7 @@ EventLoop::~EventLoop() {
   close(epoll_fd_);
   for (set<int>::iterator it = timeout_fds_.begin();
        it != timeout_fds_.end(); ++it) {
-    CHECK(HANDLE_EINTR(close(*it)) == 0) << strerror(errno);
+    PCHECK(HANDLE_EINTR(close(*it)) == 0);
   }
 }
 
@@ -87,7 +86,7 @@ void EventLoop::Run() {
         << "No event sources for event loop; would sleep forever";
     const int num_events = HANDLE_EINTR(
         epoll_wait(epoll_fd_, epoll_events, kMaxEpollEvents, -1));
-    CHECK(num_events != -1) << "epoll_wait: " << strerror(errno);
+    PCHECK(num_events != -1) << "epoll_wait() failed";
 
     for (int i = 0; i < num_events; ++i) {
       const int event_fd = epoll_events[i].data.fd;
@@ -126,8 +125,7 @@ void EventLoop::AddFileDescriptor(int fd, Closure* cb) {
   struct epoll_event epoll_event;
   epoll_event.events = EPOLLIN;
   epoll_event.data.fd = fd;
-  CHECK(epoll_ctl(epoll_fd_, EPOLL_CTL_ADD, fd, &epoll_event) != -1)
-      << strerror(errno);
+  PCHECK(epoll_ctl(epoll_fd_, EPOLL_CTL_ADD, fd, &epoll_event) != -1);
   CHECK(callbacks_.insert(make_pair(fd, shared_ptr<Closure>(cb))).second)
       << "fd " << fd << " is already being watched";
 }
@@ -136,7 +134,7 @@ void EventLoop::RemoveFileDescriptor(int fd) {
   FdCallbackMap::iterator it = callbacks_.find(fd);
   CHECK(it != callbacks_.end()) << "Got request to remove unknown fd " << fd;
   callbacks_.erase(it);
-  CHECK(epoll_ctl(epoll_fd_, EPOLL_CTL_DEL, fd, NULL) != -1) << strerror(errno);
+  PCHECK(epoll_ctl(epoll_fd_, EPOLL_CTL_DEL, fd, NULL) != -1);
 }
 
 void EventLoop::AddPrePollCallback(Closure* cb) {
@@ -162,7 +160,7 @@ int EventLoop::AddTimeout(Closure* cb,
   // Use a monotonically-increasing clock -- we don't want to be affected
   // by changes to the system time.
   const int timer_fd = timerfd_create(CLOCK_MONOTONIC, TFD_NONBLOCK);
-  CHECK(timer_fd != 1) << "timerfd_create: " << strerror(errno);
+  PCHECK(timer_fd != -1) << "timerfd_create() failed";
 
   AddFileDescriptor(timer_fd, cb);
   CHECK(timeout_fds_.insert(timer_fd).second);
@@ -170,8 +168,7 @@ int EventLoop::AddTimeout(Closure* cb,
   struct itimerspec new_timer_spec;
   struct itimerspec old_timer_spec;
   FillTimerSpec(&new_timer_spec, initial_timeout_ms, recurring_timeout_ms);
-  CHECK(timerfd_settime(timer_fd, 0, &new_timer_spec, &old_timer_spec) == 0)
-      << strerror(errno);
+  PCHECK(timerfd_settime(timer_fd, 0, &new_timer_spec, &old_timer_spec) == 0);
   return timer_fd;
 }
 
@@ -181,7 +178,7 @@ void EventLoop::RemoveTimeout(int id) {
 
   RemoveFileDescriptor(id);
   CHECK(timeout_fds_.erase(id) == 1);
-  CHECK(HANDLE_EINTR(close(id)) == 0) << strerror(errno);
+  PCHECK(HANDLE_EINTR(close(id)) == 0);
 }
 
 void EventLoop::SuspendTimeout(int id) {
@@ -191,8 +188,7 @@ void EventLoop::SuspendTimeout(int id) {
   struct itimerspec new_timer_spec;
   struct itimerspec old_timer_spec;
   memset(&new_timer_spec, 0, sizeof(new_timer_spec));
-  CHECK(timerfd_settime(id, 0, &new_timer_spec, &old_timer_spec) == 0)
-      << strerror(errno);
+  PCHECK(timerfd_settime(id, 0, &new_timer_spec, &old_timer_spec) == 0);
 }
 
 void EventLoop::ResetTimeout(int id,
@@ -204,8 +200,7 @@ void EventLoop::ResetTimeout(int id,
   struct itimerspec new_timer_spec;
   struct itimerspec old_timer_spec;
   FillTimerSpec(&new_timer_spec, initial_timeout_ms, recurring_timeout_ms);
-  CHECK(timerfd_settime(id, 0, &new_timer_spec, &old_timer_spec) == 0)
-      << strerror(errno);
+  PCHECK(timerfd_settime(id, 0, &new_timer_spec, &old_timer_spec) == 0);
 }
 
 // static
@@ -214,10 +209,10 @@ bool EventLoop::IsTimerFdSupported() {
   // whether the kernel that we're running on suports timerfd.
   int timer_fd = timerfd_create(CLOCK_MONOTONIC, TFD_NONBLOCK);
   if (timer_fd == -1) {
-    LOG(ERROR) << "timerfd_create: " << strerror(errno);
+    PLOG(ERROR) << "timerfd_create() failed";
     return false;
   } else {
-    CHECK(HANDLE_EINTR(close(timer_fd)) != -1) << strerror(errno);
+    PCHECK(HANDLE_EINTR(close(timer_fd)) != -1);
     return true;
   }
 }

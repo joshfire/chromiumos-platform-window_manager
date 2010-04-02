@@ -4,10 +4,8 @@
 
 #include "window_manager/window_manager.h"
 
-#include <cerrno>
 #include <cstdio>
 #include <cstdlib>
-#include <cstring>
 #include <list>
 #include <queue>
 
@@ -916,7 +914,8 @@ void WindowManager::HandleMappedWindow(Window* win) {
       FILE* file = fopen(
           FLAGS_wm_initial_chrome_window_mapped_file.c_str(), "w+");
       if (!file) {
-        LOG(ERROR) << "Unable to open file: " << strerror(errno);
+        PLOG(ERROR) << "Unable to open file "
+                    << FLAGS_wm_initial_chrome_window_mapped_file;
       } else {
         fprintf(file, "%lu", win->xid());
         fclose(file);

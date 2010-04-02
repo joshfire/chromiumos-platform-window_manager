@@ -84,6 +84,25 @@ static void HandleLogAssert(const string& str) {
   abort();
 }
 
+// Helper function to create a symlink pointing from 'symlink_path' (a full
+// path) to 'log_basename' (the name of a file that should be in the same
+// directory as the symlink).  Removes 'symlink_path' if it already exists.
+// Returns true on success.
+static bool SetUpLogSymlink(const string& symlink_path,
+                            const string& log_basename) {
+  if (access(symlink_path.c_str(), F_OK) == 0 &&
+      unlink(symlink_path.c_str()) == -1) {
+    PLOG(ERROR) << "Unable to unlink " << symlink_path;
+    return false;
+  }
+  if (symlink(log_basename.c_str(), symlink_path.c_str()) == -1) {
+    PLOG(ERROR) << "Unable to create symlink " << symlink_path
+                << " pointing at " << log_basename;
+    return false;
+  }
+  return true;
+}
+
 int main(int argc, char** argv) {
   google::ParseCommandLineFlags(&argc, &argv, true);
   if (!FLAGS_display.empty())
@@ -101,14 +120,21 @@ int main(int argc, char** argv) {
       FLAGS_minidump_dir, NULL, NULL, NULL, true);
 #endif
 
+  const string log_basename = StringPrintf(
+      "%s.%s", WindowManager::GetWmName(), GetCurrentTimeAsString().c_str());
   if (!FLAGS_logtostderr) {
-    if (!file_util::CreateDirectory(FilePath(FLAGS_log_dir)))
+    if (!file_util::CreateDirectory(FilePath(FLAGS_log_dir))) {
       LOG(ERROR) << "Unable to create logging directory " << FLAGS_log_dir;
+    } else {
+      SetUpLogSymlink(StringPrintf("%s/%s.LATEST",
+                                   FLAGS_log_dir.c_str(),
+                                   WindowManager::GetWmName()),
+                      log_basename);
+    }
   }
-  string log_filename = StringPrintf(
-      "%s/%s.%s", FLAGS_log_dir.c_str(), WindowManager::GetWmName(),
-      GetCurrentTimeAsString().c_str());
-  logging::InitLogging(log_filename.c_str(),
+
+  const string log_path = FLAGS_log_dir + "/" + log_basename;
+  logging::InitLogging(log_path.c_str(),
                        FLAGS_logtostderr ?
                          logging::LOG_ONLY_TO_SYSTEM_DEBUG_LOG :
                          logging::LOG_ONLY_TO_FILE,

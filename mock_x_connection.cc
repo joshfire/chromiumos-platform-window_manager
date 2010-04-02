@@ -7,8 +7,6 @@
 #include <fcntl.h>
 #include <unistd.h>
 
-#include <cerrno>
-#include <cstring>
 #include <list>
 
 #include "base/logging.h"
@@ -39,11 +37,11 @@ MockXConnection::MockXConnection()
       pointer_x_(0),
       pointer_y_(0),
       connection_pipe_has_data_(false) {
-  CHECK(HANDLE_EINTR(pipe(connection_pipe_fds_)) != -1) << strerror(errno);
-  CHECK(HANDLE_EINTR(fcntl(connection_pipe_fds_[0], F_SETFL, O_NONBLOCK)) != -1)
-        << strerror(errno);
-  CHECK(HANDLE_EINTR(fcntl(connection_pipe_fds_[1], F_SETFL, O_NONBLOCK)) != -1)
-        << strerror(errno);
+  PCHECK(HANDLE_EINTR(pipe(connection_pipe_fds_)) != -1);
+  PCHECK(HANDLE_EINTR(
+             fcntl(connection_pipe_fds_[0], F_SETFL, O_NONBLOCK)) != -1);
+  PCHECK(HANDLE_EINTR(
+             fcntl(connection_pipe_fds_[1], F_SETFL, O_NONBLOCK)) != -1);
   // Arbitrary large numbers unlikely to be used by other events.
   damage_event_base_ = 10000;
   shape_event_base_  = 10010;
@@ -51,8 +49,8 @@ MockXConnection::MockXConnection()
 }
 
 MockXConnection::~MockXConnection() {
-  CHECK(HANDLE_EINTR(close(connection_pipe_fds_[0])) != -1) << strerror(errno);
-  CHECK(HANDLE_EINTR(close(connection_pipe_fds_[1])) != -1) << strerror(errno);
+  PCHECK(HANDLE_EINTR(close(connection_pipe_fds_[0])) != -1);
+  PCHECK(HANDLE_EINTR(close(connection_pipe_fds_[1])) != -1);
 }
 
 bool MockXConnection::GetWindowGeometry(XWindow xid, WindowGeometry* geom_out) {
@@ -434,8 +432,7 @@ void MockXConnection::GetNextEvent(void* event) {
   queued_events_.pop();
   if (connection_pipe_has_data_) {
     unsigned char data = 0;
-    CHECK(HANDLE_EINTR(read(connection_pipe_fds_[0], &data, 1)) == 1)
-        << strerror(errno);
+    PCHECK(HANDLE_EINTR(read(connection_pipe_fds_[0], &data, 1)) == 1);
     connection_pipe_has_data_ = false;
   }
 }
@@ -601,8 +598,7 @@ void MockXConnection::AppendEventToQueue(const XEvent& event,
   queued_events_.push(event);
   if (write_to_fd && !connection_pipe_has_data_) {
     unsigned char data = 1;
-    CHECK(HANDLE_EINTR(write(connection_pipe_fds_[1], &data, 1)) == 1)
-        << strerror(errno);
+    PCHECK(HANDLE_EINTR(write(connection_pipe_fds_[1], &data, 1)) == 1);
     connection_pipe_has_data_ = true;
   }
 }
