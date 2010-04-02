@@ -19,6 +19,7 @@ namespace window_manager {
 
 class ImageContainer;
 class TexColorShader;
+class TexShadeShader;
 class Gles2Interface;
 
 // This class vists an actor tree and draws it using OpenGLES
@@ -53,6 +54,7 @@ class OpenGlesDrawVisitor
   XConnection* x_connection_;  // Not owned.
 
   TexColorShader* tex_color_shader_;
+  TexShadeShader* tex_shade_shader_;
 
   EGLDisplay egl_display_;
   EGLSurface egl_surface_;
@@ -67,6 +69,9 @@ class OpenGlesDrawVisitor
 
   // global vertex buffer object
   GLuint vertex_buffer_object_;
+
+  // Temporary storage for client side vertex colors
+  GLfloat colors_[4 * 4];
 
   DISALLOW_COPY_AND_ASSIGN(OpenGlesDrawVisitor);
 };

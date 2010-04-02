@@ -30,10 +30,6 @@ $Headers
 implementation = """
 // Auto generated DO NOT edit.
 
-// Copyright (c) 2009 The Chromium OS Authors. All rights reserved.
-// Use of this source code is governed by a BSD-style license that can be
-// found in the LICENSE file.
-
 #include "window_manager/gles/shaders.h"
 
 #include <GLES2/gl2.h>
@@ -75,8 +71,11 @@ $FetchSlots
 
 
 shaders = {'TexColorVertex': 'gles/tex_color.glslv',
-           'TexColorFragment': 'gles/tex_color.glslf'}
-programs = [('TexColorShader', 'TexColorVertex', 'TexColorFragment')]
+           'TexColorFragment': 'gles/tex_color.glslf',
+           'TexShadeVertex': 'gles/tex_shade.glslv',
+           'TexShadeFragment': 'gles/tex_shade.glslf'}
+programs = [('TexColorShader', 'TexColorVertex', 'TexColorFragment'),
+            ('TexShadeShader', 'TexShadeVertex', 'TexShadeFragment')]
 
 
 def CamelCase(identifier):
@@ -189,7 +188,7 @@ def main():
 
   program_objects = []
   for name, vertex, fragment in programs:
-    program_objects.append(Program('TexColorShader',
+    program_objects.append(Program(name,
                                    shader_objects[vertex],
                                    shader_objects[fragment]))
 

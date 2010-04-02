@@ -80,6 +80,7 @@ OpenGlesDrawVisitor::OpenGlesDrawVisitor(GLInterfaceBase* gl,
 
   // Allocate shaders
   tex_color_shader_ = new TexColorShader();
+  tex_shade_shader_ = new TexShadeShader();
   gl_->ReleaseShaderCompiler();
 
   // TODO: Move away from one global Vertex Buffer Object
@@ -97,6 +98,7 @@ OpenGlesDrawVisitor::OpenGlesDrawVisitor(GLInterfaceBase* gl,
 
 OpenGlesDrawVisitor::~OpenGlesDrawVisitor() {
   delete tex_color_shader_;
+  delete tex_shade_shader_;
 
   gl_->DeleteBuffers(1, &vertex_buffer_object_);
 
@@ -150,17 +152,6 @@ void OpenGlesDrawVisitor::VisitStage(TidyInterface::StageActor* actor) {
   TidyInterface::LayerVisitor layer_visitor(interface_->actor_count());
   actor->Accept(&layer_visitor);
 
-  // Bind shader
-  // TODO: Implement VertexAttribArray tracking in the shader objects.
-  gl_->UseProgram(tex_color_shader_->program());
-  gl_->BindBuffer(GL_ARRAY_BUFFER, vertex_buffer_object_);
-  gl_->VertexAttribPointer(tex_color_shader_->PosLocation(),
-                           2, GL_FLOAT, GL_FALSE, 0, 0);
-  gl_->EnableVertexAttribArray(tex_color_shader_->PosLocation());
-  gl_->VertexAttribPointer(tex_color_shader_->TexInLocation(),
-                        2, GL_FLOAT, GL_FALSE, 0, 0);
-  gl_->EnableVertexAttribArray(tex_color_shader_->TexInLocation());
-
   ancestor_opacity_ = actor->opacity();
 
   // Back to front rendering
@@ -209,10 +200,66 @@ void OpenGlesDrawVisitor::VisitQuad(TidyInterface::QuadActor* actor) {
   if (!actor->IsVisible())
     return;
 
+  scoped_array<float> colors;
+  GLuint mvp_location;
+
   // color
-  gl_->Uniform4f(tex_color_shader_->ColorLocation(), actor->color().red,
-                 actor->color().green, actor->color().blue,
-                 actor->opacity() * ancestor_opacity_);
+  if (actor->dimmed_opacity() == 0.f) {
+    mvp_location = tex_color_shader_->MvpLocation();
+
+    gl_->UseProgram(tex_color_shader_->program());
+    gl_->Uniform4f(tex_color_shader_->ColorLocation(), actor->color().red,
+                   actor->color().green, actor->color().blue,
+                   actor->opacity() * ancestor_opacity_);
+
+    gl_->BindBuffer(GL_ARRAY_BUFFER, vertex_buffer_object_);
+    gl_->VertexAttribPointer(tex_color_shader_->PosLocation(),
+                             2, GL_FLOAT, GL_FALSE, 0, 0);
+    gl_->EnableVertexAttribArray(tex_color_shader_->PosLocation());
+    gl_->VertexAttribPointer(tex_color_shader_->TexInLocation(),
+                          2, GL_FLOAT, GL_FALSE, 0, 0);
+    gl_->EnableVertexAttribArray(tex_color_shader_->TexInLocation());
+  } else {
+    const float actor_opacity = actor->opacity() * ancestor_opacity_;
+    const float dimmed_transparency = 1.f - actor->dimmed_opacity();
+
+    // TODO: Consider managing a ring buffer in a VBO ourselfs.  Could be
+    // better performance depending on driver quality.
+    colors_[ 0] = actor->color().red;
+    colors_[ 1] = actor->color().green;
+    colors_[ 2] = actor->color().blue;
+    colors_[ 3] = actor_opacity;
+
+    colors_[ 4] = actor->color().red;
+    colors_[ 5] = actor->color().green;
+    colors_[ 6] = actor->color().blue;
+    colors_[ 7] = actor_opacity;
+
+    colors_[ 8] = dimmed_transparency * actor->color().red;
+    colors_[ 9] = dimmed_transparency * actor->color().green;
+    colors_[10] = dimmed_transparency * actor->color().blue;
+    colors_[11] = actor_opacity;
+
+    colors_[12] = dimmed_transparency * actor->color().red;
+    colors_[13] = dimmed_transparency * actor->color().green;
+    colors_[14] = dimmed_transparency * actor->color().blue;
+    colors_[15] = actor_opacity;
+
+    mvp_location = tex_shade_shader_->MvpLocation();
+
+    gl_->UseProgram(tex_shade_shader_->program());
+    gl_->BindBuffer(GL_ARRAY_BUFFER, vertex_buffer_object_);
+    gl_->VertexAttribPointer(tex_shade_shader_->PosLocation(),
+                             2, GL_FLOAT, GL_FALSE, 0, 0);
+    gl_->EnableVertexAttribArray(tex_shade_shader_->PosLocation());
+    gl_->VertexAttribPointer(tex_shade_shader_->TexInLocation(),
+                          2, GL_FLOAT, GL_FALSE, 0, 0);
+    gl_->EnableVertexAttribArray(tex_shade_shader_->TexInLocation());
+    gl_->BindBuffer(GL_ARRAY_BUFFER, 0);
+    gl_->VertexAttribPointer(tex_shade_shader_->ColorInLocation(),
+                             4, GL_FLOAT, GL_FALSE, 0, colors_);
+    gl_->EnableVertexAttribArray(tex_shade_shader_->ColorInLocation());
+  }
 
   // texture
   OpenGlesTextureData* texture_data = reinterpret_cast<OpenGlesTextureData*>(
@@ -229,10 +276,20 @@ void OpenGlesDrawVisitor::VisitQuad(TidyInterface::QuadActor* actor) {
                                            1.f));
   // Matrix4 mvp = new_model_view * perspective_;
   Matrix4 mvp = perspective_ * new_model_view;
-  gl_->UniformMatrix4fv(tex_color_shader_->MvpLocation(), 1, GL_FALSE,
-                        &mvp[0][0]);
+  gl_->UniformMatrix4fv(mvp_location, 1, GL_FALSE, &mvp[0][0]);
 
   gl_->DrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+
+  // Disable Vertex Attrib Arrays
+  // TODO: Implement VertexAttribArray tracking in the shader objects.
+  if (actor->dimmed_opacity() == 0.f) {
+    gl_->DisableVertexAttribArray(tex_color_shader_->PosLocation());
+    gl_->DisableVertexAttribArray(tex_color_shader_->TexInLocation());
+  } else {
+    gl_->DisableVertexAttribArray(tex_shade_shader_->PosLocation());
+    gl_->DisableVertexAttribArray(tex_shade_shader_->TexInLocation());
+    gl_->DisableVertexAttribArray(tex_shade_shader_->ColorInLocation());
+  }
 }
 
 void OpenGlesDrawVisitor::VisitContainer(
