@@ -179,8 +179,11 @@ void PanelDock::HandlePanelButtonPress(Panel* panel,
 }
 
 void PanelDock::HandlePanelFocusChange(Panel* panel, bool focus_in) {
-  if (!focus_in)
+  if (focus_in) {
+    wm()->SetActiveWindowProperty(panel->content_xid());
+  } else {
     panel->AddButtonGrab();
+  }
 }
 
 void PanelDock::HandleSetPanelStateMessage(Panel* panel, bool expand) {

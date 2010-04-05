@@ -310,8 +310,11 @@ void PanelBar::HandlePanelTitlebarPointerEnter(Panel* panel, XTime timestamp) {
 
 void PanelBar::HandlePanelFocusChange(Panel* panel, bool focus_in) {
   DCHECK(panel);
-  if (!focus_in)
+  if (focus_in) {
+    wm()->SetActiveWindowProperty(panel->content_xid());
+  } else {
     panel->AddButtonGrab();
+  }
 }
 
 void PanelBar::HandleSetPanelStateMessage(Panel* panel, bool expand) {
