@@ -106,6 +106,10 @@ class ClutterInterface {
     virtual bool SetTexturePixmapWindow(XWindow xid) = 0;
     virtual bool IsUsingTexturePixmapExtension() = 0;
 
+    // Update our copy of the window's contents in response to notification
+    // that they have been modified.
+    virtual void UpdateContents() = 0;
+
     // Add an additional texture to mask out parts of the actor.
     // 'bytes' must be of size 'width' * 'height'.
     virtual bool SetAlphaMask(
@@ -120,10 +124,6 @@ class ClutterInterface {
 
   ClutterInterface() {}
   virtual ~ClutterInterface() {}
-
-  // Set the source that will be sending us X events related to windows
-  // used for TexturePixmapActors.
-  virtual void SetEventSource(CompositorEventSource* source) = 0;
 
   // These methods create new Actor objects.  The caller is responsible for
   // deleting them, even (unlike Clutter) after they have been added to a
@@ -141,13 +141,6 @@ class ClutterInterface {
   // Get the default stage object.  Ownership of the StageActor remains
   // with ClutterInterface -- the caller should not delete it.
   virtual StageActor* GetDefaultStage() = 0;
-
-  // Handle various events from our CompositorEventSource.  For the
-  // compositor to receive these, it must express interest in a window
-  // using CompositorEventSource::StartSendingEventsForWindowToCompositor().
-  virtual void HandleWindowConfigured(XWindow xid) = 0;
-  virtual void HandleWindowDestroyed(XWindow xid) = 0;
-  virtual void HandleWindowDamaged(XWindow xid) = 0;
 
  private:
   DISALLOW_COPY_AND_ASSIGN(ClutterInterface);
@@ -279,6 +272,7 @@ class MockClutterInterface : public ClutterInterface {
 
     bool SetTexturePixmapWindow(XWindow xid);
     bool IsUsingTexturePixmapExtension() { return false; }
+    void UpdateContents() {}
     bool SetAlphaMask(const unsigned char* bytes, int width, int height);
     void ClearAlphaMask();
 
@@ -298,7 +292,6 @@ class MockClutterInterface : public ClutterInterface {
   ~MockClutterInterface() {}
 
   // Begin ClutterInterface methods
-  void SetEventSource(CompositorEventSource* source) {}
   ContainerActor* CreateGroup() { return new ContainerActor; }
   Actor* CreateRectangle(const ClutterInterface::Color& color,
                          const ClutterInterface::Color& border_color,
@@ -316,9 +309,6 @@ class MockClutterInterface : public ClutterInterface {
   }
   Actor* CloneActor(ClutterInterface::Actor* orig) { return new Actor; }
   StageActor* GetDefaultStage() { return &default_stage_; }
-  void HandleWindowConfigured(XWindow xid) {}
-  void HandleWindowDestroyed(XWindow xid) {}
-  void HandleWindowDamaged(XWindow xid) {}
   // End ClutterInterface methods
 
  private:

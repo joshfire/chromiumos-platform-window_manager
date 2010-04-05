@@ -479,19 +479,6 @@ bool Window::UnmapClient() {
   return true;
 }
 
-void Window::SaveClientAndCompositedSize(int width, int height) {
-  DLOG(INFO) << "Setting " << xid_str() << "'s client and composited size to "
-             << width << "x" << height;
-  client_width_ = width;
-  client_height_ = height;
-  actor_->SetSize(client_width_, client_height_);
-  if (shadow_.get()) {
-    shadow_->Resize(composited_scale_x_ * client_width_,
-                    composited_scale_y_ * client_height_,
-                    0);  // anim_ms
-  }
-}
-
 bool Window::MoveClient(int x, int y) {
   DLOG(INFO) << "Moving " << xid_str() << "'s client window to ("
              << x << ", " << y << ")";
@@ -542,7 +529,7 @@ bool Window::ResizeClient(int width, int height, Gravity gravity) {
       return false;
   }
 
-  SaveClientAndCompositedSize(width, height);
+  SaveClientSize(width, height);
   return true;
 }
 
@@ -634,6 +621,21 @@ void Window::ScaleComposited(double scale_x, double scale_y, int anim_ms) {
   actor_->Scale(scale_x, scale_y, anim_ms);
   if (shadow_.get())
     shadow_->Resize(scale_x * client_width_, scale_y * client_height_, anim_ms);
+}
+
+void Window::HandleConfigureNotify(int width, int height) {
+  if (actor_->GetWidth() != width || actor_->GetHeight() != height) {
+    actor_->SetSize(width, height);
+    if (shadow_.get()) {
+      shadow_->Resize(composited_scale_x_ * width,
+                      composited_scale_y_ * height,
+                      0);  // anim_ms
+    }
+  }
+}
+
+void Window::HandleDamageNotify() {
+  actor_->UpdateContents();
 }
 
 void Window::SetShadowOpacity(double opacity, int anim_ms) {

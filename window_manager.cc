@@ -197,7 +197,6 @@ WindowManager::WindowManager(EventLoop* event_loop,
   CHECK(event_loop_);
   CHECK(xconn_);
   CHECK(clutter_);
-  clutter_->SetEventSource(this);
 }
 
 WindowManager::~WindowManager() {
@@ -226,18 +225,6 @@ void WindowManager::SetLoggedIn(bool logged_in) {
     layout_manager_->DisableKeyBindings();
   }
 }
-void WindowManager::StartSendingEventsForWindowToCompositor(XWindow xid) {
-  bool added = xids_tracked_by_compositor_.insert(xid).second;
-  DCHECK(added) << "Got request to start sending compositor events about "
-                << "already-registered window " << XidStr(xid);
-}
-
-void WindowManager::StopSendingEventsForWindowToCompositor(XWindow xid) {
-  int num_removed = xids_tracked_by_compositor_.erase(xid);
-  DCHECK_EQ(num_removed, 1) << "Got request to stop sending compositor events "
-                            << "about unregistered window " << XidStr(xid);
-}
-
 bool WindowManager::Init() {
   root_ = xconn_->GetRootWindow();
   xconn_->SelectRandREventsOnWindow(root_);
@@ -1108,7 +1095,7 @@ void WindowManager::HandleConfigureNotify(const XConfigureEvent& e) {
     win->MoveComposited(e.x, e.y, 0);
 
     win->SaveClientPosition(e.x, e.y);
-    win->SaveClientAndCompositedSize(e.width, e.height);
+    win->SaveClientSize(e.width, e.height);
 
     // When we see a stacking change for an override-redirect window, we
     // attempt to restack its actor correspondingly.  If we don't have an
@@ -1142,8 +1129,7 @@ void WindowManager::HandleConfigureNotify(const XConfigureEvent& e) {
     }
   }
 
-  if (xids_tracked_by_compositor_.count(e.window))
-    clutter_->HandleWindowConfigured(e.window);
+  win->HandleConfigureNotify(e.width, e.height);
 }
 
 void WindowManager::HandleConfigureRequest(const XConfigureRequestEvent& e) {
@@ -1239,8 +1225,10 @@ void WindowManager::HandleCreateNotify(const XCreateWindowEvent& e) {
 }
 
 void WindowManager::HandleDamageNotify(const XDamageNotifyEvent& e) {
-  if (xids_tracked_by_compositor_.count(e.drawable))
-    clutter_->HandleWindowDamaged(e.drawable);
+  Window* win = GetWindow(e.drawable);
+  if (!win)
+    return;
+  win->HandleDamageNotify();
 }
 
 void WindowManager::HandleDestroyNotify(const XDestroyWindowEvent& e) {
@@ -1269,9 +1257,6 @@ void WindowManager::HandleDestroyNotify(const XDestroyWindowEvent& e) {
   // destroyed.
   client_windows_.erase(e.window);
   win = NULL;  // erasing from client_windows_ deletes window.
-
-  if (xids_tracked_by_compositor_.count(e.window))
-    clutter_->HandleWindowDestroyed(e.window);
 }
 
 void WindowManager::HandleEnterNotify(const XEnterWindowEvent& e) {

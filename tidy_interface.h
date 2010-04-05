@@ -469,6 +469,7 @@ class TidyInterface : public ClutterInterface {
     virtual std::string GetDebugString(int indent_level) {
       return GetDebugStringInternal("TexturePixmapActor", indent_level);
     }
+    virtual void SetSizeImpl(int* width, int* height);
     // End ClutterInterface::Actor methods
 
     // Implement VisitorDestination for visitor.
@@ -480,6 +481,7 @@ class TidyInterface : public ClutterInterface {
     // Begin ClutterInterface::TexturePixmapActor methods
     bool SetTexturePixmapWindow(XWindow xid);
     bool IsUsingTexturePixmapExtension() { return true; }
+    void UpdateContents() { RefreshPixmap(); }
     bool SetAlphaMask(const unsigned char* bytes, int width, int height) {
       NOTIMPLEMENTED();
       return true;
@@ -556,7 +558,6 @@ class TidyInterface : public ClutterInterface {
   ~TidyInterface();
 
   // Begin ClutterInterface methods
-  void SetEventSource(CompositorEventSource* source) { event_source_ = source; }
   ContainerActor* CreateGroup();
   Actor* CreateRectangle(const ClutterInterface::Color& color,
                          const ClutterInterface::Color& border_color,
@@ -568,8 +569,6 @@ class TidyInterface : public ClutterInterface {
                     const ClutterInterface::Color& color);
   Actor* CloneActor(ClutterInterface::Actor* orig);
   StageActor* GetDefaultStage() { return default_stage_.get(); }
-  void HandleWindowConfigured(XWindow xid);
-  void HandleWindowDestroyed(XWindow xid);
   void HandleWindowDamaged(XWindow xid);
   // End ClutterInterface methods
 
@@ -625,12 +624,6 @@ class TidyInterface : public ClutterInterface {
 
   EventLoop* event_loop_;  // not owned
   XConnection* x_conn_;    // not owned
-
-  // The source that will be sending us X events related to windows used
-  // for TexturePixmapActors (typically WindowManager).  We need to be able
-  // to tell the source when we're interested or uninterested in receiving
-  // events about a particular window.
-  CompositorEventSource* event_source_;  // not owned and NULL if unset
 
   // This indicates if the interface is dirty and needs to be redrawn.
   bool dirty_;

@@ -16,7 +16,6 @@
 #include "base/scoped_ptr.h"
 #include "base/logging.h"
 #include "window_manager/clutter_interface.h"
-#include "window_manager/compositor_event_source.h"
 #include "window_manager/event_loop.h"
 #include "window_manager/mock_gl_interface.h"
 #include "window_manager/mock_x_connection.h"
@@ -56,28 +55,16 @@ class NameCheckVisitor : virtual public TidyInterface::ActorVisitor {
   DISALLOW_COPY_AND_ASSIGN(NameCheckVisitor);
 };
 
-struct TestCompositorEventSource : public CompositorEventSource {
-  void StartSendingEventsForWindowToCompositor(XWindow xid) {
-    tracked_xids.insert(xid);
-  }
-  void StopSendingEventsForWindowToCompositor(XWindow xid) {
-    tracked_xids.erase(xid);
-  }
-  set<XWindow> tracked_xids;
-};
-
 class TidyTest : public ::testing::Test {
  public:
   TidyTest()
       : interface_(NULL),
         gl_interface_(new MockGLInterface),
         x_connection_(new MockXConnection),
-        event_loop_(new EventLoop),
-        event_source_(new TestCompositorEventSource) {
+        event_loop_(new EventLoop) {
     interface_.reset(new TestInterface(event_loop_.get(),
                                        x_connection_.get(),
                                        gl_interface_.get()));
-    interface_->SetEventSource(event_source_.get());
   }
   virtual ~TidyTest() {
     interface_.reset(NULL);  // Must explicitly delete so that we get
@@ -87,14 +74,12 @@ class TidyTest : public ::testing::Test {
   TidyInterface* interface() { return interface_.get(); }
   MockXConnection* x_connection() { return x_connection_.get(); }
   EventLoop* event_loop() { return event_loop_.get(); }
-  TestCompositorEventSource* event_source() { return event_source_.get(); }
 
  private:
   scoped_ptr<TidyInterface> interface_;
   scoped_ptr<GLInterface> gl_interface_;
   scoped_ptr<MockXConnection> x_connection_;
   scoped_ptr<EventLoop> event_loop_;
-  scoped_ptr<TestCompositorEventSource> event_source_;
 };
 
 class TidyTestTree : public TidyTest {
@@ -539,9 +524,6 @@ TEST_F(TidyTestTree, CloneTest) {
 
 // Test TidyInterface's handling of X events concerning composited windows.
 TEST_F(TidyTest, HandleXEvents) {
-  // The interface shouldn't be asking for events about any windows at first.
-  EXPECT_TRUE(event_source()->tracked_xids.empty());
-
   // Draw once initially to make sure that the interface isn't dirty.
   interface()->Draw();
   EXPECT_FALSE(interface()->dirty());
@@ -569,6 +551,7 @@ TEST_F(TidyTest, HandleXEvents) {
       0);        // event_mask
   MockXConnection::WindowInfo* info =
       x_connection()->GetWindowInfoOrDie(xid);
+  EXPECT_FALSE(info->redirected);
   info->compositing_pixmap = 123;  // arbitrary
 
   // After we bind the actor to our window, the window should be
@@ -576,8 +559,6 @@ TEST_F(TidyTest, HandleXEvents) {
   EXPECT_TRUE(actor->SetTexturePixmapWindow(xid));
   EXPECT_TRUE(info->redirected);
   EXPECT_TRUE(interface()->dirty());
-  EXPECT_EQ(static_cast<size_t>(1), event_source()->tracked_xids.size());
-  EXPECT_TRUE(event_source()->tracked_xids.count(xid));
 
   // We should pick up the window's pixmap the next time we draw.
   interface()->Draw();
@@ -587,7 +568,7 @@ TEST_F(TidyTest, HandleXEvents) {
   // Now resize the window.  The pixmap should get thrown away.
   info->width = 640;
   info->height = 480;
-  interface()->HandleWindowConfigured(xid);
+  actor->SetSize(info->width, info->height);
   EXPECT_TRUE(interface()->dirty());
   EXPECT_FALSE(cast_actor->HasPixmapDrawingData());
 
@@ -598,14 +579,10 @@ TEST_F(TidyTest, HandleXEvents) {
 
   // TODO: Test that we refresh textures when we see damage events.
 
-  // We should throw away the pixmap and un-redirect the window after
-  // seeing the window get destroyed.
-  interface()->HandleWindowDestroyed(xid);
+  // We should un-redirect the window when the actor is destroyed.
+  actor.reset();
   EXPECT_FALSE(info->redirected);
-  EXPECT_EQ(None, cast_actor->texture_pixmap_window());
-  EXPECT_FALSE(cast_actor->HasPixmapDrawingData());
   EXPECT_TRUE(interface()->dirty());
-  EXPECT_TRUE(event_source()->tracked_xids.empty());
 }
 
 // Check that we don't crash when we delete a group that contains a child.

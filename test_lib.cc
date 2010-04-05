@@ -240,6 +240,10 @@ void BasicWindowManagerTest::SendActiveWindowMessage(XWindow xid) {
   wm_->HandleEvent(&event);
 }
 
+void BasicWindowManagerTest::NotifyWindowAboutSize(Window* win) {
+  win->HandleConfigureNotify(win->client_width(), win->client_height());
+}
+
 XWindow BasicWindowManagerTest::GetActiveWindowProperty() {
   int active_window;
   if (!xconn_->GetIntProperty(xconn_->GetRootWindow(),

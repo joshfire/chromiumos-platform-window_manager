@@ -14,7 +14,6 @@
 #include "base/logging.h"
 #include "base/string_util.h"
 #include "window_manager/callback.h"
-#include "window_manager/compositor_event_source.h"
 #include "window_manager/event_loop.h"
 #include "window_manager/gl_interface_base.h"
 #include "window_manager/image_container.h"
@@ -489,6 +488,11 @@ TidyInterface::TexturePixmapActor::TexturePixmapActor(
       window_(0) {
 }
 
+void TidyInterface::TexturePixmapActor::SetSizeImpl(int* width, int* height) {
+  DestroyPixmap();
+  SetDirty();
+}
+
 bool TidyInterface::TexturePixmapActor::SetTexturePixmapWindow(
     XWindow xid) {
   Reset();
@@ -583,7 +587,6 @@ TidyInterface::TidyInterface(EventLoop* event_loop,
                              GLInterfaceBase* gl_interface)
     : event_loop_(event_loop),
       x_conn_(xconn),
-      event_source_(NULL),
       dirty_(true),
       num_animations_(0),
       actor_count_(0),
@@ -675,27 +678,6 @@ TidyInterface::Actor* TidyInterface::CloneActor(
   return actor->Clone();
 }
 
-void TidyInterface::HandleWindowConfigured(XWindow xid) {
-  TexturePixmapActor* actor =
-      FindWithDefault(texture_pixmaps_,
-                      xid,
-                      static_cast<TexturePixmapActor*>(NULL));
-  // Get a new pixmap with a new size.
-  if (actor) {
-    actor->DestroyPixmap();
-    actor->SetDirty();
-  }
-}
-
-void TidyInterface::HandleWindowDestroyed(XWindow xid) {
-  TexturePixmapActor* actor =
-      FindWithDefault(texture_pixmaps_,
-                      xid,
-                      static_cast<TexturePixmapActor*>(NULL));
-  if (actor)
-    actor->Reset();
-}
-
 void TidyInterface::HandleWindowDamaged(XWindow xid) {
   TexturePixmapActor* actor =
       FindWithDefault(texture_pixmaps_,
@@ -714,8 +696,6 @@ void TidyInterface::RemoveActor(Actor* actor) {
 
 void TidyInterface::StartMonitoringWindowForChanges(
     XWindow xid, TexturePixmapActor* actor) {
-  DCHECK(event_source_);
-  event_source_->StartSendingEventsForWindowToCompositor(xid);
   texture_pixmaps_[xid] = actor;
   x_conn()->RedirectWindowForCompositing(xid);
 }
@@ -724,8 +704,6 @@ void TidyInterface::StopMonitoringWindowForChanges(
     XWindow xid, TexturePixmapActor* actor) {
   x_conn()->UnredirectWindowForCompositing(xid);
   texture_pixmaps_.erase(xid);
-  DCHECK(event_source_);
-  event_source_->StopSendingEventsForWindowToCompositor(xid);
 }
 
 TidyInterface::AnimationTime TidyInterface::GetCurrentTimeMs() {

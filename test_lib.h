@@ -96,6 +96,12 @@ class BasicWindowManagerTest : public ::testing::Test {
   // window.
   void SendActiveWindowMessage(XWindow xid);
 
+  // Invoke Window::HandleConfigureNotify() using the client window's size.
+  // The Window class defers resizing its actor until it sees a
+  // ConfigureNotify event; this can be used to make sure that the actor's
+  // size matches the current client size.
+  void NotifyWindowAboutSize(Window* win);
+
   // Get the current value of the _NET_ACTIVE_WINDOW property on the root
   // window.
   XWindow GetActiveWindowProperty();

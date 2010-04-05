@@ -180,17 +180,19 @@ class Window {
   bool MapClient();
   bool UnmapClient();
 
-  // Update our internal copy of the client window's position.
+  // Update our internal copy of the client window's position or size.
+  // External callers should only use these methods to record position and
+  // size changes that they hear about for override-redirect windows;
+  // non-override-redirect windows can be moved or resized using
+  // MoveClient() and ResizeClient().
   void SaveClientPosition(int x, int y) {
     client_x_ = x;
     client_y_ = y;
   }
-
-  // Update our internal copy of the client window's dimensions.  We also
-  // update the Clutter actor's dimensions -- it doesn't make sense for
-  // it to be any size other than that of the client window that gets
-  // copied to it (note that the comp. window's *scale* may be different).
-  void SaveClientAndCompositedSize(int width, int height);
+  void SaveClientSize(int width, int height) {
+    client_width_ = width;
+    client_height_ = height;
+  }
 
   // Ask the X server to move or resize the client window.  Also calls the
   // corresponding SetClient*() method on success.  Returns false on
@@ -223,6 +225,14 @@ class Window {
   void HideComposited();
   void SetCompositedOpacity(double opacity, int anim_ms);
   void ScaleComposited(double scale_x, double scale_y, int anim_ms);
+
+  // Handle a ConfigureNotify event about this window.
+  // Currently, we just pass the window's width and height so we can resize
+  // the actor if needed.
+  void HandleConfigureNotify(int width, int height);
+
+  // Handle the window's contents being changed.
+  void HandleDamageNotify();
 
   // Change the opacity of the window's shadow, overriding any previous
   // setting from SetCompositedOpacity().  This just temporarily changes

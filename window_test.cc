@@ -87,7 +87,7 @@ TEST_F(WindowTest, ChangeClient) {
   // response to ConfigureNotify events to be able to handle
   // override-redirect windows, so make sure that that works correctly.
   window.SaveClientPosition(50, 60);
-  window.SaveClientAndCompositedSize(70, 80);
+  window.SaveClientSize(70, 80);
   EXPECT_EQ(50, window.client_x());
   EXPECT_EQ(60, window.client_y());
   EXPECT_EQ(70, window.client_width());
@@ -474,6 +474,33 @@ TEST_F(WindowTest, RemoveBorder) {
 
   Window win(wm_.get(), xid, false);
   EXPECT_EQ(0, info->border_width);
+}
+
+// Test that we don't resize the composited window until we receive
+// notification that the client window has been resized.  Otherwise, we can
+// end up with the previous contents being scaled to fit the new size --
+// see http://crosbug.com/1279.
+TEST_F(WindowTest, DeferResizingActor) {
+  const int orig_width = 300, orig_height = 200;
+  XWindow xid = CreateToplevelWindow(0, 0, orig_width, orig_height);
+  Window win(wm_.get(), xid, false);
+
+  // Check that the actor's initial dimensions match that of the client window.
+  EXPECT_EQ(orig_width, win.actor()->GetWidth());
+  EXPECT_EQ(orig_height, win.actor()->GetHeight());
+
+  // After resizing the client window, the actor should still still be
+  // using the original dimensions.
+  const int new_width = 600, new_height = 400;
+  win.ResizeClient(new_width, new_height, GRAVITY_NORTHWEST);
+  EXPECT_EQ(orig_width, win.actor()->GetWidth());
+  EXPECT_EQ(orig_height, win.actor()->GetHeight());
+
+  // Now let the window know that we've seen a ConfigureNotify event with
+  // the new dimensions and check that the actor is resized.
+  win.HandleConfigureNotify(new_width, new_height);
+  EXPECT_EQ(new_width, win.actor()->GetWidth());
+  EXPECT_EQ(new_height, win.actor()->GetHeight());
 }
 
 }  // namespace window_manager

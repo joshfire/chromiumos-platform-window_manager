@@ -281,6 +281,7 @@ TEST_F(PanelManagerTest, Fullscreen) {
       1,  // add
       fullscreen_atom, 0, 0, 0);
   wm_->HandleEvent(&fullscreen_event);
+  NotifyWindowAboutSize(panel2->content_win());
 
   // Check that the second panel is focused automatically, covering the
   // whole screen, and stacked above the other panels.
@@ -297,6 +298,9 @@ TEST_F(PanelManagerTest, Fullscreen) {
   // second panel should be made non-fullscreen.
   fullscreen_event.xclient.window = panel3->content_xid();
   wm_->HandleEvent(&fullscreen_event);
+  NotifyWindowAboutSize(panel2->content_win());
+  NotifyWindowAboutSize(panel3->content_win());
+
   EXPECT_TRUE(panel3->is_fullscreen());
   EXPECT_EQ(panel3->content_xid(), xconn_->focused_xid());
   SendFocusEvents(panel2->content_xid(), panel3->content_xid());
@@ -334,6 +338,7 @@ TEST_F(PanelManagerTest, Fullscreen) {
   // keep the focus.
   fullscreen_event.xclient.data.l[0] = 0;  // remove
   wm_->HandleEvent(&fullscreen_event);
+  NotifyWindowAboutSize(panel3->content_win());
   EXPECT_FALSE(panel3->is_fullscreen());
   EXPECT_EQ(panel3->content_xid(), xconn_->focused_xid());
   TestPanelContentBounds(panel3,
