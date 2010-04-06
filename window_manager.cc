@@ -1393,6 +1393,8 @@ void WindowManager::HandlePropertyNotify(const XPropertyEvent& e) {
       win->FetchAndApplyTransientHint();
     } else if (e.atom == GetXAtom(ATOM_CHROME_WINDOW_TYPE)) {
       win->FetchAndApplyWindowType(true);  // update_shadow
+    } else if (e.atom == GetXAtom(ATOM_NET_WM_WINDOW_TYPE)) {
+      win->FetchAndApplyWmWindowType(true);  // update_shadow
     } else if (e.atom == GetXAtom(ATOM_NET_WM_WINDOW_OPACITY)) {
       win->FetchAndApplyWindowOpacity();
     } else if (e.atom == GetXAtom(ATOM_NET_WM_STATE)) {

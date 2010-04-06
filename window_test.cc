@@ -338,6 +338,62 @@ TEST_F(WindowTest, WmState) {
   EXPECT_EQ(max_vert_atom, values[1]);
 }
 
+TEST_F(WindowTest, WmWindowType) {
+  const XAtom wm_window_type_atom = wm_->GetXAtom(ATOM_NET_WM_WINDOW_TYPE);
+  const XAtom combo_atom = wm_->GetXAtom(ATOM_NET_WM_WINDOW_TYPE_COMBO);
+  const XAtom menu_atom = wm_->GetXAtom(ATOM_NET_WM_WINDOW_TYPE_MENU);
+  const XAtom dropdown_atom = wm_->GetXAtom(
+      ATOM_NET_WM_WINDOW_TYPE_DROPDOWN_MENU);
+  const XAtom popup_atom = wm_->GetXAtom(ATOM_NET_WM_WINDOW_TYPE_POPUP_MENU);
+
+  // Create an override redirect X window.
+  XWindow xid = xconn_->CreateWindow(
+      xconn_->GetRootWindow(),
+      0, 0, 640, 480,
+      true,   // override redirect
+      false,  // input only
+      0);     // event mask
+  xconn_->SetIntProperty(xid,
+                         wm_window_type_atom,  // atom
+                         wm_window_type_atom,  // type
+                         combo_atom);  // combo type
+
+  // Attach our Window to the X window
+  Window win(wm_.get(), xid, true);
+  EXPECT_TRUE(win.using_shadow());  // use shadow for combo
+
+  xconn_->SetIntProperty(xid,
+                         wm_window_type_atom,  // atom
+                         wm_window_type_atom,  // type
+                         menu_atom);  // menu type
+  win.FetchAndApplyWmWindowType(true);
+  EXPECT_TRUE(win.using_shadow());  // use shadow for menu
+
+  xconn_->SetIntProperty(xid,
+                         wm_window_type_atom,  // atom
+                         wm_window_type_atom,  // type
+                         dropdown_atom);  // dropdown menu type
+  win.FetchAndApplyWmWindowType(true);
+  EXPECT_TRUE(win.using_shadow());  // use shadow for dropdown menu
+
+  xconn_->SetIntProperty(xid,
+                         wm_window_type_atom,  // atom
+                         wm_window_type_atom,  // type
+                         popup_atom);  // popup menu type
+  win.FetchAndApplyWmWindowType(true);
+  EXPECT_TRUE(win.using_shadow());  // use shadow for popup menu
+
+  XAtom normal_atom = 0;
+  ASSERT_TRUE(xconn_->GetAtom("_NET_WM_WINDOW_TYPE_NORMAL", &normal_atom));
+
+  xconn_->SetIntProperty(xid,
+                         wm_window_type_atom,  // atom
+                         wm_window_type_atom,  // type
+                         normal_atom);  // normal type
+  win.FetchAndApplyWmWindowType(true);
+  EXPECT_FALSE(win.using_shadow());  // not use shadow for normal
+}
+
 TEST_F(WindowTest, ChromeState) {
   const XAtom state_atom = wm_->GetXAtom(ATOM_CHROME_STATE);
   const XAtom collapsed_atom = wm_->GetXAtom(ATOM_CHROME_STATE_COLLAPSED_PANEL);

@@ -61,7 +61,8 @@ Window::Window(WindowManager* wm, XWindow xid, bool override_redirect)
       wm_state_maximized_horz_(false),
       wm_state_maximized_vert_(false),
       wm_state_modal_(false),
-      wm_hint_urgent_(false) {
+      wm_hint_urgent_(false),
+      wm_window_type_(WM_WINDOW_TYPE_NORMAL) {
   // Listen for focus, property, and shape changes on this window.
   wm_->xconn()->SelectInputOnWindow(
       xid_, FocusChangeMask | PropertyChangeMask, true);
@@ -113,7 +114,7 @@ Window::Window(WindowManager* wm, XWindow xid, bool override_redirect)
   // created but before we selected PropertyChangeMask, so we need to query
   // them here.
   FetchAndApplyWindowType(false);
-  FetchAndApplyShape(true);
+  FetchAndApplyShape(false);
   FetchAndApplyWindowOpacity();
   FetchAndApplySizeHints();
   FetchAndApplyWmProtocols();
@@ -121,6 +122,7 @@ Window::Window(WindowManager* wm, XWindow xid, bool override_redirect)
   FetchAndApplyChromeState();
   FetchAndApplyTransientHint();
   FetchAndApplyWmHints();
+  FetchAndApplyWmWindowType(true);
 }
 
 Window::~Window() {
@@ -268,6 +270,35 @@ void Window::FetchAndApplyWmState() {
              << " maximized_horz=" << wm_state_maximized_horz_
              << " maximized_vert=" << wm_state_maximized_vert_
              << " modal=" << wm_state_modal_;
+}
+
+void Window::FetchAndApplyWmWindowType(bool update_shadow) {
+  wm_window_type_ = WM_WINDOW_TYPE_NORMAL;
+
+  int window_type_atom = 0;
+  if (wm_->xconn()->GetIntProperty(
+      xid_, wm_->GetXAtom(ATOM_NET_WM_WINDOW_TYPE), &window_type_atom)) {
+    XAtom combo_atom = wm_->GetXAtom(ATOM_NET_WM_WINDOW_TYPE_COMBO);
+    XAtom menu_atom = wm_->GetXAtom(ATOM_NET_WM_WINDOW_TYPE_MENU);
+    XAtom dropdown_menu_atom = wm_->GetXAtom(
+        ATOM_NET_WM_WINDOW_TYPE_DROPDOWN_MENU);
+    XAtom popup_menu_atom = wm_->GetXAtom(ATOM_NET_WM_WINDOW_TYPE_POPUP_MENU);
+
+    if (window_type_atom == combo_atom) {
+      wm_window_type_ = WM_WINDOW_TYPE_COMBO;
+    } else if (window_type_atom == menu_atom ||
+               window_type_atom == dropdown_menu_atom ||
+               window_type_atom == popup_menu_atom) {
+      wm_window_type_ = WM_WINDOW_TYPE_MENU;
+    }
+
+    DLOG(INFO) << "Fetched _NET_WM_WINDOW_TYPE for " << xid_str() << ":"
+               << " atom=" << window_type_atom
+               << " wm_window_type=" << wm_window_type_;
+  }
+
+  if (update_shadow)
+    UpdateShadowIfNecessary();
 }
 
 void Window::FetchAndApplyChromeState() {
@@ -692,7 +723,9 @@ void Window::UpdateShadowIfNecessary() {
 
   // TODO: make this a setter that the EventConsumer sets.
   bool should_use_shadow =
-      !override_redirect_ &&
+      (!override_redirect_ ||
+       wm_window_type_ == WM_WINDOW_TYPE_MENU ||    // Let menu and combo
+       wm_window_type_ == WM_WINDOW_TYPE_COMBO) &&  // dropdown list pass.
       type_ != WmIpc::WINDOW_TYPE_CHROME_INFO_BUBBLE &&
       type_ != WmIpc::WINDOW_TYPE_CREATE_BROWSER_WINDOW &&
       type_ != WmIpc::WINDOW_TYPE_LOGIN_IMAGE &&

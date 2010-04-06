@@ -49,6 +49,15 @@ class WindowManager;
 // the composited window.
 class Window {
  public:
+  // Mapped type from EWMH _NET_WM_WINDOW_TYPE
+  enum WmWindowType {
+    WM_WINDOW_TYPE_NORMAL = 0,  // All other types.
+    WM_WINDOW_TYPE_MENU,        // _NET_WM_WINDOW_TYPE_MENU,
+                                // _NET_WM_WINDOW_TYPE_DROPDOWN_MENU,
+                                // _NET_WM_WINDOW_TYPE_POPUP_MENU
+    WM_WINDOW_TYPE_COMBO,       // _NET_WM_WINDOW_TYPE_COMBO
+  };
+
   Window(WindowManager* wm, XWindow xid, bool override_redirect);
   ~Window();
 
@@ -120,6 +129,10 @@ class Window {
   // windows, so this is primarily useful for getting the initial state of the
   // window before it's been mapped.
   void FetchAndApplyWmState();
+
+  // Fetch the window's _NET_WM_WINDOW_TYPE property and update
+  // wm_window_type_.
+  void FetchAndApplyWmWindowType(bool update_shadow);
 
   // Fetch the window's _CHROME_STATE property and update our internal copy
   // of it.
@@ -370,6 +383,9 @@ class Window {
   // Is this window marked urgent, per the ICCCM UrgencyHint flag in its
   // WM_HINTS property?
   bool wm_hint_urgent_;
+
+  // Mapped EWMH window type from the window's _NET_WM_WINDOW_TYPE property.
+  WmWindowType wm_window_type_;
 
   // Chrome window state, as exposed in the window's _CHROME_STATE
   // property.
