@@ -375,11 +375,14 @@ bool OpenGlesEglImageData::Bind(TidyInterface::TexturePixmapActor* actor,
     EGL_NONE
   };
   // Work around broken eglCreateImageKHR that improperly takes a context
-  // TODO: add #define configuration of this workaround, it breaks
-  // platforms which follow the spec
   egl_image_ = gl_->EglCreateImageKHR(
       gl_->egl_display(), egl_context, EGL_NATIVE_PIXMAP_KHR,
       reinterpret_cast<EGLClientBuffer>(pixmap_), egl_image_attribs);
+  if (egl_image_ == EGL_NO_IMAGE_KHR) {
+    egl_image_ = gl_->EglCreateImageKHR(
+        gl_->egl_display(), EGL_NO_CONTEXT, EGL_NATIVE_PIXMAP_KHR,
+        reinterpret_cast<EGLClientBuffer>(pixmap_), egl_image_attribs);
+  }
   if (egl_image_ == EGL_NO_IMAGE_KHR) {
     LOG(INFO) << "eglCreateImageKHR() returned EGL_NO_IMAGE_KHR.";
     return false;
