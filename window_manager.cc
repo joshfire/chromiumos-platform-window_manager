@@ -1510,6 +1510,8 @@ void WindowManager::HandleUnmapNotify(const XUnmapEvent& e) {
   SetWmStateProperty(e.window, 0);  // WithdrawnState
   win->set_mapped(false);
   win->HideComposited();
+  win->reset_redirected();
+
   for (set<EventConsumer*>::iterator it = event_consumers_.begin();
        it != event_consumers_.end(); ++it) {
     (*it)->HandleWindowUnmap(win);

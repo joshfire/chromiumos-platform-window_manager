@@ -798,6 +798,49 @@ TEST_F(WindowManagerTest, DeferRedirection) {
   EXPECT_EQ(override_redirect_xid, override_redirect_mock_actor->xid());
 }
 
+// This tests that redirected flag is resetted after window gets unmapped.
+TEST_F(WindowManagerTest, UnmapResetsRedirectFlag) {
+  // Creates a window
+  XWindow xid = CreateSimpleWindow();
+  MockXConnection::WindowInfo* info = xconn_->GetWindowInfoOrDie(xid);
+
+  XEvent event;
+  MockXConnection::InitCreateWindowEvent(&event, *info);
+  wm_->HandleEvent(&event);
+
+  Window* win = wm_->GetWindowOrDie(xid);
+
+  // Maps it.
+  xconn_->MapWindow(xid);
+  MockXConnection::InitMapRequestEvent(&event, *info);
+  wm_->HandleEvent(&event);
+
+  // It should be mapped and redirected.
+  EXPECT_TRUE(info->mapped);
+  EXPECT_TRUE(info->redirected);
+  EXPECT_TRUE(win->redirected());
+
+  // Unmaps it.
+  xconn_->UnmapWindow(xid);
+  MockXConnection::InitUnmapEvent(&event, xid);
+  wm_->HandleEvent(&event);
+
+  // Unmapped and unredirected.
+  EXPECT_FALSE(info->mapped);
+  EXPECT_FALSE(info->redirected);
+  EXPECT_FALSE(win->redirected());
+
+  // Maps it again.
+  xconn_->MapWindow(xid);
+  MockXConnection::InitMapRequestEvent(&event, *info);
+  wm_->HandleEvent(&event);
+
+  // It should be mapped and redirected.
+  EXPECT_TRUE(info->mapped);
+  EXPECT_TRUE(info->redirected);
+  EXPECT_TRUE(win->redirected());
+}
+
 // This tests against a bug where the window manager would fail to handle
 // existing panel windows at startup -- see http://crosbug.com/1591.
 TEST_F(WindowManagerTest, KeepPanelsAfterRestart) {

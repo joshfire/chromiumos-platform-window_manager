@@ -81,6 +81,7 @@ bool MockXConnection::UnmapWindow(XWindow xid) {
   if (!info)
     return false;
   info->mapped = false;
+  info->redirected = false;
   if (focused_xid_ == xid)
     focused_xid_ = None;
   info->changed = true;

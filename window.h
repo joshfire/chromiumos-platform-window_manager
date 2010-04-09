@@ -78,6 +78,7 @@ class Window {
   void set_focused(bool focused) { focused_ = focused; }
   bool shaped() const { return shaped_; }
   bool redirected() const { return redirected_; }
+  void reset_redirected() { redirected_ = false; }
 
   int client_x() const { return client_x_; }
   int client_y() const { return client_y_; }
