@@ -245,6 +245,7 @@ class TidyInterface : public ClutterInterface {
     // been run over the tree -- that's what calculates the opacity
     // flag.
     bool is_opaque() const { return is_opaque_; }
+    void set_is_opaque(bool opaque) { is_opaque_ = opaque; }
 
     bool IsVisible() const { return visible_ && opacity_ > 0.001f; }
     float opacity() const { return opacity_; }
@@ -286,7 +287,6 @@ class TidyInterface : public ClutterInterface {
                                        int indent_level);
 
     void set_has_children(bool has_children) { has_children_ = has_children; }
-    void set_is_opaque(bool opaque) { is_opaque_ = opaque; }
 
    private:
     // Animate one of this actor's fields moving to a new value.
@@ -478,6 +478,11 @@ class TidyInterface : public ClutterInterface {
       visitor->VisitTexturePixmap(this);
     }
 
+    // Throw out the current pixmap and create a new one on the next
+    // draw pass.
+    void set_pixmap_invalid(bool invalid) { pixmap_invalid_ = invalid; }
+    bool is_pixmap_invalid() { return pixmap_invalid_; }
+
     // Begin ClutterInterface::TexturePixmapActor methods
     bool SetTexturePixmapWindow(XWindow xid);
     bool IsUsingTexturePixmapExtension() { return true; }
@@ -514,6 +519,9 @@ class TidyInterface : public ClutterInterface {
 
     // This is the XWindow that this actor is associated with.
     XWindow window_;
+
+    // Indicates that the pixmap should be refreshed on the next pass.
+    bool pixmap_invalid_;
 
     DISALLOW_COPY_AND_ASSIGN(TexturePixmapActor);
   };

@@ -565,17 +565,18 @@ TEST_F(TidyTest, HandleXEvents) {
   EXPECT_TRUE(cast_actor->HasPixmapDrawingData());
   EXPECT_FALSE(interface()->dirty());
 
-  // Now resize the window.  The pixmap should get thrown away.
+  // Now resize the window.  The pixmap should be marked dirty.
   info->width = 640;
   info->height = 480;
   actor->SetSize(info->width, info->height);
   EXPECT_TRUE(interface()->dirty());
-  EXPECT_FALSE(cast_actor->HasPixmapDrawingData());
+  EXPECT_TRUE(cast_actor->is_pixmap_invalid());
 
   // A new pixmap should be loaded the next time we draw.
   interface()->Draw();
   EXPECT_TRUE(cast_actor->HasPixmapDrawingData());
   EXPECT_FALSE(interface()->dirty());
+  EXPECT_FALSE(cast_actor->is_pixmap_invalid());
 
   // TODO: Test that we refresh textures when we see damage events.
 

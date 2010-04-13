@@ -14,7 +14,7 @@ namespace window_manager {
 class MockGLInterface : public GLInterface {
  public:
   MockGLInterface();
-  virtual ~MockGLInterface();
+  virtual ~MockGLInterface() {}
 
   void GlxFree(void* item) {}
 
@@ -89,7 +89,7 @@ class MockGLInterface : public GLInterface {
                     const GLvoid* pointer) {}
  private:
   XVisualInfo mock_visual_info_;
-  GLXFBConfig* mock_configs_;
+  scoped_array<GLXFBConfig> mock_configs_;
   GLXContext mock_context_;
 
   // Next ID to hand out in CreateGlxPixmap().

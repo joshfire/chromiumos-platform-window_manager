@@ -139,18 +139,23 @@ class OpenGlDrawVisitor : virtual public TidyInterface::ActorVisitor {
   // This draws a debugging "needle" in the upper left corner.
   void DrawNeedle();
 
-  GLInterface* gl_interface_;         // Not owned.
-  TidyInterface* interface_;          // Not owned.
-  XConnection* x_conn_;               // Not owned.
-  TidyInterface::StageActor* stage_;  // Not owned.
+  // Finds an appropriate framebuffer configurations for the current
+  // display.  Sets framebuffer_config_rgba_ and framebuffer_config_rgb_.
+  void FindFramebufferConfigurations();
+
+  GLInterface* gl_interface_;  // Not owned.
+  TidyInterface* interface_;  // Not owned.
+  XConnection* x_conn_;  // Not owned.
+  TidyInterface::StageActor* stage_; // Not owned.
 
   // This holds the drawing data used for quads.  Note that only
   // QuadActors use this drawing data, and they all share the same
   // one (to keep from allocating a lot of quad vertex buffers).
   TidyInterface::DrawingDataPtr quad_drawing_data_;
 
-  GLXFBConfig config_24_;
-  GLXFBConfig config_32_;
+  // The framebuffer configs to use with this display.
+  GLXFBConfig framebuffer_config_rgb_;
+  GLXFBConfig framebuffer_config_rgba_;
   GLXContext context_;
 
   // If set to true, this indicates that we will be visiting only

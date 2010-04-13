@@ -31,14 +31,15 @@ DECLARE_bool(tidy_display_debug_needle);
 // Turn this on if you want to debug something in this file in depth.
 #undef EXTRA_LOGGING
 
-// #define GL_ERROR_DEBUGGING
+// Turn this on to do GL debugging.
+#undef GL_ERROR_DEBUGGING
 #ifdef GL_ERROR_DEBUGGING
-#define CHECK_GL_ERROR() do {                                              \
-    GLenum gl_error = gl_interface()->GetError();                          \
-    LOG_IF(ERROR, gl_error != GL_NO_ERROR) << "GL Error :" << gl_gl_error; \
+#define CHECK_GL_ERROR(gl_interface) do {                                  \
+    GLenum gl_error = gl_interface->GetError();                            \
+    LOG_IF(ERROR, gl_error != GL_NO_ERROR) << "GL Error :" << gl_error;    \
   } while (0)
 #else  // GL_ERROR_DEBUGGING
-#define CHECK_GL_ERROR() void(0)
+#define CHECK_GL_ERROR(gl_interface_) void(0)
 #endif  // GL_ERROR_DEBUGGING
 
 namespace window_manager {
@@ -58,6 +59,7 @@ OpenGlQuadDrawingData::OpenGlQuadDrawingData(GLInterface* gl_interface)
   gl_interface_->BufferData(GL_ARRAY_BUFFER, sizeof(kQuad),
                             kQuad, GL_STATIC_DRAW);
   color_buffer_.reset(new float[4*4]);
+  CHECK_GL_ERROR(gl_interface_);
 }
 
 OpenGlQuadDrawingData::~OpenGlQuadDrawingData() {
@@ -76,7 +78,7 @@ void OpenGlQuadDrawingData::set_vertex_color(int index,
   color_buffer_[index++] = r;
   color_buffer_[index++] = g;
   color_buffer_[index++] = b;
-  color_buffer_[index++] = a;
+  color_buffer_[index] = a;
 }
 
 OpenGlPixmapData::OpenGlPixmapData(GLInterface* gl_interface,
@@ -119,6 +121,7 @@ void OpenGlPixmapData::Refresh() {
   if (damage_) {
     x_conn_->SubtractRegionFromDamage(damage_, XCB_NONE, XCB_NONE);
   }
+  CHECK_GL_ERROR(gl_interface_);
 }
 
 void OpenGlPixmapData::SetTexture(GLuint texture, bool has_alpha) {
@@ -143,8 +146,9 @@ bool OpenGlPixmapData::BindToPixmap(
     // we don't have a pixmap to bind to yet.
     return false;
   }
-  CHECK(!actor->GetDrawingData(OpenGlDrawVisitor::PIXMAP_DATA))
-      << "Pixmap data already exists.";
+
+  // Clear out the existing drawing data.
+  actor->EraseDrawingData(OpenGlDrawVisitor::PIXMAP_DATA);
 
   scoped_ptr<OpenGlPixmapData> data(new OpenGlPixmapData(gl_interface, x_conn));
 
@@ -156,22 +160,22 @@ bool OpenGlPixmapData::BindToPixmap(
 
   XConnection::WindowGeometry geometry;
   x_conn->GetWindowGeometry(data->pixmap_, &geometry);
+  bool is_rgba = (geometry.depth == 32);
   int attribs[] = {
     GLX_TEXTURE_FORMAT_EXT,
-    geometry.depth == 32 ?
-      GLX_TEXTURE_FORMAT_RGBA_EXT :
-      GLX_TEXTURE_FORMAT_RGB_EXT,
+    is_rgba ? GLX_TEXTURE_FORMAT_RGBA_EXT : GLX_TEXTURE_FORMAT_RGB_EXT,
     GLX_TEXTURE_TARGET_EXT,
     GLX_TEXTURE_2D_EXT,
     0
   };
-  data->has_alpha_ = (geometry.depth == 32);
-  GLXFBConfig config = geometry.depth == 32 ?
-                       visitor->config_32_ :
-                       visitor->config_24_;
-  data->glx_pixmap_ = gl_interface->CreateGlxPixmap(config,
-                                                    data->pixmap_,
-                                                    attribs);
+  data->has_alpha_ = is_rgba;
+  data->glx_pixmap_ = gl_interface->CreateGlxPixmap(
+      is_rgba ?
+        visitor->framebuffer_config_rgba_ :
+        visitor->framebuffer_config_rgb_,
+      data->pixmap_,
+      attribs);
+  CHECK_GL_ERROR(gl_interface);
   if (data->glx_pixmap_ == XCB_NONE) {
     // TODO: Figure out what causes this.  Perhaps the window was destroyed
     // by the time that we tried to use its pixmap.
@@ -183,8 +187,14 @@ bool OpenGlPixmapData::BindToPixmap(
 
   gl_interface->GenTextures(1, &data->texture_);
   gl_interface->BindTexture(GL_TEXTURE_2D, data->texture_);
-  gl_interface->TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+  gl_interface->TexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+  gl_interface->TexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+  gl_interface->TexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S,
+                              GL_CLAMP_TO_EDGE);
+  gl_interface->TexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T,
+                              GL_CLAMP_TO_EDGE);
   gl_interface->BindGlxTexImage(data->glx_pixmap_, GLX_FRONT_LEFT_EXT, NULL);
+  CHECK_GL_ERROR(gl_interface);
   data->damage_ = x_conn->CreateDamage(actor->texture_pixmap_window(),
                                        XCB_DAMAGE_REPORT_LEVEL_NON_EMPTY);
   if (data->damage_ == XCB_NONE) {
@@ -193,8 +203,16 @@ bool OpenGlPixmapData::BindToPixmap(
     return false;
   }
 
+#ifdef EXTRA_LOGGING
+  LOG(INFO) << "Adding pixmap data that is "
+            << (data->has_alpha_ ? "transparent" : "opaque")
+            << " (" << geometry.depth << "-bit) to " << actor->name();
+#endif
+  // Set this in case we are adding the pixmap data as part of the pass.
+  actor->set_is_opaque(actor->opacity() > 0.999f && !data->has_alpha_);
   actor->SetDrawingData(OpenGlDrawVisitor::PIXMAP_DATA,
                         TidyInterface::DrawingDataPtr(data.release()));
+  actor->set_pixmap_invalid(false);
   actor->SetDirty();
   return true;
 }
@@ -224,9 +242,11 @@ OpenGlDrawVisitor::OpenGlDrawVisitor(GLInterfaceBase* gl_interface,
     : gl_interface_(dynamic_cast<GLInterface*>(gl_interface)),
       interface_(interface),
       x_conn_(interface->x_conn()),
-      config_24_(0),
-      config_32_(0),
+      framebuffer_config_rgb_(0),
+      framebuffer_config_rgba_(0),
       context_(0),
+      visit_opaque_(false),
+      ancestor_opacity_(1.0f),
       num_frames_drawn_(0) {
   CHECK(gl_interface_);
   context_ = gl_interface_->CreateGlxContext();
@@ -234,7 +254,19 @@ OpenGlDrawVisitor::OpenGlDrawVisitor(GLInterfaceBase* gl_interface,
 
   gl_interface_->MakeGlxCurrent(stage->GetStageXWindow(), context_);
 
+  FindFramebufferConfigurations();
+
+  gl_interface_->Enable(GL_DEPTH_TEST);
+  gl_interface_->BlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+  CHECK_GL_ERROR(gl_interface_);
+
+  quad_drawing_data_.reset(new OpenGlQuadDrawingData(gl_interface_));
+}
+
+void OpenGlDrawVisitor::FindFramebufferConfigurations() {
   int num_fb_configs;
+  GLXFBConfig config_32 = 0;
+  GLXFBConfig config_24 = 0;
   GLXFBConfig* fb_configs = gl_interface_->GetGlxFbConfigs(&num_fb_configs);
   bool rgba = false;
   for (int i = 0; i < num_fb_configs; ++i) {
@@ -253,7 +285,14 @@ OpenGlDrawVisitor::OpenGlDrawVisitor(GLInterfaceBase* gl_interface,
     gl_interface_->GetGlxFbConfigAttrib(fb_configs[i], GLX_ALPHA_SIZE, &alpha);
     gl_interface_->GetGlxFbConfigAttrib(fb_configs[i], GLX_BUFFER_SIZE,
                                         &buffer_size);
+
     if (buffer_size != visual_depth && (buffer_size - alpha) != visual_depth)
+      continue;
+
+    int x_visual = 0;
+    gl_interface_->GetGlxFbConfigAttrib(fb_configs[i], GLX_X_VISUAL_TYPE,
+                                        &x_visual);
+    if (x_visual != GLX_TRUE_COLOR)
       continue;
 
     int has_rgba = 0;
@@ -277,27 +316,28 @@ OpenGlDrawVisitor::OpenGlDrawVisitor(GLInterfaceBase* gl_interface,
         continue;
     }
     if (visual_depth == 32) {
-      config_32_ = fb_configs[i];
+      config_32 = fb_configs[i];
     } else {
-      config_24_ = fb_configs[i];
+      config_24 = fb_configs[i];
     }
   }
   gl_interface_->GlxFree(fb_configs);
 
-  CHECK(config_24_ || config_32_)
-      << "Unable to obtain a framebuffer configuration with appropriate depth.";
+  CHECK(config_24)
+      << "Unable to obtain appropriate RGB framebuffer configuration.";
 
-  gl_interface_->Enable(GL_DEPTH_TEST);
-  gl_interface_->BlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+  CHECK(config_32)
+      << "Unable to obtain appropriate RGBA framebuffer configuration.";
 
-  quad_drawing_data_.reset(new OpenGlQuadDrawingData(gl_interface_));
+  framebuffer_config_rgba_ = config_32;
+  framebuffer_config_rgb_ = config_24;
 }
 
 OpenGlDrawVisitor::~OpenGlDrawVisitor() {
   gl_interface_->Finish();
   // Make sure the vertex buffer is deleted.
   quad_drawing_data_ = TidyInterface::DrawingDataPtr();
-  CHECK_GL_ERROR();
+  CHECK_GL_ERROR(gl_interface_);
   gl_interface_->MakeGlxCurrent(0, 0);
   if (context_) {
     gl_interface_->DestroyGlxContext(context_);
@@ -328,6 +368,7 @@ void OpenGlDrawVisitor::BindImage(const ImageContainer* container,
                             container->width(), container->height(),
                             0, GL_RGBA, GL_UNSIGNED_BYTE,
                             container->data());
+  CHECK_GL_ERROR(gl_interface_);
   OpenGlTextureData* data = new OpenGlTextureData(gl_interface_);
   // TODO: once ImageContainer supports non-alpha images, calculate
   // whether or not this texture has alpha (instead of just passing
@@ -348,7 +389,8 @@ void OpenGlDrawVisitor::VisitTexturePixmap(
     TidyInterface::TexturePixmapActor* actor) {
   if (!actor->IsVisible()) return;
   // Make sure there's a bound texture.
-  if (!actor->GetDrawingData(PIXMAP_DATA).get()) {
+  if (!actor->GetDrawingData(PIXMAP_DATA).get() ||
+      actor->is_pixmap_invalid()) {
     if (!OpenGlPixmapData::BindToPixmap(this, actor)) {
       // We didn't find a bound pixmap, so let's just skip drawing this
       // actor.  (it's probably because it hasn't been mapped).
@@ -378,11 +420,22 @@ void OpenGlDrawVisitor::VisitQuad(TidyInterface::QuadActor* actor) {
 
   // Calculate the vertex colors, taking into account the actor color,
   // opacity and the dimming gradient.
-  float actor_opacity = actor->opacity() * ancestor_opacity_;
+  float actor_opacity = actor->is_opaque() ? 1.0f :
+                        actor->opacity() * ancestor_opacity_;
   float dimmed_transparency = 1.f - actor->dimmed_opacity();
   float red = actor->color().red;
   float green = actor->color().green;
   float blue = actor->color().blue;
+  DCHECK(actor_opacity < 1.f);
+  DCHECK(actor_opacity > 0.f);
+  DCHECK(dimmed_transparency < 1.f);
+  DCHECK(dimmed_transparency > 0.f);
+  DCHECK(red < 1.f);
+  DCHECK(red > 0.f);
+  DCHECK(green < 1.f);
+  DCHECK(green > 0.f);
+  DCHECK(blue < 1.f);
+  DCHECK(blue > 0.f);
 
   // Scale the vertex colors on the right by the transparency, since
   // we want it to fade to black as transparency of the dimming
@@ -397,11 +450,13 @@ void OpenGlDrawVisitor::VisitQuad(TidyInterface::QuadActor* actor) {
   draw_data->set_vertex_color(2, dim_red, dim_green, dim_blue, actor_opacity);
   draw_data->set_vertex_color(3, dim_red, dim_green, dim_blue, actor_opacity);
 
+  gl_interface_->EnableClientState(GL_COLOR_ARRAY);
   // Have to un-bind the array buffer to set the color pointer so that
   // it uses the color buffer instead of the vertex buffer memory.
   gl_interface_->BindBuffer(GL_ARRAY_BUFFER, 0);
   gl_interface_->ColorPointer(4, GL_FLOAT, 0, draw_data->color_buffer());
   gl_interface_->BindBuffer(GL_ARRAY_BUFFER, draw_data->vertex_buffer());
+  CHECK_GL_ERROR(gl_interface_);
 
   // Find out if this quad has pixmap or texture data to bind.
   OpenGlPixmapData* pixmap_data = dynamic_cast<OpenGlPixmapData*>(
@@ -431,11 +486,12 @@ void OpenGlDrawVisitor::VisitQuad(TidyInterface::QuadActor* actor) {
              << ", " << actor->z() << ") with scale: ("
              << actor->scale_x() << ", "  << actor->scale_y() << ") at size ("
              << actor->width() << "x"  << actor->height()
-             << ") and opacity " << actor->opacity() * ancestor_opacity_;
+             << ") and opacity " << actor_opacity;
 #endif
   gl_interface_->DrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+  gl_interface_->DisableClientState(GL_COLOR_ARRAY);
   gl_interface_->PopMatrix();
-  CHECK_GL_ERROR();
+  CHECK_GL_ERROR(gl_interface_);
 }
 
 void OpenGlDrawVisitor::DrawNeedle() {
@@ -479,8 +535,8 @@ void OpenGlDrawVisitor::VisitStage(TidyInterface::StageActor* actor) {
   gl_interface_->VertexPointer(2, GL_FLOAT, 0, 0);
   gl_interface_->EnableClientState(GL_TEXTURE_COORD_ARRAY);
   gl_interface_->TexCoordPointer(2, GL_FLOAT, 0, 0);
-  gl_interface_->EnableClientState(GL_COLOR_ARRAY);
-  CHECK_GL_ERROR();
+  gl_interface_->DepthMask(GL_TRUE);
+  CHECK_GL_ERROR(gl_interface_);
 
   // Set the z-depths for the actors, update is_opaque.
   TidyInterface::LayerVisitor layer_visitor(interface_->actor_count());
@@ -502,15 +558,16 @@ void OpenGlDrawVisitor::VisitStage(TidyInterface::StageActor* actor) {
   DLOG(INFO) << "Ending OPAQUE pass.";
   DLOG(INFO) << "Starting TRANSPARENT pass.";
 #endif
+  // Visiting back to front now, with no z-buffer, but with blending.
   ancestor_opacity_ = actor->opacity();
   gl_interface_->DepthMask(GL_FALSE);
   gl_interface_->Enable(GL_BLEND);
-
-  // Visiting back to front now, with no z-buffer, but with blending.
   visit_opaque_ = false;
   VisitContainer(actor);
+
+  // Turn the depth mask back on now.
   gl_interface_->DepthMask(GL_TRUE);
-  CHECK_GL_ERROR();
+  CHECK_GL_ERROR(gl_interface_);
 
   if (FLAGS_tidy_display_debug_needle) {
     DrawNeedle();
@@ -556,6 +613,7 @@ void OpenGlDrawVisitor::VisitContainer(
 #ifdef EXTRA_LOGGING
         DLOG(INFO) << "Drawing opaque child " << child->name()
                    << " (visible: " << child->IsVisible()
+                   << ", opacity: " << child->opacity()
                    << ", is_opaque: " << child->is_opaque() << ")";
 #endif
         (*iterator)->Accept(this);
@@ -563,10 +621,11 @@ void OpenGlDrawVisitor::VisitContainer(
 #ifdef EXTRA_LOGGING
         DLOG(INFO) << "NOT drawing transparent child " << child->name()
                    << " (visible: " << child->IsVisible()
+                   << ", opacity: " << child->opacity()
                    << ", is_opaque: " << child->is_opaque() << ")";
 #endif
       }
-      CHECK_GL_ERROR();
+      CHECK_GL_ERROR(gl_interface_);
     }
   } else {
     float original_opacity = ancestor_opacity_;
@@ -587,6 +646,7 @@ void OpenGlDrawVisitor::VisitContainer(
         DLOG(INFO) << "Drawing transparent child " << child->name()
                    << " (visible: " << child->IsVisible()
                    << ", has_children: " << child->has_children()
+                   << ", opacity: " << child->opacity()
                    << ", ancestor_opacity: " << ancestor_opacity_
                    << ", is_opaque: " << child->is_opaque() << ")";
 #endif
@@ -596,11 +656,12 @@ void OpenGlDrawVisitor::VisitContainer(
         DLOG(INFO) << "NOT drawing opaque child " << child->name()
                    << " (visible: " << child->IsVisible()
                    << ", has_children: " << child->has_children()
+                   << ", opacity: " << child->opacity()
                    << ", ancestor_opacity: " << ancestor_opacity_
                    << ", is_opaque: " << child->is_opaque() << ")";
 #endif
       }
-      CHECK_GL_ERROR();
+      CHECK_GL_ERROR(gl_interface_);
     }
 
     // Reset ancestor opacity.

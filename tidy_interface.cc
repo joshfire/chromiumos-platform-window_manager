@@ -85,6 +85,11 @@ void TidyInterface::LayerVisitor::VisitTexturePixmap(
       actor->GetDrawingData(OpenGlDrawVisitor::PIXMAP_DATA).get());
   if (data) {
     actor->set_is_opaque(actor->is_opaque() && !data->has_alpha());
+  } else {
+    // If there is no pixmap data yet for a texture pixmap, let's
+    // assume it'll be transparent so that the transparent bits don't
+    // flash opaque on the first pass.
+    actor->set_is_opaque(false);
   }
 #endif
 }
@@ -485,12 +490,14 @@ void TidyInterface::QuadActor::CloneImpl(QuadActor* clone) {
 TidyInterface::TexturePixmapActor::TexturePixmapActor(
     TidyInterface* interface)
     : TidyInterface::QuadActor(interface),
-      window_(0) {
+      window_(0),
+      pixmap_invalid_(true) {
 }
 
 void TidyInterface::TexturePixmapActor::SetSizeImpl(int* width, int* height) {
   DestroyPixmap();
   SetDirty();
+  set_pixmap_invalid(true);
 }
 
 bool TidyInterface::TexturePixmapActor::SetTexturePixmapWindow(

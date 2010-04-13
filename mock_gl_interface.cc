@@ -82,26 +82,30 @@ struct __GLXFBConfigRec {
 };
 
 static __GLXcontextRec kContextRec = {0};
-static __GLXFBConfigRec kConfigRec;
+static __GLXFBConfigRec kConfigRec32;
+static __GLXFBConfigRec kConfigRec24;
 
 namespace window_manager {
 
 MockGLInterface::MockGLInterface()
     : mock_context_(&kContextRec),
       next_glx_pixmap_id_(1) {
-  mock_configs_ = new GLXFBConfig[1];
-  kConfigRec.depthBits = 32;
-  kConfigRec.redBits = 8;
-  kConfigRec.greenBits = 8;
-  kConfigRec.blueBits = 8;
-  kConfigRec.alphaBits = 8;
-  mock_configs_[0] = &kConfigRec;
+  mock_configs_.reset(new GLXFBConfig[2]);
+  kConfigRec24.depthBits = 24;
+  kConfigRec24.redBits = 8;
+  kConfigRec24.greenBits = 8;
+  kConfigRec24.blueBits = 8;
+  kConfigRec24.alphaBits = 0;
+  mock_configs_[0] = &kConfigRec24;
 
-  mock_visual_info_.depth = kConfigRec.depthBits;
-}
+  kConfigRec32.depthBits = 32;
+  kConfigRec32.redBits = 8;
+  kConfigRec32.greenBits = 8;
+  kConfigRec32.blueBits = 8;
+  kConfigRec32.alphaBits = 8;
+  mock_configs_[1] = &kConfigRec32;
 
-MockGLInterface::~MockGLInterface() {
-  delete[] mock_configs_;
+  mock_visual_info_.depth = kConfigRec32.depthBits;
 }
 
 GLXPixmap MockGLInterface::CreateGlxPixmap(GLXFBConfig config,
@@ -120,7 +124,7 @@ Bool MockGLInterface::MakeGlxCurrent(GLXDrawable drawable,
 }
 
 GLXFBConfig* MockGLInterface::GetGlxFbConfigs(int* nelements) {
-  *nelements = 1;
+  *nelements = 2;
   return mock_configs_;
 }
 
@@ -145,6 +149,9 @@ int MockGLInterface::GetGlxFbConfigAttrib(GLXFBConfig config,
       break;
     case GLX_BIND_TO_TEXTURE_RGB_EXT:
       *value = config->depthBits == 24;
+      break;
+    case GLX_X_VISUAL_TYPE:
+      *value = GLX_TRUE_COLOR;
       break;
     default:
       *value = 0;
