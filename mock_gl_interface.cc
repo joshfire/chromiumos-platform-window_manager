@@ -125,7 +125,7 @@ Bool MockGLInterface::MakeGlxCurrent(GLXDrawable drawable,
 
 GLXFBConfig* MockGLInterface::GetGlxFbConfigs(int* nelements) {
   *nelements = 2;
-  return mock_configs_;
+  return mock_configs_.get();
 }
 
 XVisualInfo* MockGLInterface::GetGlxVisualFromFbConfig(GLXFBConfig config) {

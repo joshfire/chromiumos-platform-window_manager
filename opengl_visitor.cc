@@ -426,16 +426,16 @@ void OpenGlDrawVisitor::VisitQuad(TidyInterface::QuadActor* actor) {
   float red = actor->color().red;
   float green = actor->color().green;
   float blue = actor->color().blue;
-  DCHECK(actor_opacity < 1.f);
-  DCHECK(actor_opacity > 0.f);
-  DCHECK(dimmed_transparency < 1.f);
-  DCHECK(dimmed_transparency > 0.f);
-  DCHECK(red < 1.f);
-  DCHECK(red > 0.f);
-  DCHECK(green < 1.f);
-  DCHECK(green > 0.f);
-  DCHECK(blue < 1.f);
-  DCHECK(blue > 0.f);
+  DCHECK(actor_opacity <= 1.f);
+  DCHECK(actor_opacity >= 0.f);
+  DCHECK(dimmed_transparency <= 1.f);
+  DCHECK(dimmed_transparency >= 0.f);
+  DCHECK(red <= 1.f);
+  DCHECK(red >= 0.f);
+  DCHECK(green <= 1.f);
+  DCHECK(green >= 0.f);
+  DCHECK(blue <= 1.f);
+  DCHECK(blue >= 0.f);
 
   // Scale the vertex colors on the right by the transparency, since
   // we want it to fade to black as transparency of the dimming
