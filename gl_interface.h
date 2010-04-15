@@ -54,6 +54,7 @@ class GLInterface : virtual public GLInterfaceBase {
                                   int buffer) = 0;
 
   // GL Functions that we use.
+  virtual void Viewport(GLint x, GLint y, GLsizei width, GLsizei height) = 0;
   virtual void BindBuffer(GLenum target, GLuint buffer) = 0;
   virtual void BindTexture(GLenum target, GLuint texture) = 0;
   virtual void BlendFunc(GLenum sfactor, GLenum dfactor) = 0;

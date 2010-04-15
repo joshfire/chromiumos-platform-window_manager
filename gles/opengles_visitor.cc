@@ -138,6 +138,13 @@ void OpenGlesDrawVisitor::VisitStage(TidyInterface::StageActor* actor) {
   if (!actor->IsVisible())
     return;
 
+  if (actor->was_resized()) {
+    // TODO: Expose glViewport() and invoke it here with
+    // (0, 0, actor->width(), actor->height()).
+    NOTIMPLEMENTED();
+    actor->unset_was_resized();
+  }
+
   // TODO: We don't need to clear color, remove this when background
   // images work correctly.
   gl_->ClearColor(.86f, .2f, .44f, 1.f);

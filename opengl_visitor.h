@@ -128,8 +128,7 @@ class OpenGlDrawVisitor : virtual public TidyInterface::ActorVisitor {
   virtual void VisitActor(TidyInterface::Actor* actor);
   virtual void VisitStage(TidyInterface::StageActor* actor);
   virtual void VisitContainer(TidyInterface::ContainerActor* actor);
-  virtual void VisitTexturePixmap(
-      TidyInterface::TexturePixmapActor* actor);
+  virtual void VisitTexturePixmap(TidyInterface::TexturePixmapActor* actor);
   virtual void VisitQuad(TidyInterface::QuadActor* actor);
 
  private:

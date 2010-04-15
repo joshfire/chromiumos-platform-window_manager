@@ -899,6 +899,25 @@ void WindowManager::HandleMappedWindow(Window* win) {
   }
 }
 
+void WindowManager::HandleScreenResize(int new_width, int new_height) {
+  width_ = new_width;
+  height_ = new_height;
+  stage_->SetSize(width_, height_);
+  if (background_.get())
+    background_->SetSize(width_, height_);
+  panel_manager_->HandleScreenResize();
+  // TODO: This is ugly.  PanelManager::HandleScreenResize() will recompute
+  // the area available for the layout manager and call
+  // HandleLayoutManagerAreaChange(), so the next call is essentially a
+  // no-op.  Safer to leave it in for now, though.
+  layout_manager_->MoveAndResize(layout_manager_x_, layout_manager_y_,
+                                 layout_manager_width_, layout_manager_height_);
+  hotkey_overlay_->group()->Move(width_ / 2, height_ / 2, 0);
+  xconn_->ResizeWindow(background_xid_, width_, height_);
+
+  SetEwmhSizeProperties();
+}
+
 bool WindowManager::SetWmStateProperty(XWindow xid, int state) {
   vector<int> values;
   values.push_back(state);
@@ -1014,6 +1033,13 @@ void WindowManager::HandleClientMessage(const XClientMessageEvent& e) {
 }
 
 void WindowManager::HandleConfigureNotify(const XConfigureEvent& e) {
+  if (e.window == root_ && (e.width != width_ || e.height != height_)) {
+    DLOG(INFO) << "Got configure notify saying that root window has been "
+               << "resized to " << e.width << "x" << e.height;
+    HandleScreenResize(e.width, e.height);
+    return;
+  }
+
   // Even though _NET_CLIENT_LIST_STACKING only contains client windows
   // that we're managing, we also need to keep track of other (e.g.
   // override-redirect, or even untracked) windows: we receive
@@ -1440,15 +1466,8 @@ void WindowManager::HandleReparentNotify(const XReparentEvent& e) {
 
       // We're not going to be compositing the window anymore, so
       // unredirect it so it'll get drawn using the usual path.
-      if (FLAGS_wm_use_compositing && was_mapped) {
-        // TODO: This is only an issue as long as we have Clutter using a
-        // separate X connection -- see
-        // http://code.google.com/p/chromium-os/issues/detail?id=1151 .
-        LOG(WARNING) << "Possible race condition -- unredirecting "
-                     << XidStr(e.window) << " after it was already "
-                     << "mapped";
+      if (FLAGS_wm_use_compositing && was_mapped)
         xconn_->UnredirectWindowForCompositing(e.window);
-      }
     }
   }
 }
@@ -1457,25 +1476,10 @@ void WindowManager::HandleRRScreenChangeNotify(
     const XRRScreenChangeNotifyEvent& e) {
   DLOG(INFO) << "Got RRScreenChangeNotify event to "
              << e.width << "x" << e.height;
-  if (e.width == width_ && e.height == height_)
-    return;
-
-  width_ = e.width;
-  height_ = e.height;
-  stage_->SetSize(width_, height_);
-  if (background_.get())
-    background_->SetSize(width_, height_);
-  panel_manager_->HandleScreenResize();
-  // TODO: This is ugly.  PanelManager::HandleScreenResize() will recompute
-  // the area available for the layout manager and call
-  // HandleLayoutManagerAreaChange(), so the next call is essentially a
-  // no-op.  Safer to leave it in for now, though.
-  layout_manager_->MoveAndResize(layout_manager_x_, layout_manager_y_,
-                                 layout_manager_width_, layout_manager_height_);
-  hotkey_overlay_->group()->Move(width_ / 2, height_ / 2, 0);
-  xconn_->ResizeWindow(background_xid_, width_, height_);
-
-  SetEwmhSizeProperties();
+  // TODO: This doesn't seem to work reliably (we're not seeing any events
+  // right now), so we get size change notifications via ConfigureNotify
+  // events on the root window instead.  Either stop using randr or figure
+  // out what's wrong if we need it for e.g. rotate.
 }
 
 void WindowManager::HandleShapeNotify(const XShapeEvent& e) {

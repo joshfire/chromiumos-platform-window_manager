@@ -26,8 +26,7 @@ class RealGLInterface : public GLInterface {
   GLXContext CreateGlxContext();
   void DestroyGlxContext(GLXContext context);
   void SwapGlxBuffers(GLXDrawable drawable);
-  Bool MakeGlxCurrent(GLXDrawable drawable,
-                    GLXContext ctx);
+  Bool MakeGlxCurrent(GLXDrawable drawable, GLXContext ctx);
   GLXFBConfig* GetGlxFbConfigs(int* nelements);
   XVisualInfo* GetGlxVisualFromFbConfig(GLXFBConfig config);
   int GetGlxFbConfigAttrib(GLXFBConfig config,
@@ -40,6 +39,7 @@ class RealGLInterface : public GLInterface {
                            int buffer);
 
   // GL Functions
+  void Viewport(GLint x, GLint y, GLsizei width, GLsizei height);
   void BindBuffer(GLenum target, GLuint buffer);
   void BindTexture(GLenum target, GLuint texture);
   void BlendFunc(GLenum sfactor, GLenum dfactor);

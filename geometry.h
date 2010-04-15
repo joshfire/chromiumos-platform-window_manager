@@ -36,6 +36,13 @@ struct Rect {
   Rect() : x(0), y(0), width(0), height(0) {}
   Rect(int x, int y, int w, int h) : x(x), y(y), width(w), height(h) {}
 
+  void reset(int new_x, int new_y, int new_width, int new_height) {
+    x = new_x;
+    y = new_y;
+    width = new_width;
+    height = new_height;
+  }
+
   void resize(int w, int h, Gravity gravity) {
     if (gravity == GRAVITY_NORTHEAST || gravity == GRAVITY_SOUTHEAST)
       x += (width - w);

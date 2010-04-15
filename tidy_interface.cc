@@ -566,11 +566,14 @@ void TidyInterface::TexturePixmapActor::RefreshPixmap() {
 TidyInterface::StageActor::StageActor(TidyInterface* an_interface,
                                       int width, int height)
     : TidyInterface::ContainerActor(an_interface),
+      window_(0),
+      was_resized_(true),
       stage_color_(1.f, 1.f, 1.f) {
   window_ = interface()->x_conn()->CreateSimpleWindow(
       interface()->x_conn()->GetRootWindow(),
       0, 0, width, height);
   interface()->x_conn()->MapWindow(window_);
+  SetDirty();
 }
 
 TidyInterface::StageActor::~StageActor() {
@@ -586,6 +589,7 @@ void TidyInterface::StageActor::SetSizeImpl(int* width, int* height) {
   // Have to resize the window to match the stage.
   CHECK(window_) << "Missing window in StageActor::SetSizeImpl.";
   interface()->x_conn()->ResizeWindow(window_, *width, *height);
+  was_resized_ = true;
 }
 
 
@@ -608,7 +612,6 @@ TidyInterface::TidyInterface(EventLoop* event_loop,
   default_stage_.reset(new TidyInterface::StageActor(this,
                                                      geometry.width,
                                                      geometry.height));
-  default_stage_->SetSize(geometry.width, geometry.height);
 
 #ifdef TIDY_OPENGL
   draw_visitor_ = new OpenGlDrawVisitor(gl_interface,

@@ -143,8 +143,7 @@ class TidyInterface : public ClutterInterface {
     DISALLOW_COPY_AND_ASSIGN(VisitorDestination);
   };
 
-  class LayerVisitor
-      : virtual public TidyInterface::ActorVisitor {
+  class LayerVisitor : virtual public TidyInterface::ActorVisitor {
    public:
     static const float kMinDepth;
     static const float kMaxDepth;
@@ -543,11 +542,14 @@ class TidyInterface : public ClutterInterface {
       return NULL;
     }
 
+    // Begin TidyInterface::StageActor implementation.
     XWindow GetStageXWindow() { return window_; }
     void SetStageColor(const ClutterInterface::Color& color);
-    const ClutterInterface::Color& stage_color() const {
-      return stage_color_;
-    }
+    // End TidyInterface::StageActor implementation.
+
+    const ClutterInterface::Color& stage_color() const { return stage_color_; }
+    bool was_resized() const { return was_resized_; }
+    void unset_was_resized() { was_resized_ = false; }
 
    protected:
     virtual void SetSizeImpl(int* width, int* height);
@@ -555,6 +557,10 @@ class TidyInterface : public ClutterInterface {
    private:
     // This is the XWindow associated with the stage.  Owned by this class.
     XWindow window_;
+
+    // Has the stage been resized?  This gets set by SetSizeImpl() and
+    // then checked and reset by the visitor after it resizes the viewport.
+    bool was_resized_;
 
     ClutterInterface::Color stage_color_;
     DISALLOW_COPY_AND_ASSIGN(StageActor);

@@ -242,6 +242,7 @@ OpenGlDrawVisitor::OpenGlDrawVisitor(GLInterfaceBase* gl_interface,
     : gl_interface_(dynamic_cast<GLInterface*>(gl_interface)),
       interface_(interface),
       x_conn_(interface->x_conn()),
+      stage_(NULL),
       framebuffer_config_rgb_(0),
       framebuffer_config_rgba_(0),
       context_(0),
@@ -520,6 +521,11 @@ void OpenGlDrawVisitor::VisitStage(TidyInterface::StageActor* actor) {
   stage_ = actor;
   OpenGlQuadDrawingData* draw_data = dynamic_cast<OpenGlQuadDrawingData*>(
       quad_drawing_data_.get());
+
+  if (actor->was_resized()) {
+    gl_interface_->Viewport(0, 0, actor->width(), actor->height());
+    actor->unset_was_resized();
+  }
 
   gl_interface_->MatrixMode(GL_PROJECTION);
   gl_interface_->LoadIdentity();

@@ -13,6 +13,7 @@
 #include "base/logging.h"
 #include "window_manager/clutter_interface.h"
 #include "window_manager/event_loop.h"
+#include "window_manager/geometry.h"
 #include "window_manager/opengl_visitor.h"
 #include "window_manager/mock_gl_interface.h"
 #include "window_manager/mock_x_connection.h"
@@ -27,8 +28,8 @@ namespace window_manager {
 class TestInterface : virtual public TidyInterface {
  public:
   TestInterface(EventLoop* event_loop,
-                XConnection* x_connection,
-                GLInterfaceBase* gl_interface)
+                MockXConnection* x_connection,
+                MockGLInterface* gl_interface)
       : TidyInterface(event_loop, x_connection, gl_interface) {}
  private:
   DISALLOW_COPY_AND_ASSIGN(TestInterface);
@@ -48,12 +49,14 @@ class OpenGlVisitorTest : public ::testing::Test {
     interface_.reset(NULL);  // Must explicitly delete so that we get
                              // the order right.
   }
+
   TidyInterface* interface() { return interface_.get(); }
-  GLInterface* gl_interface() { return gl_interface_.get(); }
+  MockGLInterface* gl_interface() { return gl_interface_.get(); }
+
  private:
   scoped_ptr<TidyInterface> interface_;
-  scoped_ptr<GLInterface> gl_interface_;
-  scoped_ptr<XConnection> x_connection_;
+  scoped_ptr<MockGLInterface> gl_interface_;
+  scoped_ptr<MockXConnection> x_connection_;
   scoped_ptr<EventLoop> event_loop_;
 };
 
@@ -61,6 +64,7 @@ class OpenGlVisitorTestTree : public OpenGlVisitorTest {
  public:
   OpenGlVisitorTestTree() {}
   virtual ~OpenGlVisitorTestTree() {}
+
   void SetUp() {
     // Create an actor tree to test.
     stage_ = interface()->GetDefaultStage();
@@ -121,6 +125,7 @@ class OpenGlVisitorTestTree : public OpenGlVisitorTest {
     group1_.reset(NULL);
     stage_ = NULL;
   }
+
  protected:
   TidyInterface::StageActor* stage_;
   scoped_ptr<TidyInterface::ContainerActor> group1_;
@@ -176,6 +181,28 @@ TEST_F(OpenGlVisitorTestTree, LayerDepth) {
   EXPECT_FLOAT_EQ(
       depth,
       dynamic_cast<TidyInterface::ContainerActor*>(group1_.get())->z());
+}
+
+// Check that the viewport gets resized correctly when the stage is resized.
+TEST_F(OpenGlVisitorTest, ResizeViewport) {
+  TidyInterface::StageActor* stage = interface()->GetDefaultStage();
+  OpenGlDrawVisitor visitor(gl_interface(), interface(), stage);
+
+  stage->Accept(&visitor);
+  EXPECT_EQ(0, gl_interface()->viewport().x);
+  EXPECT_EQ(0, gl_interface()->viewport().y);
+  EXPECT_EQ(stage->width(), gl_interface()->viewport().width);
+  EXPECT_EQ(stage->height(), gl_interface()->viewport().height);
+
+  int new_width = stage->width() + 20;
+  int new_height = stage->height() + 10;
+  stage->SetSize(new_width, new_height);
+
+  stage->Accept(&visitor);
+  EXPECT_EQ(0, gl_interface()->viewport().x);
+  EXPECT_EQ(0, gl_interface()->viewport().y);
+  EXPECT_EQ(new_width, gl_interface()->viewport().width);
+  EXPECT_EQ(new_height, gl_interface()->viewport().height);
 }
 
 }  // end namespace window_manager

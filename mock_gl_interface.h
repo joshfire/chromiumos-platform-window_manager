@@ -5,6 +5,7 @@
 #ifndef WINDOW_MANAGER_MOCK_GL_INTERFACE_H_
 #define WINDOW_MANAGER_MOCK_GL_INTERFACE_H_
 
+#include "window_manager/geometry.h"
 #include "window_manager/gl_interface.h"
 
 namespace window_manager {
@@ -41,6 +42,7 @@ class MockGLInterface : public GLInterface {
                           int buffer) {}
 
   // GL functions we use.
+  void Viewport(GLint x, GLint y, GLsizei width, GLsizei height);
   void BindBuffer(GLenum target, GLuint buffer) {}
   void BindTexture(GLenum target, GLuint texture) {}
   void BlendFunc(GLenum sfactor, GLenum dfactor) {}
@@ -87,10 +89,18 @@ class MockGLInterface : public GLInterface {
                      const GLvoid* pointer) {}
   void ColorPointer(GLint size, GLenum type, GLsizei stride,
                     const GLvoid* pointer) {}
+
+  // Begin test-only methods.
+  Rect viewport() const { return viewport_; }
+  // End test-only methods.
+
  private:
   XVisualInfo mock_visual_info_;
   scoped_array<GLXFBConfig> mock_configs_;
   GLXContext mock_context_;
+
+  // Most recent dimensions set using Viewport().
+  Rect viewport_;
 
   // Next ID to hand out in CreateGlxPixmap().
   GLXPixmap next_glx_pixmap_id_;

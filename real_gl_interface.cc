@@ -217,6 +217,11 @@ void RealGLInterface::ReleaseGlxTexImage(GLXDrawable drawable,
 
 // GL Functions.
 
+void RealGLInterface::Viewport(
+    GLint x, GLint y, GLsizei width, GLsizei height) {
+  glViewport(x, y, width, height);
+}
+
 void RealGLInterface::BindBuffer(GLenum target, GLuint buffer) {
   glBindBuffer(target, buffer);
 }

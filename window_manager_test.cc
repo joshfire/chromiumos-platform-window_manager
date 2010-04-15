@@ -531,20 +531,17 @@ TEST_F(WindowManagerTest, ConfigureRequestResize) {
   EXPECT_EQ(new_height, info->height);
 }
 
-TEST_F(WindowManagerTest, RandR) {
+TEST_F(WindowManagerTest, ResizeScreen) {
   // Look up EWMH atoms relating to the screen size.
   XAtom geometry_atom = None;
   ASSERT_TRUE(xconn_->GetAtom("_NET_DESKTOP_GEOMETRY", &geometry_atom));
   XAtom workarea_atom = None;
   ASSERT_TRUE(xconn_->GetAtom("_NET_WORKAREA", &workarea_atom));
 
-  // Make sure that the WM is selecting RRScreenChangeNotify events on the
-  // root window.
   XWindow root_xid = xconn_->GetRootWindow();
   MockXConnection::WindowInfo* root_info = xconn_->GetWindowInfoOrDie(root_xid);
-  EXPECT_TRUE(root_info->randr_events_selected);
 
-  // EWMH size properties should also be set correctly.
+  // Check that they're set correctly.
   TestIntArrayProperty(root_xid, geometry_atom, 2,
                        root_info->width, root_info->height);
   TestIntArrayProperty(root_xid, workarea_atom, 4,
@@ -563,13 +560,7 @@ TEST_F(WindowManagerTest, RandR) {
 
   // Send the WM an event saying that the screen has been resized.
   XEvent event;
-  XRRScreenChangeNotifyEvent* randr_event =
-      reinterpret_cast<XRRScreenChangeNotifyEvent*>(&event);
-  randr_event->type = xconn_->randr_event_base() + RRScreenChangeNotify;
-  randr_event->window = root_xid;
-  randr_event->root = root_xid;
-  randr_event->width = new_width;
-  randr_event->height = new_height;
+  MockXConnection::InitConfigureNotifyEvent(&event, *root_info);
   wm_->HandleEvent(&event);
 
   EXPECT_EQ(new_width, wm_->width());

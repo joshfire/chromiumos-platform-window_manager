@@ -169,7 +169,7 @@ class WindowManager {
   FRIEND_TEST(WindowTest, TransientFor);  // uses TrackWindow()
   FRIEND_TEST(WindowManagerTest, RegisterExistence);
   FRIEND_TEST(WindowManagerTest, EventConsumer);
-  FRIEND_TEST(WindowManagerTest, RandR);
+  FRIEND_TEST(WindowManagerTest, ResizeScreen);
   FRIEND_TEST(WindowManagerTest, KeepPanelsAfterRestart);
   FRIEND_TEST(WindowManagerTest, LoggedIn);
 
@@ -220,6 +220,9 @@ class WindowManager {
   // that ManageExistingWindows() can also use it to handle windows that
   // were already mapped when the WM started.
   void HandleMappedWindow(Window* win);
+
+  // Handle the screen being resized.
+  void HandleScreenResize(int new_width, int new_height);
 
   // Set the WM_STATE property on a window.  Per ICCCM 4.1.3.1, 'state' can
   // be 0 (WithdrawnState), 1 (NormalState), or 3 (IconicState).  Per
