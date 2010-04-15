@@ -156,8 +156,7 @@ TEST_F(WindowManagerTest, ExistingWindows) {
   MockXConnection::WindowInfo* info = xconn_->GetWindowInfoOrDie(xid);
   xconn_->MapWindow(xid);
 
-  wm_.reset(new WindowManager(event_loop_.get(), xconn_.get(), clutter_.get()));
-  CHECK(wm_->Init());
+  CreateAndInitNewWm();
   Window* win = wm_->GetWindowOrDie(xid);
   EXPECT_TRUE(win->mapped());
   EXPECT_TRUE(dynamic_cast<const MockClutterInterface::Actor*>(
@@ -173,8 +172,7 @@ TEST_F(WindowManagerTest, ExistingWindows) {
   xid = CreateSimpleWindow();
   info = xconn_->GetWindowInfoOrDie(xid);
 
-  wm_.reset(new WindowManager(event_loop_.get(), xconn_.get(), clutter_.get()));
-  CHECK(wm_->Init());
+  CreateAndInitNewWm();
   EXPECT_FALSE(info->mapped);
   win = wm_->GetWindowOrDie(xid);
   EXPECT_FALSE(win->mapped());
@@ -201,8 +199,7 @@ TEST_F(WindowManagerTest, ExistingWindows) {
   xid = None;
   info = NULL;
 
-  wm_.reset(new WindowManager(event_loop_.get(), xconn_.get(), clutter_.get()));
-  CHECK(wm_->Init());
+  CreateAndInitNewWm();
 
   xid = CreateSimpleWindow();
   info = xconn_->GetWindowInfoOrDie(xid);
@@ -698,8 +695,7 @@ TEST_F(WindowManagerTest, WmIpcVersion) {
   // BasicWindowManagerTest::SetUp() sends a WM_NOTIFY_IPC_VERSION message
   // automatically, since most tests want something reasonable there.
   // Create a new WindowManager object to work around this.
-  wm_.reset(new WindowManager(event_loop_.get(), xconn_.get(), clutter_.get()));
-  ASSERT_TRUE(wm_->Init());
+  CreateAndInitNewWm();
 
   // We should assume version 0 if we haven't received a message from Chrome.
   EXPECT_EQ(0, wm_->wm_ipc_version());
@@ -725,8 +721,7 @@ TEST_F(WindowManagerTest, DeferRedirection) {
   MockXConnection::WindowInfo* existing_info =
       xconn_->GetWindowInfoOrDie(existing_xid);
   xconn_->MapWindow(existing_xid);
-  wm_.reset(new WindowManager(event_loop_.get(), xconn_.get(), clutter_.get()));
-  CHECK(wm_->Init());
+  CreateAndInitNewWm();
 
   // Check that the window manager redirected it.
   EXPECT_TRUE(existing_info->redirected);
@@ -874,36 +869,33 @@ TEST_F(WindowManagerTest, KeepPanelsAfterRestart) {
 
   // Now create and initialize a new window manager and check that it
   // creates a new Panel object.
-  wm_.reset(new WindowManager(event_loop_.get(), xconn_.get(), clutter_.get()));
-  ASSERT_TRUE(wm_->Init());
+  CreateAndInitNewWm();
   win = wm_->GetWindow(content_xid);
   ASSERT_TRUE(win != NULL);
   ASSERT_TRUE(wm_->panel_manager_->panel_bar_->GetPanelByWindow(*win) != NULL);
 }
 
-// Makes sure key bindings are disabled by default.
-TEST_F(WindowManagerTest, KeyBindingsDisabled) {
-  EXPECT_FALSE(wm_->logged_in_key_bindings_group_->enabled());
-  EXPECT_FALSE(wm_->layout_manager_->key_bindings_enabled());
-}
-
-// Makes sure the user isn't logged in by default and that toggling logged in
-// enables key bindings.
-TEST_F(WindowManagerTest, LoggedInFalse) {
-  EXPECT_FALSE(wm_->logged_in());
-
-  wm_->SetLoggedIn(true);
+// Makes sure the user is logged in by default, and that constructing a
+// WindowManager object with 'logged_in' set to false disables some key
+// bindings.
+TEST_F(WindowManagerTest, LoggedIn) {
   EXPECT_TRUE(wm_->logged_in());
   EXPECT_TRUE(wm_->logged_in_key_bindings_group_->enabled());
   EXPECT_TRUE(wm_->layout_manager_->key_bindings_enabled());
+
+  wm_.reset(new WindowManager(event_loop_.get(),
+                              xconn_.get(),
+                              clutter_.get(),
+                              false));  // logged_in=false
+  CHECK(wm_->Init());
+  EXPECT_FALSE(wm_->logged_in());
+  EXPECT_FALSE(wm_->logged_in_key_bindings_group_->enabled());
+  EXPECT_FALSE(wm_->layout_manager_->key_bindings_enabled());
 }
 
 // Test that the window manager refreshes the keyboard map when it gets a
 // MappingNotify event.
 TEST_F(WindowManagerTest, HandleMappingNotify) {
-  // Some key bindings only get enabled after the user has logged in.
-  wm_->SetLoggedIn(true);
-
   // Check that a grab has been installed for an arbitrary key binding
   // (Ctrl-Alt-l).
   EXPECT_EQ(0, xconn_->num_keymap_refreshes());

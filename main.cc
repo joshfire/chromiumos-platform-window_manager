@@ -51,8 +51,7 @@ DEFINE_string(minidump_dir, ".",
               "it doesn't exist.");
 DEFINE_int32(pause_at_start, 0,
              "Specify this to pause for N seconds at startup.");
-DEFINE_bool(logged_in, true,
-             "Whether Chrome is logged in or not.");
+DEFINE_bool(logged_in, true, "Whether Chrome is logged in or not.");
 
 using window_manager::ClutterInterface;
 using window_manager::EventLoop;
@@ -109,9 +108,8 @@ int main(int argc, char** argv) {
     setenv("DISPLAY", FLAGS_display.c_str(), 1);
 
   CommandLine::Init(argc, argv);
-  if (FLAGS_pause_at_start > 0) {
-    ::sleep(FLAGS_pause_at_start);
-  }
+  if (FLAGS_pause_at_start > 0)
+    sleep(FLAGS_pause_at_start);
 
 #ifdef USE_BREAKPAD
   if (!file_util::CreateDirectory(FilePath(FLAGS_minidump_dir)))
@@ -179,9 +177,8 @@ int main(int argc, char** argv) {
     clutter.reset(new MockClutterInterface(&xconn));
   }
 
-  WindowManager wm(&event_loop, &xconn, clutter.get());
+  WindowManager wm(&event_loop, &xconn, clutter.get(), FLAGS_logged_in);
   wm.Init();
-  wm.SetLoggedIn(FLAGS_logged_in);
 
   // TODO: Need to also use XAddConnectionWatch()?
   const int x11_fd = xconn.GetConnectionFileDescriptor();

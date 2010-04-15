@@ -709,8 +709,7 @@ TEST_F(LayoutManagerTest, InitialWindowStacking) {
 
   // Now create a new WindowManager object that will see the toplevel
   // window as already existing.
-  wm_.reset(new WindowManager(event_loop_.get(), xconn_.get(), clutter_.get()));
-  CHECK(wm_->Init());
+  CreateAndInitNewWm();
 
   // Get the stacking reference points for toplevel windows and for the
   // layer beneath them.

@@ -172,8 +172,13 @@ bool Window::FetchAndApplySizeHints() {
 }
 
 bool Window::FetchAndApplyTransientHint() {
+  XWindow prev_transient_for_xid = transient_for_xid_;
   if (!wm_->xconn()->GetTransientHintForWindow(xid_, &transient_for_xid_))
     return false;
+  if (transient_for_xid_ != prev_transient_for_xid) {
+    DLOG(INFO) << "Window " << xid_str() << " is transient for "
+               << XidStr(transient_for_xid_);
+  }
   return true;
 }
 
@@ -275,9 +280,10 @@ void Window::FetchAndApplyWmState() {
 void Window::FetchAndApplyWmWindowType(bool update_shadow) {
   wm_window_type_ = WM_WINDOW_TYPE_NORMAL;
 
-  int window_type_atom = 0;
+  int window_type_int = 0;
   if (wm_->xconn()->GetIntProperty(
-      xid_, wm_->GetXAtom(ATOM_NET_WM_WINDOW_TYPE), &window_type_atom)) {
+      xid_, wm_->GetXAtom(ATOM_NET_WM_WINDOW_TYPE), &window_type_int)) {
+    XAtom window_type_atom = static_cast<XAtom>(window_type_int);
     XAtom combo_atom = wm_->GetXAtom(ATOM_NET_WM_WINDOW_TYPE_COMBO);
     XAtom menu_atom = wm_->GetXAtom(ATOM_NET_WM_WINDOW_TYPE_MENU);
     XAtom dropdown_menu_atom = wm_->GetXAtom(
@@ -564,11 +570,6 @@ bool Window::ResizeClient(int width, int height, Gravity gravity) {
   return true;
 }
 
-bool Window::RaiseClient() {
-  bool result = wm_->xconn()->RaiseWindow(xid_);
-  return result;
-}
-
 bool Window::StackClientAbove(XWindow sibling_xid) {
   CHECK(sibling_xid != None);
   bool result = wm_->xconn()->StackWindow(xid_, sibling_xid, true);
@@ -607,6 +608,10 @@ void Window::MoveCompositedY(int y, int anim_ms) {
   actor_->MoveY(y, anim_ms);
   if (shadow_.get())
     shadow_->MoveY(y, anim_ms);
+}
+
+void Window::MoveCompositedToClient() {
+  MoveComposited(client_x_, client_y_, 0);
 }
 
 void Window::ShowComposited() {

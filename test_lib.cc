@@ -91,7 +91,10 @@ void BasicWindowManagerTest::SetUp() {
   xconn_->AddKeyMapping(next_keycode++, XK_Tab);
 
   clutter_.reset(new MockClutterInterface(xconn_.get()));
-  wm_.reset(new WindowManager(event_loop_.get(), xconn_.get(), clutter_.get()));
+  wm_.reset(new WindowManager(event_loop_.get(),
+                              xconn_.get(),
+                              clutter_.get(),
+                              true));  // logged_in
   CHECK(wm_->Init());
 
   // Tell the WM that we implement a recent-enough version of the IPC
@@ -104,6 +107,14 @@ void BasicWindowManagerTest::SetUp() {
   // Make the PanelManager's event coalescer run in synchronous mode; its
   // timer will never get triggered from within a test.
   wm_->panel_manager_->dragged_panel_event_coalescer_->set_synchronous(true);
+}
+
+void BasicWindowManagerTest::CreateAndInitNewWm() {
+  wm_.reset(new WindowManager(event_loop_.get(),
+                              xconn_.get(),
+                              clutter_.get(),
+                              true));  // logged_in
+  ASSERT_TRUE(wm_->Init());
 }
 
 XWindow BasicWindowManagerTest::CreateToplevelWindow(

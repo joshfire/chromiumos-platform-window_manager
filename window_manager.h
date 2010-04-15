@@ -50,7 +50,8 @@ class WindowManager {
  public:
   WindowManager(EventLoop* event_loop,
                 XConnection* xconn,
-                ClutterInterface* clutter);
+                ClutterInterface* clutter,
+                bool logged_in);
   ~WindowManager();
 
   EventLoop* event_loop() { return event_loop_; }
@@ -74,8 +75,6 @@ class WindowManager {
   WmIpc* wm_ipc() { return wm_ipc_.get(); }
   int wm_ipc_version() const { return wm_ipc_version_; }
 
-  // Has the user logged in?
-  void SetLoggedIn(bool logged_in);
   bool logged_in() const { return logged_in_; }
 
   // Get the title for the window that we create to take ownership of management
@@ -172,8 +171,7 @@ class WindowManager {
   FRIEND_TEST(WindowManagerTest, EventConsumer);
   FRIEND_TEST(WindowManagerTest, RandR);
   FRIEND_TEST(WindowManagerTest, KeepPanelsAfterRestart);
-  FRIEND_TEST(WindowManagerTest, KeyBindingsDisabled);
-  FRIEND_TEST(WindowManagerTest, LoggedInFalse);
+  FRIEND_TEST(WindowManagerTest, LoggedIn);
 
   typedef std::map<XWindow, std::set<EventConsumer*> > WindowEventConsumerMap;
   typedef std::map<std::pair<XWindow, XAtom>, std::set<EventConsumer*> >
@@ -382,8 +380,8 @@ class WindowManager {
   // starting a terminal).
   scoped_ptr<KeyBindingsGroup> logged_in_key_bindings_group_;
 
-  // See description above setter. This effects whether key bindings are enabled
-  // or not.
+  // Has the user logged in yet?  This affects whether some key bindings
+  // are enabled or not and determines how new windows are handled.
   bool logged_in_;
 
   // Has a toplevel Chrome window been mapped?  Depending on

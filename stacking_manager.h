@@ -70,6 +70,9 @@ class StackingManager {
     // windows.
     LAYER_TOPLEVEL_WINDOW,
 
+    // Chrome windows used by LoginController.
+    LAYER_LOGIN_WINDOW,
+
     // The background image.
     LAYER_BACKGROUND,
 

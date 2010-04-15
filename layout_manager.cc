@@ -272,7 +272,11 @@ bool LayoutManager::IsInputWindow(XWindow xid) {
 }
 
 bool LayoutManager::HandleWindowMapRequest(Window* win) {
+  DCHECK(win);
   saw_map_request_ = true;
+  if (!wm_->logged_in())
+    return false;
+
   if (!IsHandledWindowType(win->type()))
     return false;
 
@@ -282,7 +286,9 @@ bool LayoutManager::HandleWindowMapRequest(Window* win) {
 }
 
 void LayoutManager::HandleWindowMap(Window* win) {
-  CHECK(win);
+  DCHECK(win);
+  if (!wm_->logged_in())
+    return;
 
   // Just show override-redirect windows; they're already positioned
   // according to client apps' wishes.
@@ -377,7 +383,7 @@ void LayoutManager::HandleWindowMap(Window* win) {
 }
 
 void LayoutManager::HandleWindowUnmap(Window* win) {
-  CHECK(win);
+  DCHECK(win);
 
   // If necessary, reset some pointers to non-toplevels windows first.
   if (create_browser_window_ == win) {

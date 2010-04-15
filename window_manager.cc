@@ -167,23 +167,24 @@ static const char* FocusChangeEventDetailToName(int detail) {
 
 WindowManager::WindowManager(EventLoop* event_loop,
                              XConnection* xconn,
-                             ClutterInterface* clutter)
+                             ClutterInterface* clutter,
+                             bool logged_in)
     : event_loop_(event_loop),
       xconn_(xconn),
       clutter_(clutter),
-      root_(None),
+      root_(0),
       width_(0),
       height_(0),
-      wm_xid_(None),
+      wm_xid_(0),
       stage_(NULL),
       background_(NULL),
-      stage_xid_(None),
-      overlay_xid_(None),
-      background_xid_(None),
+      stage_xid_(0),
+      overlay_xid_(0),
+      background_xid_(0),
       stacking_manager_(NULL),
       mapped_xids_(new Stacker<XWindow>),
       stacked_xids_(new Stacker<XWindow>),
-      active_window_xid_(None),
+      active_window_xid_(0),
       metrics_reporter_timeout_id_(-1),
       query_keyboard_state_timeout_id_(-1),
       showing_hotkey_overlay_(false),
@@ -192,7 +193,7 @@ WindowManager::WindowManager(EventLoop* event_loop,
       layout_manager_y_(0),
       layout_manager_width_(1),
       layout_manager_height_(1),
-      logged_in_(false),
+      logged_in_(logged_in),
       chrome_window_has_been_mapped_(false) {
   CHECK(event_loop_);
   CHECK(xconn_);
@@ -210,22 +211,8 @@ WindowManager::~WindowManager() {
     event_loop_->RemoveTimeout(query_keyboard_state_timeout_id_);
 }
 
-void WindowManager::SetLoggedIn(bool logged_in) {
-  CHECK(key_bindings_.get()) << "Init() must be invoked first";
-  if (logged_in == logged_in_)
-    return;
-
-  logged_in_ = logged_in;
-
-  if (logged_in_) {
-    logged_in_key_bindings_group_->Enable();
-    layout_manager_->EnableKeyBindings();
-  } else {
-    logged_in_key_bindings_group_->Disable();
-    layout_manager_->DisableKeyBindings();
-  }
-}
 bool WindowManager::Init() {
+  CHECK(!root_) << "Init() may only be called once";
   root_ = xconn_->GetRootWindow();
   xconn_->SelectRandREventsOnWindow(root_);
   XConnection::WindowGeometry root_geometry;
@@ -271,7 +258,7 @@ bool WindowManager::Init() {
     // Create the compositing overlay, put the stage's window inside of it,
     // and make events fall through both to the client windows underneath.
     overlay_xid_ = xconn_->GetCompositingOverlayWindow(root_);
-    CHECK(overlay_xid_ != None);
+    CHECK(overlay_xid_);
     LOG(INFO) << "Reparenting stage window " << XidStr(stage_xid_)
               << " into Xcomposite overlay window " << XidStr(overlay_xid_);
     CHECK(xconn_->ReparentWindow(stage_xid_, overlay_xid_, 0, 0));
@@ -346,6 +333,7 @@ void WindowManager::ProcessPendingEvents() {
 }
 
 void WindowManager::HandleEvent(XEvent* event) {
+  DCHECK(root_) << "Init() must be called before events can be handled";
 #ifdef DEBUG_EVENTS
   if (event->type == xconn_->damage_event_base() + XDamageNotify) {
     DLOG(INFO) << "Got DAMAGE" << " event (" << event->type << ")";
@@ -419,7 +407,7 @@ XWindow WindowManager::CreateInputWindow(
       true,   // override redirect
       true,   // input only
       event_mask);
-  CHECK(xid != None);
+  CHECK(xid);
 
   if (FLAGS_wm_use_compositing) {
     // If the stage has been reparented into the overlay window, we need to
@@ -467,7 +455,7 @@ Window* WindowManager::GetWindow(XWindow xid) {
 
 Window* WindowManager::GetWindowOrDie(XWindow xid) {
   Window* win = GetWindow(xid);
-  CHECK(win) << "Unable to find window " << xid;
+  CHECK(win) << "Unable to find window " << XidStr(xid);
   return win;
 }
 
@@ -594,7 +582,7 @@ bool WindowManager::GetManagerSelection(
   // Find the current owner of the selection and select events on it so
   // we'll know when it's gone away.
   XWindow current_manager = xconn_->GetSelectionOwner(atom);
-  if (current_manager != None)
+  if (current_manager)
     xconn_->SelectInputOnWindow(current_manager, StructureNotifyMask, false);
 
   // Take ownership of the selection.
@@ -615,7 +603,7 @@ bool WindowManager::GetManagerSelection(
             root_, root_, GetXAtom(ATOM_MANAGER), data, StructureNotifyMask));
 
   // If there was an old manager running, wait for its window to go away.
-  if (current_manager != None)
+  if (current_manager)
     CHECK(xconn_->WaitForWindowToBeDestroyed(current_manager));
 
   return true;
@@ -630,7 +618,7 @@ bool WindowManager::RegisterExistence() {
                                  true,    // override redirect
                                  false,   // input only
                                  PropertyChangeMask);  // event mask
-  CHECK(wm_xid_ != None);
+  CHECK(wm_xid_);
   LOG(INFO) << "Created window " << XidStr(wm_xid_)
             << " for registering ourselves as the window manager";
 
@@ -914,7 +902,7 @@ void WindowManager::HandleMappedWindow(Window* win) {
 bool WindowManager::SetWmStateProperty(XWindow xid, int state) {
   vector<int> values;
   values.push_back(state);
-  values.push_back(None);  // we don't use icons
+  values.push_back(0);  // we don't use icons
   XAtom xatom = GetXAtom(ATOM_WM_STATE);
   return xconn_->SetIntArrayProperty(xid, xatom, xatom, values);
 }
@@ -1046,17 +1034,17 @@ void WindowManager::HandleConfigureNotify(const XConfigureEvent& e) {
   // If we're on the bottom but weren't previously, or aren't on the bottom
   // now but previously were or are now above a different sibling, update
   // the order.
-  if ((e.above == None && prev_above != NULL) ||
-      (e.above != None && (prev_above == NULL || *prev_above != e.above))) {
+  if ((!e.above && prev_above != NULL) ||
+      (e.above && (prev_above == NULL || *prev_above != e.above))) {
     restacked = true;
     stacked_xids_->Remove(e.window);
 
-    if (e.above != None && stacked_xids_->Contains(e.above)) {
+    if (e.above && stacked_xids_->Contains(e.above)) {
       stacked_xids_->AddAbove(e.window, e.above);
     } else {
       // 'above' being unset means that the window is stacked beneath its
       // siblings.
-      if (e.above != None) {
+      if (e.above) {
         LOG(WARNING) << "ConfigureNotify for " << XidStr(e.window)
                      << " said that it's stacked above " << XidStr(e.above)
                      << ", which we don't know about";
@@ -1111,14 +1099,14 @@ void WindowManager::HandleConfigureNotify(const XConfigureEvent& e) {
     // actors that aren't tied to X windows (e.g. the panel bar, shadows,
     // etc.).
     XWindow above_xid = e.above;
-    while (above_xid != None) {
+    while (above_xid) {
       Window* above_win = GetWindow(above_xid);
       if (above_win) {
         win->StackCompositedAbove(above_win->actor(), NULL, false);
         break;
       }
       const XWindow* above_ptr = stacked_xids_->GetUnder(above_xid);
-      above_xid = above_ptr ? *above_ptr : None;
+      above_xid = above_ptr ? *above_ptr : 0;
     }
   } else {
     if (restacked) {
@@ -1523,7 +1511,7 @@ void WindowManager::HandleUnmapNotify(const XUnmapEvent& e) {
     UpdateClientListStackingProperty();
   }
   if (active_window_xid_ == e.window)
-    SetActiveWindowProperty(None);
+    SetActiveWindowProperty(0);
 }
 
 void WindowManager::RunCommand(string command) {
@@ -1620,9 +1608,9 @@ void WindowManager::ToggleHotkeyOverlay() {
 void WindowManager::TakeScreenshot(bool use_active_window) {
   string message;
 
-  XWindow xid = None;
+  XWindow xid = 0;
   if (use_active_window) {
-    if (active_window_xid_ == None) {
+    if (active_window_xid_) {
       message = "No active window to use for screenshot";
       LOG(WARNING) << message;
     } else {
@@ -1632,7 +1620,7 @@ void WindowManager::TakeScreenshot(bool use_active_window) {
     xid = root_;
   }
 
-  if (xid != None) {
+  if (xid) {
     // TODO: Include the date and time in the screenshot.
     string filename = StringPrintf("%s/screenshot.png",
                                    FLAGS_wm_screenshot_output_dir.c_str());

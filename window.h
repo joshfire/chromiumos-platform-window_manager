@@ -224,9 +224,6 @@ class Window {
   // upper-left corner will move to accomodate the new size.
   bool ResizeClient(int width, int height, Gravity gravity);
 
-  // Raise the client window to the top of the stacking order.
-  bool RaiseClient();
-
   // Stack the client window directly above or below another window.
   bool StackClientAbove(XWindow sibling_xid);
   bool StackClientBelow(XWindow sibling_xid);
@@ -235,6 +232,7 @@ class Window {
   void MoveComposited(int x, int y, int anim_ms);
   void MoveCompositedX(int x, int anim_ms);
   void MoveCompositedY(int y, int anim_ms);
+  void MoveCompositedToClient();  // no animation
   void ShowComposited();
   void HideComposited();
   void SetCompositedOpacity(double opacity, int anim_ms);

@@ -48,6 +48,11 @@ class BasicWindowManagerTest : public ::testing::Test {
  protected:
   virtual void SetUp();
 
+  // Create a new WindowManager object with a logged-in state and store it
+  // in 'wm_'.  Helper method for a bunch of tests that need to do this
+  // repeatedly.
+  void CreateAndInitNewWm();
+
   // Create a toplevel client window with the passed-in position and
   // dimensions.
   XWindow CreateToplevelWindow(int x, int y, int width, int height);

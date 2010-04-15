@@ -229,6 +229,10 @@ class LoginController : public EventConsumer {
   // with the guest_window_.
   std::set<XWindow> known_windows_;
 
+  // Other windows that we're managing when Chrome is in a not-logged-in
+  // state.
+  std::set<XWindow> other_windows_;
+
   Entries entries_;
 
   // Have the sizes been calculated yet?

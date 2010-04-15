@@ -14,6 +14,7 @@
 #include "window_manager/window.h"
 #include "window_manager/window_manager.h"
 
+using std::set;
 using std::string;
 using std::vector;
 
@@ -145,7 +146,15 @@ bool LoginController::HandleWindowMapRequest(Window* win) {
       win->MapClient();
       return true;
     default:
-      return false;
+      if (wm_->logged_in())
+        return false;
+
+      // If we're not logged in yet, just map everything we see --
+      // LayoutManager's not going to do it for us.
+      wm_->stacking_manager()->StackWindowAtTopOfLayer(
+          win, StackingManager::LAYER_TOPLEVEL_WINDOW);
+      win->MapClient();
+      return true;
   }
 }
 
@@ -231,10 +240,39 @@ void LoginController::HandleWindowMap(Window* win) {
       break;
     }
     default:
+      // If we're not logged in yet, just show other windows at the spot
+      // where they asked to be mapped.
+      if (!wm_->logged_in()) {
+        if (!other_windows_.insert(win->xid()).second) {
+          LOG(ERROR) << "Already managing window " << win->xid_str();
+          return;
+        }
+        registrar_.RegisterForWindowEvents(win->xid());
+        if (!win->override_redirect()) {
+          // Restack the window again in case it was mapped before the
+          // window manager started.
+          wm_->stacking_manager()->StackWindowAtTopOfLayer(
+              win, StackingManager::LAYER_TOPLEVEL_WINDOW);
+
+          if (win->transient_for_xid()) {
+            // If this is a transient window, center it over its owner.
+            Window* owner_win = wm_->GetWindow(win->transient_for_xid());
+            if (owner_win) {
+              win->CenterClientOverWindow(owner_win);
+              win->MoveCompositedToClient();
+            }
+          }
+        }
+        win->ShowComposited();
+        win->TakeFocus(wm_->GetCurrentTimeFromServer());
+      }
+
       return;
   }
 
   known_windows_.insert(win->xid());
+  wm_->stacking_manager()->StackWindowAtTopOfLayer(
+      win, StackingManager::LAYER_LOGIN_WINDOW);
 
   OnGotNewWindowOrPropertyChange();
 
@@ -248,6 +286,13 @@ void LoginController::HandleWindowMap(Window* win) {
 }
 
 void LoginController::HandleWindowUnmap(Window* win) {
+  set<XWindow>::iterator other_windows_it = other_windows_.find(win->xid());
+  if (other_windows_it != other_windows_.end()) {
+    other_windows_.erase(other_windows_it);
+    registrar_.UnregisterForWindowEvents(win->xid());
+    return;
+  }
+
   if (!IsManaging(win))
     return;
 
@@ -296,8 +341,16 @@ void LoginController::HandleWindowConfigureRequest(Window* win,
                                                    int req_y,
                                                    int req_width,
                                                    int req_height) {
-  if (!IsManaging(win))
+  if (!IsManaging(win)) {
+    if (!wm_->logged_in()) {
+      // If Chrome isn't logged in, just make whatever changes the window
+      // asked for.
+      win->MoveClient(req_x, req_y);
+      win->MoveCompositedToClient();
+      win->ResizeClient(req_width, req_height, GRAVITY_NORTHWEST);
+    }
     return;
+  }
 
   // We manage the x/y, but let Chrome manage the width/height.
   win->ResizeClient(req_width, req_height, GRAVITY_NORTHWEST);
@@ -340,9 +393,30 @@ void LoginController::HandleChromeMessage(const WmIpc::Message& msg) {
 void LoginController::HandleClientMessage(XWindow xid,
                                           XAtom message_type,
                                           const long data[5]) {
+  Window* win = wm_->GetWindow(xid);
+  if (!win)
+    return;
+
+  if (!wm_->logged_in() &&
+      message_type == wm_->GetXAtom(ATOM_NET_ACTIVE_WINDOW)) {
+    // If we're not logged in and a window asks for the focus, give it to it.
+    win->TakeFocus(data[1]);
+  }
 }
 
 void LoginController::HandleFocusChange(XWindow xid, bool focus_in) {
+  if (!wm_->logged_in()) {
+    Window* win = wm_->GetWindow(xid);
+    if (!win)
+      return;
+
+    if (focus_in) {
+      wm_->SetActiveWindowProperty(xid);
+    } else {
+      if (xid == wm_->active_window_xid())
+        wm_->SetActiveWindowProperty(0);
+    }
+  }
 }
 
 void LoginController::HandleWindowPropertyChange(XWindow xid, XAtom xatom) {
@@ -466,29 +540,32 @@ void LoginController::InitialShow() {
 }
 
 void LoginController::StackWindows() {
+  wm_->stacking_manager()->StackWindowAtTopOfLayer(
+      background_window_, StackingManager::LAYER_LOGIN_WINDOW);
   background_window_->MoveComposited(0, 0, 0);
   background_window_->ShowComposited();
   background_window_->MoveClientToComposited();
 
   for (size_t i = 0; i < entries_.size(); ++i) {
     const Entry& entry = entries_[i];
-    entry.border_window->StackCompositedAbove(
-        background_window_->actor(), NULL, true);
-    entry.label_window->StackCompositedAbove(
-        background_window_->actor(), NULL, true);
-    entry.unselected_label_window->StackCompositedAbove(
-        background_window_->actor(), NULL, true);
-    entry.image_window->StackCompositedAbove(
-        entry.border_window->actor(), NULL, true);
-    entry.controls_window->StackCompositedAbove(
-        entry.border_window->actor(), NULL, true);
-    // Move the input window to the top of the stack. We really only need it
-    // above all of entries windows.
-    wm_->stacking_manager()->StackXidAtTopOfLayer(
-        entry.input_window_xid, StackingManager::LAYER_TOPLEVEL_WINDOW);
+    wm_->stacking_manager()->StackWindowAtTopOfLayer(
+        entry.controls_window, StackingManager::LAYER_LOGIN_WINDOW);
+    wm_->stacking_manager()->StackWindowAtTopOfLayer(
+        entry.image_window, StackingManager::LAYER_LOGIN_WINDOW);
+    wm_->stacking_manager()->StackWindowAtTopOfLayer(
+        entry.unselected_label_window, StackingManager::LAYER_LOGIN_WINDOW);
+    wm_->stacking_manager()->StackWindowAtTopOfLayer(
+        entry.label_window, StackingManager::LAYER_LOGIN_WINDOW);
+    wm_->stacking_manager()->StackWindowAtTopOfLayer(
+        entry.border_window, StackingManager::LAYER_LOGIN_WINDOW);
   }
 
-  background_window_->StackClientBelow(entries_[0].input_window_xid);
+  // Move the input windows to the top of the stack.
+  for (size_t i = 0; i < entries_.size(); ++i) {
+    const Entry& entry = entries_[i];
+    wm_->stacking_manager()->StackXidAtTopOfLayer(
+        entry.input_window_xid, StackingManager::LAYER_LOGIN_WINDOW);
+  }
 }
 
 void LoginController::SelectEntryAt(size_t index) {
@@ -680,6 +757,7 @@ void LoginController::SelectGuest() {
                                 0);
   guest_window_->StackCompositedBelow(guest_entry.border_window->actor(), NULL,
                                       true);
+  guest_window_->StackClientBelow(guest_entry.border_window->xid());
   guest_window_->ShowComposited();
 
   // Move the guest window to its target location.
@@ -688,9 +766,7 @@ void LoginController::SelectGuest() {
   guest_window_->MoveComposited((wm_->width() - guest_width) / 2,
                                 (wm_->height() - guest_height) / 2,
                                 kAnimationTimeInMs);
-  guest_window_->MoveClient((wm_->width() - guest_width) / 2,
-                            (wm_->height() - guest_height) / 2);
-  guest_window_->RaiseClient();
+  guest_window_->MoveClientToComposited();
 
   // Move the guest entry to the center of the window, expanding it to normal
   // size and fading out.
@@ -936,22 +1012,18 @@ void LoginController::OnGotNewWindowOrPropertyChange() {
   }
 
   if (entries_.empty() && guest_window_ && IsBackgroundWindowReady()) {
-    background_window_->MoveComposited(0, 0, 0);
+    background_window_->MoveClient(0, 0);
+    background_window_->MoveCompositedToClient();
     background_window_->ShowComposited();
-    background_window_->MoveClientToComposited();
-    background_window_->RaiseClient();
 
-    guest_window_->MoveComposited(
+    guest_window_->MoveClient(
         (wm_->width() - guest_window_->client_width()) / 2,
-        (wm_->height() - guest_window_->client_height()) / 2,
-        0);
+        (wm_->height() - guest_window_->client_height()) / 2);
+    guest_window_->MoveCompositedToClient();
     guest_window_->StackCompositedAbove(
         background_window_->actor(), NULL, true);
+    guest_window_->StackClientAbove(background_window_->xid());
     guest_window_->ShowComposited();
-    guest_window_->MoveClientToComposited();
-
-    // Make sure the guest window is above the background.
-    guest_window_->RaiseClient();
   }
 }
 
