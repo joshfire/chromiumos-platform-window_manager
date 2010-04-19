@@ -5,6 +5,7 @@
 #ifndef WINDOW_MANAGER_UTIL_H_
 #define WINDOW_MANAGER_UTIL_H_
 
+#include <ctime>
 #include <list>
 #include <map>
 #include <string>
@@ -211,6 +212,10 @@ inline uint32 NextPowerOfTwo(uint32 x) {
   x = x | (x >> 16);
   return x + 1;
 }
+
+// Convert the passed-in time (containing seconds since the epoch) to a
+// string of the form "YYYYMMDD-HHMMSS" in the local time zone.
+std::string GetTimeAsString(time_t utime);
 
 }  // namespace window_manager
 

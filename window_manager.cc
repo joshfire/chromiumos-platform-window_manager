@@ -6,6 +6,7 @@
 
 #include <cstdio>
 #include <cstdlib>
+#include <ctime>
 #include <list>
 #include <queue>
 
@@ -1626,8 +1627,9 @@ void WindowManager::TakeScreenshot(bool use_active_window) {
 
   if (xid) {
     // TODO: Include the date and time in the screenshot.
-    string filename = StringPrintf("%s/screenshot.png",
-                                   FLAGS_wm_screenshot_output_dir.c_str());
+    string filename = StringPrintf("%s/screenshot-%s.png",
+                                   FLAGS_wm_screenshot_output_dir.c_str(),
+                                   GetTimeAsString(::time(NULL)).c_str());
     const string command =
         StringPrintf("%s %s 0x%lx",
                      FLAGS_wm_screenshot_binary.c_str(), filename.c_str(), xid);

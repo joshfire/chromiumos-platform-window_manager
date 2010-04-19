@@ -33,9 +33,8 @@ extern "C" {
 #include "window_manager/gles/real_gles2_interface.h"
 #endif
 #include "window_manager/real_x_connection.h"
+#include "window_manager/util.h"
 #include "window_manager/window_manager.h"
-
-using std::string;
 
 DECLARE_bool(wm_use_compositing);  // from window_manager.cc
 
@@ -53,8 +52,10 @@ DEFINE_int32(pause_at_start, 0,
              "Specify this to pause for N seconds at startup.");
 DEFINE_bool(logged_in, true, "Whether Chrome is logged in or not.");
 
+using std::string;
 using window_manager::ClutterInterface;
 using window_manager::EventLoop;
+using window_manager::GetTimeAsString;
 using window_manager::MockClutterInterface;
 using window_manager::TidyInterface;
 #if defined(TIDY_OPENGL)
@@ -66,17 +67,6 @@ using window_manager::RealGles2Interface;
 #endif
 using window_manager::RealXConnection;
 using window_manager::WindowManager;
-
-// Get the current time in the local time zone as "YYYYMMDD-HHMMSS".
-static string GetCurrentTimeAsString() {
-  time_t now = time(NULL);
-  CHECK(now >= 0);
-  struct tm now_tm;
-  CHECK(localtime_r(&now, &now_tm) == &now_tm);
-  char now_str[16];
-  CHECK(strftime(now_str, sizeof(now_str), "%Y%m%d-%H%M%S", &now_tm) == 15);
-  return string(now_str);
-}
 
 // Handler called by Chrome logging code on failed asserts.
 static void HandleLogAssert(const string& str) {
@@ -119,7 +109,8 @@ int main(int argc, char** argv) {
 #endif
 
   const string log_basename = StringPrintf(
-      "%s.%s", WindowManager::GetWmName(), GetCurrentTimeAsString().c_str());
+      "%s.%s", WindowManager::GetWmName(),
+      GetTimeAsString(::time(NULL)).c_str());
   if (!FLAGS_logtostderr) {
     if (!file_util::CreateDirectory(FilePath(FLAGS_log_dir))) {
       LOG(ERROR) << "Unable to create logging directory " << FLAGS_log_dir;

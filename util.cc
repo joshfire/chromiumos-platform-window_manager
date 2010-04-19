@@ -59,4 +59,12 @@ string XidStr(unsigned long xid) {
   return StringPrintf("0x%lx", xid);
 }
 
+string GetTimeAsString(time_t utime) {
+  struct tm tm;
+  CHECK(localtime_r(&utime, &tm) == &tm);
+  char str[16];
+  CHECK(strftime(str, sizeof(str), "%Y%m%d-%H%M%S", &tm) == 15);
+  return string(str);
+}
+
 }  // namespace window_manager
