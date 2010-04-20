@@ -141,7 +141,8 @@ bool LoginController::HandleWindowMapRequest(Window* win) {
     case WmIpc::WINDOW_TYPE_LOGIN_CONTROLS:
     case WmIpc::WINDOW_TYPE_LOGIN_LABEL:
     case WmIpc::WINDOW_TYPE_LOGIN_UNSELECTED_LABEL:
-      // Move the client offscreen. We'll move it back on screen when ready.
+      // Move all client windows offscreen.  We'll move the windows that
+      // need to be onscreen (just the background and controls windows) later.
       win->MoveClientOffscreen();
       win->MapClient();
       return true;
@@ -505,6 +506,7 @@ void LoginController::InitialShow() {
       entry.controls_window->TakeFocus(wm_->GetCurrentTimeFromServer());
       entry.unselected_label_window->HideComposited();
       entry.label_window->ShowComposited();
+      entry.controls_window->MoveClient(controls_bounds.x, controls_bounds.y);
     } else {
       ScaleUnselectedEntry(entry, border_bounds, label_bounds, true);
       entry.label_window->HideComposited();
@@ -549,15 +551,15 @@ void LoginController::StackWindows() {
   for (size_t i = 0; i < entries_.size(); ++i) {
     const Entry& entry = entries_[i];
     wm_->stacking_manager()->StackWindowAtTopOfLayer(
-        entry.controls_window, StackingManager::LAYER_LOGIN_WINDOW);
-    wm_->stacking_manager()->StackWindowAtTopOfLayer(
-        entry.image_window, StackingManager::LAYER_LOGIN_WINDOW);
-    wm_->stacking_manager()->StackWindowAtTopOfLayer(
         entry.unselected_label_window, StackingManager::LAYER_LOGIN_WINDOW);
     wm_->stacking_manager()->StackWindowAtTopOfLayer(
         entry.label_window, StackingManager::LAYER_LOGIN_WINDOW);
     wm_->stacking_manager()->StackWindowAtTopOfLayer(
         entry.border_window, StackingManager::LAYER_LOGIN_WINDOW);
+    wm_->stacking_manager()->StackWindowAtTopOfLayer(
+        entry.image_window, StackingManager::LAYER_LOGIN_WINDOW);
+    wm_->stacking_manager()->StackWindowAtTopOfLayer(
+        entry.controls_window, StackingManager::LAYER_LOGIN_WINDOW);
   }
 
   // Move the input windows to the top of the stack.
@@ -621,7 +623,7 @@ void LoginController::SelectEntryAt(size_t index) {
       entry.controls_window->TakeFocus(wm_->GetCurrentTimeFromServer());
 
       // This item became selected. Move the label window to match the bounds
-      // of the unnselected and scale it up.
+      // of the unselected label and scale it up.
       entry.label_window->ScaleComposited(unselected_label_scale_x_,
                                           unselected_label_scale_y_,
                                           0);
@@ -645,14 +647,13 @@ void LoginController::SelectEntryAt(size_t index) {
                                           kAnimationTimeInMs);
       entry.label_window->MoveComposited(label_bounds.x, label_bounds.y,
                                          kAnimationTimeInMs);
+      entry.controls_window->MoveClientOffscreen();
     }
 
     entry.border_window->MoveComposited(border_bounds.x, border_bounds.y,
                                         kAnimationTimeInMs);
-
     entry.image_window->MoveComposited(image_bounds.x, image_bounds.y,
                                        kAnimationTimeInMs);
-
     entry.controls_window->MoveComposited(controls_bounds.x, controls_bounds.y,
                                           kAnimationTimeInMs);
 
@@ -701,6 +702,7 @@ void LoginController::Hide() {
           max_y + (controls_bounds.y - border_bounds.y),
           kAnimationTimeInMs);
       entry.controls_window->SetCompositedOpacity(0, kAnimationTimeInMs);
+      entry.controls_window->MoveClientOffscreen();
       entry.label_window->MoveComposited(
           label_bounds.x,
           max_y + (label_bounds.y - border_bounds.y),
