@@ -91,7 +91,7 @@ wm_env = base_env.Clone()
 # Add a builder for .proto files
 wm_env['BUILDERS']['ProtocolBuffer'] = proto_builder
 
-wm_env.Append(LIBS='protobuf')
+wm_env.Append(LIBS=['protobuf'])
 
 wm_env.ParseConfig('pkg-config --cflags --libs libpcrecpp libpng12 ' +
                    'xcb x11-xcb xcb-composite xcb-randr xcb-shape xcb-damage ' +
@@ -176,7 +176,7 @@ srcs = Split('''\
 ''')
 libtest = wm_env.Library('test', Split(srcs))
 
-wm_env.Append(LIBS=[libwm_core, libwm_ipc])
+wm_env.Prepend(LIBS=[libwm_core, libwm_ipc])
 if 'USE_BREAKPAD' in ARGUMENTS:
   wm_env.Append(CPPDEFINES=['USE_BREAKPAD'], LIBS=['libbreakpad'])
 
