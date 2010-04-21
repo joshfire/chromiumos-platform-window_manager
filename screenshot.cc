@@ -6,40 +6,45 @@
 #include <sstream>
 
 #include <cairo/cairo.h>
+#include <gflags/gflags.h>
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
 
 #include "base/logging.h"
 
+DEFINE_string(window, "",
+              "Window to capture, as a hexadecimal X ID "
+              "(if empty, the root window is captured)");
+
 using std::hex;
 using std::istringstream;
 
 static const char* kUsage =
-    "Usage: screenshot FILENAME [WINDOW]\n"
+    "Usage: screenshot [FLAGS] FILENAME.png\n"
     "\n"
-    "Writes the contents of the root window, by default, or a client\n"
-    "window, if supplied (as a hexadecimal X ID), to a file.\n";
+    "Saves the contents of the entire screen or of a window to a file.";
 
 int main(int argc, char** argv) {
-  Display* display = XOpenDisplay(NULL);
-  CHECK(display);
-
-  if (argc == 1 || argc > 3) {
-    fprintf(stderr, "%s", kUsage);
+  google::SetUsageMessage(kUsage);
+  google::ParseCommandLineFlags(&argc, &argv, true);
+  if (argc != 2) {
+    google::ShowUsageWithFlags(argv[0]);
     return 1;
   }
+
+  Display* display = XOpenDisplay(NULL);
+  CHECK(display);
 
   const char* filename = argv[1];
 
   Window win = None;
-  if (argc == 2) {
+  if (FLAGS_window.empty()) {
     win = DefaultRootWindow(display);
   } else {
-    istringstream input(argv[2]);
-    if ((input >> hex >> win).fail()) {
-      fprintf(stderr, "%s", kUsage);
-      return 1;
-    }
+    istringstream input(FLAGS_window);
+    CHECK(!(input >> hex >> win).fail())
+        << "Unable to parse \"" << input << "\" as window "
+        << "(should be hexadecimal X ID)";
   }
 
   XWindowAttributes attr;
@@ -47,12 +52,13 @@ int main(int argc, char** argv) {
   XImage* image = XGetImage(
       display, win, 0, 0, attr.width, attr.height, AllPlanes, ZPixmap);
   CHECK(image);
-  CHECK(image->depth == 24) << "Unsupported image depth " << image->depth;
+  CHECK(image->depth == 24 || image->depth == 32)
+      << "Unsupported image depth " << image->depth;
 
   cairo_surface_t* surface =
       cairo_image_surface_create_for_data(
           reinterpret_cast<unsigned char*>(image->data),
-          CAIRO_FORMAT_RGB24,
+          image->depth == 24 ? CAIRO_FORMAT_RGB24 : CAIRO_FORMAT_ARGB32,
           image->width,
           image->height,
           image->bytes_per_line);

@@ -4,6 +4,9 @@
 
 #include "window_manager/window_manager.h"
 
+#include <unistd.h>
+
+#include <cerrno>
 #include <cstdio>
 #include <cstdlib>
 #include <ctime>
@@ -18,6 +21,8 @@ extern "C" {
 }
 #include <gflags/gflags.h>
 
+#include "base/file_path.h"
+#include "base/file_util.h"
 #include "base/logging.h"
 #include "base/string_util.h"
 #include "window_manager/callback.h"
@@ -1611,40 +1616,33 @@ void WindowManager::ToggleHotkeyOverlay() {
 }
 
 void WindowManager::TakeScreenshot(bool use_active_window) {
-  string message;
+  if (access(FLAGS_wm_screenshot_output_dir.c_str(), F_OK) != 0 &&
+      !file_util::CreateDirectory(FilePath(FLAGS_wm_screenshot_output_dir))) {
+    LOG(ERROR) << "Unable to create screenshot directory "
+               << FLAGS_wm_screenshot_output_dir;
+    return;
+  }
 
-  XWindow xid = 0;
+  string command = FLAGS_wm_screenshot_binary;
+
   if (use_active_window) {
-    if (active_window_xid_) {
-      message = "No active window to use for screenshot";
-      LOG(WARNING) << message;
-    } else {
-      xid = active_window_xid_;
+    if (!active_window_xid_) {
+      LOG(WARNING) << "No active window to use for screenshot";
+      return;
     }
+    command += StringPrintf(" --window=0x%lx", active_window_xid_);
+  }
+
+  string filename = StringPrintf("%s/screenshot-%s.png",
+                                 FLAGS_wm_screenshot_output_dir.c_str(),
+                                 GetTimeAsString(::time(NULL)).c_str());
+  command += " " + filename;
+
+  if (system(command.c_str()) < 0) {
+    LOG(ERROR) << "Taking screenshot via \"" << command << "\" failed";
   } else {
-    xid = root_;
+    LOG(INFO) << "Saved screenshot to " << filename;
   }
-
-  if (xid) {
-    // TODO: Include the date and time in the screenshot.
-    string filename = StringPrintf("%s/screenshot-%s.png",
-                                   FLAGS_wm_screenshot_output_dir.c_str(),
-                                   GetTimeAsString(::time(NULL)).c_str());
-    const string command =
-        StringPrintf("%s %s 0x%lx",
-                     FLAGS_wm_screenshot_binary.c_str(), filename.c_str(), xid);
-    if (system(command.c_str()) < 0) {
-      message = StringPrintf("Taking screenshot via \"%s\" failed",
-                             command.c_str());
-      LOG(WARNING) << message;
-    } else {
-      message = StringPrintf("Saved screenshot of window %s to %s",
-                             XidStr(xid).c_str(), filename.c_str());
-      LOG(INFO) << message;
-    }
-  }
-
-  // TODO: Display the message onscreen.
 }
 
 void WindowManager::QueryKeyboardState() {
