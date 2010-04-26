@@ -4,8 +4,14 @@
 
 #include "window_manager/gles/real_gles2_interface.h"
 
+#ifndef EGLAPI
 #define EGLAPI
+#endif
+
+#ifndef EGLAPIENTRY
 #define EGLAPIENTRY
+#endif
+
 #include <EGL/egl.h>
 #include "base/logging.h"
 #include "window_manager/real_x_connection.h"
@@ -510,4 +516,3 @@ void RealGles2Interface::EGLImageTargetRenderbufferStorageOES(
 }
 
 }  // namespace window_manager
-
