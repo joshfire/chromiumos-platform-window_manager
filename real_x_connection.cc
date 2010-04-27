@@ -557,7 +557,9 @@ bool RealXConnection::IsWindowShaped(XWindow xid) {
 }
 
 bool RealXConnection::SelectShapeEventsOnWindow(XWindow xid) {
-  xcb_shape_select_input(xcb_conn_, xid, 1);
+  // xcb_shape_select_input() appears to be broken (maybe just when used in
+  // conjunction with an Xlib event loop?).
+  XShapeSelectInput(display_, xid, ShapeNotifyMask);
   return true;
 }
 
