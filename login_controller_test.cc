@@ -45,7 +45,7 @@ TEST_F(LoginControllerTest, OtherWindows) {
   const int initial_width = 300;
   const int initial_height = 200;
   const XWindow xid =
-      CreateToplevelWindow(initial_x, initial_y, initial_width, initial_height);
+      CreateBasicWindow(initial_x, initial_y, initial_width, initial_height);
   MockXConnection::WindowInfo* info = xconn_->GetWindowInfoOrDie(xid);
   ASSERT_FALSE(info->mapped);
 

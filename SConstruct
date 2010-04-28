@@ -146,6 +146,7 @@ srcs = Split('''\
   panel_manager.cc
   pointer_position_watcher.cc
   shadow.cc
+  snapshot_window.cc
   stacking_manager.cc
   toplevel_window.cc
   window.cc

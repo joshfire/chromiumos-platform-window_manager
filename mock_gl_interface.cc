@@ -164,5 +164,4 @@ void MockGLInterface::Viewport(GLint x, GLint y,
                                GLsizei width, GLsizei height) {
   viewport_.reset(x, y, width, height);
 }
-
 }  // namespace window_manager

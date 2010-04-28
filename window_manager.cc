@@ -798,11 +798,13 @@ bool WindowManager::ManageExistingWindows() {
   }
 
   // Panel content windows that are already mapped.  We defer calling
-  // HandleMappedWindow() on these until we've handled all other windows to
-  // make sure that we handle the corresponding panel titlebar windows
-  // first -- the panel code requires that the titlebars be mapped before
-  // the content windows.
-  vector<Window*> mapped_panel_content_windows;
+  // HandleMappedWindow() on these until we've handled all other
+  // windows to make sure that we handle the corresponding panel
+  // titlebar windows and Chrome toplevel windows first -- the panel
+  // code requires that the titlebars be mapped before the content
+  // windows, and the snapshot code requires that the toplevel windows
+  // exist before the snapshots are mapped.
+  vector<Window*> deferred_mapped_windows;
 
   LOG(INFO) << "Taking ownership of " << windows.size() << " window"
             << (windows.size() == 1 ? "" : "s");
@@ -816,15 +818,16 @@ bool WindowManager::ManageExistingWindows() {
     Window* win = TrackWindow(xid, attr.override_redirect);
     if (win && win->FetchMapState()) {
       win->set_mapped(true);
-      if (win->type() == WmIpc::WINDOW_TYPE_CHROME_PANEL_CONTENT)
-        mapped_panel_content_windows.push_back(win);
+      if (win->type() == WmIpc::WINDOW_TYPE_CHROME_PANEL_CONTENT ||
+          win->type() == WmIpc::WINDOW_TYPE_CHROME_TAB_SNAPSHOT)
+        deferred_mapped_windows.push_back(win);
       else
         HandleMappedWindow(win);
     }
   }
 
-  for (vector<Window*>::iterator it = mapped_panel_content_windows.begin();
-       it != mapped_panel_content_windows.end(); ++it) {
+  for (vector<Window*>::iterator it = deferred_mapped_windows.begin();
+       it != deferred_mapped_windows.end(); ++it) {
     HandleMappedWindow(*it);
   }
 
@@ -1435,7 +1438,7 @@ void WindowManager::HandleReparentNotify(const XReparentEvent& e) {
   if (e.parent == root_) {
     // If a window got reparented *to* the root window, we want to track
     // it in the stacking order (we don't bother tracking it as a true
-    // top-level window; we don't see this happen much outside of Flash
+    // toplevel window; we don't see this happen much outside of Flash
     // windows).  The window gets stacked on top of its new siblings.
     DCHECK(!stacked_xids_->Contains(e.window));
     stacked_xids_->AddOnTop(e.window);

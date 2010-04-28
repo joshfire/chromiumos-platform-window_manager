@@ -32,6 +32,9 @@ class WmIpc {
     WINDOW_TYPE_UNKNOWN = 0,
 
     // A top-level Chrome window.
+    //   param[0]: The number of tabs currently in this Chrome window.
+    //   param[1]: The index of the currently selected tab in this
+    //             Chrome window.
     WINDOW_TYPE_CHROME_TOPLEVEL,
 
     // Vestiges of the old windows-across-the-bottom overview mode.
@@ -48,8 +51,8 @@ class WmIpc {
     // drawn above the panel when it's expanded.
     WINDOW_TYPE_CHROME_PANEL_TITLEBAR,
 
-    // A small window that when clicked creates a new browser window.
-    WINDOW_TYPE_CREATE_BROWSER_WINDOW,
+    // Vestiges of an earlier UI design.
+    DEPRECATED_WINDOW_TYPE_CREATE_BROWSER_WINDOW,
 
     // A Chrome info bubble (e.g. the bookmark bubble).  These are
     // transient RGBA windows; we skip the usual transient behavior of
@@ -58,8 +61,7 @@ class WmIpc {
 
     // A window showing a view of a tab within a Chrome window.
     //   param[0]: X ID of toplevel window that owns it.
-    //   param[1]: index of this tab in the tab order (range is 0 to
-    //             sum of all tabs in all browsers).
+    //   param[1]: index of this tab in the toplevel window that owns it.
     WINDOW_TYPE_CHROME_TAB_SNAPSHOT,
 
     // The following types are used for the windows that represent a user that
@@ -166,13 +168,16 @@ class WmIpc {
       DEPRECATED_WM_FOCUS_WINDOW,
 
       // Notify Chrome that the layout mode (for example, overview or
-      // active) has changed.
-      //   param[0]: new mode (0 means active, 1 means overview)
+      // active) has changed.  Since overview mode can be "cancelled"
+      // (user hits escape to revert), we have an extra parameter to
+      // indicate this.
+      //   param[0]: new mode (0 means active mode, 1 means overview mode)
+      //   param[1]: was mode cancelled? (0 = no, 1 = yes)
       CHROME_NOTIFY_LAYOUT_MODE,
 
-      // Instruct the WM to enter overview mode.
+      // Deprecated. Instruct the WM to enter overview mode.
       //   param[0]: X ID of the window to show the tab overview for.
-      WM_SWITCH_TO_OVERVIEW_MODE,
+      DEPRECATED_WM_SWITCH_TO_OVERVIEW_MODE,
 
       // Let the WM know which version of this file Chrome is using.  It's
       // difficult to make changes synchronously to Chrome and the WM (our
@@ -199,11 +204,11 @@ class WmIpc {
       //   param[0]: version of this protocol currently supported
       WM_NOTIFY_IPC_VERSION,
 
-      // Notify Chrome when a tab snapshot has been 'magnified' in the
-      // overview.  Sent to the top level window.
-      //   param[0]: X ID of the tab snapshot window
-      //   param[1]: state (0 means end magnify, 1 means begin magnify)
-      CHROME_NOTIFY_TAB_SNAPSHOT_MAGNIFY,
+      // Notify Chrome when a tab has been selected in the overview.
+      // Sent to the toplevel window associated with the magnified
+      // tab.
+      //   param[0]: tab index of newly selected tab.
+      CHROME_NOTIFY_TAB_SELECT,
 
       // Forces the window manager to hide the login windows.
       WM_HIDE_LOGIN,
@@ -213,7 +218,7 @@ class WmIpc {
       // ignored. This is used when the user attempts a login to make sure the
       // user doesn't select another user.
       //
-      // param[0]: true to enable, false to disable.
+      //   param[0]: true to enable, false to disable.
       WM_SET_LOGIN_STATE,
 
       // Notify chrome when the guest entry is selected and the guest window

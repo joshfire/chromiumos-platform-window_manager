@@ -7,9 +7,6 @@
 #include <algorithm>
 #include <cmath>
 #include <tr1/memory>
-extern "C" {
-#include <X11/Xatom.h>
-}
 
 #include <gflags/gflags.h>
 
@@ -20,6 +17,7 @@ extern "C" {
 #include "window_manager/event_consumer_registrar.h"
 #include "window_manager/geometry.h"
 #include "window_manager/motion_event_coalescer.h"
+#include "window_manager/snapshot_window.h"
 #include "window_manager/stacking_manager.h"
 #include "window_manager/system_metrics.pb.h"
 #include "window_manager/toplevel_window.h"
@@ -32,11 +30,12 @@ DEFINE_bool(lm_honor_window_size_hints, false,
             "When maximizing a client window, constrain its size according to "
             "the size hints that the client app has provided (e.g. max size, "
             "size increment, etc.) instead of automatically making it fill the "
-            "screen");
+            "screen(s)");
 
 using std::map;
 using std::max;
 using std::min;
+using std::string;
 using std::tr1::shared_ptr;
 
 namespace window_manager {
@@ -52,27 +51,28 @@ static const double kOverviewWindowMaxSizeRatio = 0.5;
 // peeking out underneath the window on top of it in overview mode?
 static const double kOverviewExposedWindowRatio = 0.1;
 
-// Padding between the create browser window and the bottom of the screen.
-static const int kCreateBrowserWindowVerticalPadding = 10;
-
 // Duration between panning updates while a drag is occurring on the
 // background window in overview mode.
 static const int kOverviewDragUpdateMs = 50;
 
 // Animation speed used for windows.
-const int LayoutManager::kWindowAnimMs = 200;
+const int LayoutManager::kWindowAnimMs = 250;
 
-LayoutManager::LayoutManager
-    (WindowManager* wm, int x, int y, int width, int height)
+// Animation speed used for windows.
+const int LayoutManager::kWindowOpacityAnimMs =
+    LayoutManager::kWindowAnimMs / 4;
+
+LayoutManager::LayoutManager(WindowManager* wm,
+                             int x, int y,
+                             int width, int height)
     : wm_(wm),
-      mode_(MODE_ACTIVE),
+      mode_(MODE_NEW),
       x_(x),
       y_(y),
       width_(-1),
       height_(-1),
-      magnified_toplevel_(NULL),
-      active_toplevel_(NULL),
-      create_browser_window_(NULL),
+      current_toplevel_(NULL),
+      current_snapshot_(NULL),
       overview_panning_offset_(0),
       overview_background_event_coalescer_(
           new MotionEventCoalescer(
@@ -89,9 +89,6 @@ LayoutManager::LayoutManager
           new KeyBindingsGroup(wm->key_bindings())) {
   // Disable the overview key bindings, since we start in active mode.
   overview_mode_key_bindings_group_->Disable();
-
-  event_consumer_registrar_->RegisterForChromeMessages(
-      WmIpc::Message::WM_SWITCH_TO_OVERVIEW_MODE);
 
   MoveAndResize(x, y, width, height);
 
@@ -111,7 +108,8 @@ LayoutManager::LayoutManager
 
   kb->AddAction(
       "switch-to-active-mode",
-      NewPermanentCallback(this, &LayoutManager::SwitchToActiveMode, false),
+      NewPermanentCallback(this, &LayoutManager::SetMode,
+                           MODE_ACTIVE_CANCELLED),
       NULL, NULL);
   overview_mode_key_bindings_group_->AddBinding(
       KeyBindings::KeyCombo(XK_Escape, 0), "switch-to-active-mode");
@@ -121,7 +119,7 @@ LayoutManager::LayoutManager
   kb->AddAction(
       "cycle-active-forward",
       NewPermanentCallback(
-          this, &LayoutManager::CycleActiveToplevelWindow, true),
+          this, &LayoutManager::CycleCurrentToplevelWindow, true),
       NULL, NULL);
   active_mode_key_bindings_group_->AddBinding(
       KeyBindings::KeyCombo(XK_Tab, KeyBindings::kAltMask),
@@ -133,7 +131,7 @@ LayoutManager::LayoutManager
   kb->AddAction(
       "cycle-active-backward",
       NewPermanentCallback(
-          this, &LayoutManager::CycleActiveToplevelWindow, false),
+          this, &LayoutManager::CycleCurrentToplevelWindow, false),
       NULL, NULL);
   active_mode_key_bindings_group_->AddBinding(
       KeyBindings::KeyCombo(
@@ -146,7 +144,7 @@ LayoutManager::LayoutManager
   kb->AddAction(
       "cycle-magnification-forward",
       NewPermanentCallback(
-          this, &LayoutManager::CycleMagnifiedToplevelWindow, true),
+          this, &LayoutManager::CycleCurrentSnapshotWindow, true),
       NULL, NULL);
   overview_mode_key_bindings_group_->AddBinding(
       KeyBindings::KeyCombo(XK_Right, 0), "cycle-magnification-forward");
@@ -160,7 +158,7 @@ LayoutManager::LayoutManager
   kb->AddAction(
       "cycle-magnification-backward",
       NewPermanentCallback(
-          this, &LayoutManager::CycleMagnifiedToplevelWindow, false),
+          this, &LayoutManager::CycleCurrentSnapshotWindow, false),
       NULL, NULL);
   overview_mode_key_bindings_group_->AddBinding(
       KeyBindings::KeyCombo(XK_Left, 0), "cycle-magnification-backward");
@@ -173,55 +171,57 @@ LayoutManager::LayoutManager
       "cycle-magnification-backward");
 
   kb->AddAction(
-      "switch-to-active-mode-for-magnified",
-      NewPermanentCallback(this, &LayoutManager::SwitchToActiveMode, true),
+      "switch-to-active-mode-for-selected",
+      NewPermanentCallback(this, &LayoutManager::SetMode, MODE_ACTIVE),
       NULL, NULL);
   overview_mode_key_bindings_group_->AddBinding(
       KeyBindings::KeyCombo(XK_Return, 0),
-      "switch-to-active-mode-for-magnified");
+      "switch-to-active-mode-for-selected");
 
   for (int i = 0; i < 8; ++i) {
     kb->AddAction(
         StringPrintf("activate-toplevel-with-index-%d", i),
         NewPermanentCallback(
-            this, &LayoutManager::ActivateToplevelWindowByIndex, i),
+            this, &LayoutManager::HandleToplevelChangeRequest, i),
         NULL, NULL);
     active_mode_key_bindings_group_->AddBinding(
         KeyBindings::KeyCombo(XK_1 + i, KeyBindings::kAltMask),
         StringPrintf("activate-toplevel-with-index-%d", i));
 
     kb->AddAction(
-        StringPrintf("magnify-toplevel-with-index-%d", i),
+        StringPrintf("select-snapshot-with-index-%d", i),
         NewPermanentCallback(
-            this, &LayoutManager::MagnifyToplevelWindowByIndex, i),
+            this, &LayoutManager::HandleSnapshotChangeRequest, i),
         NULL, NULL);
     overview_mode_key_bindings_group_->AddBinding(
         KeyBindings::KeyCombo(XK_1 + i, KeyBindings::kAltMask),
-        StringPrintf("magnify-toplevel-with-index-%d", i));
+        StringPrintf("select-toplevel-with-index-%d", i));
   }
 
   kb->AddAction(
       "activate-last-toplevel",
       NewPermanentCallback(
-          this, &LayoutManager::ActivateToplevelWindowByIndex, -1),
+          this, &LayoutManager::HandleToplevelChangeRequest, -1),
       NULL, NULL);
   active_mode_key_bindings_group_->AddBinding(
       KeyBindings::KeyCombo(XK_9, KeyBindings::kAltMask),
       "activate-last-toplevel");
 
   kb->AddAction(
-      "magnify-last-toplevel",
+      "select-last-snapshot",
       NewPermanentCallback(
-          this, &LayoutManager::MagnifyToplevelWindowByIndex, -1),
+          this, &LayoutManager::HandleSnapshotChangeRequest, -1),
       NULL, NULL);
   overview_mode_key_bindings_group_->AddBinding(
       KeyBindings::KeyCombo(XK_9, KeyBindings::kAltMask),
-      "magnify-last-toplevel");
+      "select-last-toplevel");
 
+  // TODO: When we support closing tabs in snapshot mode, we should
+  // bind that function to ctrl-w here.
   kb->AddAction(
       "delete-active-window",
       NewPermanentCallback(
-          this, &LayoutManager::SendDeleteRequestToActiveWindow),
+          this, &LayoutManager::SendDeleteRequestToCurrentToplevel),
       NULL, NULL);
   active_mode_key_bindings_group_->AddBinding(
       KeyBindings::KeyCombo(
@@ -257,18 +257,22 @@ LayoutManager::~LayoutManager() {
   kb->RemoveAction("cycle-active-backward");
   kb->RemoveAction("cycle-magnification-forward");
   kb->RemoveAction("cycle-magnification-backward");
-  kb->RemoveAction("switch-to-active-mode-for-magnified");
+  kb->RemoveAction("switch-to-active-mode-for-selected");
+  for (int i = 0; i < 8; ++i) {
+    kb->RemoveAction(StringPrintf("activate-toplevel-with-index-%d", i));
+    kb->RemoveAction(StringPrintf("select-snapshot-with-index-%d", i));
+  }
+  kb->RemoveAction("activate-last-toplevel");
   kb->RemoveAction("delete-active-window");
   kb->RemoveAction("pan-overview-mode-left");
   kb->RemoveAction("pan-overview-mode-right");
 
   toplevels_.clear();
-  magnified_toplevel_ = NULL;
-  active_toplevel_ = NULL;
+  snapshots_.clear();
 }
 
 bool LayoutManager::IsInputWindow(XWindow xid) {
-  return (GetToplevelWindowByInputXid(xid) != NULL);
+  return (GetSnapshotWindowByInputXid(xid) != NULL);
 }
 
 bool LayoutManager::HandleWindowMapRequest(Window* win) {
@@ -280,7 +284,13 @@ bool LayoutManager::HandleWindowMapRequest(Window* win) {
   if (!IsHandledWindowType(win->type()))
     return false;
 
-  DoInitialSetupForWindow(win);
+  if (win->type() == WmIpc::WINDOW_TYPE_CHROME_TAB_SNAPSHOT) {
+    wm_->stacking_manager()->StackWindowAtTopOfLayer(
+        win, StackingManager::LAYER_SNAPSHOT_WINDOW);
+  } else {
+    wm_->stacking_manager()->StackWindowAtTopOfLayer(
+        win, StackingManager::LAYER_TOPLEVEL_WINDOW);
+  }
   win->MapClient();
   return true;
 }
@@ -300,31 +310,50 @@ void LayoutManager::HandleWindowMap(Window* win) {
   if (!IsHandledWindowType(win->type()))
     return;
 
-  // Perform initial setup of windows that were already mapped at startup
-  // (so we never saw MapRequest events for them).
-  if (!saw_map_request_)
-    DoInitialSetupForWindow(win);
+  DLOG(INFO) << "Handling window map for " << win->title()
+             << " (" << win->xid_str() << ") of type " << win->type();
 
   switch (win->type()) {
-    case WmIpc::WINDOW_TYPE_CREATE_BROWSER_WINDOW: {
-      if (create_browser_window_) {
-        LOG(WARNING) << "Got second create-browser window " << win->xid_str()
-                     << " (previous was " << create_browser_window_->xid_str()
-                     << ")";
-        create_browser_window_->HideComposited();
-      }
-      create_browser_window_ = win;
-      wm_->stacking_manager()->StackWindowAtTopOfLayer(
-          create_browser_window_, StackingManager::LAYER_TOPLEVEL_WINDOW);
+    case WmIpc::WINDOW_TYPE_CHROME_TAB_SNAPSHOT: {
+      // Register to get property changes for snapshot windows.
+      event_consumer_registrar_->RegisterForPropertyChanges(
+          win->xid(), wm_->GetXAtom(ATOM_CHROME_WINDOW_TYPE));
+
+      if (!saw_map_request_)
+        wm_->stacking_manager()->StackWindowAtTopOfLayer(
+            win, StackingManager::LAYER_SNAPSHOT_WINDOW);
+      shared_ptr<SnapshotWindow> snapshot(new SnapshotWindow(win, this));
+      input_to_snapshot_[snapshot->input_xid()] = snapshot.get();
+      snapshots_.push_back(snapshot);
+      SortSnapshots();
+      DLOG(INFO) << "Adding snapshot " << win->xid_str()
+                << " at tab index " << snapshot->tab_index()
+                << " (total of " << snapshots_.size() << ")";
+      UpdateCurrentSnapshot();
       if (mode_ == MODE_OVERVIEW) {
-        create_browser_window_->ShowComposited();
-        LayoutToplevelWindowsForOverviewMode(-1);
+        if (snapshot.get() == current_snapshot_) {
+          snapshot->SetState(SnapshotWindow::STATE_OVERVIEW_MODE_SELECTED);
+        } else {
+          snapshot->SetState(SnapshotWindow::STATE_OVERVIEW_MODE_NORMAL);
+        }
+      } else {
+        snapshot->SetState(SnapshotWindow::STATE_ACTIVE_MODE_INVISIBLE);
       }
       break;
     }
     case WmIpc::WINDOW_TYPE_CHROME_TOPLEVEL:
+      // Register to get property changes for toplevel windows.
+      event_consumer_registrar_->RegisterForPropertyChanges(
+          win->xid(), wm_->GetXAtom(ATOM_CHROME_WINDOW_TYPE));
+      // FALL THROUGH...
     case WmIpc::WINDOW_TYPE_CHROME_INFO_BUBBLE:
     case WmIpc::WINDOW_TYPE_UNKNOWN: {
+      // Perform initial setup of windows that were already mapped at startup
+      // (so we never saw MapRequest events for them).
+      if (!saw_map_request_)
+        wm_->stacking_manager()->StackWindowAtTopOfLayer(
+            win, StackingManager::LAYER_TOPLEVEL_WINDOW);
+
       if (win->transient_for_xid() != None) {
         ToplevelWindow* toplevel_owner =
             GetToplevelWindowByXid(win->transient_for_xid());
@@ -333,10 +362,9 @@ void LayoutManager::HandleWindowMap(Window* win) {
           toplevel_owner->AddTransientWindow(win, mode_ == MODE_OVERVIEW);
 
           if (mode_ == MODE_ACTIVE &&
-              active_toplevel_ != NULL &&
-              active_toplevel_->IsWindowOrTransientFocused()) {
-            active_toplevel_->TakeFocus(wm_->GetCurrentTimeFromServer());
-          }
+              current_toplevel_ != NULL &&
+              current_toplevel_->IsWindowOrTransientFocused())
+            current_toplevel_->TakeFocus(wm_->GetCurrentTimeFromServer());
           break;
         } else {
           LOG(WARNING) << "Ignoring " << win->xid_str()
@@ -349,116 +377,114 @@ void LayoutManager::HandleWindowMap(Window* win) {
 
       shared_ptr<ToplevelWindow> toplevel(
           new ToplevelWindow(win, this));
-      input_to_toplevel_[toplevel->input_xid()] = toplevel.get();
 
       switch (mode_) {
+        case MODE_NEW:
         case MODE_ACTIVE:
+        case MODE_ACTIVE_CANCELLED:
           // Activate the new window, adding it to the right of the
           // currently-active window.
-          if (active_toplevel_) {
-            int old_index = GetIndexForToplevelWindow(*active_toplevel_);
+          if (current_toplevel_) {
+            int old_index = GetIndexForToplevelWindow(*current_toplevel_);
             CHECK(old_index >= 0);
             ToplevelWindows::iterator it = toplevels_.begin() + old_index + 1;
             toplevels_.insert(it, toplevel);
           } else {
             toplevels_.push_back(toplevel);
           }
-          SetActiveToplevelWindow(
-              toplevel.get(),
-              ToplevelWindow::STATE_ACTIVE_MODE_IN_FROM_RIGHT,
-              ToplevelWindow::STATE_ACTIVE_MODE_OUT_TO_LEFT);
           break;
         case MODE_OVERVIEW:
           // In overview mode, just put new windows on the right.
           toplevels_.push_back(toplevel);
-          LayoutToplevelWindowsForOverviewMode(-1);
           break;
       }
+
+      // Tell the newly mapped window what the mode is so it'll map
+      // the snapshot windows it has if we're in overview mode.
+      SendModeMessage(toplevel.get());
+
+      SetCurrentToplevel(toplevel.get());
       break;
     }
     default:
       NOTREACHED() << "Unexpected window type " << win->type();
       break;
   }
+
+  LayoutWindows(true);
 }
 
 void LayoutManager::HandleWindowUnmap(Window* win) {
+  // Note that we sometimes get spurious double unmap notifications
+  // for the same window.  We ignore these by checking to see if we
+  // can find the given window in our lists of toplevel and snapshot
+  // windows (and if we've removed it already, we won't find it).
   DCHECK(win);
 
-  // If necessary, reset some pointers to non-toplevels windows first.
-  if (create_browser_window_ == win) {
-    create_browser_window_ = NULL;
-    if (mode_ == MODE_OVERVIEW)
-      LayoutToplevelWindowsForOverviewMode(-1);
-  }
+  DLOG(INFO) << "Unmapping window " << win->xid_str()
+            << " of type " << win->type();
 
-  ToplevelWindow* toplevel_owner = GetToplevelWindowOwningTransientWindow(*win);
-  if (toplevel_owner) {
-    bool transient_had_focus = win->focused();
-    toplevel_owner->RemoveTransientWindow(win);
-    if (transient_to_toplevel_.erase(win->xid()) != 1)
-      LOG(WARNING) << "No transient-to-toplevel mapping for " << win->xid_str();
-    if (transient_had_focus)
-      toplevel_owner->TakeFocus(wm_->GetCurrentTimeFromServer());
-  }
+  if (win->type() == WmIpc::WINDOW_TYPE_CHROME_TAB_SNAPSHOT) {
+    SnapshotWindow* snapshot = GetSnapshotWindowByWindow(*win);
+    if (snapshot) {
+      event_consumer_registrar_->UnregisterForPropertyChanges(
+          win->xid(), wm_->GetXAtom(ATOM_CHROME_WINDOW_TYPE));
 
-  ToplevelWindow* toplevel = GetToplevelWindowByWindow(*win);
-  if (toplevel) {
-    if (magnified_toplevel_ == toplevel)
-      SetMagnifiedToplevelWindow(NULL);
-    if (active_toplevel_ == toplevel)
-      active_toplevel_ = NULL;
+      RemoveSnapshot(GetSnapshotWindowByWindow(*win));
+    }
+  } else {
+    ToplevelWindow* toplevel_owner =
+        GetToplevelWindowOwningTransientWindow(*win);
 
-    const int index = GetIndexForToplevelWindow(*toplevel);
-    CHECK(input_to_toplevel_.erase(toplevel->input_xid()) == 1);
-    toplevels_.erase(toplevels_.begin() + index);
+    if (toplevel_owner) {
+      bool transient_had_focus = win->focused();
+      toplevel_owner->RemoveTransientWindow(win);
+      if (transient_to_toplevel_.erase(win->xid()) != 1)
+        LOG(WARNING) << "No transient-to-toplevel mapping for "
+                     << win->xid_str();
+      if (transient_had_focus)
+        toplevel_owner->TakeFocus(wm_->GetCurrentTimeFromServer());
+    }
 
-    if (mode_ == MODE_OVERVIEW) {
-      LayoutToplevelWindowsForOverviewMode(-1);
-    } else if (mode_ == MODE_ACTIVE) {
-      // If there's no active window now, then this was probably active
-      // previously.  Choose a new active window if possible; relinquish
-      // the focus otherwise.
-      if (!active_toplevel_) {
-        if (!toplevels_.empty()) {
-          const int new_index =
-              (index + toplevels_.size() - 1) % toplevels_.size();
-          SetActiveToplevelWindow(
-              toplevels_[new_index].get(),
-              ToplevelWindow::STATE_ACTIVE_MODE_IN_FROM_LEFT,
-              ToplevelWindow::STATE_ACTIVE_MODE_OUT_TO_RIGHT);
-        } else {
-          if (win->focused()) {
-            wm_->SetActiveWindowProperty(None);
-            wm_->TakeFocus(wm_->GetCurrentTimeFromServer());
-          }
-        }
-      }
+    ToplevelWindow* toplevel = GetToplevelWindowByWindow(*win);
+    if (toplevel) {
+      if (win->type() == WmIpc::WINDOW_TYPE_CHROME_TOPLEVEL)
+        event_consumer_registrar_->UnregisterForPropertyChanges(
+            win->xid(), wm_->GetXAtom(ATOM_CHROME_WINDOW_TYPE));
+
+      RemoveToplevel(toplevel);
     }
   }
+
+  // Still want to layout windows even if we didn't find snapshot or
+  // toplevel, since unmapping another type of window might cause
+  // changes in layout (docked panels, etc).
+  LayoutWindows(true);
 }
 
 void LayoutManager::HandleWindowConfigureRequest(
     Window* win, int req_x, int req_y, int req_width, int req_height) {
-  ToplevelWindow* toplevel_owner = GetToplevelWindowOwningTransientWindow(*win);
-  if (toplevel_owner) {
-    toplevel_owner->HandleTransientWindowConfigureRequest(
-        win, req_x, req_y, req_width, req_height);
-    return;
-  }
-
-  // Let toplevel windows resize themselves to work around issue 449, where
-  // the Chrome options window doesn't repaint if it doesn't get resized
-  // after it's already mapped.
-  // TODO: Remove this after Chrome has been fixed.
-  ToplevelWindow* toplevel = GetToplevelWindowByWindow(*win);
-  if (toplevel) {
-    if (req_width != toplevel->win()->client_width() ||
-        req_height != toplevel->win()->client_height()) {
-      toplevel->win()->ResizeClient(
-          req_width, req_height, GRAVITY_NORTHWEST);
+  if (win->type() == WmIpc::WINDOW_TYPE_CHROME_TAB_SNAPSHOT) {
+    SnapshotWindow* snapshot = GetSnapshotWindowByWindow(*win);
+    if (snapshot)
+      if (req_width != win->client_width() ||
+          req_height != win->client_height())
+        win->ResizeClient(req_width, req_height, GRAVITY_NORTHWEST);
+  } else {
+    ToplevelWindow* toplevel_owner =
+        GetToplevelWindowOwningTransientWindow(*win);
+    if (toplevel_owner) {
+      toplevel_owner->HandleTransientWindowConfigureRequest(
+          win, req_x, req_y, req_width, req_height);
+      return;
     }
-    return;
+
+    ToplevelWindow* toplevel = GetToplevelWindowByWindow(*win);
+    if (toplevel) {
+      if (req_width != win->client_width() ||
+          req_height != win->client_height())
+        win->ResizeClient(req_width, req_height, GRAVITY_NORTHWEST);
+    }
   }
 }
 
@@ -467,22 +493,14 @@ void LayoutManager::HandleButtonPress(XWindow xid,
                                       int x_root, int y_root,
                                       int button,
                                       XTime timestamp) {
-  ToplevelWindow* toplevel = GetToplevelWindowByInputXid(xid);
-  if (toplevel) {
-    if (button == 1) {
-      if (mode_ != MODE_OVERVIEW) {
-        LOG(WARNING) << "Got a click in input window " << XidStr(xid)
-                     << " for toplevel window " << toplevel->win()->xid_str()
-                     << " while not in overview mode";
-        return;
-      }
-      if (toplevel != magnified_toplevel_) {
-        SetMagnifiedToplevelWindow(toplevel);
-        LayoutToplevelWindowsForOverviewMode(max(x_root - x_, 0));
-      } else {
-        active_toplevel_ = toplevel;
-        SetMode(MODE_ACTIVE);
-      }
+  SnapshotWindow* snapshot = GetSnapshotWindowByInputXid(xid);
+  if (snapshot) {
+    if (button == 1) {  // Ignore buttons other than 1.
+      LOG_IF(WARNING, mode_ != MODE_OVERVIEW)
+          << "Got a click in input window " << XidStr(xid)
+          << " for snapshot window " << snapshot->win()->xid_str()
+          << " while not in overview mode";
+      snapshot->HandleButtonPress(timestamp);
     }
     return;
   }
@@ -493,17 +511,17 @@ void LayoutManager::HandleButtonPress(XWindow xid,
     return;
   }
 
-  // Otherwise, it probably means that the user previously focused a panel
-  // and then clicked back on a toplevel or transient window.
   Window* win = wm_->GetWindow(xid);
   if (!win)
     return;
-  toplevel = GetToplevelWindowOwningTransientWindow(*win);
+
+  // Otherwise, it probably means that the user previously focused a panel
+  // and then clicked back on a toplevel or transient window.
+  ToplevelWindow* toplevel = GetToplevelWindowOwningTransientWindow(*win);
   if (!toplevel)
     toplevel = GetToplevelWindowByWindow(*win);
-  if (!toplevel)
-    return;
-  toplevel->HandleButtonPress(win, timestamp);
+  if (toplevel)
+    toplevel->HandleButtonPress(win, timestamp);
 }
 
 void LayoutManager::HandleButtonRelease(XWindow xid,
@@ -520,24 +538,9 @@ void LayoutManager::HandleButtonRelease(XWindow xid,
 
   // We need to do one last configure to update the input windows'
   // positions, which we didn't bother doing while panning.
-  ConfigureWindowsForOverviewMode(false);
+  LayoutWindows(true);
 
   return;
-}
-
-void LayoutManager::HandlePointerEnter(XWindow xid,
-                                       int x, int y,
-                                       int x_root, int y_root,
-                                       XTime timestamp) {
-  ToplevelWindow* toplevel = GetToplevelWindowByInputXid(xid);
-  if (!toplevel)
-    return;
-  if (mode_ != MODE_OVERVIEW) {
-    LOG(WARNING) << "Got pointer enter in input window " << XidStr(xid)
-                 << " for toplevel window " << toplevel->win()->xid_str()
-                 << " while not in overview mode";
-    return;
-  }
 }
 
 void LayoutManager::HandlePointerMotion(XWindow xid,
@@ -557,45 +560,17 @@ void LayoutManager::HandleFocusChange(XWindow xid, bool focus_in) {
   if (!toplevel)
     toplevel = GetToplevelWindowByWindow(*win);
 
-  // If this is neither a toplevel nor transient window, we don't care
+  // If this is not a toplevel or transient window, we don't care
   // about the focus change.
   if (!toplevel)
     return;
+
   toplevel->HandleFocusChange(win, focus_in);
 
   // Announce that the new window is the "active" window (in the
-  // _NET_ACTIVE_WINDOW sense), regardless of whether it's a toplevel
-  // window or a transient.
+  // _NET_ACTIVE_WINDOW sense).
   if (focus_in)
     wm_->SetActiveWindowProperty(win->xid());
-}
-
-void LayoutManager::HandleChromeMessage(const WmIpc::Message& msg) {
-  switch (msg.type()) {
-    case WmIpc::Message::WM_SWITCH_TO_OVERVIEW_MODE: {
-      SetMode(MODE_OVERVIEW);
-      Window* win = wm_->GetWindow(msg.param(0));
-      if (!win) {
-        LOG(WARNING) << "Ignoring request to magnify unknown window "
-                     << XidStr(msg.param(0))
-                     << " while switching to overview mode";
-        return;
-      }
-
-      ToplevelWindow* toplevel = GetToplevelWindowByWindow(*win);
-      if (!toplevel) {
-        LOG(WARNING) << "Ignoring request to magnify non-toplevel window "
-                     << XidStr(msg.param(0))
-                     << " while switching to overview mode";
-        return;
-      }
-
-      SetMagnifiedToplevelWindow(toplevel);
-      break;
-    }
-    default:
-      return;
-  }
 }
 
 void LayoutManager::HandleClientMessage(XWindow xid,
@@ -624,22 +599,58 @@ void LayoutManager::HandleClientMessage(XWindow xid,
     else
       toplevel = GetToplevelWindowByWindow(*win);
 
-    // If we don't know anything about this window, give up.
-    if (!toplevel)
-      return;
-
-    if (mode_ == MODE_ACTIVE) {
-      if (toplevel != active_toplevel_) {
-        SetActiveToplevelWindow(toplevel,
-                                ToplevelWindow::STATE_ACTIVE_MODE_IN_FADE,
-                                ToplevelWindow::STATE_ACTIVE_MODE_OUT_FADE);
+    if (toplevel) {
+      SetCurrentToplevel(toplevel);
+      // Jump out of overview mode if a toplevel has requested focus.
+      if (mode_ == MODE_OVERVIEW) {
+        SetMode(MODE_ACTIVE);
       } else {
-        toplevel->TakeFocus(data[1]);
+        LayoutWindows(true);
       }
     } else {
-      active_toplevel_ = toplevel;
-      SetMode(MODE_ACTIVE);
+      // If it wasn't a toplevel window, then look and see if it was a
+      // snapshot window.  If it was, and we're in active mode, switch
+      // to overview mode, otherwise, just switch to that snapshot
+      // window.
+      SnapshotWindow* snapshot = GetSnapshotWindowByWindow(*win);
+      if (snapshot) {
+        SetCurrentSnapshot(snapshot);
+        if (mode_ == MODE_ACTIVE) {
+          SetMode(MODE_OVERVIEW);
+        } else {
+          LayoutWindows(true);
+        }
+      }
     }
+  }
+}
+
+void LayoutManager::HandleWindowPropertyChange(XWindow xid, XAtom xatom) {
+  Window* win = wm_->GetWindow(xid);
+  if (!win)
+    return;
+
+  ToplevelWindow* toplevel = GetToplevelWindowByXid(xid);
+  bool changed = false;
+  if (toplevel) {
+    changed = toplevel->PropertiesChanged();
+  } else {
+    SnapshotWindow* snapshot = GetSnapshotWindowByXid(xid);
+    if (snapshot) {
+      changed = snapshot->PropertiesChanged();
+    } else {
+      LOG(WARNING) << "Received a property change message from a "
+                   << "window (" << win->xid_str()
+                   << ") that we weren't expecting one from.";
+      return;
+    }
+  }
+
+  if (changed) {
+    SortSnapshots();
+    UpdateCurrentSnapshot();
+    if (mode_ == MODE_OVERVIEW)
+      LayoutWindows(true);
   }
 }
 
@@ -652,10 +663,10 @@ Window* LayoutManager::GetChromeWindow() {
 }
 
 bool LayoutManager::TakeFocus(XTime timestamp) {
-  if (mode_ != MODE_ACTIVE || !active_toplevel_)
+  if (mode_ != MODE_ACTIVE || !current_toplevel_)
     return false;
 
-  active_toplevel_->TakeFocus(timestamp);
+  current_toplevel_->TakeFocus(timestamp);
   return true;
 }
 
@@ -683,18 +694,156 @@ void LayoutManager::MoveAndResize(int x, int y, int width, int height) {
     if (FLAGS_lm_honor_window_size_hints)
       (*it)->win()->GetMaxSize(width_, height_, &width, &height);
     (*it)->win()->ResizeClient(width, height, resize_gravity);
+    if (mode_ == MODE_OVERVIEW) {
+      // Make sure the toplevel windows are offscreen still if we're
+      // in overview mode.
+      (*it)->win()->MoveClientOffscreen();
+    }
   }
 
-  switch (mode_) {
-    case MODE_ACTIVE:
-      LayoutToplevelWindowsForActiveMode(false);  // update_focus=false
-      break;
-    case MODE_OVERVIEW:
-      LayoutToplevelWindowsForOverviewMode(-1);
-      break;
-    default:
-      DCHECK(false) << "Unhandled mode " << mode_ << " during resize";
+  // Make sure the snapshot windows are offscreen still.
+  for (SnapshotWindows::iterator it = snapshots_.begin();
+       it != snapshots_.end(); ++it) {
+    (*it)->win()->MoveClientOffscreen();
   }
+
+  LayoutWindows(true);
+}
+
+string LayoutManager::GetModeName(Mode mode) {
+  switch(mode) {
+    case MODE_ACTIVE:
+      return string("Active");
+    case MODE_ACTIVE_CANCELLED:
+      return string("Active Cancelled");
+    case MODE_OVERVIEW:
+      return string("Overview");
+    default:
+      return string("<unknown mode>");
+  }
+}
+
+void LayoutManager::LayoutWindows(bool animate) {
+  if (toplevels_.empty())
+    return;
+
+  // As a last resort, if we don't have a current toplevel when we
+  // layout, pick the first one.
+  if (!current_toplevel_)
+    current_toplevel_ = toplevels_[0].get();
+
+  DLOG(INFO) << "Laying out windows for " << GetModeName(mode_) << " mode.";
+
+  if (mode_ == MODE_OVERVIEW)
+    CalculatePositionsForOverviewMode();
+
+  // We iterate through the snapshot windows in descending stacking
+  // order (right-to-left).  Otherwise, we'd get spurious pointer
+  // enter events as a result of stacking a window underneath the
+  // pointer immediately before we stack the window to its right
+  // directly on top of it.  Not a huge concern now that we're not
+  // listening ofr enter and leave events, but that might change again
+  // in the future.
+  for (SnapshotWindows::reverse_iterator it = snapshots_.rbegin();
+       it != snapshots_.rend(); ++it) {
+    (*it)->UpdateLayout(animate);
+  }
+  for (ToplevelWindows::iterator it = toplevels_.begin();
+       it != toplevels_.end(); ++it) {
+    (*it)->UpdateLayout(animate);
+  }
+}
+
+void LayoutManager::SetMode(Mode mode) {
+  if (mode == mode_)
+    return;
+
+  if (key_bindings_enabled_)
+    DisableKeyBindingsForModeInternal(mode_);
+
+  mode_ = mode;
+  DLOG(INFO) << "Switching to " << GetModeName(mode_) << " mode.";
+
+  switch (mode_) {
+    case MODE_NEW:
+    case MODE_ACTIVE:
+      if (current_snapshot_ && current_snapshot_->toplevel()) {
+        // Make sure they don't get out of sync -- if the snapshot is selected,
+        // then the toplevel should have changed too.
+        DCHECK_EQ(current_snapshot_->toplevel(), current_toplevel_);
+
+        // Because we were told to change snapshots, this indicates that
+        // the user wants this snapshot to now be current, so we tell
+        // Chrome.
+        // TODO: do some handshaking here to make sure that chrome
+        // switches tabs before we start our animation.
+        WmIpc::Message msg(WmIpc::Message::CHROME_NOTIFY_TAB_SELECT);
+        msg.set_param(0, current_snapshot_->tab_index());
+        wm_->wm_ipc()->SendMessage(current_snapshot_->toplevel()->win()->xid(),
+                                   msg);
+      }
+      // Cancelling actually happens on the chrome side, since it
+      // knows what tabs used to be selected.  It knows to cancel
+      // because it's a different layout mode.
+      // FALL THROUGH...
+    case MODE_ACTIVE_CANCELLED:
+      if (current_toplevel_)
+        current_toplevel_->TakeFocus(wm_->GetCurrentTimeFromServer());
+      for (ToplevelWindows::iterator it = toplevels_.begin();
+           it != toplevels_.end(); ++it) {
+        if (it->get() == current_toplevel_) {
+          (*it)->SetState(ToplevelWindow::STATE_ACTIVE_MODE_IN_FADE);
+        } else {
+          (*it)->SetState(ToplevelWindow::STATE_ACTIVE_MODE_OFFSCREEN);
+        }
+      }
+      for (SnapshotWindows::iterator it = snapshots_.begin();
+           it != snapshots_.end(); ++it) {
+        (*it)->SetState(SnapshotWindow::STATE_ACTIVE_MODE_INVISIBLE);
+      }
+      break;
+    case MODE_OVERVIEW: {
+      UpdateCurrentSnapshot();
+      CalculatePositionsForOverviewMode();
+      if (current_toplevel_->IsWindowOrTransientFocused()) {
+        // We need to take the input focus away here; otherwise the
+        // previously-focused window would continue to get keyboard events
+        // in overview mode.  Let the WindowManager decide what to do with it.
+        wm_->SetActiveWindowProperty(None);
+        wm_->TakeFocus(wm_->GetCurrentTimeFromServer());
+      }
+
+      for (ToplevelWindows::iterator it = toplevels_.begin();
+           it != toplevels_.end(); ++it) {
+        (*it)->SetState(ToplevelWindow::STATE_OVERVIEW_MODE);
+      }
+      for (SnapshotWindows::reverse_iterator it = snapshots_.rbegin();
+           it != snapshots_.rend(); ++it) {
+        if (it->get() == current_snapshot_) {
+          (*it)->SetState(SnapshotWindow::STATE_OVERVIEW_MODE_SELECTED);
+        } else {
+          (*it)->SetState(SnapshotWindow::STATE_OVERVIEW_MODE_NORMAL);
+        }
+      }
+      break;
+    }
+  }
+
+  LayoutWindows(true);
+
+  // Let all Chrome windows know about the new layout mode so that
+  // each toplevel window will map its associated snapshot windows.
+  for (ToplevelWindows::iterator it = toplevels_.begin();
+       it != toplevels_.end(); ++it) {
+    SendModeMessage(it->get());
+  }
+
+  // Done cancelling.
+  if (mode_ == MODE_ACTIVE_CANCELLED)
+    mode_ = MODE_ACTIVE;
+
+  if (key_bindings_enabled_)
+    EnableKeyBindingsForModeInternal(mode_);
 }
 
 void LayoutManager::EnableKeyBindings() {
@@ -714,21 +863,23 @@ void LayoutManager::DisableKeyBindings() {
 // static
 bool LayoutManager::IsHandledWindowType(WmIpc::WindowType type) {
   return (type == WmIpc::WINDOW_TYPE_CHROME_INFO_BUBBLE ||
+          type == WmIpc::WINDOW_TYPE_CHROME_TAB_SNAPSHOT ||
           type == WmIpc::WINDOW_TYPE_CHROME_TOPLEVEL ||
-          type == WmIpc::WINDOW_TYPE_CREATE_BROWSER_WINDOW ||
           type == WmIpc::WINDOW_TYPE_UNKNOWN);
-}
-
-LayoutManager::ToplevelWindow* LayoutManager::GetToplevelWindowByInputXid(
-    XWindow xid) {
-  return FindWithDefault(
-      input_to_toplevel_, xid, static_cast<ToplevelWindow*>(NULL));
 }
 
 int LayoutManager::GetIndexForToplevelWindow(
     const ToplevelWindow& toplevel) const {
   for (size_t i = 0; i < toplevels_.size(); ++i)
     if (toplevels_[i].get() == &toplevel)
+      return static_cast<int>(i);
+  return -1;
+}
+
+int LayoutManager::GetIndexForSnapshotWindow(
+    const SnapshotWindow& snapshot) const {
+  for (size_t i = 0; i < snapshots_.size(); ++i)
+    if (snapshots_[i].get() == &snapshot)
       return static_cast<int>(i);
   return -1;
 }
@@ -750,79 +901,116 @@ LayoutManager::ToplevelWindow* LayoutManager::GetToplevelWindowByXid(
 }
 
 LayoutManager::ToplevelWindow*
-    LayoutManager::GetToplevelWindowOwningTransientWindow(const Window& win) {
+LayoutManager::GetToplevelWindowOwningTransientWindow(const Window& win) {
   return FindWithDefault(
       transient_to_toplevel_, win.xid(), static_cast<ToplevelWindow*>(NULL));
 }
 
+LayoutManager::SnapshotWindow* LayoutManager::GetSnapshotWindowByInputXid(
+    XWindow xid) {
+  return FindWithDefault(
+      input_to_snapshot_, xid, static_cast<SnapshotWindow*>(NULL));
+}
+
+LayoutManager::SnapshotWindow* LayoutManager::GetSnapshotWindowByWindow(
+    const Window& win) {
+  for (size_t i = 0; i < snapshots_.size(); ++i)
+    if (snapshots_[i]->win() == &win)
+      return snapshots_[i].get();
+  return NULL;
+}
+
+LayoutManager::SnapshotWindow* LayoutManager::GetSnapshotWindowByXid(
+    XWindow xid) {
+  const Window* win = wm_->GetWindow(xid);
+  if (!win)
+    return NULL;
+  return GetSnapshotWindowByWindow(*win);
+}
+
+LayoutManager::SnapshotWindow* LayoutManager::GetSnapshotAfter(
+    SnapshotWindow* window) {
+  int index = GetIndexForSnapshotWindow(*window);
+  if (index >= 0 && static_cast<int>(snapshots_.size()) > (index + 1)) {
+    return snapshots_[index + 1].get();
+  }
+  return NULL;
+}
+
+LayoutManager::SnapshotWindow* LayoutManager::GetSnapshotBefore(
+    SnapshotWindow* window) {
+  int index = GetIndexForSnapshotWindow(*window);
+  if (index > 0)
+    return snapshots_[index - 1].get();
+  return NULL;
+}
+
 XWindow LayoutManager::GetInputXidForWindow(const Window& win) {
-  ToplevelWindow* toplevel = GetToplevelWindowByWindow(win);
-  return toplevel ? toplevel->input_xid() : None;
+  SnapshotWindow* snapshot = GetSnapshotWindowByWindow(win);
+  return snapshot ? snapshot->input_xid() : None;
 }
 
-void LayoutManager::DoInitialSetupForWindow(Window* win) {
-  // We preserve info bubbles' initial locations even though they're
-  // ultimately transient windows.
-  if (win->type() != WmIpc::WINDOW_TYPE_CHROME_INFO_BUBBLE)
-    win->MoveClientOffscreen();
-  wm_->stacking_manager()->StackWindowAtTopOfLayer(
-      win, StackingManager::LAYER_TOPLEVEL_WINDOW);
-}
-
-void LayoutManager::SetActiveToplevelWindow(
-    ToplevelWindow* toplevel,
-    int state_for_new_win,
-    int state_for_old_win) {
+void LayoutManager::SetCurrentToplevel(ToplevelWindow* toplevel) {
   CHECK(toplevel);
 
-  if (mode_ != MODE_ACTIVE || active_toplevel_ == toplevel)
+  // If we're not in active mode, nothing changes in the layout.
+  if (mode_ != MODE_ACTIVE) {
+    current_toplevel_ = toplevel;
     return;
+  }
 
-  if (active_toplevel_)
-    active_toplevel_->set_state(
-        static_cast<ToplevelWindow::State>(state_for_old_win));
-  toplevel->set_state(static_cast<ToplevelWindow::State>(state_for_new_win));
-  active_toplevel_ = toplevel;
-  LayoutToplevelWindowsForActiveMode(true);  // update_focus=true
+  // Determine which way we should slide.
+  ToplevelWindow::State state_for_new_win;
+  ToplevelWindow::State state_for_old_win;
+  int this_index = GetIndexForToplevelWindow(*toplevel);
+  int current_index = -1;
+  if (current_toplevel_)
+    current_index = GetIndexForToplevelWindow(*(current_toplevel_));
+
+  if (current_index < 0 || this_index > current_index) {
+    state_for_new_win = ToplevelWindow::STATE_ACTIVE_MODE_IN_FROM_RIGHT;
+    state_for_old_win = ToplevelWindow::STATE_ACTIVE_MODE_OUT_TO_LEFT;
+  } else {
+    state_for_new_win = ToplevelWindow::STATE_ACTIVE_MODE_IN_FROM_LEFT;
+    state_for_old_win = ToplevelWindow::STATE_ACTIVE_MODE_OUT_TO_RIGHT;
+  }
+
+  if (current_toplevel_)
+    current_toplevel_->SetState(state_for_old_win);
+
+  toplevel->SetState(state_for_new_win);
+  current_toplevel_ = toplevel;
+  current_toplevel_->TakeFocus(wm_->GetCurrentTimeFromServer());
 }
 
-void LayoutManager::SwitchToActiveMode(bool activate_magnified_win) {
-  if (mode_ == MODE_ACTIVE)
-    return;
-  if (activate_magnified_win && magnified_toplevel_)
-    active_toplevel_ = magnified_toplevel_;
-  SetMode(MODE_ACTIVE);
-}
-
-void LayoutManager::ActivateToplevelWindowByIndex(int index) {
-  if (toplevels_.empty() || mode_ != MODE_ACTIVE)
+void LayoutManager::HandleToplevelChangeRequest(int index) {
+  if (toplevels_.empty())
     return;
 
   if (index < 0)
     index = static_cast<int>(toplevels_.size()) + index;
   if (index < 0 || index >= static_cast<int>(toplevels_.size()))
     return;
-  if (toplevels_[index].get() == active_toplevel_)
+  if (toplevels_[index].get() == current_toplevel_)
     return;
 
-  SetActiveToplevelWindow(toplevels_[index].get(),
-                          ToplevelWindow::STATE_ACTIVE_MODE_IN_FADE,
-                          ToplevelWindow::STATE_ACTIVE_MODE_OUT_FADE);
+  SetCurrentToplevel(toplevels_[index].get());
+  LayoutWindows(true);
 }
 
-void LayoutManager::MagnifyToplevelWindowByIndex(int index) {
-  if (toplevels_.empty() || mode_ != MODE_OVERVIEW)
+void LayoutManager::HandleSnapshotChangeRequest(int index) {
+  if (snapshots_.empty())
     return;
 
   if (index < 0)
-    index = static_cast<int>(toplevels_.size()) + index;
-  if (index < 0 || index >= static_cast<int>(toplevels_.size()))
+    index = static_cast<int>(snapshots_.size()) + index;
+  if (index < 0 || index >= static_cast<int>(snapshots_.size()))
     return;
-  if (toplevels_[index].get() == magnified_toplevel_)
+  if (snapshots_[index].get() == current_snapshot_)
     return;
 
-  SetMagnifiedToplevelWindow(toplevels_[index].get());
-  LayoutToplevelWindowsForOverviewMode(0.5 * width_);
+  SetCurrentSnapshot(snapshots_[index].get());
+  LayoutWindows(true);
 }
 
 void LayoutManager::Metrics::Populate(chrome_os_pb::SystemMetrics *metrics_pb) {
@@ -836,81 +1024,11 @@ void LayoutManager::Metrics::Populate(chrome_os_pb::SystemMetrics *metrics_pb) {
       window_cycle_by_keystroke_count);
 }
 
-void LayoutManager::SetMode(Mode mode) {
-  if (key_bindings_enabled_)
-    DisableKeyBindingsForModeInternal(mode_);
-
-  mode_ = mode;
-  switch (mode_) {
-    case MODE_ACTIVE: {
-      if (create_browser_window_) {
-        create_browser_window_->HideComposited();
-        create_browser_window_->MoveClientOffscreen();
-      }
-      if (magnified_toplevel_)
-        active_toplevel_ = magnified_toplevel_;
-      if (!active_toplevel_ && !toplevels_.empty())
-        active_toplevel_ = toplevels_[0].get();
-      LayoutToplevelWindowsForActiveMode(true);  // update_focus=true
-      break;
-    }
-    case MODE_OVERVIEW: {
-      if (create_browser_window_)
-        create_browser_window_->ShowComposited();
-      SetMagnifiedToplevelWindow(active_toplevel_);
-      // Leave 'active_toplevel_' alone, so we can activate the same window
-      // if we return to active mode on an Escape keypress.
-
-      if (active_toplevel_ && active_toplevel_->IsWindowOrTransientFocused()) {
-        // We need to take the input focus away here; otherwise the
-        // previously-focused window would continue to get keyboard events
-        // in overview mode.  Let the WindowManager decide what to do with it.
-        wm_->SetActiveWindowProperty(None);
-        wm_->TakeFocus(wm_->GetCurrentTimeFromServer());
-      }
-      LayoutToplevelWindowsForOverviewMode(0.5 * width_);
-      break;
-    }
-  }
-
-  if (key_bindings_enabled_)
-    EnableKeyBindingsForModeInternal(mode_);
-
-  // Let all Chrome windows know about the new layout mode.
-  for (ToplevelWindows::iterator it = toplevels_.begin();
-       it != toplevels_.end(); ++it) {
-    if ((*it)->win()->type() == WmIpc::WINDOW_TYPE_CHROME_TOPLEVEL)
-      SendModeMessage(it->get());
-  }
-}
-
-void LayoutManager::LayoutToplevelWindowsForActiveMode(bool update_focus) {
-  DLOG(INFO) << "Laying out windows for active mode";
-  if (toplevels_.empty())
+void LayoutManager::CalculatePositionsForOverviewMode() {
+  if (toplevels_.empty() || mode_ != MODE_OVERVIEW)
     return;
-  if (!active_toplevel_)
-    active_toplevel_ = toplevels_[0].get();
 
-  bool saw_active = false;
-  for (ToplevelWindows::iterator it = toplevels_.begin();
-       it != toplevels_.end(); ++it) {
-    bool is_active = it->get() == active_toplevel_;
-    (*it)->ConfigureForActiveMode(is_active, !saw_active, update_focus);
-    if (is_active)
-      saw_active = true;
-  }
-}
-
-void LayoutManager::LayoutToplevelWindowsForOverviewMode(
-    int magnified_x) {
-  DLOG(INFO) << "Laying out windows for overview mode";
-  CalculatePositionsForOverviewMode(magnified_x);
-  ConfigureWindowsForOverviewMode(false);
-}
-
-void LayoutManager::CalculatePositionsForOverviewMode(int magnified_x) {
-  if (toplevels_.empty())
-    return;
+  int selected_x = 0.5 * width_;
 
   const int width_limit =
       min(static_cast<double>(width_) / sqrt(toplevels_.size()),
@@ -920,74 +1038,38 @@ void LayoutManager::CalculatePositionsForOverviewMode(int magnified_x) {
           kOverviewWindowMaxSizeRatio * height_);
   int running_width = kWindowPadding;
 
-  for (int i = 0; static_cast<size_t>(i) < toplevels_.size(); ++i) {
-    ToplevelWindow* toplevel = toplevels_[i].get();
-    bool is_magnified = (toplevel == magnified_toplevel_);
+  for (int i = 0; static_cast<size_t>(i) < snapshots_.size(); ++i) {
+    SnapshotWindow* snapshot = snapshots_[i].get();
+    bool is_selected = (snapshot == current_snapshot_);
 
-    toplevel->UpdateOverviewScaling(width_limit, height_limit);
-    toplevel->UpdateOverviewPosition(
-        running_width, 0.5 * (height_ - toplevel->overview_height()));
-    running_width += is_magnified ?
-        toplevel->overview_width() :
-        (kOverviewExposedWindowRatio * width_ *
-          (width_limit / (kOverviewWindowMaxSizeRatio * width_)));
-    if (is_magnified && magnified_x >= 0) {
-      // If the window will be under 'magnified_x' when centered, just
+    snapshot->SetSize(width_limit, height_limit);
+    snapshot->SetPosition(
+        running_width, 0.5 * (height_ - snapshot->overview_height()));
+    running_width += is_selected ?
+                     snapshot->overview_width() :
+                     (kOverviewExposedWindowRatio * width_ *
+                      (width_limit / (kOverviewWindowMaxSizeRatio * width_)));
+    if (is_selected && selected_x >= 0) {
+      // If the window will be under 'selected_x' when centered, just
       // center it.  Otherwise, move it as close to centered as possible
-      // while still being under 'magnified_x'.
-      if (0.5 * (width_ - toplevel->overview_width()) < magnified_x &&
-          0.5 * (width_ + toplevel->overview_width()) >= magnified_x) {
+      // while still being under 'selected_x'.
+      if (0.5 * (width_ - snapshot->overview_width()) < selected_x &&
+          0.5 * (width_ + snapshot->overview_width()) >= selected_x) {
         overview_panning_offset_ =
-            toplevel->overview_x() +
-            0.5 * toplevel->overview_width() -
+            snapshot->overview_x() +
+            0.5 * snapshot->overview_width() -
             0.5 * width_;
-      } else if (0.5 * (width_ - toplevel->overview_width()) > magnified_x) {
-        overview_panning_offset_ = toplevel->overview_x() - magnified_x + 1;
+      } else if (0.5 * (width_ - snapshot->overview_width()) > selected_x) {
+        overview_panning_offset_ = snapshot->overview_x() - selected_x + 1;
       } else {
-        overview_panning_offset_ = toplevel->overview_x() - magnified_x +
-                                   toplevel->overview_width() - 1;
+        overview_panning_offset_ = snapshot->overview_x() - selected_x +
+                                   snapshot->overview_width() - 1;
       }
     }
   }
 }
 
-void LayoutManager::ConfigureWindowsForOverviewMode(bool incremental) {
-  ToplevelWindow* toplevel_to_right = NULL;
-  // We iterate through the windows in descending stacking order
-  // (right-to-left).  Otherwise, we'd get spurious pointer enter events as
-  // a result of stacking a window underneath the pointer immediately
-  // before we stack the window to its right directly on top of it.
-  for (ToplevelWindows::reverse_iterator it = toplevels_.rbegin();
-       it != toplevels_.rend(); ++it) {
-    ToplevelWindow* toplevel = it->get();
-    toplevel->ConfigureForOverviewMode(
-        (it->get() == magnified_toplevel_),  // window_is_magnified
-        (magnified_toplevel_ != NULL),       // dim_if_unmagnified
-        toplevel_to_right,
-        incremental);
-    toplevel_to_right = toplevel;
-  }
-  if (!incremental && create_browser_window_) {
-    // The 'create browser window' is always anchored to the right side
-    // of the screen.
-    create_browser_window_->MoveComposited(
-        x_ + width_ - create_browser_window_->client_width() - kWindowPadding,
-        y_ + height_ - create_browser_window_->client_height() -
-        kCreateBrowserWindowVerticalPadding,
-        0);
-    create_browser_window_->MoveClientToComposited();
-  }
-}
-
-LayoutManager::ToplevelWindow* LayoutManager::GetOverviewToplevelWindowAtPoint(
-    int x, int y) const {
-  for (int i = 0; static_cast<size_t>(i) < toplevels_.size(); ++i)
-    if (toplevels_[i]->OverviewWindowContainsPoint(x, y))
-      return toplevels_[i].get();
-  return NULL;
-}
-
-void LayoutManager::CycleActiveToplevelWindow(bool forward) {
+void LayoutManager::CycleCurrentToplevelWindow(bool forward) {
   if (mode_ != MODE_ACTIVE) {
     LOG(WARNING) << "Ignoring request to cycle active toplevel outside of "
                  << "active mode (current mode is " << mode_ << ")";
@@ -997,115 +1079,281 @@ void LayoutManager::CycleActiveToplevelWindow(bool forward) {
     return;
 
   ToplevelWindow* toplevel = NULL;
-  if (!active_toplevel_) {
+  if (!current_toplevel_) {
     toplevel = forward ?
-        toplevels_[0].get() :
-        toplevels_[toplevels_.size()-1].get();
+               toplevels_[0].get() :
+               toplevels_[toplevels_.size()-1].get();
   } else {
     if (toplevels_.size() == 1)
       return;
-    int old_index = GetIndexForToplevelWindow(*active_toplevel_);
+    int old_index = GetIndexForToplevelWindow(*current_toplevel_);
     int new_index = (toplevels_.size() + old_index + (forward ? 1 : -1)) %
                     toplevels_.size();
     toplevel = toplevels_[new_index].get();
   }
   CHECK(toplevel);
 
-  SetActiveToplevelWindow(
-      toplevel,
-      forward ?
-        ToplevelWindow::STATE_ACTIVE_MODE_IN_FROM_RIGHT :
-        ToplevelWindow::STATE_ACTIVE_MODE_IN_FROM_LEFT,
-      forward ?
-        ToplevelWindow::STATE_ACTIVE_MODE_OUT_TO_LEFT :
-        ToplevelWindow::STATE_ACTIVE_MODE_OUT_TO_RIGHT);
+  SetCurrentToplevel(toplevel);
+  if (mode_ == MODE_ACTIVE)
+    LayoutWindows(true);
 }
 
-void LayoutManager::CycleMagnifiedToplevelWindow(bool forward) {
+void LayoutManager::CycleCurrentSnapshotWindow(bool forward) {
   if (mode_ != MODE_OVERVIEW) {
-    LOG(WARNING) << "Ignoring request to cycle magnified toplevel outside of "
-                 << "overview mode (current mode is " << mode_ << ")";
+    LOG(WARNING) << "Ignoring request to cycle current snapshot outside of "
+                 << "overview mode (current mode is " << GetModeName(mode_)
+                 << ")";
     return;
   }
-  if (toplevels_.empty())
+  if (snapshots_.empty())
     return;
-  if (magnified_toplevel_ && toplevels_.size() == 1)
+  if (current_snapshot_ && snapshots_.size() == 1)
     return;
 
-  if (!magnified_toplevel_ && !active_toplevel_) {
-    // If we have no clue about which window to magnify, just choose the
-    // first one.
-    SetMagnifiedToplevelWindow(toplevels_[0].get());
+  if (!current_snapshot_) {
+    UpdateCurrentSnapshot();
   } else {
-    if (!magnified_toplevel_) {
-      // If no toplevel window is magnified, pretend like the active
-      // toplevel was magnified so we'll move either to its left or its
-      // right.
-      magnified_toplevel_ = active_toplevel_;
-    }
-    CHECK(magnified_toplevel_);
-    int old_index = GetIndexForToplevelWindow(*magnified_toplevel_);
-    int new_index = (toplevels_.size() + old_index + (forward ? 1 : -1)) %
-                    toplevels_.size();
-    SetMagnifiedToplevelWindow(toplevels_[new_index].get());
+    int old_index = GetIndexForSnapshotWindow(*current_snapshot_);
+    int new_index = (snapshots_.size() + old_index + (forward ? 1 : -1))
+                    % snapshots_.size();
+    SetCurrentSnapshot(snapshots_[new_index].get());
   }
-  LayoutToplevelWindowsForOverviewMode(0.5 * width_);
+  if (mode_ == MODE_OVERVIEW)
+    LayoutWindows(true);
 }
 
-void LayoutManager::SetMagnifiedToplevelWindow(ToplevelWindow* toplevel) {
-  if (magnified_toplevel_ == toplevel)
-    return;
-  magnified_toplevel_ = toplevel;
+void LayoutManager::SetCurrentSnapshot(SnapshotWindow* snapshot) {
+  CHECK(snapshot);
+
+  if (current_snapshot_ != snapshot) {
+    if (mode_ != MODE_OVERVIEW) {
+      current_snapshot_ = snapshot;
+      return;
+    }
+
+    // Tell the old current snapshot that it's not current anymore.
+    if (current_snapshot_)
+      current_snapshot_->SetState(SnapshotWindow::STATE_OVERVIEW_MODE_NORMAL);
+
+    current_snapshot_ = snapshot;
+
+    // Tell the snapshot that it's been selected.
+    if (current_snapshot_->state() !=
+        SnapshotWindow::STATE_OVERVIEW_MODE_SELECTED) {
+      current_snapshot_->SetState(
+          SnapshotWindow::STATE_OVERVIEW_MODE_SELECTED);
+    }
+
+    // Since we switched snapshots, we may have switched current
+    // toplevel windows.
+    if (current_snapshot_->toplevel())
+      SetCurrentToplevel(current_snapshot_->toplevel());
+  }
 }
 
 void LayoutManager::SendModeMessage(ToplevelWindow* toplevel) {
   if (!toplevel ||
-      toplevel->win()->type() != WmIpc::WINDOW_TYPE_CHROME_TOPLEVEL) {
+      toplevel->win()->type() != WmIpc::WINDOW_TYPE_CHROME_TOPLEVEL)
     return;
-  }
 
   WmIpc::Message msg(WmIpc::Message::CHROME_NOTIFY_LAYOUT_MODE);
   switch (mode_) {
     // Set the mode in the message using the appropriate value from wm_ipc.h.
+    case MODE_NEW:
+    case MODE_ACTIVE_CANCELLED:
     case MODE_ACTIVE:
       msg.set_param(0, 0);
+      msg.set_param(1, mode_ == MODE_ACTIVE_CANCELLED ? 1 : 0);
       break;
     case MODE_OVERVIEW:
       msg.set_param(0, 1);
+      msg.set_param(1, 0);
       break;
     default:
       CHECK(false) << "Unhandled mode " << mode_;
+      break;
   }
   wm_->wm_ipc()->SendMessage(toplevel->win()->xid(), msg);
 }
 
-void LayoutManager::SendDeleteRequestToActiveWindow() {
+void LayoutManager::SendDeleteRequestToCurrentToplevel() {
   // TODO: If there's a focused transient window, the message should get
   // sent to it instead.
-  if (mode_ == MODE_ACTIVE && active_toplevel_)
-    active_toplevel_->win()->SendDeleteRequest(wm_->GetCurrentTimeFromServer());
+  if (mode_ == MODE_ACTIVE && current_toplevel_)
+    current_toplevel_->win()->SendDeleteRequest(
+        wm_->GetCurrentTimeFromServer());
 }
 
 void LayoutManager::PanOverviewMode(int offset) {
   overview_panning_offset_ += offset;
   if (mode_ == MODE_OVERVIEW)
-    ConfigureWindowsForOverviewMode(false);  // incremental=false
+    LayoutWindows(true);  // animate = true
 }
 
 void LayoutManager::UpdateOverviewPanningForMotion() {
   int dx = overview_background_event_coalescer_->x() - overview_drag_last_x_;
   overview_drag_last_x_ = overview_background_event_coalescer_->x();
   overview_panning_offset_ -= dx;
-  ConfigureWindowsForOverviewMode(true);  // incremental=true
+  LayoutWindows(false);  // animate = false
+}
+
+void LayoutManager::UpdateCurrentSnapshot() {
+  if (snapshots_.empty()) {
+    current_snapshot_ = NULL;
+    return;
+  }
+
+  if (current_toplevel_) {
+    int selected_index = current_toplevel_->selected_tab();
+    // Go through the snapshots and find the one that corresponds to
+    // the selected tab in the current toplevel window.
+    for (SnapshotWindows::iterator it = snapshots_.begin();
+         it != snapshots_.end(); ++it) {
+      if ((*it)->tab_index() == selected_index &&
+          (*it)->toplevel() == current_toplevel_) {
+        SetCurrentSnapshot((*it).get());
+        return;
+      }
+    }
+  } else {
+    // If we don't have an active toplevel window, then just take the
+    // first snapshot.  If no snapshots, then we have to set the
+    // current snapshot to NULL.
+    SetCurrentSnapshot(snapshots_[0].get());
+  }
+}
+
+void LayoutManager::RemoveSnapshot(SnapshotWindow* snapshot) {
+  DCHECK(snapshot);
+  if (!snapshot)
+    return;
+
+  const int index = GetIndexForSnapshotWindow(*snapshot);
+  if (index < 0) {
+    LOG(WARNING) << "Snapshot " << snapshot->win()->xid_str()
+                 << " index not found.";
+    return;
+  }
+
+  DLOG(INFO) << "Removing snapshot " << snapshot->win()->xid_str()
+             << " at index " << index;
+
+  if (current_snapshot_ == snapshot)
+    current_snapshot_ = NULL;
+
+  // Find any input windows associated with this snapshot and remove
+  // them.
+  XWindowToSnapshotMap::iterator input_iter = input_to_snapshot_.begin();
+  while (input_iter != input_to_snapshot_.end()) {
+    if (input_iter->second == snapshot)
+      input_to_snapshot_.erase(input_iter);
+    ++input_iter;
+  }
+
+  snapshots_.erase(snapshots_.begin() + index);
+
+  // Find a new current snapshot if we were in overview mode.
+  if (mode_ == MODE_OVERVIEW) {
+    if (!current_snapshot_) {
+      if (!snapshots_.empty()) {
+        const int new_index =
+            (index + snapshots_.size() - 1) % snapshots_.size();
+        SetCurrentSnapshot(snapshots_[new_index].get());
+      }
+    }
+  }
+}
+
+void LayoutManager::RemoveToplevel(ToplevelWindow* toplevel) {
+  DCHECK(toplevel);
+  if (!toplevel)
+    return;
+
+  const int index = GetIndexForToplevelWindow(*toplevel);
+  if (index < 0) {
+    LOG(WARNING) << "Toplevel " << toplevel->win()->xid_str()
+                 << " index not found.";
+    return;
+  }
+
+  Window* win = toplevel->win();
+  DLOG(INFO) << "Removing toplevel " << toplevel->win()->xid_str()
+             << " at index " << index;
+
+  // Find any snapshots that reference this toplevel window, and
+  // remove them.
+  {
+    SnapshotWindows remaining;
+    for (SnapshotWindows::iterator it = snapshots_.begin();
+         it != snapshots_.end(); ++it) {
+      if ((*it)->toplevel() != toplevel)
+        remaining.push_back(*it);
+    }
+    snapshots_.swap(remaining);
+  }
+
+  if (current_toplevel_ == toplevel)
+    current_toplevel_ = NULL;
+
+  // Find any transient windows associated with this toplevel window
+  // and remove them.
+  XWindowToToplevelMap::iterator transient_iter =
+      transient_to_toplevel_.begin();
+  while (transient_iter != transient_to_toplevel_.end()) {
+    if (transient_iter->second == toplevel)
+      transient_to_toplevel_.erase(transient_iter);
+    ++transient_iter;
+  }
+
+  toplevels_.erase(toplevels_.begin() + index);
+
+  // Find a new active toplevel window if needed.  If there's no
+  // active window now, then this one was probably active previously.
+  // Choose a new active window if possible; relinquish the focus
+  // otherwise.
+  if (!current_toplevel_) {
+    if (!toplevels_.empty()) {
+      const int new_index =
+          (index + toplevels_.size() - 1) % toplevels_.size();
+      SetCurrentToplevel(toplevels_[new_index].get());
+    } else {
+      if (mode_ == MODE_ACTIVE) {
+        if (win->focused()) {
+          wm_->SetActiveWindowProperty(None);
+          wm_->TakeFocus(wm_->GetCurrentTimeFromServer());
+        }
+      }
+    }
+  }
+  UpdateCurrentSnapshot();
+}
+
+bool LayoutManager::SortSnapshots() {
+  SnapshotWindows old_snapshots = snapshots_;
+  std::sort(snapshots_.begin(), snapshots_.end(),
+            SnapshotWindow::CompareTabIndex);
+  return old_snapshots != snapshots_;
+}
+
+int LayoutManager::GetPreceedingTabCount(const ToplevelWindow& toplevel) const {
+  int count = 0;
+  for (ToplevelWindows::const_iterator it = toplevels_.begin();
+       it != toplevels_.end(); ++it) {
+    if (it->get() == &toplevel)
+      return count;
+    count += (*it)->tab_count();
+  }
+  return count;
 }
 
 void LayoutManager::EnableKeyBindingsForModeInternal(Mode mode) {
   switch (mode) {
+    case MODE_NEW:
     case MODE_ACTIVE:
       active_mode_key_bindings_group_->Enable();
       break;
     case MODE_OVERVIEW:
-      overview_mode_key_bindings_group_->Enable();
+      overview_mode_key_bindings_group_->Enable(); 
       break;
     default:
       NOTREACHED() << "Unhandled mode " << mode;
@@ -1114,6 +1362,7 @@ void LayoutManager::EnableKeyBindingsForModeInternal(Mode mode) {
 
 void LayoutManager::DisableKeyBindingsForModeInternal(Mode mode) {
   switch (mode) {
+    case MODE_NEW:
     case MODE_ACTIVE:
       active_mode_key_bindings_group_->Disable();
       break;

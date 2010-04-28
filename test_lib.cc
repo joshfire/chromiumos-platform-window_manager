@@ -117,8 +117,12 @@ void BasicWindowManagerTest::CreateAndInitNewWm() {
   ASSERT_TRUE(wm_->Init());
 }
 
-XWindow BasicWindowManagerTest::CreateToplevelWindow(
-    int x, int y, int width, int height) {
+XWindow BasicWindowManagerTest::CreateSimpleWindow() {
+  return CreateBasicWindow(0, 0, 640, 480);
+}
+
+XWindow BasicWindowManagerTest::CreateBasicWindow(int x, int y,
+                                                  int width, int height) {
   return xconn_->CreateWindow(
       xconn_->GetRootWindow(),
       x, y,
@@ -128,13 +132,47 @@ XWindow BasicWindowManagerTest::CreateToplevelWindow(
       0);     // event mask
 }
 
-XWindow BasicWindowManagerTest::CreateSimpleWindow() {
-  return CreateToplevelWindow(0, 0, 640, 480);
+XWindow BasicWindowManagerTest::CreateToplevelWindow(int tab_count,
+                                                     int selected_tab,
+                                                     int x, int y,
+                                                     int width, int height) {
+  XWindow xid = CreateBasicWindow(x, y, width, height);
+  ChangeTabInfo(xid, tab_count, selected_tab);
+  return xid;
+}
+
+void BasicWindowManagerTest::ChangeTabInfo(XWindow toplevel_xid,
+                                           int tab_count,
+                                           int selected_tab) {
+  std::vector<int> params;
+  params.push_back(tab_count);
+  params.push_back(selected_tab);
+  wm_->wm_ipc()->SetWindowType(
+      toplevel_xid, WmIpc::WINDOW_TYPE_CHROME_TOPLEVEL, &params);
+}
+
+XWindow BasicWindowManagerTest::CreateSnapshotWindow(XWindow parent_xid,
+                                                     int index,
+                                                     int x, int y,
+                                                     int width, int height) {
+  XWindow xid = CreateBasicWindow(x, y, width, height);
+  std::vector<int> params;
+  params.push_back(parent_xid);
+  params.push_back(index);
+  wm_->wm_ipc()->SetWindowType(
+      xid, WmIpc::WINDOW_TYPE_CHROME_TAB_SNAPSHOT, &params);
+
+  return xid;
+}
+
+XWindow BasicWindowManagerTest::CreateSimpleSnapshotWindow(XWindow parent_xid,
+                                                           int index) {
+  return CreateSnapshotWindow(parent_xid, index, 0, 0, 320, 240);
 }
 
 XWindow BasicWindowManagerTest::CreatePanelTitlebarWindow(
     int width, int height) {
-  XWindow xid = CreateToplevelWindow(0, 0, width, height);
+  XWindow xid = CreateBasicWindow(0, 0, width, height);
   wm_->wm_ipc()->SetWindowType(
       xid, WmIpc::WINDOW_TYPE_CHROME_PANEL_TITLEBAR, NULL);
   return xid;
@@ -142,8 +180,8 @@ XWindow BasicWindowManagerTest::CreatePanelTitlebarWindow(
 
 XWindow BasicWindowManagerTest::CreatePanelContentWindow(
     int width, int height, XWindow titlebar_xid, bool expanded) {
-  XWindow xid = CreateToplevelWindow(0, 0, width, height);
-  vector<int> params;
+  XWindow xid = CreateBasicWindow(0, 0, width, height);
+  std::vector<int> params;
   params.push_back(titlebar_xid);
   params.push_back(expanded ? 1 : 0);
   wm_->wm_ipc()->SetWindowType(
@@ -198,6 +236,13 @@ void BasicWindowManagerTest::SendFocusEvents(XWindow out_xid, XWindow in_xid) {
         (out_xid == root_xid) ? NotifyAncestor : NotifyNonlinear);
     wm_->HandleEvent(&event);
   }
+}
+
+void BasicWindowManagerTest::SendWindowTypeEvent(XWindow xid) {
+  XEvent event;
+  MockXConnection::InitPropertyNotifyEvent(
+      &event, xid, wm_->GetXAtom(ATOM_CHROME_WINDOW_TYPE));
+  wm_->HandleEvent(&event);
 }
 
 void BasicWindowManagerTest::SendWmIpcMessage(const WmIpc::Message& msg) {

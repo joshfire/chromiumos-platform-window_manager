@@ -115,7 +115,7 @@ class LayoutManager : public EventConsumer {
   void HandlePointerEnter(XWindow xid,
                           int x, int y,
                           int x_root, int y_root,
-                          XTime timestamp);
+                          XTime timestamp) {}
   void HandlePointerLeave(XWindow xid,
                           int x, int y,
                           int x_root, int y_root,
@@ -125,9 +125,9 @@ class LayoutManager : public EventConsumer {
                            int x_root, int y_root,
                            XTime timestamp);
   void HandleFocusChange(XWindow xid, bool focus_in);
-  void HandleChromeMessage(const WmIpc::Message& msg);
+  void HandleChromeMessage(const WmIpc::Message& msg) {}
   void HandleClientMessage(XWindow xid, XAtom message_type, const long data[5]);
-  void HandleWindowPropertyChange(XWindow xid, XAtom xatom) {}
+  void HandleWindowPropertyChange(XWindow xid, XAtom xatom);
   // Note: End EventConsumer implementation.
 
   // Return a pointer to an arbitrary Chrome toplevel window, if one
@@ -154,11 +154,63 @@ class LayoutManager : public EventConsumer {
   FRIEND_TEST(LayoutManagerTest, StackTransientsAbovePanels);
   FRIEND_TEST(LayoutManagerTest, NoDimmingInActiveMode);
 
+  // Internal private class, declared in toplevel_window.h
+  class ToplevelWindow;
+
+  // Internal private class, declared in snapshot_window.h
+  class SnapshotWindow;
+
+  // Typedefs for the containers used below.
+  typedef std::deque<std::tr1::shared_ptr<ToplevelWindow> > ToplevelWindows;
+  typedef std::deque<std::tr1::shared_ptr<SnapshotWindow> > SnapshotWindows;
+  typedef std::map<XWindow, SnapshotWindow*> XWindowToSnapshotMap;
+  typedef std::map<XWindow, ToplevelWindow*> XWindowToToplevelMap;
+
+  // Modes used to display windows.
+  enum Mode {
+    // Layout manager was just created, and mode not set yet.
+    MODE_NEW = 0,
+
+    // Display the current toplevel window at full size and let it
+    // receive input.  Hide all other windows.
+    MODE_ACTIVE,
+
+    // Display 'previously_current_window_' at full size and let it
+    // receive input.  Hide all other windows, and automatically
+    // switch to MODE_ACTIVE.
+    MODE_ACTIVE_CANCELLED,
+
+    // Display stacked snapshots of all of the tabs instead of the
+    // toplevel windows.
+    MODE_OVERVIEW,
+  };
+
   // Animation speed used for windows.
   static const int kWindowAnimMs;
 
-  // Internal private class, declared in toplevel_window.h
-  class ToplevelWindow;
+  // This is the speed that opacity should be animated for some
+  // contexts.
+  static const int kWindowOpacityAnimMs;
+
+  // Returns a string containing the name of the given mode.
+  static std::string GetModeName(Mode mode);
+  Mode mode() const { return mode_; }
+
+  // Recalculate the layout for all the managed windows, both toplevel
+  // and snapshot, based on the current mode.
+  void LayoutWindows(bool animate);
+
+  // Switch the current mode.  If the mode changes, then the windows
+  // will be laid out again.
+  void SetMode(Mode mode);
+
+  // Returns the current toplevel window.
+  ToplevelWindow* current_toplevel() { return current_toplevel_; }
+  void SetCurrentToplevel(ToplevelWindow* toplevel);
+
+  // Returns the current snapshot window.
+  SnapshotWindow* current_snapshot() { return current_snapshot_; }
+  void SetCurrentSnapshot(SnapshotWindow* snapshot);
 
   // Is the passed-in window type one that we should handle?
   static bool IsHandledWindowType(WmIpc::WindowType type);
@@ -170,6 +222,10 @@ class LayoutManager : public EventConsumer {
   // Get the 0-based index of the passed-in toplevel within 'toplevels_'.
   // Returns -1 if it isn't present.
   int GetIndexForToplevelWindow(const ToplevelWindow& toplevel) const;
+
+  // Get the 0-based index of the passed-in snapshot within 'snapshots_'.
+  // Returns -1 if it isn't present.
+  int GetIndexForSnapshotWindow(const SnapshotWindow& snapshot) const;
 
   // Get the ToplevelWindow object representing the passed-in window.
   // Returns NULL if it isn't a toplevel window.
@@ -184,95 +240,55 @@ class LayoutManager : public EventConsumer {
   // possibly-transient window.  Returns NULL if the window is unowned.
   ToplevelWindow* GetToplevelWindowOwningTransientWindow(const Window& win);
 
-  // Get the XID of the input window created for a toplevel window.  This
-  // is just used by testing code.
+  // Get the snapshot window represented by the passed-in input window, or
+  // NULL if the input window doesn't belong to us.
+  SnapshotWindow* GetSnapshotWindowByInputXid(XWindow xid);
+
+  // Get the SnapshotWindow object representing the passed-in window.
+  // Returns NULL if it isn't a snapshot window.
+  SnapshotWindow* GetSnapshotWindowByWindow(const Window& win);
+
+  // Get the SnapshotWindow object representing the window with the
+  // passed-in XID.  Returns NULL if the window doesn't exist or isn't a
+  // snapshot window.
+  SnapshotWindow* GetSnapshotWindowByXid(XWindow xid);
+
+  // Get the SnapshotWindow object that is stacked "after" or "before"
+  // the given one.  Returns NULL if there is no snapshot window in
+  // that position.
+  SnapshotWindow* GetSnapshotAfter(SnapshotWindow* window);
+  SnapshotWindow* GetSnapshotBefore(SnapshotWindow* window);
+
+  // Get the XID of the input window created for a window.
   XWindow GetInputXidForWindow(const Window& win);
-
-  // Do some initial setup for windows that we're going to manage.
-  // This includes stacking them and moving them offscreen.
-  void DoInitialSetupForWindow(Window* win);
-
-  // Modes used to display windows.
-  enum Mode {
-    // Display 'active_window_' at full size and let it receive input.
-    // Hide all other windows.
-    MODE_ACTIVE = 0,
-
-    // Display thumbnails of all of the windows across the bottom of the
-    // screen.
-    MODE_OVERVIEW,
-  };
-
-  // Helper method that activates 'toplevel', using the passed-in
-  // states for it and for the previously-active toplevel window.
-  // Only has an effect if we're already in active mode.  The two ints
-  // must be valid entries in the LayoutManager::ToplevelWindow::State
-  // enum.
-  void SetActiveToplevelWindow(ToplevelWindow* toplevel,
-                               int state_for_new_win,
-                               int state_for_old_win);
-
-  // Switch to active mode.  If 'activate_magnified_win' is true and
-  // there's a currently-magnified toplevel window, we focus it; otherwise
-  // we refocus the previously-focused window).
-  void SwitchToActiveMode(bool activate_magnified_win);
 
   // Activate the toplevel window at the passed-in 0-indexed position (or
   // the last window, for index -1).  Does nothing if no window exists at
   // that position or if we're not already in active mode.
-  void ActivateToplevelWindowByIndex(int index);
+  void HandleToplevelChangeRequest(int index);
 
-  // Magnify the toplevel window at the passed-in 0-indexed position (or
-  // the last window, for index -1).  Does nothing if no window exists at
-  // that position or if not already in overview mode.
-  void MagnifyToplevelWindowByIndex(int index);
+  // Make the snapshot window at the passed-in 0-indexed position
+  // current (or the last window, for index -1).  Does nothing if no
+  // window exists at that position or if not already in overview
+  // mode.
+  void HandleSnapshotChangeRequest(int index);
 
-  // Switch the current mode.
-  void SetMode(Mode mode);
+  // Calculate the position and scaling of all snapshots for overview
+  // mode and record it in 'snapshots_'.
+  void CalculatePositionsForOverviewMode();
 
-  // Calculate toplevel windows' positions and move them there.
-  void LayoutToplevelWindowsForActiveMode(bool update_focus);
-  // 'magnified_x' is passed to CalculatePositionsForOverviewMode().
-  void LayoutToplevelWindowsForOverviewMode(int magnified_x);
+  // Cycle the current toplevel window.  Only makes sense in active mode.
+  void CycleCurrentToplevelWindow(bool forward);
 
-  // Calculate the position and scaling of all windows for overview mode
-  // and record it in 'toplevels_'.  If 'magnified_x' (given relative to
-  // the layout manager's origin) is non-negative,
-  // 'overview_panning_offset_' is set such that the magnified window is as
-  // close to centered as possible while still being positioned underneath
-  // 'magnified_x'.  This is useful for ensuring that the magnified window
-  // remains underneath the pointer.
-  void CalculatePositionsForOverviewMode(int magnified_x);
-
-  // Configure all toplevel windows for overview mode based on their
-  // previously-calculated positions.  'incremental' is passed to
-  // ToplevelWindow::ConfigureForOverviewMode().
-  void ConfigureWindowsForOverviewMode(bool incremental);
-
-  // Get the toplevel window whose image in overview mode covers the
-  // passed-in position, or NULL if no such window exists.
-  ToplevelWindow* GetOverviewToplevelWindowAtPoint(int x, int y) const;
-
-  // Add or remove the relevant key bindings for the passed-in mode.
-  void AddKeyBindingsForMode(Mode mode);
-  void RemoveKeyBindingsForMode(Mode mode);
-
-  // Cycle the active toplevel window.  Only makes sense in active mode.
-  void CycleActiveToplevelWindow(bool forward);
-
-  // Cycle the magnified toplevel window.  Only makes sense in overview mode.
-  void CycleMagnifiedToplevelWindow(bool forward);
-
-  // Set 'magnified_toplevel_' to the passed-in toplevel window (which can
-  // be NULL to disable magnification).
-  void SetMagnifiedToplevelWindow(ToplevelWindow* toplevel);
+  // Cycle the current snapshot window.  Only makes sense in overview mode.
+  void CycleCurrentSnapshotWindow(bool forward);
 
   // Send a message to a window describing the current state of 'mode_'.
   // Does nothing if 'win' isn't a toplevel Chrome window.
   void SendModeMessage(ToplevelWindow* toplevel);
 
-  // Ask the active window to delete itself.
-  void SendDeleteRequestToActiveWindow();
+  // Ask the current window to delete itself.
+  void SendDeleteRequestToCurrentToplevel();
 
   // Pan across the windows horizontally in overview mode.
   // 'offset' is applied relative to the current panning offset.
@@ -287,6 +303,28 @@ class LayoutManager : public EventConsumer {
   void EnableKeyBindingsForModeInternal(Mode mode);
   void DisableKeyBindingsForModeInternal(Mode mode);
 
+  // If the snapshot corresponding to the current tab in the toplevel
+  // windows exists, then make that the selected snapshot.
+  void UpdateCurrentSnapshot();
+
+  // Remove a snapshot from the list of snapshots, updating all the
+  // appropriate stuff.
+  void RemoveSnapshot(SnapshotWindow* snapshot);
+
+  // Remove a toplevel from the list of toplevels, updating all the
+  // appropriate stuff, and also removing any snapshots that are
+  // associated with this toplevel.
+  void RemoveToplevel(ToplevelWindow* toplevel);
+
+  // Sorts the snapshots_ based on the order of the toplevel windows
+  // they belong to, and their tab index within those toplevel
+  // windows.  Returns true if something changed when we sorted it.
+  bool SortSnapshots();
+
+  // Gets the number of tabs in the toplevel windows preceeding
+  // |toplevel| in the list, but not including |toplevel|'s tabs.
+  int GetPreceedingTabCount(const ToplevelWindow& toplevel) const;
+
   WindowManager* wm_;  // not owned
 
   // The current mode.
@@ -300,28 +338,31 @@ class LayoutManager : public EventConsumer {
 
   // Information about toplevel windows, stored in the order in which
   // we'll display them in overview mode.
-  typedef std::deque<std::tr1::shared_ptr<ToplevelWindow> > ToplevelWindows;
   ToplevelWindows toplevels_;
 
-  // Map from input windows to the toplevel windows they represent.
-  std::map<XWindow, ToplevelWindow*> input_to_toplevel_;
+  // Information about snapshot windows, stored in their index order.
+  SnapshotWindows snapshots_;
+
+  // Map from input windows to the snapshot windows they represent.
+  XWindowToSnapshotMap input_to_snapshot_;
 
   // Map from transient windows' XIDs to the toplevel windows that own
   // them.  This is based on the transient windows' WM_TRANSIENT_FOR hints
   // at the time that they were mapped; we ignore any subsequent changes to
-  // this hint.
-  std::map<XWindow, ToplevelWindow*> transient_to_toplevel_;
+  // this hint.  (Note that snapshot windows don't have any transients.)
+  XWindowToToplevelMap transient_to_toplevel_;
 
-  // Currently-magnified toplevel window in overview mode, or NULL if no
-  // window is magnified.
-  ToplevelWindow* magnified_toplevel_;
+  // This is the current toplevel window.  This means that in active
+  // mode this one has the focus and is displayed fullscreen.  In
+  // snapshot mode, this is the one that the current snapshot belongs
+  // to.  Unless there are no toplevel windows, this should never be
+  // NULL.
+  ToplevelWindow* current_toplevel_;
 
-  // Currently-active toplevel window in active mode.
-  ToplevelWindow* active_toplevel_;
-
-  // Window that when clicked creates a new browser.  Only shown in
-  // overview mode, and may be NULL.
-  Window* create_browser_window_;
+  // This is the current snapshot window.  This means that in overview
+  // mode, this one is displayed highlighted.  Unless there are no
+  // snapshot windows, this should never be NULL.
+  SnapshotWindow* current_snapshot_;
 
   // Amount that toplevel windows' positions should be offset to the left
   // for overview mode.  Used to implement panning.

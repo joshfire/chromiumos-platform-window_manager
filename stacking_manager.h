@@ -66,12 +66,14 @@ class StackingManager {
     // backgrounds).
     LAYER_PANEL_DOCK,
 
-    // Toplevel windows, along with their transient windows and input
-    // windows.
+    // Toplevel windows, along with their transient windows.
     LAYER_TOPLEVEL_WINDOW,
 
     // Chrome windows used by LoginController.
     LAYER_LOGIN_WINDOW,
+
+    // Snapshot windows, along with their input windows.
+    LAYER_SNAPSHOT_WINDOW,
 
     // The background image.
     LAYER_BACKGROUND,

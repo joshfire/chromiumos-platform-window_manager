@@ -122,7 +122,7 @@ class WindowManager {
   void TakeFocus(XTime timestamp);
 
   // Set the _NET_ACTIVE_WINDOW property, which contains the ID of the
-  // currently-active window (in our case, this is the top-level window or
+  // currently-active window (in our case, this is the toplevel window or
   // panel window that has the focus).
   bool SetActiveWindowProperty(XWindow xid);
 
@@ -205,7 +205,7 @@ class WindowManager {
   // Register all of our key bindings.  Called by Init().
   void RegisterKeyBindings();
 
-  // Query the X server for all top-level windows and start tracking (and
+  // Query the X server for all toplevel windows and start tracking (and
   // possibly managing) them.
   bool ManageExistingWindows();
 
@@ -226,7 +226,7 @@ class WindowManager {
 
   // Set the WM_STATE property on a window.  Per ICCCM 4.1.3.1, 'state' can
   // be 0 (WithdrawnState), 1 (NormalState), or 3 (IconicState).  Per
-  // 4.1.4, IconicState means that the top-level window isn't viewable, so
+  // 4.1.4, IconicState means that the toplevel window isn't viewable, so
   // we should use NormalState even when drawing a scaled-down version of
   // the window.
   bool SetWmStateProperty(XWindow xid, int state);

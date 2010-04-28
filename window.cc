@@ -732,7 +732,6 @@ void Window::UpdateShadowIfNecessary() {
        wm_window_type_ == WM_WINDOW_TYPE_MENU ||    // Let menu and combo
        wm_window_type_ == WM_WINDOW_TYPE_COMBO) &&  // dropdown list pass.
       type_ != WmIpc::WINDOW_TYPE_CHROME_INFO_BUBBLE &&
-      type_ != WmIpc::WINDOW_TYPE_CREATE_BROWSER_WINDOW &&
       type_ != WmIpc::WINDOW_TYPE_LOGIN_IMAGE &&
       type_ != WmIpc::WINDOW_TYPE_LOGIN_CONTROLS &&
       type_ != WmIpc::WINDOW_TYPE_LOGIN_LABEL &&

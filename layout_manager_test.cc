@@ -103,7 +103,7 @@ TEST_F(LayoutManagerTest, Basic) {
 
   // After cycling the windows, the second and third windows should be
   // offscreen and the first window should be centered.
-  lm_->CycleActiveToplevelWindow(true);
+  lm_->CycleCurrentToplevelWindow(true);
   EXPECT_EQ(x, win1->client_x());
   EXPECT_EQ(y, win1->client_y());
   EXPECT_EQ(x, win1->composited_x());
@@ -125,15 +125,15 @@ TEST_F(LayoutManagerTest, Focus) {
   MockXConnection::InitCreateWindowEvent(&event, *info);
   wm_->HandleEvent(&event);
   EXPECT_EQ(None, xconn_->focused_xid());
-  EXPECT_TRUE(lm_->active_toplevel_ == NULL);
+  EXPECT_TRUE(lm_->current_toplevel_ == NULL);
 
   // The layout manager should activate and focus the window when it gets
   // mapped.
   MockXConnection::InitMapEvent(&event, xid);
   wm_->HandleEvent(&event);
   EXPECT_EQ(xid, xconn_->focused_xid());
-  ASSERT_TRUE(lm_->active_toplevel_ != NULL);
-  EXPECT_EQ(xid, lm_->active_toplevel_->win()->xid());
+  ASSERT_TRUE(lm_->current_toplevel_ != NULL);
+  EXPECT_EQ(xid, lm_->current_toplevel_->win()->xid());
   EXPECT_EQ(xid, GetActiveWindowProperty());
   EXPECT_TRUE(info->button_is_grabbed(AnyButton));
 
@@ -150,16 +150,16 @@ TEST_F(LayoutManagerTest, Focus) {
   MockXConnection::InitCreateWindowEvent(&event, *info2);
   wm_->HandleEvent(&event);
   EXPECT_EQ(xid, xconn_->focused_xid());
-  ASSERT_TRUE(lm_->active_toplevel_ != NULL);
-  EXPECT_EQ(xid, lm_->active_toplevel_->win()->xid());
+  ASSERT_TRUE(lm_->current_toplevel_ != NULL);
+  EXPECT_EQ(xid, lm_->current_toplevel_->win()->xid());
 
   // When the second window is mapped, it should become the active window.
   MockXConnection::InitMapEvent(&event, xid2);
   wm_->HandleEvent(&event);
   EXPECT_EQ(xid2, xconn_->focused_xid());
   EXPECT_EQ(xid2, GetActiveWindowProperty());
-  ASSERT_TRUE(lm_->active_toplevel_ != NULL);
-  EXPECT_EQ(xid2, lm_->active_toplevel_->win()->xid());
+  ASSERT_TRUE(lm_->current_toplevel_ != NULL);
+  EXPECT_EQ(xid2, lm_->current_toplevel_->win()->xid());
   EXPECT_FALSE(info->button_is_grabbed(AnyButton));
   EXPECT_TRUE(info2->button_is_grabbed(AnyButton));
 
@@ -181,8 +181,8 @@ TEST_F(LayoutManagerTest, Focus) {
       None);
   wm_->HandleEvent(&event);
   EXPECT_EQ(xid, xconn_->focused_xid());
-  ASSERT_TRUE(lm_->active_toplevel_ != NULL);
-  EXPECT_EQ(xid, lm_->active_toplevel_->win()->xid());
+  ASSERT_TRUE(lm_->current_toplevel_ != NULL);
+  EXPECT_EQ(xid, lm_->current_toplevel_->win()->xid());
 
   // Send the appropriate FocusOut and FocusIn events.
   SendFocusEvents(xid2, xid);
@@ -194,8 +194,8 @@ TEST_F(LayoutManagerTest, Focus) {
   MockXConnection::InitUnmapEvent(&event, xid);
   wm_->HandleEvent(&event);
   EXPECT_EQ(xid2, xconn_->focused_xid());
-  ASSERT_TRUE(lm_->active_toplevel_ != NULL);
-  EXPECT_EQ(xid2, lm_->active_toplevel_->win()->xid());
+  ASSERT_TRUE(lm_->current_toplevel_ != NULL);
+  EXPECT_EQ(xid2, lm_->current_toplevel_->win()->xid());
 
   SendFocusEvents(None, xid2);
   EXPECT_EQ(xid2, GetActiveWindowProperty());
@@ -394,7 +394,7 @@ TEST_F(LayoutManagerTest, FocusTransient) {
 
   // When we cycle to the first toplevel window, its modal transient
   // window, rather than the toplevel itself, should get the focus.
-  lm_->CycleActiveToplevelWindow(false);
+  lm_->CycleCurrentToplevelWindow(false);
   EXPECT_EQ(transient_xid, xconn_->focused_xid());
   SendFocusEvents(xid2, transient_xid);
   EXPECT_EQ(transient_xid, GetActiveWindowProperty());
@@ -403,7 +403,7 @@ TEST_F(LayoutManagerTest, FocusTransient) {
   EXPECT_FALSE(wm_->GetWindowOrDie(xid2)->focused());
 
   // Switch back to the second toplevel window.
-  lm_->CycleActiveToplevelWindow(false);
+  lm_->CycleCurrentToplevelWindow(false);
   EXPECT_EQ(xid2, xconn_->focused_xid());
   SendFocusEvents(transient_xid, xid2);
   EXPECT_EQ(xid2, GetActiveWindowProperty());
@@ -628,57 +628,75 @@ TEST_F(LayoutManagerTest, ConfigureToplevel) {
 
 TEST_F(LayoutManagerTest, OverviewFocus) {
   // Create and map a toplevel window.
-  XWindow xid = CreateSimpleWindow();
-  MockXConnection::WindowInfo* info = xconn_->GetWindowInfoOrDie(xid);
+  XWindow toplevel_xid = CreateToplevelWindow(2, 0, 0, 0, 640, 480);
+  SendInitialEventsForWindow(toplevel_xid);
+  MockXConnection::WindowInfo* toplevel_info =
+      xconn_->GetWindowInfoOrDie(toplevel_xid);
+
+  // The toplevel window should get the focus, the active window
+  // property should be updated, and there shouldn't be a button grab
+  // on the window.
+  EXPECT_EQ(toplevel_xid, xconn_->focused_xid());
+  SendFocusEvents(xconn_->GetRootWindow(), toplevel_xid);
+  EXPECT_EQ(toplevel_xid, GetActiveWindowProperty());
+  EXPECT_FALSE(toplevel_info->button_is_grabbed(AnyButton));
+
+  // Create an associated snapshot window.
+  XWindow xid = CreateSimpleSnapshotWindow(toplevel_xid, 0);
   SendInitialEventsForWindow(xid);
 
-  // The window should get the focus, the active window property should be
-  // updated, and there shouldn't be a button grab on the window.
-  EXPECT_EQ(xid, xconn_->focused_xid());
-  SendFocusEvents(xconn_->GetRootWindow(), xid);
-  EXPECT_EQ(xid, GetActiveWindowProperty());
-  EXPECT_FALSE(info->button_is_grabbed(AnyButton));
+  // The toplevel window should still have the focus, the active
+  // window property should be the same, and there still shouldn't be
+  // a button grab on the window.
+  EXPECT_EQ(toplevel_xid, xconn_->focused_xid());
+  SendFocusEvents(xconn_->GetRootWindow(), toplevel_xid);
+  EXPECT_EQ(toplevel_xid, GetActiveWindowProperty());
+  EXPECT_FALSE(toplevel_info->button_is_grabbed(AnyButton));
 
-  // Now create and map a second window.
-  XWindow xid2 = CreateSimpleWindow();
-  MockXConnection::WindowInfo* info2 = xconn_->GetWindowInfoOrDie(xid2);
+  // Now create and map a second snapshot window.
+  XWindow xid2 = CreateSimpleSnapshotWindow(toplevel_xid, 1);
   SendInitialEventsForWindow(xid2);
+  ChangeTabInfo(toplevel_xid, 2, 1);
+  SendWindowTypeEvent(toplevel_xid);
 
-  // The second window should be focused and set as the active window,
-  // and we should install a button grab on the first window.
-  EXPECT_EQ(xid2, xconn_->focused_xid());
-  SendFocusEvents(xid, xid2);
-  EXPECT_EQ(xid2, GetActiveWindowProperty());
-  EXPECT_TRUE(info->button_is_grabbed(AnyButton));
-  EXPECT_FALSE(info2->button_is_grabbed(AnyButton));
+  // The second snapshot window should be current after being created.
+  EXPECT_NE(lm_->GetSnapshotWindowByXid(xid), lm_->current_snapshot_);
+  EXPECT_EQ(lm_->GetSnapshotWindowByXid(xid2), lm_->current_snapshot_);
 
-  // Now switch to overview mode.  Neither window should have the focus,
-  // both should have button grabs, and the active window property should
-  // be unset.
+  // Now switch to overview mode.  The toplevel window should not have
+  // the focus, it should have a button grab, and the active window
+  // property should be unset.
   lm_->SetMode(LayoutManager::MODE_OVERVIEW);
   EXPECT_EQ(xconn_->GetRootWindow(), xconn_->focused_xid());
   XEvent event;
   MockXConnection::InitFocusOutEvent(
-      &event, xid2, NotifyWhileGrabbed, NotifyVirtual);
+      &event, toplevel_xid, NotifyWhileGrabbed, NotifyVirtual);
   wm_->HandleEvent(&event);
+
+  // The second snapshot window should still be current after being
+  // created second.
+  EXPECT_EQ(lm_->GetSnapshotWindowByXid(xid2), lm_->current_snapshot_);
+
   // This FocusIn event with detail NotifyPointer is odd, but appears to be
   // what happens in actuality.
   MockXConnection::InitFocusInEvent(
       &event, xid2, NotifyWhileGrabbed, NotifyPointer);
   wm_->HandleEvent(&event);
+
+  // Verify that nothing changes as a result of handling this event
+  // with NotifyPointer set.
   EXPECT_EQ(None, GetActiveWindowProperty());
-  EXPECT_TRUE(info->button_is_grabbed(AnyButton));
-  EXPECT_TRUE(info2->button_is_grabbed(AnyButton));
+  EXPECT_TRUE(toplevel_info->button_is_grabbed(AnyButton));
 
-  // The second window should be magnified.
-  EXPECT_EQ(lm_->GetToplevelWindowByXid(xid2), lm_->magnified_toplevel_);
+  // The second snapshot window should be current.
+  EXPECT_EQ(lm_->GetSnapshotWindowByXid(xid2), lm_->current_snapshot_);
 
-  // Click on the first window's input window to magnify it.
+  // Click on the first window's input window to make it current.
   XWindow input_xid = lm_->GetInputXidForWindow(*(wm_->GetWindowOrDie(xid)));
   MockXConnection::InitButtonPressEvent(
       &event, *xconn_->GetWindowInfoOrDie(input_xid), 0, 0, 1);  // x, y, button
   wm_->HandleEvent(&event);
-  EXPECT_EQ(lm_->GetToplevelWindowByXid(xid), lm_->magnified_toplevel_);
+  EXPECT_EQ(lm_->GetSnapshotWindowByXid(xid), lm_->current_snapshot_);
 
   // Now click on it again to activate it.  The first window should be
   // focused and set as the active window, and only the second window
@@ -686,12 +704,11 @@ TEST_F(LayoutManagerTest, OverviewFocus) {
   MockXConnection::InitButtonPressEvent(
       &event, *xconn_->GetWindowInfoOrDie(input_xid), 0, 0, 1);  // x, y, button
   wm_->HandleEvent(&event);
-  EXPECT_EQ(lm_->GetToplevelWindowByXid(xid), lm_->active_toplevel_);
-  EXPECT_EQ(xid, xconn_->focused_xid());
-  SendFocusEvents(xid2, xid);
-  EXPECT_EQ(xid, GetActiveWindowProperty());
-  EXPECT_FALSE(info->button_is_grabbed(AnyButton));
-  EXPECT_TRUE(info2->button_is_grabbed(AnyButton));
+  EXPECT_EQ(lm_->GetToplevelWindowByXid(toplevel_xid), lm_->current_toplevel_);
+  EXPECT_EQ(toplevel_xid, xconn_->focused_xid());
+  SendFocusEvents(xid2, toplevel_xid);
+  EXPECT_EQ(toplevel_xid, GetActiveWindowProperty());
+  EXPECT_FALSE(toplevel_info->button_is_grabbed(AnyButton));
 }
 
 // Test that already-existing windows get stacked correctly.
@@ -876,7 +893,7 @@ TEST_F(LayoutManagerTest, NoDimmingInActiveMode) {
 
   // Now switch back to the first window (which was dimmed when we displayed
   // it in overview mode) and check that it's not dimmed in active mode.
-  lm_->CycleActiveToplevelWindow(true);
+  lm_->CycleCurrentToplevelWindow(true);
   EXPECT_EQ(xid1, xconn_->focused_xid());
   SendFocusEvents(xid2, xid1);
   MockClutterInterface::Actor* actor1 =

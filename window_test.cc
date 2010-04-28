@@ -53,7 +53,7 @@ TEST_F(WindowTest, WindowType) {
 }
 
 TEST_F(WindowTest, ChangeClient) {
-  XWindow xid = CreateToplevelWindow(10, 20, 30, 40);
+  XWindow xid = CreateBasicWindow(10, 20, 30, 40);
   MockXConnection::WindowInfo* info = xconn_->GetWindowInfoOrDie(xid);
 
   Window window(wm_.get(), xid, false);
@@ -95,7 +95,7 @@ TEST_F(WindowTest, ChangeClient) {
 }
 
 TEST_F(WindowTest, ChangeComposited) {
-  XWindow xid = CreateToplevelWindow(10, 20, 30, 40);
+  XWindow xid = CreateBasicWindow(10, 20, 30, 40);
   Window window(wm_.get(), xid, false);
 
   const MockClutterInterface::Actor* actor =
@@ -145,7 +145,7 @@ TEST_F(WindowTest, TransientFor) {
 }
 
 TEST_F(WindowTest, GetMaxSize) {
-  XWindow xid = CreateToplevelWindow(10, 20, 30, 40);
+  XWindow xid = CreateBasicWindow(10, 20, 30, 40);
 
   MockXConnection::WindowInfo* info = xconn_->GetWindowInfoOrDie(xid);
   info->size_hints.min_width = 400;
@@ -444,7 +444,7 @@ TEST_F(WindowTest, Shape) {
   // Create a shaped window.
   int width = 10;
   int height = 5;
-  XWindow xid = CreateToplevelWindow(10, 20, width, height);
+  XWindow xid = CreateBasicWindow(10, 20, width, height);
   MockXConnection::WindowInfo* info = xconn_->GetWindowInfoOrDie(xid);
   info->shape.reset(new ByteMap(width, height));
   info->shape->Clear(0xff);
@@ -538,7 +538,7 @@ TEST_F(WindowTest, RemoveBorder) {
 // see http://crosbug.com/1279.
 TEST_F(WindowTest, DeferResizingActor) {
   const int orig_width = 300, orig_height = 200;
-  XWindow xid = CreateToplevelWindow(0, 0, orig_width, orig_height);
+  XWindow xid = CreateToplevelWindow(2, 0, 0, 0, orig_width, orig_height);
   Window win(wm_.get(), xid, false);
 
   // Check that the actor's initial dimensions match that of the client window.

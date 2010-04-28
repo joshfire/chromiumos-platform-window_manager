@@ -10,12 +10,10 @@
 #include <string>
 #include <tr1/memory>
 
-extern "C" {
-#include <X11/Xatom.h>
-}
 #include <gflags/gflags.h>
 
 #include "base/logging.h"
+#include "base/string_util.h"
 #include "window_manager/atom_cache.h"
 #include "window_manager/callback.h"
 #include "window_manager/event_consumer_registrar.h"
@@ -27,20 +25,25 @@ extern "C" {
 #include "window_manager/window_manager.h"
 #include "window_manager/x_connection.h"
 
+// Define this if you want extra logging in this file.
+#if !defined(EXTRA_LOGGING)
+#undef EXTRA_LOGGING
+#endif
+
 // Defined in layout_manager.cc
 DECLARE_bool(lm_honor_window_size_hints);
 
 using std::list;
+using std::make_pair;
 using std::map;
 using std::max;
 using std::min;
+using std::pair;
 using std::string;
 using std::tr1::shared_ptr;
+using std::vector;
 
 namespace window_manager {
-
-// Animation speed for windows in new overview mode.
-static const int kOverviewAnimMs = 100;
 
 // When animating a window zooming out while switching windows, what size
 // should it scale to?
@@ -50,22 +53,19 @@ LayoutManager::ToplevelWindow::ToplevelWindow(Window* win,
                                               LayoutManager* layout_manager)
     : win_(win),
       layout_manager_(layout_manager),
-      input_xid_(
-          wm()->CreateInputWindow(
-              -1, -1, 1, 1,
-              ButtonPressMask | EnterWindowMask | LeaveWindowMask)),
       state_(STATE_NEW),
-      overview_x_(0),
-      overview_y_(0),
-      overview_width_(0),
-      overview_height_(0),
-      overview_scale_(1.0),
+      last_state_(STATE_NEW),
       stacked_transients_(new Stacker<TransientWindow*>),
       transient_to_focus_(NULL),
+      selected_tab_(-1),
+      tab_count_(0),
       event_consumer_registrar_(
           new EventConsumerRegistrar(wm(), layout_manager_)) {
+#if defined(EXTRA_LOGGING)
+  DLOG(INFO) << "Creating ToplevelWindow for window " << XidStr(win_->xid());
+#endif
+
   event_consumer_registrar_->RegisterForWindowEvents(win_->xid());
-  event_consumer_registrar_->RegisterForWindowEvents(input_xid_);
 
   int width = layout_manager_->width();
   int height = layout_manager_->height();
@@ -73,210 +73,257 @@ LayoutManager::ToplevelWindow::ToplevelWindow(Window* win,
     win->GetMaxSize(width, height, &width, &height);
   win->ResizeClient(width, height, GRAVITY_NORTHWEST);
 
-  wm()->stacking_manager()->StackXidAtTopOfLayer(
-      input_xid_, StackingManager::LAYER_TOPLEVEL_WINDOW);
-  wm()->SetNamePropertiesForXid(
-      input_xid_, string("input window for toplevel ") + win_->xid_str());
-
-
   // Let the window know that it's maximized.
   map<XAtom, bool> wm_state;
   wm_state[wm()->GetXAtom(ATOM_NET_WM_STATE_MAXIMIZED_HORZ)] = true;
   wm_state[wm()->GetXAtom(ATOM_NET_WM_STATE_MAXIMIZED_VERT)] = true;
   win->ChangeWmState(wm_state);
 
+  // Initialize local properties from the window properties.
+  PropertiesChanged();
+
+  // Start with client offscreen, and composited window invisible.
   win->MoveClientOffscreen();
   win->SetCompositedOpacity(0, 0);
   win->ShowComposited();
+
   // Make sure that we hear about button presses on this window.
   win->AddButtonGrab();
 }
 
 LayoutManager::ToplevelWindow::~ToplevelWindow() {
+#if defined(EXTRA_LOGGING)
+  DLOG(INFO) << "Deleting toplevel window " << win_->xid_str();
+#endif
   while (!transients_.empty())
     RemoveTransientWindow(transients_.begin()->second->win);
-  wm()->xconn()->DestroyWindow(input_xid_);
   win_->RemoveButtonGrab();
   win_ = NULL;
   layout_manager_ = NULL;
-  input_xid_ = None;
   transient_to_focus_ = NULL;
 }
 
-int LayoutManager::ToplevelWindow::GetAbsoluteOverviewX() const {
-  return layout_manager_->x() - layout_manager_->overview_panning_offset() +
-      overview_x_;
+const char* LayoutManager::ToplevelWindow::GetStateName(State state) {
+  switch(state) {
+    case STATE_NEW:
+      return "New";
+    case STATE_OVERVIEW_MODE:
+      return "Overview Mode";
+    case STATE_ACTIVE_MODE_ONSCREEN:
+      return "Active Mode Onscreen";
+    case STATE_ACTIVE_MODE_OFFSCREEN:
+      return "Active Mode Offscreen";
+    case STATE_ACTIVE_MODE_IN_FROM_RIGHT:
+      return "Active Mode In From Right";
+    case STATE_ACTIVE_MODE_IN_FROM_LEFT:
+      return "Active Mode In From Left";
+    case STATE_ACTIVE_MODE_OUT_TO_LEFT:
+      return "Active Mode Out To Left";
+    case STATE_ACTIVE_MODE_OUT_TO_RIGHT:
+      return "Active Mode Out To Right";
+    case STATE_ACTIVE_MODE_IN_FADE:
+      return "Active Mode In Fade";
+    case STATE_ACTIVE_MODE_OUT_FADE:
+      return "Active Mode Out Fade";
+    default:
+      return "UNKNOWN STATE";
+  }
 }
 
-int LayoutManager::ToplevelWindow::GetAbsoluteOverviewY() const {
-  return layout_manager_->y() + overview_y_;
+void LayoutManager::ToplevelWindow::SetState(State state) {
+#if defined(EXTRA_LOGGING)
+  DLOG(INFO) << "Switching toplevel " << win_->xid_str()
+            << " state from " << GetStateName(state_) << " to "
+            << GetStateName(state);
+#endif
+  state_ = state;
 }
 
-void LayoutManager::ToplevelWindow::ConfigureForActiveMode(
-    bool window_is_active,
-    bool to_left_of_active,
-    bool update_focus) {
+void LayoutManager::ToplevelWindow::UpdateLayout(bool animate) {
+#if defined(EXTRA_LOGGING)
+  DLOG(INFO) << "Updating Layout for toplevel "
+            << win_->xid_str() << " in state "
+            << GetStateName(state_);
+#endif
+  if (state_ == STATE_OVERVIEW_MODE) {
+    ConfigureForOverviewMode(animate);
+  } else {
+    ConfigureForActiveMode(animate);
+  }
+  last_state_ = state_;
+}
+
+bool LayoutManager::ToplevelWindow::PropertiesChanged() {
+  if (win_->type() == WmIpc::WINDOW_TYPE_CHROME_TOPLEVEL) {
+    if (win_->type_params().size() > 1) {
+      // Notice if the number of tabs or the selected tab changed.
+      int old_tab_count = tab_count_;
+      int old_selected_tab = selected_tab_;
+      selected_tab_ = win_->type_params()[1];
+      tab_count_ = win_->type_params()[0];
+
+      bool changed = tab_count_ != old_tab_count ||
+                     selected_tab_ != old_selected_tab;
+#if defined(EXTRA_LOGGING)
+      if (changed) {
+        DLOG(INFO) << "Properties of toplevel " << win_->xid_str()
+                  << " changed count from " << old_tab_count << " to "
+                  << tab_count_
+                  << " and selected from " << old_selected_tab << " to "
+                  << selected_tab_;
+      }
+#endif
+      return changed;
+    }
+  }
+  return false;
+}
+
+void LayoutManager::ToplevelWindow::ConfigureForActiveMode(bool animate) {
   const int layout_x = layout_manager_->x();
   const int layout_y = layout_manager_->y();
   const int layout_width = layout_manager_->width();
   const int layout_height = layout_manager_->height();
+  const int this_index = layout_manager_->GetIndexForToplevelWindow(*this);
+  const int current_index = layout_manager_->GetIndexForToplevelWindow(
+      *(layout_manager_->current_toplevel()));
+  const bool to_left_of_active = this_index < current_index;
+  const int anim_ms = animate ? LayoutManager::kWindowAnimMs : 0;
+  const int animation_time =
+      (last_state_ == STATE_ACTIVE_MODE_ONSCREEN) ? anim_ms : 0;
 
-  // Center window vertically.
+  // Center window vertically and horizontally.
   const int win_y =
-      layout_y + max(0, (layout_height - win_->client_height())) / 2;
+      layout_y + std::max(0, (layout_height - win_->client_height())) / 2;
+  const int win_x =
+      layout_x + std::max(0, (layout_width - win_->client_width())) / 2;
 
-  // TODO: This is a pretty huge mess.  Replace it with a saner way of
-  // tracking animation state for windows.
-  if (window_is_active) {
-    // Center window horizontally.
-    const int win_x =
-        layout_x + max(0, (layout_width - win_->client_width())) / 2;
-    if (state_ == STATE_NEW ||
-        state_ == STATE_ACTIVE_MODE_OFFSCREEN ||
-        state_ == STATE_ACTIVE_MODE_IN_FROM_RIGHT ||
-        state_ == STATE_ACTIVE_MODE_IN_FROM_LEFT ||
-        state_ == STATE_ACTIVE_MODE_IN_FADE) {
-      // If the active window is in a state that requires that it be
-      // animated in from a particular location or opacity, move it there
-      // immediately.
-      if (state_ == STATE_ACTIVE_MODE_IN_FROM_RIGHT) {
-        win_->MoveComposited(layout_x + layout_width, win_y, 0);
-        win_->SetCompositedOpacity(1.0, 0);
-        win_->ScaleComposited(1.0, 1.0, 0);
-      } else if (state_ == STATE_ACTIVE_MODE_IN_FROM_LEFT) {
-        win_->MoveComposited(layout_x - win_->client_width(), win_y, 0);
-        win_->SetCompositedOpacity(1.0, 0);
-        win_->ScaleComposited(1.0, 1.0, 0);
-      } else if (state_ == STATE_ACTIVE_MODE_IN_FADE) {
-        win_->SetCompositedOpacity(0, 0);
-        win_->MoveComposited(
-            layout_x - 0.5 * kWindowFadeSizeFraction * win_->client_width(),
-            layout_y - 0.5 * kWindowFadeSizeFraction * win_->client_height(),
-            0);
-        win_->ScaleComposited(
-            1 + kWindowFadeSizeFraction, 1 + kWindowFadeSizeFraction, 0);
-      } else {
-        // Animate new or offscreen windows as moving up from the bottom
-        // of the layout area.
-        win_->MoveComposited(win_x, GetAbsoluteOverviewOffscreenY(), 0);
-        win_->ScaleComposited(1.0, 1.0, 0);
-      }
+  // This switch is to setup the starting conditions for each kind of
+  // transition.
+  switch (state_) {
+    case STATE_ACTIVE_MODE_OFFSCREEN:
+    case STATE_ACTIVE_MODE_ONSCREEN:
+    case STATE_ACTIVE_MODE_OUT_FADE:
+    case STATE_ACTIVE_MODE_OUT_TO_LEFT:
+    case STATE_ACTIVE_MODE_OUT_TO_RIGHT:
+      // Nothing to do for initial setup on these -- they start
+      // animating from wherever they are.
+      break;
+    case STATE_NEW: {
+      // Start new windows at the bottom of the layout area.
+      win_->MoveComposited(win_x, layout_y + layout_height, 0);
+      win_->ScaleComposited(1.0, 1.0, 0);
+      win_->SetCompositedOpacity(1.0, 0);
+      break;
     }
-    MoveAndScaleAllTransientWindows(0);
-
-    // In any case, give the window input focus and animate it moving to
-    // its final location.
-    win_->MoveClient(win_x, win_y);
-    win_->MoveComposited(win_x, win_y, LayoutManager::kWindowAnimMs);
-    win_->ScaleComposited(1.0, 1.0, LayoutManager::kWindowAnimMs);
-    win_->SetCompositedOpacity(1.0, LayoutManager::kWindowAnimMs);
-    if (update_focus)
-      TakeFocus(wm()->GetCurrentTimeFromServer());
-    state_ = STATE_ACTIVE_MODE_ONSCREEN;
-  } else {
-    if (state_ == STATE_ACTIVE_MODE_OUT_TO_LEFT) {
-      win_->MoveComposited(
-          layout_x - win_->client_width(), win_y, LayoutManager::kWindowAnimMs);
-    } else if (state_ == STATE_ACTIVE_MODE_OUT_TO_RIGHT) {
-      win_->MoveComposited(layout_x + layout_width, win_y,
-                           LayoutManager::kWindowAnimMs);
-    } else if (state_ == STATE_ACTIVE_MODE_OUT_FADE) {
-      win_->SetCompositedOpacity(0, LayoutManager::kWindowAnimMs);
-      win_->MoveComposited(
-          layout_x + 0.5 * kWindowFadeSizeFraction * win_->client_width(),
-          layout_y + 0.5 * kWindowFadeSizeFraction * win_->client_height(),
-          LayoutManager::kWindowAnimMs);
-      win_->ScaleComposited(
-          kWindowFadeSizeFraction, kWindowFadeSizeFraction,
-          LayoutManager::kWindowAnimMs);
-    } else {
-      // Move non-active windows offscreen instead of just outside of the
-      // layout manager area -- we don't want them to be briefly visible
-      // if space opens up on the side due to a panel dock being hidden.
-      //
-      // We even move windows in STATE_ACTIVE_MODE_OFFSCREEN; the layout
-      // manager size might've just changed due to a panel being undocked,
-      // and we don't want the edges of these windows to be peeking
-      // onscreen.
-      int x = to_left_of_active ?  0 - overview_width_ : wm()->width();
-      win_->MoveComposited(x, GetAbsoluteOverviewY(),
-                           LayoutManager::kWindowAnimMs);
-      win_->ScaleComposited(overview_scale_, overview_scale_,
-                            LayoutManager::kWindowAnimMs);
-      win_->SetCompositedOpacity(0.5, LayoutManager::kWindowAnimMs);
+    case STATE_ACTIVE_MODE_IN_FROM_RIGHT: {
+      // These start off to the right.
+      win_->MoveComposited(layout_x + layout_width, win_y, 0);
+      win_->SetCompositedOpacity(1.0, 0);
+      win_->ScaleComposited(1.0, 1.0, 0);
+      break;
     }
-    // Fade out the window's shadow entirely so it won't be visible if
-    // the window is just slightly offscreen.
-    win_->SetShadowOpacity(0, LayoutManager::kWindowAnimMs);
-    state_ = STATE_ACTIVE_MODE_OFFSCREEN;
-    win_->MoveClientOffscreen();
+    case STATE_ACTIVE_MODE_IN_FROM_LEFT: {
+      // These start off to the left.
+      win_->MoveComposited(layout_x - win_->client_width(), win_y, 0);
+      win_->SetCompositedOpacity(1.0, 0);
+      win_->ScaleComposited(1.0, 1.0, 0);
+      break;
+    }
+    case STATE_ACTIVE_MODE_IN_FADE: {
+      // These start off invisible, and fade in, scaling up from
+      // something smaller than full size.
+      float center_scale = 0.5 * kWindowFadeSizeFraction;
+      win_->SetCompositedOpacity(0, 0);
+      win_->ScaleComposited(0.5, 0.5, 0);
+      win_->MoveComposited(layout_x + center_scale * win_->client_width(),
+                           layout_y + center_scale * win_->client_height(), 0);
+      break;
+    }
+    case STATE_OVERVIEW_MODE:
+      NOTREACHED() << "Tried to layout overview mode in ConfigureForActiveMode";
+      break;
   }
 
-  win_->actor()->ShowDimmed(false, 0);
   ApplyStackingForAllTransientWindows(false);  // stack in upper layer
-  MoveAndScaleAllTransientWindows(LayoutManager::kWindowAnimMs);
 
-  // TODO: Maybe just unmap input windows.
-  wm()->xconn()->ConfigureWindowOffscreen(input_xid_);
-}
-
-void LayoutManager::ToplevelWindow::ConfigureForOverviewMode(
-    bool window_is_magnified,
-    bool dim_if_unmagnified,
-    ToplevelWindow* toplevel_to_stack_under,
-    bool incremental) {
-  if (!incremental) {
-    if (toplevel_to_stack_under) {
-      win_->StackCompositedBelow(
-          toplevel_to_stack_under->win()->GetBottomActor(), NULL, false);
-      win_->StackClientBelow(toplevel_to_stack_under->win()->xid());
-      wm()->xconn()->StackWindow(
-          input_xid_, toplevel_to_stack_under->input_xid(), false);
-    } else {
-      wm()->stacking_manager()->StackWindowAtTopOfLayer(
-          win_, StackingManager::LAYER_TOPLEVEL_WINDOW);
-      wm()->stacking_manager()->StackXidAtTopOfLayer(
-          input_xid_, StackingManager::LAYER_TOPLEVEL_WINDOW);
+  // Now set in motion the animations by targeting their destination.
+  switch (state_) {
+    case STATE_ACTIVE_MODE_OUT_TO_LEFT: {
+      win_->MoveComposited(layout_x - layout_width, win_y, animation_time);
+      SetState(STATE_ACTIVE_MODE_OFFSCREEN);
+      break;
     }
-
-    // We want to get new windows into their starting state immediately;
-    // we animate other windows smoothly.
-    const int anim_ms = (state_ == STATE_NEW) ? 0 : kOverviewAnimMs;
-
-    win_->ScaleComposited(overview_scale_, overview_scale_, anim_ms);
-    win_->SetCompositedOpacity(1.0, anim_ms);
-    win_->actor()->ShowDimmed(!window_is_magnified, anim_ms);
-    win_->MoveClientOffscreen();
-    wm()->ConfigureInputWindow(input_xid_,
-                               GetAbsoluteOverviewX(), GetAbsoluteOverviewY(),
-                               overview_width_, overview_height_);
-    ApplyStackingForAllTransientWindows(true);  // stack above toplevel
-
-    // Make new windows slide in from the right.
-    if (state_ == STATE_NEW) {
-      const int initial_x = layout_manager_->x() + layout_manager_->width();
-      const int initial_y = GetAbsoluteOverviewY();
-      win_->MoveComposited(initial_x, initial_y, 0);
+    case STATE_ACTIVE_MODE_OUT_TO_RIGHT: {
+      win_->MoveComposited(layout_x + layout_width, win_y, animation_time);
+      SetState(STATE_ACTIVE_MODE_OFFSCREEN);
+      break;
     }
-    state_ = window_is_magnified ?
-             STATE_OVERVIEW_MODE_MAGNIFIED :
-             STATE_OVERVIEW_MODE_NORMAL;
+    case STATE_ACTIVE_MODE_OUT_FADE: {
+      float center_scale = 0.5 * kWindowFadeSizeFraction;
+      win_->SetCompositedOpacity(0.f, anim_ms);
+      win_->MoveComposited(layout_x + center_scale * win_->client_width(),
+                           layout_y + center_scale * win_->client_height(),
+                           anim_ms);
+      win_->ScaleComposited(
+          kWindowFadeSizeFraction, kWindowFadeSizeFraction, anim_ms);
+      SetState(STATE_ACTIVE_MODE_OFFSCREEN);
+      break;
+    }
+    case STATE_ACTIVE_MODE_OFFSCREEN: {
+      win_->SetCompositedOpacity(1.f, 0);
+      win_->ScaleComposited(1.f, 1.f, animation_time);
+      win_->MoveComposited(layout_x +
+                           (to_left_of_active ? -layout_width : layout_width),
+                           win_y, animation_time);
+      break;
+    }
+    case STATE_ACTIVE_MODE_IN_FADE:
+    case STATE_ACTIVE_MODE_IN_FROM_LEFT:
+    case STATE_ACTIVE_MODE_IN_FROM_RIGHT:
+    case STATE_ACTIVE_MODE_ONSCREEN:
+    case STATE_NEW:  {
+      win_->MoveComposited(win_x, win_y, anim_ms);
+      win_->MoveClientToComposited();
+      win_->SetCompositedOpacity(1.f, anim_ms / 4);
+      win_->ScaleComposited(1.f, 1.f, anim_ms);
+      SetState(STATE_ACTIVE_MODE_ONSCREEN);
+      break;
+    }
+    case STATE_OVERVIEW_MODE:
+      NOTREACHED() << "Tried to layout overview mode in ConfigureForActiveMode";
+      break;
   }
 
-  win_->MoveComposited(GetAbsoluteOverviewX(), GetAbsoluteOverviewY(),
-                       incremental ? 0 : kOverviewAnimMs);
-  MoveAndScaleAllTransientWindows(incremental ? 0 : kOverviewAnimMs);
+  if (state_ == STATE_ACTIVE_MODE_ONSCREEN) {
+    win_->MoveClient(win_x, win_y);
+    MoveAndScaleAllTransientWindows(anim_ms);
+    win_->SetShadowOpacity(1.0, anim_ms);
+  } else {
+    win_->MoveClientOffscreen();
+    win_->SetShadowOpacity(0, anim_ms);
+    MoveAndScaleAllTransientWindows(
+         last_state_ == STATE_ACTIVE_MODE_ONSCREEN ? anim_ms : 0);
+  }
 }
 
-void LayoutManager::ToplevelWindow::UpdateOverviewScaling(int max_width,
-                                                          int max_height) {
-  double scale_x = max_width / static_cast<double>(win_->client_width());
-  double scale_y = max_height / static_cast<double>(win_->client_height());
-  double tmp_scale = min(scale_x, scale_y);
-
-  overview_width_  = tmp_scale * win_->client_width();
-  overview_height_ = tmp_scale * win_->client_height();
-  overview_scale_  = tmp_scale;
+void LayoutManager::ToplevelWindow::ConfigureForOverviewMode(bool animate) {
+  const int anim_ms = animate ? LayoutManager::kWindowAnimMs : 0;
+  // If this is the current toplevel window, we fade it out while
+  // scaling it down.
+  if (layout_manager_->current_toplevel() == this) {
+    float center_scale = 0.5 * kWindowFadeSizeFraction;
+    win_->ScaleComposited(kWindowFadeSizeFraction, kWindowFadeSizeFraction,
+                          anim_ms);
+    win_->MoveComposited(center_scale * win_->client_width(),
+                         center_scale * win_->client_height(),
+                         anim_ms);
+    win_->SetCompositedOpacity(0.0, anim_ms / 4);
+  } else {
+    win_->SetCompositedOpacity(0.0, 0);
+  }
+  ApplyStackingForAllTransientWindows(true);  // stack above toplevel
+  win_->MoveClientOffscreen();
 }
 
 void LayoutManager::ToplevelWindow::TakeFocus(XTime timestamp) {
@@ -445,14 +492,18 @@ void LayoutManager::ToplevelWindow::HandleFocusChange(
   DCHECK(focus_win == win_ || GetTransientWindow(*focus_win));
 
   if (focus_in) {
+#if defined(EXTRA_LOGGING)
     DLOG(INFO) << "Got focus-in for " << focus_win->xid_str()
                << "; removing passive button grab";
+#endif
     focus_win->RemoveButtonGrab();
   } else {
     // Listen for button presses on this window so we'll know when it
     // should be focused again.
+#if defined(EXTRA_LOGGING)
     DLOG(INFO) << "Got focus-out for " << focus_win->xid_str()
                << "; re-adding passive button grab";
+#endif
     focus_win->AddButtonGrab();
   }
 }

@@ -53,12 +53,26 @@ class BasicWindowManagerTest : public ::testing::Test {
   // repeatedly.
   void CreateAndInitNewWm();
 
+  // Creates a basic window with no special type.
+  XWindow CreateBasicWindow(int x, int y, int width, int height);
+
   // Create a toplevel client window with the passed-in position and
-  // dimensions.
-  XWindow CreateToplevelWindow(int x, int y, int width, int height);
+  // dimensions.  It has type WINDOW_TYPE_CHROME_TOPLEVEL.
+  XWindow CreateToplevelWindow(int tab_count, int selected_tab,
+                               int x, int y, int width, int height);
+
+  // Create a snapshot client window with the passed-in position and
+  // dimensions and associated parent toplevel window.
+  XWindow CreateSnapshotWindow(XWindow parent_xid, int index,
+                               int x, int y,
+                               int width, int height);
 
   // Creates a toplevel client window with an arbitrary size.
   XWindow CreateSimpleWindow();
+
+  // Creates a snapshot client window with an arbitrary size.
+  // |toplevel_xid| is the id of the associated toplevel window.
+  XWindow CreateSimpleSnapshotWindow(XWindow toplevel_xid, int index);
 
   // Create a panel titlebar or content window.
   XWindow CreatePanelTitlebarWindow(int width, int height);
@@ -72,6 +86,12 @@ class BasicWindowManagerTest : public ::testing::Test {
                      int content_height,
                      bool expanded);
 
+  // Simulates a change in the selected tab and tab count in a chrome
+  // toplevel window.
+  void ChangeTabInfo(XWindow toplevel_xid,
+                     int tab_count,
+                     int selected_tab);
+
   // Make the window manager handle a CreateNotify event and, if the window
   // isn't override-redirect, a MapRequest.  If it's mapped after this
   // (expected if we sent a MapRequest), send a MapNotify event.
@@ -81,6 +101,9 @@ class BasicWindowManagerTest : public ::testing::Test {
   // focus was passed from 'out_xid' to 'in_xid'.  Events are only sent for
   // windows that are neither None nor the root window.
   void SendFocusEvents(XWindow out_xid, XWindow in_xid);
+
+  // Send a property change notification for the chrome window type.
+  void SendWindowTypeEvent(XWindow xid);
 
   // Send a WmIpc message.
   void SendWmIpcMessage(const WmIpc::Message& msg);
