@@ -424,6 +424,9 @@ void LayoutManager::HandleWindowUnmap(Window* win) {
   DLOG(INFO) << "Unmapping window " << win->xid_str()
             << " of type " << win->type();
 
+  if (!IsHandledWindowType(win->type()))
+    return;
+
   if (win->type() == WmIpc::WINDOW_TYPE_CHROME_TAB_SNAPSHOT) {
     SnapshotWindow* snapshot = GetSnapshotWindowByWindow(*win);
     if (snapshot) {
@@ -431,6 +434,7 @@ void LayoutManager::HandleWindowUnmap(Window* win) {
           win->xid(), wm_->GetXAtom(ATOM_CHROME_WINDOW_TYPE));
 
       RemoveSnapshot(GetSnapshotWindowByWindow(*win));
+      LayoutWindows(true);
     }
   } else {
     ToplevelWindow* toplevel_owner =
@@ -453,13 +457,9 @@ void LayoutManager::HandleWindowUnmap(Window* win) {
             win->xid(), wm_->GetXAtom(ATOM_CHROME_WINDOW_TYPE));
 
       RemoveToplevel(toplevel);
+      LayoutWindows(true);
     }
   }
-
-  // Still want to layout windows even if we didn't find snapshot or
-  // toplevel, since unmapping another type of window might cause
-  // changes in layout (docked panels, etc).
-  LayoutWindows(true);
 }
 
 void LayoutManager::HandleWindowConfigureRequest(
