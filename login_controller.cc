@@ -734,7 +734,7 @@ void LoginController::ToggleLoginEnabled(bool enable) {
     }
   } else {
     for (size_t i = 0; i < entries_.size(); ++i)
-      wm_->ConfigureInputWindow(entries_[i].input_window_xid, -1, -1, -1, -1);
+      wm_->ConfigureInputWindow(entries_[i].input_window_xid, -1, -1, 1, 1);
   }
 }
 
