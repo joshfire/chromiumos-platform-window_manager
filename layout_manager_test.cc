@@ -283,7 +283,9 @@ TEST_F(LayoutManagerTest, ConfigureTransient) {
       false,     // input only
       0);        // event mask
   ASSERT_TRUE(wm_->wm_ipc()->SetWindowType(
-                  bubble_xid, WmIpc::WINDOW_TYPE_CHROME_INFO_BUBBLE, NULL));
+                  bubble_xid,
+                  chromeos::WM_IPC_WINDOW_CHROME_INFO_BUBBLE,
+                  NULL));
   MockXConnection::WindowInfo* bubble_info =
       xconn_->GetWindowInfoOrDie(bubble_xid);
   bubble_info->transient_for = owner_xid;

@@ -10,6 +10,7 @@
 
 #include "base/logging.h"
 #include "base/string_util.h"
+#include "cros/chromeos_wm_ipc_enums.h"
 #include "window_manager/atom_cache.h"
 #include "window_manager/geometry.h"
 #include "window_manager/shadow.h"
@@ -41,7 +42,7 @@ Window::Window(WindowManager* wm, XWindow xid, bool override_redirect)
       mapped_(false),
       shaped_(false),
       redirected_(false),
-      type_(WmIpc::WINDOW_TYPE_UNKNOWN),
+      type_(chromeos::WM_IPC_WINDOW_UNKNOWN),
       client_x_(-1),
       client_y_(-1),
       client_width_(1),
@@ -731,12 +732,12 @@ void Window::UpdateShadowIfNecessary() {
       (!override_redirect_ ||
        wm_window_type_ == WM_WINDOW_TYPE_MENU ||    // Let menu and combo
        wm_window_type_ == WM_WINDOW_TYPE_COMBO) &&  // dropdown list pass.
-      type_ != WmIpc::WINDOW_TYPE_CHROME_INFO_BUBBLE &&
-      type_ != WmIpc::WINDOW_TYPE_LOGIN_IMAGE &&
-      type_ != WmIpc::WINDOW_TYPE_LOGIN_CONTROLS &&
-      type_ != WmIpc::WINDOW_TYPE_LOGIN_LABEL &&
-      type_ != WmIpc::WINDOW_TYPE_LOGIN_UNSELECTED_LABEL &&
-      type_ != WmIpc::WINDOW_TYPE_LOGIN_GUEST &&
+      type_ != chromeos::WM_IPC_WINDOW_CHROME_INFO_BUBBLE &&
+      type_ != chromeos::WM_IPC_WINDOW_LOGIN_IMAGE &&
+      type_ != chromeos::WM_IPC_WINDOW_LOGIN_CONTROLS &&
+      type_ != chromeos::WM_IPC_WINDOW_LOGIN_LABEL &&
+      type_ != chromeos::WM_IPC_WINDOW_LOGIN_UNSELECTED_LABEL &&
+      type_ != chromeos::WM_IPC_WINDOW_LOGIN_GUEST &&
       !shaped_;
 
   if (!should_use_shadow && using_shadow_) {

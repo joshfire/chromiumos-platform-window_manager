@@ -14,6 +14,7 @@
 
 #include "base/basictypes.h"
 #include "base/scoped_ptr.h"
+#include "cros/chromeos_wm_ipc_enums.h"
 #include "window_manager/clutter_interface.h"
 #include "window_manager/event_consumer.h"
 #include "window_manager/key_bindings.h"
@@ -213,7 +214,7 @@ class LayoutManager : public EventConsumer {
   void SetCurrentSnapshot(SnapshotWindow* snapshot);
 
   // Is the passed-in window type one that we should handle?
-  static bool IsHandledWindowType(WmIpc::WindowType type);
+  static bool IsHandledWindowType(chromeos::WmIpcWindowType type);
 
   // Get the toplevel window represented by the passed-in input window, or
   // NULL if the input window doesn't belong to us.

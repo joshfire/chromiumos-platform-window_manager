@@ -9,6 +9,7 @@
 #include "window_manager/event_consumer.h"
 #include "window_manager/window_manager.h"
 
+using chromeos::WmIpcMessageType;
 using std::find;
 using std::make_pair;
 using std::pair;
@@ -33,7 +34,7 @@ EventConsumerRegistrar::~EventConsumerRegistrar() {
     wm_->UnregisterEventConsumerForPropertyChanges(
         it->first, it->second, event_consumer_);
   }
-  for (vector<WmIpc::Message::Type>::const_iterator it =
+  for (vector<WmIpcMessageType>::const_iterator it =
          chrome_message_types_.begin();
        it != chrome_message_types_.end(); ++it) {
     wm_->UnregisterEventConsumerForChromeMessages(*it, event_consumer_);
@@ -75,7 +76,7 @@ void EventConsumerRegistrar::UnregisterForPropertyChanges(XWindow xid,
 }
 
 void EventConsumerRegistrar::RegisterForChromeMessages(
-    WmIpc::Message::Type message_type) {
+    WmIpcMessageType message_type) {
   wm_->RegisterEventConsumerForChromeMessages(message_type, event_consumer_);
   chrome_message_types_.push_back(message_type);
 }

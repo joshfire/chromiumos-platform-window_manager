@@ -15,6 +15,7 @@
 #include "base/basictypes.h"
 #include "base/logging.h"
 #include "base/scoped_ptr.h"
+#include "cros/chromeos_wm_ipc_enums.h"
 #include "window_manager/atom_cache.h"  // for Atom enum
 #include "window_manager/clutter_interface.h"
 #include "window_manager/geometry.h"
@@ -68,10 +69,8 @@ class Window {
   bool using_shadow() const { return using_shadow_; }
   XWindow transient_for_xid() const { return transient_for_xid_; }
   bool override_redirect() const { return override_redirect_; }
-  WmIpc::WindowType type() const { return type_; }
-  WmIpc::WindowType* mutable_type() { return &type_; }
+  chromeos::WmIpcWindowType type() const { return type_; }
   const std::vector<int>& type_params() const { return type_params_; }
-  std::vector<int>* mutable_type_params() { return &type_params_; }
   bool mapped() const { return mapped_; }
   void set_mapped(bool mapped) { mapped_ = mapped; }
   bool focused() const { return focused_; }
@@ -331,9 +330,9 @@ class Window {
   bool redirected_;
 
   // Client-supplied window type.
-  WmIpc::WindowType type_;
+  chromeos::WmIpcWindowType type_;
 
-  // Parameters associated with 'type_'.  See WmIpc::WindowType for
+  // Parameters associated with 'type_'.  See chromeos::WmIpcWindowType for
   // details.
   std::vector<int> type_params_;
 

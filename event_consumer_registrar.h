@@ -9,6 +9,7 @@
 #include <vector>
 
 #include "base/basictypes.h"
+#include "cros/chromeos_wm_ipc_enums.h"
 #include "window_manager/wm_ipc.h"
 #include "window_manager/x_types.h"
 
@@ -32,7 +33,7 @@ class EventConsumerRegistrar {
   void UnregisterForWindowEvents(XWindow xid);
   void RegisterForPropertyChanges(XWindow xid, XAtom xatom);
   void UnregisterForPropertyChanges(XWindow xid, XAtom xatom);
-  void RegisterForChromeMessages(WmIpc::Message::Type message_type);
+  void RegisterForChromeMessages(chromeos::WmIpcMessageType message_type);
 
  private:
   typedef std::vector<std::pair<XWindow, XAtom> > PropertyChangePairs;
@@ -43,7 +44,7 @@ class EventConsumerRegistrar {
   // Various interests to be unregistered at destruction.
   std::vector<XWindow> window_event_xids_;
   PropertyChangePairs property_change_pairs_;
-  std::vector<WmIpc::Message::Type> chrome_message_types_;
+  std::vector<chromeos::WmIpcMessageType> chrome_message_types_;
 
   DISALLOW_COPY_AND_ASSIGN(EventConsumerRegistrar);
 };

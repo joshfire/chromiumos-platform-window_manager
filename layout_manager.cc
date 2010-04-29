@@ -12,6 +12,7 @@
 
 #include "base/string_util.h"
 #include "base/logging.h"
+#include "cros/chromeos_wm_ipc_enums.h"
 #include "window_manager/atom_cache.h"
 #include "window_manager/callback.h"
 #include "window_manager/event_consumer_registrar.h"
@@ -284,7 +285,7 @@ bool LayoutManager::HandleWindowMapRequest(Window* win) {
   if (!IsHandledWindowType(win->type()))
     return false;
 
-  if (win->type() == WmIpc::WINDOW_TYPE_CHROME_TAB_SNAPSHOT) {
+  if (win->type() == chromeos::WM_IPC_WINDOW_CHROME_TAB_SNAPSHOT) {
     wm_->stacking_manager()->StackWindowAtTopOfLayer(
         win, StackingManager::LAYER_SNAPSHOT_WINDOW);
   } else {
@@ -314,7 +315,7 @@ void LayoutManager::HandleWindowMap(Window* win) {
              << " (" << win->xid_str() << ") of type " << win->type();
 
   switch (win->type()) {
-    case WmIpc::WINDOW_TYPE_CHROME_TAB_SNAPSHOT: {
+    case chromeos::WM_IPC_WINDOW_CHROME_TAB_SNAPSHOT: {
       // Register to get property changes for snapshot windows.
       event_consumer_registrar_->RegisterForPropertyChanges(
           win->xid(), wm_->GetXAtom(ATOM_CHROME_WINDOW_TYPE));
@@ -341,13 +342,13 @@ void LayoutManager::HandleWindowMap(Window* win) {
       }
       break;
     }
-    case WmIpc::WINDOW_TYPE_CHROME_TOPLEVEL:
+    case chromeos::WM_IPC_WINDOW_CHROME_TOPLEVEL:
       // Register to get property changes for toplevel windows.
       event_consumer_registrar_->RegisterForPropertyChanges(
           win->xid(), wm_->GetXAtom(ATOM_CHROME_WINDOW_TYPE));
       // FALL THROUGH...
-    case WmIpc::WINDOW_TYPE_CHROME_INFO_BUBBLE:
-    case WmIpc::WINDOW_TYPE_UNKNOWN: {
+    case chromeos::WM_IPC_WINDOW_CHROME_INFO_BUBBLE:
+    case chromeos::WM_IPC_WINDOW_UNKNOWN: {
       // Perform initial setup of windows that were already mapped at startup
       // (so we never saw MapRequest events for them).
       if (!saw_map_request_)
@@ -427,7 +428,7 @@ void LayoutManager::HandleWindowUnmap(Window* win) {
   if (!IsHandledWindowType(win->type()))
     return;
 
-  if (win->type() == WmIpc::WINDOW_TYPE_CHROME_TAB_SNAPSHOT) {
+  if (win->type() == chromeos::WM_IPC_WINDOW_CHROME_TAB_SNAPSHOT) {
     SnapshotWindow* snapshot = GetSnapshotWindowByWindow(*win);
     if (snapshot) {
       event_consumer_registrar_->UnregisterForPropertyChanges(
@@ -452,7 +453,7 @@ void LayoutManager::HandleWindowUnmap(Window* win) {
 
     ToplevelWindow* toplevel = GetToplevelWindowByWindow(*win);
     if (toplevel) {
-      if (win->type() == WmIpc::WINDOW_TYPE_CHROME_TOPLEVEL)
+      if (win->type() == chromeos::WM_IPC_WINDOW_CHROME_TOPLEVEL)
         event_consumer_registrar_->UnregisterForPropertyChanges(
             win->xid(), wm_->GetXAtom(ATOM_CHROME_WINDOW_TYPE));
 
@@ -464,7 +465,7 @@ void LayoutManager::HandleWindowUnmap(Window* win) {
 
 void LayoutManager::HandleWindowConfigureRequest(
     Window* win, int req_x, int req_y, int req_width, int req_height) {
-  if (win->type() == WmIpc::WINDOW_TYPE_CHROME_TAB_SNAPSHOT) {
+  if (win->type() == chromeos::WM_IPC_WINDOW_CHROME_TAB_SNAPSHOT) {
     SnapshotWindow* snapshot = GetSnapshotWindowByWindow(*win);
     if (snapshot)
       if (req_width != win->client_width() ||
@@ -656,7 +657,7 @@ void LayoutManager::HandleWindowPropertyChange(XWindow xid, XAtom xatom) {
 
 Window* LayoutManager::GetChromeWindow() {
   for (size_t i = 0; i < toplevels_.size(); ++i) {
-    if (toplevels_[i]->win()->type() == WmIpc::WINDOW_TYPE_CHROME_TOPLEVEL)
+    if (toplevels_[i]->win()->type() == chromeos::WM_IPC_WINDOW_CHROME_TOPLEVEL)
       return toplevels_[i]->win();
   }
   return NULL;
@@ -777,7 +778,7 @@ void LayoutManager::SetMode(Mode mode) {
         // Chrome.
         // TODO: do some handshaking here to make sure that chrome
         // switches tabs before we start our animation.
-        WmIpc::Message msg(WmIpc::Message::CHROME_NOTIFY_TAB_SELECT);
+        WmIpc::Message msg(chromeos::WM_IPC_MESSAGE_CHROME_NOTIFY_TAB_SELECT);
         msg.set_param(0, current_snapshot_->tab_index());
         wm_->wm_ipc()->SendMessage(current_snapshot_->toplevel()->win()->xid(),
                                    msg);
@@ -861,11 +862,11 @@ void LayoutManager::DisableKeyBindings() {
 }
 
 // static
-bool LayoutManager::IsHandledWindowType(WmIpc::WindowType type) {
-  return (type == WmIpc::WINDOW_TYPE_CHROME_INFO_BUBBLE ||
-          type == WmIpc::WINDOW_TYPE_CHROME_TAB_SNAPSHOT ||
-          type == WmIpc::WINDOW_TYPE_CHROME_TOPLEVEL ||
-          type == WmIpc::WINDOW_TYPE_UNKNOWN);
+bool LayoutManager::IsHandledWindowType(chromeos::WmIpcWindowType type) {
+  return (type == chromeos::WM_IPC_WINDOW_CHROME_INFO_BUBBLE ||
+          type == chromeos::WM_IPC_WINDOW_CHROME_TAB_SNAPSHOT ||
+          type == chromeos::WM_IPC_WINDOW_CHROME_TOPLEVEL ||
+          type == chromeos::WM_IPC_WINDOW_UNKNOWN);
 }
 
 int LayoutManager::GetIndexForToplevelWindow(
@@ -1153,10 +1154,10 @@ void LayoutManager::SetCurrentSnapshot(SnapshotWindow* snapshot) {
 
 void LayoutManager::SendModeMessage(ToplevelWindow* toplevel) {
   if (!toplevel ||
-      toplevel->win()->type() != WmIpc::WINDOW_TYPE_CHROME_TOPLEVEL)
+      toplevel->win()->type() != chromeos::WM_IPC_WINDOW_CHROME_TOPLEVEL)
     return;
 
-  WmIpc::Message msg(WmIpc::Message::CHROME_NOTIFY_LAYOUT_MODE);
+  WmIpc::Message msg(chromeos::WM_IPC_MESSAGE_CHROME_NOTIFY_LAYOUT_MODE);
   switch (mode_) {
     // Set the mode in the message using the appropriate value from wm_ipc.h.
     case MODE_NEW:
@@ -1353,7 +1354,7 @@ void LayoutManager::EnableKeyBindingsForModeInternal(Mode mode) {
       active_mode_key_bindings_group_->Enable();
       break;
     case MODE_OVERVIEW:
-      overview_mode_key_bindings_group_->Enable(); 
+      overview_mode_key_bindings_group_->Enable();
       break;
     default:
       NOTREACHED() << "Unhandled mode " << mode;

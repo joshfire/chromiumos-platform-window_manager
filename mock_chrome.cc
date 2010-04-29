@@ -11,6 +11,7 @@
 
 #include "base/command_line.h"
 #include "base/string_util.h"
+#include "cros/chromeos_wm_ipc_enums.h"
 #include "window_manager/atom_cache.h"
 #include "window_manager/real_x_connection.h"
 #include "window_manager/util.h"
@@ -144,7 +145,7 @@ ChromeWindow::ChromeWindow(MockChrome* chrome, int width, int height)
   realize();
   xid_ = GDK_WINDOW_XWINDOW(Glib::unwrap(get_window()));
   CHECK(chrome_->wm_ipc()->SetWindowType(
-            xid(), WmIpc::WINDOW_TYPE_CHROME_TOPLEVEL, NULL));
+            xid(), chromeos::WM_IPC_WINDOW_CHROME_TOPLEVEL, NULL));
   add_events(Gdk::BUTTON_PRESS_MASK |
              Gdk::BUTTON_RELEASE_MASK |
              Gdk::POINTER_MOTION_MASK);
@@ -482,7 +483,7 @@ PanelTitlebar::PanelTitlebar(Panel* panel)
   realize();
   xid_ = GDK_WINDOW_XWINDOW(Glib::unwrap(get_window()));
   CHECK(panel_->chrome()->wm_ipc()->SetWindowType(
-            xid_, WmIpc::WINDOW_TYPE_CHROME_PANEL_TITLEBAR, NULL));
+            xid_, chromeos::WM_IPC_WINDOW_CHROME_PANEL_TITLEBAR, NULL));
   add_events(Gdk::BUTTON_PRESS_MASK |
              Gdk::BUTTON_RELEASE_MASK |
              Gdk::POINTER_MOTION_MASK);
@@ -551,7 +552,7 @@ bool PanelTitlebar::on_button_release_event(GdkEventButton* event) {
 
   mouse_down_ = false;
   if (!dragging_) {
-    WmIpc::Message msg(WmIpc::Message::WM_SET_PANEL_STATE);
+    WmIpc::Message msg(chromeos::WM_IPC_MESSAGE_WM_SET_PANEL_STATE);
     msg.set_param(0, panel_->xid());
     msg.set_param(1, !(panel_->expanded()));
     CHECK(panel_->chrome()->wm_ipc()->SendMessage(
@@ -561,7 +562,7 @@ bool PanelTitlebar::on_button_release_event(GdkEventButton* event) {
     if (!panel_->expanded())
       panel_->present();
   } else {
-    WmIpc::Message msg(WmIpc::Message::WM_NOTIFY_PANEL_DRAG_COMPLETE);
+    WmIpc::Message msg(chromeos::WM_IPC_MESSAGE_WM_NOTIFY_PANEL_DRAG_COMPLETE);
     msg.set_param(0, panel_->xid());
     CHECK(panel_->chrome()->wm_ipc()->SendMessage(
               panel_->chrome()->wm_ipc()->wm_window(), msg));
@@ -582,7 +583,7 @@ bool PanelTitlebar::on_motion_notify_event(GdkEventMotion* event) {
     }
   }
   if (dragging_) {
-    WmIpc::Message msg(WmIpc::Message::WM_NOTIFY_PANEL_DRAGGED);
+    WmIpc::Message msg(chromeos::WM_IPC_MESSAGE_WM_NOTIFY_PANEL_DRAGGED);
     msg.set_param(0, panel_->xid());
     msg.set_param(1, event->x_root - mouse_down_offset_x_);
     msg.set_param(2, event->y_root - mouse_down_offset_y_);
@@ -611,7 +612,7 @@ Panel::Panel(MockChrome* chrome,
   type_params.push_back(titlebar_->xid());
   type_params.push_back(expanded);
   CHECK(chrome_->wm_ipc()->SetWindowType(
-            xid_, WmIpc::WINDOW_TYPE_CHROME_PANEL_CONTENT, &type_params));
+            xid_, chromeos::WM_IPC_WINDOW_CHROME_PANEL_CONTENT, &type_params));
   add_events(Gdk::BUTTON_PRESS_MASK);
   show_all();
 }
@@ -659,7 +660,7 @@ bool Panel::on_client_event(GdkEventClient* event) {
 
   DLOG(INFO) << "Got message of type " << msg.type();
   switch (msg.type()) {
-    case WmIpc::Message::CHROME_NOTIFY_PANEL_STATE: {
+    case chromeos::WM_IPC_MESSAGE_CHROME_NOTIFY_PANEL_STATE: {
       expanded_ = msg.param(0);
       break;
     }
@@ -692,7 +693,7 @@ MockChrome::MockChrome()
     : xconn_(new RealXConnection(GDK_DISPLAY())),
       atom_cache_(new AtomCache(xconn_.get())),
       wm_ipc_(new WmIpc(xconn_.get(), atom_cache_.get())) {
-  WmIpc::Message msg(WmIpc::Message::WM_NOTIFY_IPC_VERSION);
+  WmIpc::Message msg(chromeos::WM_IPC_MESSAGE_WM_NOTIFY_IPC_VERSION);
   msg.set_param(0, 1);
   wm_ipc_->SendMessage(wm_ipc_->wm_window(), msg);
 }

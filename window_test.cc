@@ -10,6 +10,7 @@
 
 #include "base/logging.h"
 #include "base/scoped_ptr.h"
+#include "cros/chromeos_wm_ipc_enums.h"
 #include "window_manager/clutter_interface.h"
 #include "window_manager/event_loop.h"
 #include "window_manager/mock_x_connection.h"
@@ -34,21 +35,21 @@ TEST_F(WindowTest, WindowType) {
   Window win(wm_.get(), xid, false);
 
   // Without a window type, we should have a shadow.
-  EXPECT_EQ(WmIpc::WINDOW_TYPE_UNKNOWN, win.type());
+  EXPECT_EQ(chromeos::WM_IPC_WINDOW_UNKNOWN, win.type());
   EXPECT_TRUE(win.using_shadow());
 
   // Toplevel windows should have shadows too.
   ASSERT_TRUE(wm_->wm_ipc()->SetWindowType(
-                  xid, WmIpc::WINDOW_TYPE_CHROME_TOPLEVEL, NULL));
+                  xid, chromeos::WM_IPC_WINDOW_CHROME_TOPLEVEL, NULL));
   EXPECT_TRUE(win.FetchAndApplyWindowType(true));  // update_shadow
-  EXPECT_EQ(WmIpc::WINDOW_TYPE_CHROME_TOPLEVEL, win.type());
+  EXPECT_EQ(chromeos::WM_IPC_WINDOW_CHROME_TOPLEVEL, win.type());
   EXPECT_TRUE(win.using_shadow());
 
   // Info bubbles shouldn't have shadows.
   ASSERT_TRUE(wm_->wm_ipc()->SetWindowType(
-                  xid, WmIpc::WINDOW_TYPE_CHROME_INFO_BUBBLE, NULL));
+                  xid, chromeos::WM_IPC_WINDOW_CHROME_INFO_BUBBLE, NULL));
   EXPECT_TRUE(win.FetchAndApplyWindowType(true));  // update_shadow
-  EXPECT_EQ(WmIpc::WINDOW_TYPE_CHROME_INFO_BUBBLE, win.type());
+  EXPECT_EQ(chromeos::WM_IPC_WINDOW_CHROME_INFO_BUBBLE, win.type());
   EXPECT_FALSE(win.using_shadow());
 }
 

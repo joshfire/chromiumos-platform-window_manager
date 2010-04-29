@@ -6,6 +6,7 @@
 
 #include <string>
 
+#include "cros/chromeos_wm_ipc_enums.h"
 #include "window_manager/callback.h"
 #include "window_manager/event_loop.h"
 #include "window_manager/geometry.h"
@@ -114,8 +115,10 @@ LoginController::LoginController(WindowManager* wm)
       guest_window_(NULL),
       background_window_(NULL),
       initial_show_timeout_id_(kNoTimer) {
-  registrar_.RegisterForChromeMessages(WmIpc::Message::WM_HIDE_LOGIN);
-  registrar_.RegisterForChromeMessages(WmIpc::Message::WM_SET_LOGIN_STATE);
+  registrar_.RegisterForChromeMessages(
+      chromeos::WM_IPC_MESSAGE_WM_HIDE_LOGIN);
+  registrar_.RegisterForChromeMessages(
+      chromeos::WM_IPC_MESSAGE_WM_SET_LOGIN_STATE);
 }
 
 LoginController::~LoginController() {
@@ -134,13 +137,13 @@ bool LoginController::IsInputWindow(XWindow xid) {
 
 bool LoginController::HandleWindowMapRequest(Window* win) {
   switch (win->type()) {
-    case WmIpc::WINDOW_TYPE_LOGIN_BACKGROUND:
-    case WmIpc::WINDOW_TYPE_LOGIN_GUEST:
-    case WmIpc::WINDOW_TYPE_LOGIN_BORDER:
-    case WmIpc::WINDOW_TYPE_LOGIN_IMAGE:
-    case WmIpc::WINDOW_TYPE_LOGIN_CONTROLS:
-    case WmIpc::WINDOW_TYPE_LOGIN_LABEL:
-    case WmIpc::WINDOW_TYPE_LOGIN_UNSELECTED_LABEL:
+    case chromeos::WM_IPC_WINDOW_LOGIN_BACKGROUND:
+    case chromeos::WM_IPC_WINDOW_LOGIN_GUEST:
+    case chromeos::WM_IPC_WINDOW_LOGIN_BORDER:
+    case chromeos::WM_IPC_WINDOW_LOGIN_IMAGE:
+    case chromeos::WM_IPC_WINDOW_LOGIN_CONTROLS:
+    case chromeos::WM_IPC_WINDOW_LOGIN_LABEL:
+    case chromeos::WM_IPC_WINDOW_LOGIN_UNSELECTED_LABEL:
       // Move all client windows offscreen.  We'll move the windows that
       // need to be onscreen (just the background and controls windows) later.
       win->MoveClientOffscreen();
@@ -161,14 +164,14 @@ bool LoginController::HandleWindowMapRequest(Window* win) {
 
 void LoginController::HandleWindowMap(Window* win) {
   switch (win->type()) {
-    case WmIpc::WINDOW_TYPE_LOGIN_GUEST: {
+    case chromeos::WM_IPC_WINDOW_LOGIN_GUEST: {
       if (guest_window_)
         LOG(WARNING) << "two guest windows encountered.";
 
       guest_window_ = win;
       break;
     }
-    case WmIpc::WINDOW_TYPE_LOGIN_BORDER: {
+    case chromeos::WM_IPC_WINDOW_LOGIN_BORDER: {
       FAIL_IF_INDEX_MISSING(win, "border");
 
       Entry* entry = GetEntryForWindow(win);
@@ -179,7 +182,7 @@ void LoginController::HandleWindowMap(Window* win) {
       entry->border_window = win;
       break;
     }
-    case WmIpc::WINDOW_TYPE_LOGIN_IMAGE: {
+    case chromeos::WM_IPC_WINDOW_LOGIN_IMAGE: {
       FAIL_IF_INDEX_MISSING(win, "image");
 
       Entry* entry = GetEntryForWindow(win);
@@ -190,7 +193,7 @@ void LoginController::HandleWindowMap(Window* win) {
       entry->image_window = win;
       break;
     }
-    case WmIpc::WINDOW_TYPE_LOGIN_CONTROLS: {
+    case chromeos::WM_IPC_WINDOW_LOGIN_CONTROLS: {
       FAIL_IF_INDEX_MISSING(win, "controls");
 
       Entry* entry = GetEntryForWindow(win);
@@ -201,7 +204,7 @@ void LoginController::HandleWindowMap(Window* win) {
       entry->controls_window = win;
       break;
     }
-    case WmIpc::WINDOW_TYPE_LOGIN_LABEL: {
+    case chromeos::WM_IPC_WINDOW_LOGIN_LABEL: {
       FAIL_IF_INDEX_MISSING(win, "label");
 
       Entry* entry = GetEntryForWindow(win);
@@ -212,7 +215,7 @@ void LoginController::HandleWindowMap(Window* win) {
       entry->label_window = win;
       break;
     }
-    case WmIpc::WINDOW_TYPE_LOGIN_UNSELECTED_LABEL: {
+    case chromeos::WM_IPC_WINDOW_LOGIN_UNSELECTED_LABEL: {
       FAIL_IF_INDEX_MISSING(win, "unselectedlabel");
 
       Entry* entry = GetEntryForWindow(win);
@@ -223,7 +226,7 @@ void LoginController::HandleWindowMap(Window* win) {
       entry->unselected_label_window = win;
       break;
     }
-    case WmIpc::WINDOW_TYPE_LOGIN_BACKGROUND: {
+    case chromeos::WM_IPC_WINDOW_LOGIN_BACKGROUND: {
       if (win->type_params().empty()) {
         LOG(WARNING) << " background window missing expected param";
         return;
@@ -376,12 +379,12 @@ void LoginController::HandleButtonPress(XWindow xid,
 
 void LoginController::HandleChromeMessage(const WmIpc::Message& msg) {
   switch (msg.type()) {
-    case WmIpc::Message::WM_HIDE_LOGIN: {
+    case chromeos::WM_IPC_MESSAGE_WM_HIDE_LOGIN: {
       Hide();
       break;
     }
 
-    case WmIpc::Message::WM_SET_LOGIN_STATE: {
+    case chromeos::WM_IPC_MESSAGE_WM_SET_LOGIN_STATE: {
       ToggleLoginEnabled(msg.param(0) == 1);
       break;
     }
@@ -588,7 +591,7 @@ void LoginController::SelectEntryAt(size_t index) {
       wm_->wm_ipc()->SendMessage(
           entries_[0].border_window->xid(),  // Doesn't matter which window we
                                              // use.
-          WmIpc::Message(WmIpc::Message::CHROME_CREATE_GUEST_WINDOW));
+          WmIpc::Message(chromeos::WM_IPC_MESSAGE_CHROME_CREATE_GUEST_WINDOW));
       return;
     }
     SelectGuest();

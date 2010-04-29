@@ -7,6 +7,7 @@
 #include <utility>
 
 #include "base/logging.h"
+#include "cros/chromeos_wm_ipc_enums.h"
 #include "window_manager/atom_cache.h"
 #include "window_manager/event_consumer_registrar.h"
 #include "window_manager/motion_event_coalescer.h"
@@ -53,11 +54,11 @@ PanelManager::PanelManager(WindowManager* wm)
       saw_map_request_(false),
       event_consumer_registrar_(new EventConsumerRegistrar(wm_, this)) {
   event_consumer_registrar_->RegisterForChromeMessages(
-      WmIpc::Message::WM_SET_PANEL_STATE);
+      chromeos::WM_IPC_MESSAGE_WM_SET_PANEL_STATE);
   event_consumer_registrar_->RegisterForChromeMessages(
-      WmIpc::Message::WM_NOTIFY_PANEL_DRAGGED);
+      chromeos::WM_IPC_MESSAGE_WM_NOTIFY_PANEL_DRAGGED);
   event_consumer_registrar_->RegisterForChromeMessages(
-      WmIpc::Message::WM_NOTIFY_PANEL_DRAG_COMPLETE);
+      chromeos::WM_IPC_MESSAGE_WM_NOTIFY_PANEL_DRAG_COMPLETE);
 
   RegisterContainer(panel_bar_.get());
   RegisterContainer(left_panel_dock_.get());
@@ -75,8 +76,8 @@ bool PanelManager::IsInputWindow(XWindow xid) {
 bool PanelManager::HandleWindowMapRequest(Window* win) {
   saw_map_request_ = true;
 
-  if (win->type() != WmIpc::WINDOW_TYPE_CHROME_PANEL_CONTENT &&
-      win->type() != WmIpc::WINDOW_TYPE_CHROME_PANEL_TITLEBAR)
+  if (win->type() != chromeos::WM_IPC_WINDOW_CHROME_PANEL_CONTENT &&
+      win->type() != chromeos::WM_IPC_WINDOW_CHROME_PANEL_TITLEBAR)
     return false;
 
   DoInitialSetupForWindow(win);
@@ -87,8 +88,8 @@ bool PanelManager::HandleWindowMapRequest(Window* win) {
 void PanelManager::HandleWindowMap(Window* win) {
   CHECK(win);
 
-  if (win->type() != WmIpc::WINDOW_TYPE_CHROME_PANEL_CONTENT &&
-      win->type() != WmIpc::WINDOW_TYPE_CHROME_PANEL_TITLEBAR)
+  if (win->type() != chromeos::WM_IPC_WINDOW_CHROME_PANEL_CONTENT &&
+      win->type() != chromeos::WM_IPC_WINDOW_CHROME_PANEL_TITLEBAR)
     return;
 
   // Handle initial setup for existing windows for which we never saw a map
@@ -97,13 +98,13 @@ void PanelManager::HandleWindowMap(Window* win) {
     DoInitialSetupForWindow(win);
 
   switch (win->type()) {
-    case WmIpc::WINDOW_TYPE_CHROME_PANEL_TITLEBAR:
+    case chromeos::WM_IPC_WINDOW_CHROME_PANEL_TITLEBAR:
       // Don't do anything with panel titlebars when they're first
       // mapped; we'll handle them after we see the corresponding content
       // window.
       break;
 
-    case WmIpc::WINDOW_TYPE_CHROME_PANEL_CONTENT: {
+    case chromeos::WM_IPC_WINDOW_CHROME_PANEL_CONTENT: {
       if (win->type_params().empty()) {
         LOG(WARNING) << "Panel " << win->xid_str() << " is missing type "
                      << "parameter for titlebar window";
@@ -302,7 +303,7 @@ void PanelManager::HandlePointerMotion(XWindow xid,
 
 void PanelManager::HandleChromeMessage(const WmIpc::Message& msg) {
   switch (msg.type()) {
-    case WmIpc::Message::WM_SET_PANEL_STATE: {
+    case chromeos::WM_IPC_MESSAGE_WM_SET_PANEL_STATE: {
       XWindow xid = msg.param(0);
       Panel* panel = GetPanelByXid(xid);
       if (!panel) {
@@ -315,7 +316,7 @@ void PanelManager::HandleChromeMessage(const WmIpc::Message& msg) {
         container->HandleSetPanelStateMessage(panel, msg.param(1));
       break;
     }
-    case WmIpc::Message::WM_NOTIFY_PANEL_DRAGGED: {
+    case chromeos::WM_IPC_MESSAGE_WM_NOTIFY_PANEL_DRAGGED: {
       XWindow xid = msg.param(0);
       Panel* panel = GetPanelByXid(xid);
       if (!panel) {
@@ -336,7 +337,7 @@ void PanelManager::HandleChromeMessage(const WmIpc::Message& msg) {
       dragged_panel_event_coalescer_->StorePosition(drag_x, drag_y);
       break;
     }
-    case WmIpc::Message::WM_NOTIFY_PANEL_DRAG_COMPLETE: {
+    case chromeos::WM_IPC_MESSAGE_WM_NOTIFY_PANEL_DRAG_COMPLETE: {
       XWindow xid = msg.param(0);
       Panel* panel = GetPanelByXid(xid);
       if (!panel) {

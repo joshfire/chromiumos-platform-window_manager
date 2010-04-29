@@ -11,6 +11,7 @@
 
 #include "base/command_line.h"
 #include "base/string_util.h"
+#include "cros/chromeos_wm_ipc_enums.h"
 #include "window_manager/clutter_interface.h"
 #include "window_manager/event_loop.h"
 #include "window_manager/mock_x_connection.h"
@@ -100,7 +101,7 @@ void BasicWindowManagerTest::SetUp() {
   // Tell the WM that we implement a recent-enough version of the IPC
   // messages that we'll be giving it the position of the right-hand edge
   // of panels in drag messages.
-  WmIpc::Message msg(WmIpc::Message::WM_NOTIFY_IPC_VERSION);
+  WmIpc::Message msg(chromeos::WM_IPC_MESSAGE_WM_NOTIFY_IPC_VERSION);
   msg.set_param(0, 1);
   SendWmIpcMessage(msg);
 
@@ -148,7 +149,7 @@ void BasicWindowManagerTest::ChangeTabInfo(XWindow toplevel_xid,
   params.push_back(tab_count);
   params.push_back(selected_tab);
   wm_->wm_ipc()->SetWindowType(
-      toplevel_xid, WmIpc::WINDOW_TYPE_CHROME_TOPLEVEL, &params);
+      toplevel_xid, chromeos::WM_IPC_WINDOW_CHROME_TOPLEVEL, &params);
 }
 
 XWindow BasicWindowManagerTest::CreateSnapshotWindow(XWindow parent_xid,
@@ -160,7 +161,7 @@ XWindow BasicWindowManagerTest::CreateSnapshotWindow(XWindow parent_xid,
   params.push_back(parent_xid);
   params.push_back(index);
   wm_->wm_ipc()->SetWindowType(
-      xid, WmIpc::WINDOW_TYPE_CHROME_TAB_SNAPSHOT, &params);
+      xid, chromeos::WM_IPC_WINDOW_CHROME_TAB_SNAPSHOT, &params);
 
   return xid;
 }
@@ -174,7 +175,7 @@ XWindow BasicWindowManagerTest::CreatePanelTitlebarWindow(
     int width, int height) {
   XWindow xid = CreateBasicWindow(0, 0, width, height);
   wm_->wm_ipc()->SetWindowType(
-      xid, WmIpc::WINDOW_TYPE_CHROME_PANEL_TITLEBAR, NULL);
+      xid, chromeos::WM_IPC_WINDOW_CHROME_PANEL_TITLEBAR, NULL);
   return xid;
 }
 
@@ -185,7 +186,7 @@ XWindow BasicWindowManagerTest::CreatePanelContentWindow(
   params.push_back(titlebar_xid);
   params.push_back(expanded ? 1 : 0);
   wm_->wm_ipc()->SetWindowType(
-      xid, WmIpc::WINDOW_TYPE_CHROME_PANEL_CONTENT, &params);
+      xid, chromeos::WM_IPC_WINDOW_CHROME_PANEL_CONTENT, &params);
   return xid;
 }
 
@@ -264,7 +265,7 @@ void BasicWindowManagerTest::SendWmIpcMessage(const WmIpc::Message& msg) {
 
 void BasicWindowManagerTest::SendSetPanelStateMessage(Panel* panel,
                                                       bool expanded) {
-  WmIpc::Message msg(WmIpc::Message::WM_SET_PANEL_STATE);
+  WmIpc::Message msg(chromeos::WM_IPC_MESSAGE_WM_SET_PANEL_STATE);
   msg.set_param(0, panel->content_xid());
   msg.set_param(1, expanded);
   SendWmIpcMessage(msg);
@@ -272,7 +273,7 @@ void BasicWindowManagerTest::SendSetPanelStateMessage(Panel* panel,
 
 void BasicWindowManagerTest::SendPanelDraggedMessage(
     Panel* panel, int x, int y) {
-  WmIpc::Message msg(WmIpc::Message::WM_NOTIFY_PANEL_DRAGGED);
+  WmIpc::Message msg(chromeos::WM_IPC_MESSAGE_WM_NOTIFY_PANEL_DRAGGED);
   msg.set_param(0, panel->content_xid());
   msg.set_param(1, x);
   msg.set_param(2, y);
@@ -280,7 +281,7 @@ void BasicWindowManagerTest::SendPanelDraggedMessage(
 }
 
 void BasicWindowManagerTest::SendPanelDragCompleteMessage(Panel* panel) {
-  WmIpc::Message msg(WmIpc::Message::WM_NOTIFY_PANEL_DRAG_COMPLETE);
+  WmIpc::Message msg(chromeos::WM_IPC_MESSAGE_WM_NOTIFY_PANEL_DRAG_COMPLETE);
   msg.set_param(0, panel->content_xid());
   SendWmIpcMessage(msg);
 }

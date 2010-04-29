@@ -10,6 +10,8 @@
 #include "window_manager/util.h"
 #include "window_manager/x_connection.h"
 
+using chromeos::WmIpcMessageType;
+using chromeos::WmIpcWindowType;
 using std::string;
 using std::vector;
 
@@ -22,7 +24,9 @@ WmIpc::WmIpc(XConnection* xconn, AtomCache* cache)
   LOG(INFO) << "Window manager window is " << XidStr(wm_window_);
 }
 
-bool WmIpc::GetWindowType(XWindow xid, WindowType* type, vector<int>* params) {
+bool WmIpc::GetWindowType(XWindow xid,
+                          WmIpcWindowType* type,
+                          vector<int>* params) {
   CHECK(type);
   CHECK(params);
 
@@ -33,24 +37,22 @@ bool WmIpc::GetWindowType(XWindow xid, WindowType* type, vector<int>* params) {
     return false;
   }
   CHECK(!values.empty());
-  *type = static_cast<WindowType>(values[0]);
-  for (size_t i = 1; i < values.size(); ++i) {
+  *type = static_cast<WmIpcWindowType>(values[0]);
+  for (size_t i = 1; i < values.size(); ++i)
     params->push_back(values[i]);
-  }
   return true;
 }
 
-bool WmIpc::SetWindowType(
-    XWindow xid, WindowType type, const vector<int>* params) {
+bool WmIpc::SetWindowType(XWindow xid,
+                          WmIpcWindowType type,
+                          const vector<int>* params) {
   CHECK(type >= 0);
-  CHECK(type < kNumWindowTypes);
 
   vector<int> values;
   values.push_back(type);
   if (params) {
-    for (size_t i = 0; i < params->size(); ++i) {
+    for (size_t i = 0; i < params->size(); ++i)
       values.push_back((*params)[i]);
-    }
   }
   return xconn_->SetIntArrayProperty(
       xid, atom_cache_->GetXAtom(ATOM_CHROME_WINDOW_TYPE),
@@ -70,9 +72,8 @@ bool WmIpc::GetMessage(XWindow xid,
   CHECK(msg_out);
 
   // Skip other types of client messages.
-  if (message_type != atom_cache_->GetXAtom(ATOM_CHROME_WM_MESSAGE)) {
+  if (message_type != atom_cache_->GetXAtom(ATOM_CHROME_WM_MESSAGE))
     return false;
-  }
 
   if (format != XConnection::kLongFormat) {
     LOG(WARNING) << "Ignoring Chrome OS ClientEvent message with invalid bit "
@@ -80,8 +81,8 @@ bool WmIpc::GetMessage(XWindow xid,
     return false;
   }
 
-  msg_out->set_type(static_cast<Message::Type>(data[0]));
-  if (msg_out->type() < 0 || msg_out->type() >= Message::kNumTypes) {
+  msg_out->set_type(static_cast<WmIpcMessageType>(data[0]));
+  if (msg_out->type() < 0) {
     LOG(WARNING) << "Ignoring Chrome OS ClientEventMessage with invalid "
                  << "message type " << msg_out->type();
     return false;
@@ -92,9 +93,8 @@ bool WmIpc::GetMessage(XWindow xid,
   // ClientMessage events only have five 32-bit items, and we're using the
   // first one for our message type.
   CHECK(msg_out->max_params() <= 4);
-  for (int i = 0; i < msg_out->max_params(); ++i) {
+  for (int i = 0; i < msg_out->max_params(); ++i)
     msg_out->set_param(i, data[i+1]);  // l[0] contains message type
-  }
   return true;
 }
 

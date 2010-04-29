@@ -5,6 +5,7 @@
 #include <gflags/gflags.h>
 #include <gtest/gtest.h>
 
+#include "cros/chromeos_wm_ipc_enums.h"
 #include "window_manager/clutter_interface.h"
 #include "window_manager/event_loop.h"
 #include "window_manager/mock_x_connection.h"
@@ -22,7 +23,7 @@ TEST_F(WmIpcTest, XidIncludedInMessage) {
   // Create a window and send a message to it.
   XWindow xid = CreateSimpleWindow();
   MockXConnection::WindowInfo* info = xconn_->GetWindowInfoOrDie(xid);
-  WmIpc::Message sent_msg(WmIpc::Message::CHROME_NOTIFY_PANEL_STATE);
+  WmIpc::Message sent_msg(chromeos::WM_IPC_MESSAGE_CHROME_NOTIFY_PANEL_STATE);
   sent_msg.set_param(0, 1);
   EXPECT_TRUE(wm_->wm_ipc()->SendMessage(xid, sent_msg));
 
@@ -36,7 +37,8 @@ TEST_F(WmIpcTest, XidIncludedInMessage) {
                                         event.format,
                                         event.data.l,
                                         &received_msg));
-  EXPECT_EQ(WmIpc::Message::CHROME_NOTIFY_PANEL_STATE, received_msg.type());
+  EXPECT_EQ(chromeos::WM_IPC_MESSAGE_CHROME_NOTIFY_PANEL_STATE,
+            received_msg.type());
   EXPECT_EQ(xid, received_msg.xid());
   EXPECT_EQ(1, received_msg.param(0));
   EXPECT_EQ(0, received_msg.param(1));

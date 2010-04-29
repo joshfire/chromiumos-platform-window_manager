@@ -11,6 +11,7 @@
 
 #include "base/scoped_ptr.h"
 #include "base/logging.h"
+#include "cros/chromeos_wm_ipc_enums.h"
 #include "window_manager/clutter_interface.h"
 #include "window_manager/event_consumer.h"
 #include "window_manager/event_loop.h"
@@ -692,7 +693,7 @@ TEST_F(WindowManagerTest, WmIpcVersion) {
   EXPECT_EQ(0, wm_->wm_ipc_version());
 
   // Now send the WM a message telling it that Chrome is using version 3.
-  WmIpc::Message msg(WmIpc::Message::WM_NOTIFY_IPC_VERSION);
+  WmIpc::Message msg(chromeos::WM_IPC_MESSAGE_WM_NOTIFY_IPC_VERSION);
   msg.set_param(0, 3);
   SendWmIpcMessage(msg);
   EXPECT_EQ(3, wm_->wm_ipc_version());

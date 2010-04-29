@@ -24,6 +24,7 @@ extern "C" {
 #include <gtest/gtest_prod.h>  // for FRIEND_TEST() macro
 
 #include "base/scoped_ptr.h"
+#include "cros/chromeos_wm_ipc_enums.h"
 #include "window_manager/atom_cache.h"  // for Atom enum
 #include "window_manager/clutter_interface.h"
 #include "window_manager/wm_ipc.h"
@@ -154,9 +155,9 @@ class WindowManager {
   // WmIpc message from Chrome.  The consumer's HandleChromeMessage()
   // method will be passed all messages of this type.
   void RegisterEventConsumerForChromeMessages(
-      WmIpc::Message::Type message_type, EventConsumer* event_consumer);
+      chromeos::WmIpcMessageType message_type, EventConsumer* event_consumer);
   void UnregisterEventConsumerForChromeMessages(
-      WmIpc::Message::Type message_type, EventConsumer* event_consumer);
+      chromeos::WmIpcMessageType message_type, EventConsumer* event_consumer);
 
  private:
   friend class BasicWindowManagerTest;
@@ -176,7 +177,7 @@ class WindowManager {
   typedef std::map<XWindow, std::set<EventConsumer*> > WindowEventConsumerMap;
   typedef std::map<std::pair<XWindow, XAtom>, std::set<EventConsumer*> >
       PropertyChangeEventConsumerMap;
-  typedef std::map<WmIpc::Message::Type, std::set<EventConsumer*> >
+  typedef std::map<chromeos::WmIpcMessageType, std::set<EventConsumer*> >
       ChromeMessageEventConsumerMap;
 
   // Is this one of our internally-created windows?

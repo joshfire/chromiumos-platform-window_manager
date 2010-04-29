@@ -13,6 +13,7 @@ extern "C" {
 }
 #include <gflags/gflags.h>
 
+#include "cros/chromeos_wm_ipc_enums.h"
 #include "window_manager/atom_cache.h"
 #include "window_manager/event_consumer_registrar.h"
 #include "window_manager/panel_manager.h"
@@ -384,7 +385,7 @@ bool Panel::SetExpandedState(bool expanded) {
 
   is_expanded_ = expanded;
 
-  WmIpc::Message msg(WmIpc::Message::CHROME_NOTIFY_PANEL_STATE);
+  WmIpc::Message msg(chromeos::WM_IPC_MESSAGE_CHROME_NOTIFY_PANEL_STATE);
   msg.set_param(0, expanded);
   bool success = wm()->wm_ipc()->SendMessage(content_win_->xid(), msg);
 

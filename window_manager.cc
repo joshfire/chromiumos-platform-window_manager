@@ -25,6 +25,7 @@ extern "C" {
 #include "base/file_util.h"
 #include "base/logging.h"
 #include "base/string_util.h"
+#include "cros/chromeos_wm_ipc_enums.h"
 #include "window_manager/callback.h"
 #include "window_manager/event_consumer.h"
 #include "window_manager/event_loop.h"
@@ -68,6 +69,7 @@ DEFINE_string(wm_initial_chrome_window_mapped_file,
 
 DEFINE_bool(wm_use_compositing, true, "Use compositing");
 
+using chromeos::WmIpcMessageType;
 using std::list;
 using std::make_pair;
 using std::map;
@@ -557,7 +559,7 @@ void WindowManager::UnregisterEventConsumerForPropertyChanges(
 }
 
 void WindowManager::RegisterEventConsumerForChromeMessages(
-    WmIpc::Message::Type message_type, EventConsumer* event_consumer) {
+    WmIpcMessageType message_type, EventConsumer* event_consumer) {
   DCHECK(event_consumer);
   if (!chrome_message_event_consumers_[message_type].insert(
           event_consumer).second) {
@@ -568,7 +570,7 @@ void WindowManager::RegisterEventConsumerForChromeMessages(
 }
 
 void WindowManager::UnregisterEventConsumerForChromeMessages(
-    WmIpc::Message::Type message_type, EventConsumer* event_consumer) {
+    WmIpcMessageType message_type, EventConsumer* event_consumer) {
   DCHECK(event_consumer);
   ChromeMessageEventConsumerMap::iterator it =
       chrome_message_event_consumers_.find(message_type);
@@ -818,8 +820,8 @@ bool WindowManager::ManageExistingWindows() {
     Window* win = TrackWindow(xid, attr.override_redirect);
     if (win && win->FetchMapState()) {
       win->set_mapped(true);
-      if (win->type() == WmIpc::WINDOW_TYPE_CHROME_PANEL_CONTENT ||
-          win->type() == WmIpc::WINDOW_TYPE_CHROME_TAB_SNAPSHOT)
+      if (win->type() == chromeos::WM_IPC_WINDOW_CHROME_PANEL_CONTENT ||
+          win->type() == chromeos::WM_IPC_WINDOW_CHROME_TAB_SNAPSHOT)
         deferred_mapped_windows.push_back(win);
       else
         HandleMappedWindow(win);
@@ -889,7 +891,7 @@ void WindowManager::HandleMappedWindow(Window* win) {
     (*it)->HandleWindowMap(win);
   }
 
-  if (win->type() == WmIpc::WINDOW_TYPE_CHROME_TOPLEVEL &&
+  if (win->type() == chromeos::WM_IPC_WINDOW_CHROME_TOPLEVEL &&
       !chrome_window_has_been_mapped_) {
     chrome_window_has_been_mapped_ = true;
     if (!FLAGS_wm_initial_chrome_window_mapped_file.empty()) {
@@ -1008,7 +1010,7 @@ void WindowManager::HandleClientMessage(const XClientMessageEvent& e) {
              << GetXAtomName(e.message_type) << ") and format " << e.format;
   WmIpc::Message msg;
   if (wm_ipc_->GetMessage(e.window, e.message_type, e.format, e.data.l, &msg)) {
-    if (msg.type() == WmIpc::Message::WM_NOTIFY_IPC_VERSION) {
+    if (msg.type() == chromeos::WM_IPC_MESSAGE_WM_NOTIFY_IPC_VERSION) {
       wm_ipc_version_ = msg.param(0);
       LOG(INFO) << "Got WM_NOTIFY_IPC_VERSION message saying that Chrome is "
                 << "using version " << wm_ipc_version_;

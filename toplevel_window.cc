@@ -14,6 +14,7 @@
 
 #include "base/logging.h"
 #include "base/string_util.h"
+#include "cros/chromeos_wm_ipc_enums.h"
 #include "window_manager/atom_cache.h"
 #include "window_manager/callback.h"
 #include "window_manager/event_consumer_registrar.h"
@@ -154,7 +155,7 @@ void LayoutManager::ToplevelWindow::UpdateLayout(bool animate) {
 }
 
 bool LayoutManager::ToplevelWindow::PropertiesChanged() {
-  if (win_->type() == WmIpc::WINDOW_TYPE_CHROME_TOPLEVEL) {
+  if (win_->type() == chromeos::WM_IPC_WINDOW_CHROME_TOPLEVEL) {
     if (win_->type_params().size() > 1) {
       // Notice if the number of tabs or the selected tab changed.
       int old_tab_count = tab_count_;
@@ -395,7 +396,7 @@ void LayoutManager::ToplevelWindow::AddTransientWindow(
 
   // All transient windows other than info bubbles get centered over their
   // owner.
-  if (transient_win->type() == WmIpc::WINDOW_TYPE_CHROME_INFO_BUBBLE) {
+  if (transient_win->type() == chromeos::WM_IPC_WINDOW_CHROME_INFO_BUBBLE) {
     transient->SaveOffsetsRelativeToOwnerWindow(win_);
     transient->centered = false;
   } else {
