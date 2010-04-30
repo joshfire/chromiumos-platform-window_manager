@@ -50,7 +50,11 @@ static const double kOverviewWindowMaxSizeRatio = 0.5;
 
 // What fraction of the manager's total width should each window use for
 // peeking out underneath the window on top of it in overview mode?
-static const double kOverviewExposedWindowRatio = 0.1;
+static const double kOverviewExposedWindowRatio = 0.02;
+
+// What fraction of the manager's total width should be placed between
+// groups of snapshots in overview mode?
+static const double kOverviewGroupSpacing = 0.05;
 
 // Duration between panning updates while a drag is occurring on the
 // background window in overview mode.
@@ -1026,7 +1030,7 @@ void LayoutManager::Metrics::Populate(chrome_os_pb::SystemMetrics *metrics_pb) {
 }
 
 void LayoutManager::CalculatePositionsForOverviewMode() {
-  if (toplevels_.empty() || mode_ != MODE_OVERVIEW)
+  if (toplevels_.empty() || snapshots_.empty() || mode_ != MODE_OVERVIEW)
     return;
 
   int selected_x = 0.5 * width_;
@@ -1039,9 +1043,13 @@ void LayoutManager::CalculatePositionsForOverviewMode() {
           kOverviewWindowMaxSizeRatio * height_);
   int running_width = kWindowPadding;
 
+  ToplevelWindow* last_toplevel = snapshots_[0]->toplevel();
   for (int i = 0; static_cast<size_t>(i) < snapshots_.size(); ++i) {
     SnapshotWindow* snapshot = snapshots_[i].get();
     bool is_selected = (snapshot == current_snapshot_);
+
+    if (snapshot->toplevel() != last_toplevel)
+      running_width += width_ * kOverviewGroupSpacing;
 
     snapshot->SetSize(width_limit, height_limit);
     snapshot->SetPosition(
@@ -1067,6 +1075,7 @@ void LayoutManager::CalculatePositionsForOverviewMode() {
                                    snapshot->overview_width() - 1;
       }
     }
+    last_toplevel = snapshot->toplevel();
   }
 }
 

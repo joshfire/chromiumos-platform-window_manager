@@ -530,8 +530,8 @@ void OpenGlDrawVisitor::VisitStage(TidyInterface::StageActor* actor) {
   gl_interface_->MatrixMode(GL_PROJECTION);
   gl_interface_->LoadIdentity();
   gl_interface_->Ortho(0, actor->width(), actor->height(), 0,
-                       TidyInterface::LayerVisitor::kMinDepth,
-                       TidyInterface::LayerVisitor::kMaxDepth);
+                       -TidyInterface::LayerVisitor::kMinDepth,
+                       -TidyInterface::LayerVisitor::kMaxDepth);
   gl_interface_->MatrixMode(GL_MODELVIEW);
   gl_interface_->LoadIdentity();
   gl_interface_->Clear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);

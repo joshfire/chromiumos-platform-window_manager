@@ -42,12 +42,12 @@ using std::tr1::shared_ptr;
 
 namespace window_manager {
 
-const float TidyInterface::LayerVisitor::kMinDepth = -2048.0f;
-const float TidyInterface::LayerVisitor::kMaxDepth = 2048.0f;
+const float TidyInterface::LayerVisitor::kMinDepth = 0.0f;
+const float TidyInterface::LayerVisitor::kMaxDepth =
+    4096.0f + TidyInterface::LayerVisitor::kMinDepth;
 
 // Minimum amount of time in milliseconds between scene redraws.
 static const int64_t kDrawTimeoutMs = 16;
-
 
 void TidyInterface::ActorVisitor::VisitContainer(ContainerActor* actor) {
   CHECK(actor);
@@ -129,10 +129,10 @@ void TidyInterface::LayerVisitor::VisitStage(TidyInterface::StageActor* actor) {
   // a power of two) -- the maximum number of layers depends on the
   // number of actors and the bit-depth of the hardware's z-buffer.
   uint32 count = NextPowerOfTwo(static_cast<uint32>(count_ + 2));
-  layer_thickness_ = -(kMaxDepth - kMinDepth) / count;
+  layer_thickness_ = (kMaxDepth - kMinDepth) / count;
 
   // Don't start at the very edge of the z-buffer depth.
-  depth_ = kMaxDepth + layer_thickness_;
+  depth_ = kMinDepth + layer_thickness_;
 
   VisitContainer(actor);
 }
