@@ -904,6 +904,50 @@ TEST_F(LayoutManagerTest, NoDimmingInActiveMode) {
   EXPECT_FALSE(actor1->is_dimmed());
 }
 
+// Check that we ignore _NET_ACTIVE_WINDOW messages asking us to focus the
+// current window (as it should already have the focus), to guard against a
+// regression of http://crosbug.com/2992.
+TEST_F(LayoutManagerTest, AvoidMovingCurrentWindow) {
+  // Create a window and check that it gets focused.
+  const XWindow xid = CreateSimpleWindow();
+  SendInitialEventsForWindow(xid);
+  EXPECT_EQ(xid, xconn_->focused_xid());
+  SendFocusEvents(xconn_->GetRootWindow(), xid);
+
+  MockClutterInterface::Actor* actor =
+      dynamic_cast<MockClutterInterface::Actor*>(wm_->GetWindow(xid)->actor());
+  int initial_num_moves = actor->num_moves();
+
+  // Now send a _NET_ACTIVE_WINDOW message asking the window manager to
+  // focus the window (even though it's already current).
+  XEvent net_active_win_event;
+  MockXConnection::InitClientMessageEvent(
+      &net_active_win_event,
+      xid,   // window to focus
+      wm_->GetXAtom(ATOM_NET_ACTIVE_WINDOW),
+      1,     // source indication: client app
+      CurrentTime,
+      xid,   // currently-active window
+      None,
+      None);
+  wm_->HandleEvent(&net_active_win_event);
+
+  // Check that we didn't animate the actor's position.
+  EXPECT_EQ(initial_num_moves, actor->num_moves());
+
+  // Switch to overview mode.
+  lm_->SetMode(LayoutManager::MODE_OVERVIEW);
+  EXPECT_EQ(xconn_->GetRootWindow(), xconn_->focused_xid());
+  SendFocusEvents(xid, xconn_->GetRootWindow());
+
+  // Send the window manager the _NET_ACTIVE_WINDOW message again and check
+  // that it switches back to active mode.
+  wm_->HandleEvent(&net_active_win_event);
+  EXPECT_EQ(LayoutManager::MODE_ACTIVE, lm_->mode());
+  EXPECT_EQ(xid, xconn_->focused_xid());
+  SendFocusEvents(xconn_->GetRootWindow(), xid);
+}
+
 }  // namespace window_manager
 
 int main(int argc, char** argv) {

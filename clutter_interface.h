@@ -163,6 +163,8 @@ class MockClutterInterface : public ClutterInterface {
           scale_y_(1.0),
           opacity_(1.0),
           visible_(true),
+          is_dimmed_(false),
+          num_moves_(0),
           parent_(NULL) {
     }
     virtual ~Actor();
@@ -174,6 +176,7 @@ class MockClutterInterface : public ClutterInterface {
     double opacity() const { return opacity_; }
     bool visible() const { return visible_; }
     bool is_dimmed() const { return is_dimmed_; }
+    int num_moves() const { return num_moves_; }
 
     MockClutterInterface::ContainerActor* parent() { return parent_; }
     void set_parent(MockClutterInterface::ContainerActor* new_parent) {
@@ -196,6 +199,7 @@ class MockClutterInterface : public ClutterInterface {
     void Move(int x, int y, int anim_ms) {
       x_ = x;
       y_ = y;
+      num_moves_++;
     }
     void MoveX(int x, int anim_ms) { Move(x, y_, anim_ms); }
     void MoveY(int y, int anim_ms) { Move(x_, y, anim_ms); }
@@ -220,6 +224,9 @@ class MockClutterInterface : public ClutterInterface {
     double opacity_;
     bool visible_;
     bool is_dimmed_;
+
+    // Number of times that the actor has been moved.
+    int num_moves_;
 
     MockClutterInterface::ContainerActor* parent_;  // not owned
 

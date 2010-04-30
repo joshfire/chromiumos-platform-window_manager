@@ -605,12 +605,13 @@ void LayoutManager::HandleClientMessage(XWindow xid,
       toplevel = GetToplevelWindowByWindow(*win);
 
     if (toplevel) {
-      SetCurrentToplevel(toplevel);
-      // Jump out of overview mode if a toplevel has requested focus.
-      if (mode_ == MODE_OVERVIEW) {
-        SetMode(MODE_ACTIVE);
-      } else {
-        LayoutWindows(true);
+      if (mode_ == MODE_OVERVIEW || current_toplevel_ != toplevel) {
+        SetCurrentToplevel(toplevel);
+        // Jump out of overview mode if a toplevel has requested focus.
+        if (mode_ == MODE_OVERVIEW)
+          SetMode(MODE_ACTIVE);
+        else
+          LayoutWindows(true);
       }
     } else {
       // If it wasn't a toplevel window, then look and see if it was a
