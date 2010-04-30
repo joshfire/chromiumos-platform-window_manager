@@ -150,9 +150,9 @@ TEST_F(OpenGlVisitorTestTree, LayerDepth) {
   // disributed evenly within that range, except we don't use the
   // frontmost or backmost values in that range.
   uint32 max_count = NextPowerOfTwo(static_cast<uint32>(8 + 2));
-  float thickness = -(TidyInterface::LayerVisitor::kMaxDepth -
-                TidyInterface::LayerVisitor::kMinDepth) / max_count;
-  float depth = TidyInterface::LayerVisitor::kMaxDepth + thickness;
+  float thickness = (TidyInterface::LayerVisitor::kMaxDepth -
+                     TidyInterface::LayerVisitor::kMinDepth) / max_count;
+  float depth = TidyInterface::LayerVisitor::kMinDepth + thickness;
 
   EXPECT_FLOAT_EQ(
       depth,
