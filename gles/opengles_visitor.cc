@@ -150,9 +150,10 @@ void OpenGlesDrawVisitor::VisitStage(TidyInterface::StageActor* actor) {
   gl_->ClearColor(.86f, .2f, .44f, 1.f);
   gl_->Clear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-  perspective_ = Matrix4::orthographic(0, actor->width(), actor->height(), 0,
-                                       TidyInterface::LayerVisitor::kMinDepth,
-                                       TidyInterface::LayerVisitor::kMaxDepth);
+  perspective_ = Matrix4::orthographic(
+      0, actor->width(), actor->height(), 0,
+      -TidyInterface::LayerVisitor::kMinDepth,
+      -TidyInterface::LayerVisitor::kMaxDepth);
   model_view_ = Matrix4::identity();
 
   // Set the z-depths for the actors.
