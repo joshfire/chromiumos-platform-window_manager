@@ -168,9 +168,9 @@ TEST_F(TidyTestTree, LayerDepth) {
   // disributed evenly within that range, except we don't use the
   // frontmost or backmost values in that range.
   uint32 max_count = NextPowerOfTwo(static_cast<uint32>(count + 2));
-  float thickness = -(TidyInterface::LayerVisitor::kMaxDepth -
-                TidyInterface::LayerVisitor::kMinDepth) / max_count;
-  float depth = TidyInterface::LayerVisitor::kMaxDepth + thickness;
+  float thickness = (TidyInterface::LayerVisitor::kMaxDepth -
+                     TidyInterface::LayerVisitor::kMinDepth) / max_count;
+  float depth = TidyInterface::LayerVisitor::kMinDepth + thickness;
 
   // First we test the layer visitor directly.
   TidyInterface::LayerVisitor layer_visitor(count);
@@ -205,7 +205,7 @@ TEST_F(TidyTestTree, LayerDepth) {
       dynamic_cast<TidyInterface::ContainerActor*>(group1_.get())->z());
 
   // Now we test higher-level layer depth results.
-  depth = TidyInterface::LayerVisitor::kMaxDepth + thickness;
+  depth = TidyInterface::LayerVisitor::kMinDepth + thickness;
   interface()->Draw();
   EXPECT_EQ(8, interface()->actor_count());
 
@@ -251,9 +251,9 @@ TEST_F(TidyTestTree, LayerDepthWithOpacity) {
   // disributed evenly within that range, except we don't use the
   // frontmost or backmost values in that range.
   uint32 max_count = NextPowerOfTwo(static_cast<uint32>(count + 2));
-  float thickness = -(TidyInterface::LayerVisitor::kMaxDepth -
-                TidyInterface::LayerVisitor::kMinDepth) / max_count;
-  float depth = TidyInterface::LayerVisitor::kMaxDepth + thickness;
+  float thickness = (TidyInterface::LayerVisitor::kMaxDepth -
+                     TidyInterface::LayerVisitor::kMinDepth) / max_count;
+  float depth = TidyInterface::LayerVisitor::kMinDepth + thickness;
 
   // First we test the layer visitor directly.
   TidyInterface::LayerVisitor layer_visitor(count);
@@ -288,7 +288,7 @@ TEST_F(TidyTestTree, LayerDepthWithOpacity) {
       dynamic_cast<TidyInterface::ContainerActor*>(group1_.get())->z());
 
   // Now we test higher-level layer depth results.
-  depth = TidyInterface::LayerVisitor::kMaxDepth + thickness;
+  depth = TidyInterface::LayerVisitor::kMinDepth + thickness;
   interface()->Draw();
   EXPECT_EQ(8, interface()->actor_count());
 
