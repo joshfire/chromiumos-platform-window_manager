@@ -18,6 +18,7 @@
 #include "window_manager/clutter_interface.h"
 #include "window_manager/event_consumer.h"
 #include "window_manager/key_bindings.h"
+#include "window_manager/panel_manager.h"
 #include "window_manager/window.h"
 #include "window_manager/wm_ipc.h"  // for WmIpc::Message
 #include "window_manager/x_types.h"
@@ -31,6 +32,7 @@ namespace window_manager {
 class EventConsumerRegistrar;
 class KeyBindingsGroup;
 class MotionEventCoalescer;
+class PanelManager;
 class Window;
 class WindowManager;
 template<class T> class Stacker;  // from util.h
@@ -42,13 +44,10 @@ template<class T> class Stacker;  // from util.h
 // "overview", where scaled-down copies of all toplevel windows are
 // displayed across the bottom of the screen.
 //
-class LayoutManager : public EventConsumer {
+class LayoutManager : public EventConsumer,
+                      public PanelManagerAreaChangeListener {
  public:
-  // 'x', 'y', 'width', and 'height' specify the area available for
-  // displaying client windows.  Because of the way that overview mode is
-  // currently implemented, this should ideally be flush with the bottom of
-  // the screen.
-  LayoutManager(WindowManager* wm, int x, int y, int width, int height);
+  LayoutManager(WindowManager* wm, PanelManager* panel_manager);
   ~LayoutManager();
 
   // Struct for keeping track of user metrics relevant to the LayoutManager.
@@ -87,49 +86,56 @@ class LayoutManager : public EventConsumer {
   // relevant user metrics.
   Metrics* GetMetrics() { return &metrics_; }
 
-  // Note: Begin EventConsumer implementation.
-  bool IsInputWindow(XWindow xid);
+  // Begin EventConsumer implementation.
+  virtual bool IsInputWindow(XWindow xid);
+  virtual void HandleScreenResize();
 
   // Handle a window's map request.  In most cases, we just restack the
   // window, move it offscreen, and map it (info bubbles don't get moved,
   // though).
-  bool HandleWindowMapRequest(Window* win);
+  virtual bool HandleWindowMapRequest(Window* win);
 
   // Handle a new window.  This method takes care of rearranging windows
   // for the current layout if necessary.
-  void HandleWindowMap(Window* win);
+  virtual void HandleWindowMap(Window* win);
 
-  void HandleWindowUnmap(Window* win);
-  void HandleWindowConfigureRequest(Window* win,
-                                    int req_x, int req_y,
-                                    int req_width, int req_height);
-  void HandleButtonPress(XWindow xid,
-                         int x, int y,
-                         int x_root, int y_root,
-                         int button,
-                         XTime timestamp);
-  void HandleButtonRelease(XWindow xid,
-                           int x, int y,
-                           int x_root, int y_root,
-                           int button,
-                           XTime timestamp);
-  void HandlePointerEnter(XWindow xid,
-                          int x, int y,
-                          int x_root, int y_root,
-                          XTime timestamp) {}
-  void HandlePointerLeave(XWindow xid,
-                          int x, int y,
-                          int x_root, int y_root,
-                          XTime timestamp) {}
-  void HandlePointerMotion(XWindow xid,
-                           int x, int y,
-                           int x_root, int y_root,
-                           XTime timestamp);
-  void HandleFocusChange(XWindow xid, bool focus_in);
-  void HandleChromeMessage(const WmIpc::Message& msg) {}
-  void HandleClientMessage(XWindow xid, XAtom message_type, const long data[5]);
-  void HandleWindowPropertyChange(XWindow xid, XAtom xatom);
-  // Note: End EventConsumer implementation.
+  virtual void HandleWindowUnmap(Window* win);
+  virtual void HandleWindowConfigureRequest(Window* win,
+                                            int req_x, int req_y,
+                                            int req_width, int req_height);
+  virtual void HandleButtonPress(XWindow xid,
+                                 int x, int y,
+                                 int x_root, int y_root,
+                                 int button,
+                                 XTime timestamp);
+  virtual void HandleButtonRelease(XWindow xid,
+                                   int x, int y,
+                                   int x_root, int y_root,
+                                   int button,
+                                   XTime timestamp);
+  virtual void HandlePointerEnter(XWindow xid,
+                                  int x, int y,
+                                  int x_root, int y_root,
+                                  XTime timestamp) {}
+  virtual void HandlePointerLeave(XWindow xid,
+                                  int x, int y,
+                                  int x_root, int y_root,
+                                  XTime timestamp) {}
+  virtual void HandlePointerMotion(XWindow xid,
+                                   int x, int y,
+                                   int x_root, int y_root,
+                                   XTime timestamp);
+  virtual void HandleFocusChange(XWindow xid, bool focus_in);
+  virtual void HandleChromeMessage(const WmIpc::Message& msg) {}
+  virtual void HandleClientMessage(XWindow xid,
+                                   XAtom message_type,
+                                   const long data[5]);
+  virtual void HandleWindowPropertyChange(XWindow xid, XAtom xatom);
+  // End EventConsumer implementation.
+
+  // Begin PanelManagerAreaChangeListener implementation.
+  virtual void HandlePanelManagerAreaChange();
+  // End PanelManagerAreaChangeListener implementation.
 
   // Return a pointer to an arbitrary Chrome toplevel window, if one
   // exists.  Returns NULL if there is no such window.
@@ -139,9 +145,6 @@ class LayoutManager : public EventConsumer {
   // sense to take the focus (currently, we take the focus if we're in
   // active mode but refuse to in overview mode).
   bool TakeFocus(XTime timestamp);
-
-  // Change the area allocated to the layout manager.
-  void MoveAndResize(int x, int y, int width, int height);
 
   // Enable or disable key bindings.
   void EnableKeyBindings();
@@ -242,6 +245,9 @@ class LayoutManager : public EventConsumer {
   // possibly-transient window.  Returns NULL if the window is unowned.
   ToplevelWindow* GetToplevelWindowOwningTransientWindow(const Window& win);
 
+  // Change the area allocated to the layout manager.
+  void MoveAndResizeForAvailableArea();
+
   // Get the snapshot window represented by the passed-in input window, or
   // NULL if the input window doesn't belong to us.
   SnapshotWindow* GetSnapshotWindowByInputXid(XWindow xid);
@@ -327,7 +333,8 @@ class LayoutManager : public EventConsumer {
   // |toplevel| in the list, but not including |toplevel|'s tabs.
   int GetPreceedingTabCount(const ToplevelWindow& toplevel) const;
 
-  WindowManager* wm_;  // not owned
+  WindowManager* wm_;            // not owned
+  PanelManager* panel_manager_;  // not owned
 
   // The current mode.
   Mode mode_;
@@ -337,6 +344,11 @@ class LayoutManager : public EventConsumer {
   int y_;
   int width_;
   int height_;
+
+  // Area used by the panel manager on the left and right sides of the
+  // screen.
+  int panel_manager_left_width_;
+  int panel_manager_right_width_;
 
   // Information about toplevel windows, stored in the order in which
   // we'll display them in overview mode.
@@ -387,8 +399,7 @@ class LayoutManager : public EventConsumer {
   // already mapped or were in the process of being mapped when we were
   // started.
   // TODO: This is yet another hack that could probably removed in favor of
-  // something more elegant if/when we're sharing an X connection with
-  // Clutter and can safely grab the server at startup.
+  // something more elegant now that we're grabbing the server at startup.
   bool saw_map_request_;
 
   // Event registrations for the layout manager itself.

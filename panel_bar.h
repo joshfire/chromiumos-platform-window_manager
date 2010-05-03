@@ -37,39 +37,43 @@ class PanelBar : public PanelContainer {
   WindowManager* wm();
 
   // Begin PanelContainer implementation.
-  void GetInputWindows(std::vector<XWindow>* windows_out);
-  void AddPanel(Panel* panel, PanelSource source);
-  void RemovePanel(Panel* panel);
-  bool ShouldAddDraggedPanel(const Panel* panel, int drag_x, int drag_y);
-  void HandleInputWindowButtonPress(XWindow xid,
-                                    int x, int y,
-                                    int x_root, int y_root,
-                                    int button,
-                                    XTime timestamp);
-  void HandleInputWindowButtonRelease(XWindow xid,
-                                      int x, int y,
-                                      int x_root, int y_root,
+  virtual void GetInputWindows(std::vector<XWindow>* windows_out);
+  virtual void AddPanel(Panel* panel, PanelSource source);
+  virtual void RemovePanel(Panel* panel);
+  virtual bool ShouldAddDraggedPanel(const Panel* panel,
+                                     int drag_x, int drag_y);
+  virtual void HandleInputWindowButtonPress(XWindow xid,
+                                            int x, int y,
+                                            int x_root, int y_root,
+                                            int button,
+                                            XTime timestamp);
+  virtual void HandleInputWindowButtonRelease(XWindow xid,
+                                              int x, int y,
+                                              int x_root, int y_root,
+                                              int button,
+                                              XTime timestamp) {}
+  virtual void HandleInputWindowPointerEnter(XWindow xid,
+                                             int x, int y,
+                                             int x_root, int y_root,
+                                             XTime timestamp);
+  virtual void HandleInputWindowPointerLeave(XWindow xid,
+                                             int x, int y,
+                                             int x_root, int y_root,
+                                             XTime timestamp);
+  virtual void HandlePanelButtonPress(Panel* panel,
                                       int button,
-                                      XTime timestamp) {}
-  void HandleInputWindowPointerEnter(XWindow xid,
-                                     int x, int y,
-                                     int x_root, int y_root,
-                                     XTime timestamp);
-  void HandleInputWindowPointerLeave(XWindow xid,
-                                     int x, int y,
-                                     int x_root, int y_root,
-                                     XTime timestamp);
-  void HandlePanelButtonPress(Panel* panel, int button, XTime timestamp);
-  void HandlePanelTitlebarPointerEnter(Panel* panel, XTime timestamp);
-  void HandlePanelFocusChange(Panel* panel, bool focus_in);
-  void HandleSetPanelStateMessage(Panel* panel, bool expand);
-  bool HandleNotifyPanelDraggedMessage(Panel* panel, int drag_x, int drag_y);
-  void HandleNotifyPanelDragCompleteMessage(Panel* panel);
-  void HandleFocusPanelMessage(Panel* panel, XTime timestamp);
-  void HandlePanelResize(Panel* panel);
-  void HandleScreenResize();
-  void HandlePanelUrgencyChange(Panel* panel);
-  bool TakeFocus(XTime timestamp);
+                                      XTime timestamp);
+  virtual void HandlePanelTitlebarPointerEnter(Panel* panel, XTime timestamp);
+  virtual void HandlePanelFocusChange(Panel* panel, bool focus_in);
+  virtual void HandleSetPanelStateMessage(Panel* panel, bool expand);
+  virtual bool HandleNotifyPanelDraggedMessage(Panel* panel,
+                                               int drag_x, int drag_y);
+  virtual void HandleNotifyPanelDragCompleteMessage(Panel* panel);
+  virtual void HandleFocusPanelMessage(Panel* panel, XTime timestamp);
+  virtual void HandlePanelResize(Panel* panel);
+  virtual void HandleScreenResize();
+  virtual void HandlePanelUrgencyChange(Panel* panel);
+  virtual bool TakeFocus(XTime timestamp);
   // End PanelContainer implementation.
 
   // Amount of horizontal padding to place between panels, in pixels.

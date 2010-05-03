@@ -87,12 +87,21 @@ static const int kHotkeyOverlayAnimMs = 100;
 // update the hotkey overlay (when it's being shown).
 static const int kHotkeyOverlayPollMs = 100;
 
+// Invoke 'function_call' for each event consumer in 'consumers' (a set).
+#define FOR_EACH_EVENT_CONSUMER(consumers, function_call)                      \
+  do {                                                                         \
+    for (set<EventConsumer*>::iterator it =                                    \
+         consumers.begin(); it != consumers.end(); ++it) {                     \
+      (*it)->function_call;                                                    \
+    }                                                                          \
+  } while (0)
+
 // Look up the event consumers that have registered interest in 'key' in
 // 'consumer_map' (one of the WindowManager::*_event_consumers_ member
 // variables), and invoke 'function_call' (e.g.
 // "HandleWindowPropertyChange(e.window, e.atom)") on each.  Helper macro
 // used by WindowManager's event-handling methods.
-#define FOR_EACH_EVENT_CONSUMER(consumer_map, key, function_call)              \
+#define FOR_EACH_INTERESTED_EVENT_CONSUMER(consumer_map, key, function_call)   \
   do {                                                                         \
     typeof(consumer_map.begin()) it = consumer_map.find(key);                  \
     if (it != consumer_map.end()) {                                            \
@@ -197,10 +206,6 @@ WindowManager::WindowManager(EventLoop* event_loop,
       query_keyboard_state_timeout_id_(-1),
       showing_hotkey_overlay_(false),
       wm_ipc_version_(0),
-      layout_manager_x_(0),
-      layout_manager_y_(0),
-      layout_manager_width_(1),
-      layout_manager_height_(1),
       logged_in_(logged_in),
       chrome_window_has_been_mapped_(false) {
   CHECK(event_loop_);
@@ -286,22 +291,16 @@ bool WindowManager::Init() {
     logged_in_key_bindings_group_->Disable();
   RegisterKeyBindings();
 
-  layout_manager_x_ = 0;
-  layout_manager_y_ = 0;
-  layout_manager_width_ = width_;
-  layout_manager_height_ = height_;
-  layout_manager_.reset(
-      new LayoutManager(this, layout_manager_x_, layout_manager_y_,
-                        layout_manager_width_, layout_manager_height_));
+  panel_manager_.reset(new PanelManager(this));
+  event_consumers_.insert(panel_manager_.get());
+
+  layout_manager_.reset(new LayoutManager(this, panel_manager_.get()));
+  event_consumers_.insert(layout_manager_.get());
   if (!logged_in_)
     layout_manager_->DisableKeyBindings();
-  event_consumers_.insert(layout_manager_.get());
 
   login_controller_.reset(new LoginController(this));
   event_consumers_.insert(login_controller_.get());
-
-  panel_manager_.reset(new PanelManager(this));
-  event_consumers_.insert(panel_manager_.get());
 
   hotkey_overlay_.reset(new HotkeyOverlay(xconn_, clutter_));
   stage_->AddActor(hotkey_overlay_->group());
@@ -485,15 +484,6 @@ bool WindowManager::SetActiveWindowProperty(XWindow xid) {
   }
   active_window_xid_ = xid;
   return true;
-}
-
-void WindowManager::HandleLayoutManagerAreaChange(
-    int x, int y, int width, int height) {
-  layout_manager_x_ = x;
-  layout_manager_y_ = y;
-  layout_manager_width_ = width;
-  layout_manager_height_ = height;
-  layout_manager_->MoveAndResize(x, y, width, height);
 }
 
 bool WindowManager::SetNamePropertiesForXid(XWindow xid, const string& name) {
@@ -886,10 +876,7 @@ void WindowManager::HandleMappedWindow(Window* win) {
   if (FLAGS_wm_use_compositing && !win->redirected())
     win->Redirect();
   SetWmStateProperty(win->xid(), 1);  // NormalState
-  for (set<EventConsumer*>::iterator it = event_consumers_.begin();
-       it != event_consumers_.end(); ++it) {
-    (*it)->HandleWindowMap(win);
-  }
+  FOR_EACH_EVENT_CONSUMER(event_consumers_, HandleWindowMap(win));
 
   if (win->type() == chromeos::WM_IPC_WINDOW_CHROME_TOPLEVEL &&
       !chrome_window_has_been_mapped_) {
@@ -913,20 +900,14 @@ void WindowManager::HandleMappedWindow(Window* win) {
 void WindowManager::HandleScreenResize(int new_width, int new_height) {
   width_ = new_width;
   height_ = new_height;
+  SetEwmhSizeProperties();
   stage_->SetSize(width_, height_);
   if (background_.get())
     background_->SetSize(width_, height_);
-  panel_manager_->HandleScreenResize();
-  // TODO: This is ugly.  PanelManager::HandleScreenResize() will recompute
-  // the area available for the layout manager and call
-  // HandleLayoutManagerAreaChange(), so the next call is essentially a
-  // no-op.  Safer to leave it in for now, though.
-  layout_manager_->MoveAndResize(layout_manager_x_, layout_manager_y_,
-                                 layout_manager_width_, layout_manager_height_);
-  hotkey_overlay_->group()->Move(width_ / 2, height_ / 2, 0);
   xconn_->ResizeWindow(background_xid_, width_, height_);
+  hotkey_overlay_->group()->Move(width_ / 2, height_ / 2, 0);
 
-  SetEwmhSizeProperties();
+  FOR_EACH_EVENT_CONSUMER(event_consumers_, HandleScreenResize());
 }
 
 bool WindowManager::SetWmStateProperty(XWindow xid, int state) {
@@ -988,20 +969,22 @@ void WindowManager::HandleButtonPress(const XButtonEvent& e) {
   DLOG(INFO) << "Handling button press in window " << XidStr(e.window)
              << " at relative (" << e.x << ", " << e.y << "), absolute ("
              << e.x_root << ", " << e.y_root << ") with button " << e.button;
-  FOR_EACH_EVENT_CONSUMER(window_event_consumers_,
-                          e.window,
-                          HandleButtonPress(e.window, e.x, e.y, e.x_root,
-                                            e.y_root, e.button, e.time));
+  FOR_EACH_INTERESTED_EVENT_CONSUMER(
+      window_event_consumers_,
+      e.window,
+      HandleButtonPress(e.window, e.x, e.y, e.x_root,
+                        e.y_root, e.button, e.time));
 }
 
 void WindowManager::HandleButtonRelease(const XButtonEvent& e) {
   DLOG(INFO) << "Handling button release in window " << XidStr(e.window)
              << " at relative (" << e.x << ", " << e.y << "), absolute ("
              << e.x_root << ", " << e.y_root << ") with button " << e.button;
-  FOR_EACH_EVENT_CONSUMER(window_event_consumers_,
-                          e.window,
-                          HandleButtonRelease(e.window, e.x, e.y, e.x_root,
-                                              e.y_root, e.button, e.time));
+  FOR_EACH_INTERESTED_EVENT_CONSUMER(
+      window_event_consumers_,
+      e.window,
+      HandleButtonRelease(e.window, e.x, e.y, e.x_root,
+                          e.y_root, e.button, e.time));
 }
 
 void WindowManager::HandleClientMessage(const XClientMessageEvent& e) {
@@ -1015,9 +998,9 @@ void WindowManager::HandleClientMessage(const XClientMessageEvent& e) {
       LOG(INFO) << "Got WM_NOTIFY_IPC_VERSION message saying that Chrome is "
                 << "using version " << wm_ipc_version_;
     } else {
-      FOR_EACH_EVENT_CONSUMER(chrome_message_event_consumers_,
-                              msg.type(),
-                              HandleChromeMessage(msg));
+      FOR_EACH_INTERESTED_EVENT_CONSUMER(chrome_message_event_consumers_,
+                                         msg.type(),
+                                         HandleChromeMessage(msg));
     }
   } else {
     if (static_cast<XAtom>(e.message_type) == GetXAtom(ATOM_MANAGER) &&
@@ -1032,10 +1015,10 @@ void WindowManager::HandleClientMessage(const XClientMessageEvent& e) {
       return;
     }
     if (e.format == XConnection::kLongFormat) {
-      FOR_EACH_EVENT_CONSUMER(window_event_consumers_,
-                              e.window,
-                              HandleClientMessage(
-                                  e.window, e.message_type, e.data.l));
+      FOR_EACH_INTERESTED_EVENT_CONSUMER(
+          window_event_consumers_,
+          e.window,
+          HandleClientMessage(e.window, e.message_type, e.data.l));
     } else {
       LOG(WARNING) << "Ignoring client message event with unsupported format "
                    << e.format << " (we only handle 32-bit data currently)";
@@ -1202,7 +1185,7 @@ void WindowManager::HandleConfigureRequest(const XConfigureRequestEvent& e) {
     if (req_width != win->client_width() || req_height != win->client_height())
       win->ResizeClient(req_width, req_height, GRAVITY_NORTHWEST);
   } else {
-    FOR_EACH_EVENT_CONSUMER(
+    FOR_EACH_INTERESTED_EVENT_CONSUMER(
         window_event_consumers_,
         e.window,
         HandleWindowConfigureRequest(win, req_x, req_y, req_width, req_height));
@@ -1286,7 +1269,7 @@ void WindowManager::HandleDestroyNotify(const XDestroyWindowEvent& e) {
 
 void WindowManager::HandleEnterNotify(const XEnterWindowEvent& e) {
   DLOG(INFO) << "Handling enter notify for " << XidStr(e.window);
-  FOR_EACH_EVENT_CONSUMER(
+  FOR_EACH_INTERESTED_EVENT_CONSUMER(
       window_event_consumers_,
       e.window,
       HandlePointerEnter(e.window, e.x, e.y, e.x_root, e.y_root, e.time));
@@ -1317,9 +1300,9 @@ void WindowManager::HandleFocusChange(const XFocusChangeEvent& e) {
   if (win)
     win->set_focused(focus_in);
 
-  FOR_EACH_EVENT_CONSUMER(window_event_consumers_,
-                          e.window,
-                          HandleFocusChange(e.window, focus_in));
+  FOR_EACH_INTERESTED_EVENT_CONSUMER(window_event_consumers_,
+                                     e.window,
+                                     HandleFocusChange(e.window, focus_in));
 }
 
 void WindowManager::HandleKeyPress(const XKeyEvent& e) {
@@ -1334,7 +1317,7 @@ void WindowManager::HandleKeyRelease(const XKeyEvent& e) {
 
 void WindowManager::HandleLeaveNotify(const XLeaveWindowEvent& e) {
   DLOG(INFO) << "Handling leave notify for " << XidStr(e.window);
-  FOR_EACH_EVENT_CONSUMER(
+  FOR_EACH_INTERESTED_EVENT_CONSUMER(
       window_event_consumers_,
       e.window,
       HandlePointerLeave(e.window, e.x, e.y, e.x_root, e.y_root, e.time));
@@ -1391,7 +1374,7 @@ void WindowManager::HandleMappingNotify(const XMappingEvent& e) {
 }
 
 void WindowManager::HandleMotionNotify(const XMotionEvent& e) {
-  FOR_EACH_EVENT_CONSUMER(
+  FOR_EACH_INTERESTED_EVENT_CONSUMER(
       window_event_consumers_,
       e.window,
       HandlePointerMotion(e.window, e.x, e.y, e.x_root, e.y_root, e.time));
@@ -1428,9 +1411,10 @@ void WindowManager::HandlePropertyNotify(const XPropertyEvent& e) {
   }
 
   // Notify any event consumers that were interested in this property.
-  FOR_EACH_EVENT_CONSUMER(property_change_event_consumers_,
-                          make_pair(e.window, e.atom),
-                          HandleWindowPropertyChange(e.window, e.atom));
+  FOR_EACH_INTERESTED_EVENT_CONSUMER(
+      property_change_event_consumers_,
+      make_pair(e.window, e.atom),
+      HandleWindowPropertyChange(e.window, e.atom));
 }
 
 void WindowManager::HandleReparentNotify(const XReparentEvent& e) {
@@ -1466,10 +1450,7 @@ void WindowManager::HandleReparentNotify(const XReparentEvent& e) {
       if (win->mapped()) {
         // Make sure that all event consumers know that the window's going
         // away.
-        for (set<EventConsumer*>::iterator it = event_consumers_.begin();
-             it != event_consumers_.end(); ++it) {
-          (*it)->HandleWindowUnmap(win);
-        }
+        FOR_EACH_EVENT_CONSUMER(event_consumers_, HandleWindowUnmap(win));
         was_mapped = true;
       }
 
@@ -1515,10 +1496,7 @@ void WindowManager::HandleUnmapNotify(const XUnmapEvent& e) {
   win->HideComposited();
   win->reset_redirected();
 
-  for (set<EventConsumer*>::iterator it = event_consumers_.begin();
-       it != event_consumers_.end(); ++it) {
-    (*it)->HandleWindowUnmap(win);
-  }
+  FOR_EACH_EVENT_CONSUMER(event_consumers_, HandleWindowUnmap(win));
 
   if (mapped_xids_->Contains(win->xid())) {
     mapped_xids_->Remove(win->xid());

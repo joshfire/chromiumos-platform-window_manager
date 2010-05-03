@@ -6,6 +6,7 @@
 #define WINDOW_MANAGER_PANEL_MANAGER_H_
 
 #include <map>
+#include <set>
 #include <tr1/memory>
 #include <vector>
 
@@ -27,6 +28,16 @@ class PanelBar;
 class PanelDock;
 class WindowManager;
 
+// Interface for classes that need to be notified when the area being
+// consumed by the PanelManager (specifically, by PanelDock objects)
+// changes.
+class PanelManagerAreaChangeListener {
+ public:
+  // Handle a change in the area of the screen used by the panel manager.
+  // See PanelManager::GetArea().
+  virtual void HandlePanelManagerAreaChange() = 0;
+};
+
 // Handles map/unmap events for panel windows, owns Panel and
 // PanelContainer objects, adds new panels to the appropriate container,
 // routes X events to panels and containers, coordinates drags of panels
@@ -41,30 +52,33 @@ class PanelManager : public EventConsumer {
 
   WindowManager* wm() { return wm_; }
 
-  // Note: Begin EventConsumer implementation.
+  // Begin EventConsumer implementation.
 
   // Checks whether the passed-in window is an input window belonging to
   // one of our Panels or PanelContainers.
-  bool IsInputWindow(XWindow xid);
+  virtual bool IsInputWindow(XWindow xid);
+
+  virtual void HandleScreenResize();
 
   // Handle a window's map request.  If it's a panel content or titlebar
   // window, move it offscreen, map it, and return true.
-  bool HandleWindowMapRequest(Window* win);
+  virtual bool HandleWindowMapRequest(Window* win);
 
   // Handle a window being mapped.  When a content window is mapped, its
   // titlebar (which must have previously been mapped) is looked up and a
   // new Panel object is created and added to a container.  Does nothing
   // when passed non-content windows.
-  void HandleWindowMap(Window* win);
+  virtual void HandleWindowMap(Window* win);
 
   // Handle the removal of a window by removing its panel from its
   // container and destroying the Panel object.  The window can be either
   // the panel's content window or its titlebar.  Does nothing when passed
   // non-panel windows.
-  void HandleWindowUnmap(Window* win);
+  virtual void HandleWindowUnmap(Window* win);
 
-  void HandleWindowConfigureRequest(
-      Window* win, int req_x, int req_y, int req_width, int req_height);
+  virtual void HandleWindowConfigureRequest(Window* win,
+                                            int req_x, int req_y,
+                                            int req_width, int req_height);
 
   // Handle events for windows.  If the event occurred in an input window,
   // it is passed through to the Panel or PanelContainer that owns the
@@ -72,52 +86,58 @@ class PanelManager : public EventConsumer {
   // titlebar window, it just passed directly to the PanelContainer that
   // currently contains the panel via
   // PanelContainer::HandlePanelButtonPress().
-  void HandleButtonPress(XWindow xid,
-                         int x, int y,
-                         int x_root, int y_root,
-                         int button,
-                         XTime timestamp);
-  void HandleButtonRelease(XWindow xid,
-                           int x, int y,
-                           int x_root, int y_root,
-                           int button,
-                           XTime timestamp);
-  void HandlePointerEnter(XWindow xid,
-                          int x, int y,
-                          int x_root, int y_root,
-                          XTime timestamp);
-  void HandlePointerLeave(XWindow xid,
-                          int x, int y,
-                          int x_root, int y_root,
-                          XTime timestamp);
-  void HandlePointerMotion(XWindow xid,
-                           int x, int y,
-                           int x_root, int y_root,
-                           XTime timestamp);
+  virtual void HandleButtonPress(XWindow xid,
+                                 int x, int y,
+                                 int x_root, int y_root,
+                                 int button,
+                                 XTime timestamp);
+  virtual void HandleButtonRelease(XWindow xid,
+                                   int x, int y,
+                                   int x_root, int y_root,
+                                   int button,
+                                   XTime timestamp);
+  virtual void HandlePointerEnter(XWindow xid,
+                                  int x, int y,
+                                  int x_root, int y_root,
+                                  XTime timestamp);
+  virtual void HandlePointerLeave(XWindow xid,
+                                  int x, int y,
+                                  int x_root, int y_root,
+                                  XTime timestamp);
+  virtual void HandlePointerMotion(XWindow xid,
+                                   int x, int y,
+                                   int x_root, int y_root,
+                                   XTime timestamp);
 
-  void HandleChromeMessage(const WmIpc::Message& msg);
-  void HandleClientMessage(XWindow xid, XAtom message_type, const long data[5]);
-  void HandleFocusChange(XWindow xid, bool focus_in);
-  void HandleWindowPropertyChange(XWindow xid, XAtom xatom);
-
-  // Note: End EventConsumer implementation.
+  virtual void HandleChromeMessage(const WmIpc::Message& msg);
+  virtual void HandleClientMessage(XWindow xid,
+                                   XAtom message_type,
+                                   const long data[5]);
+  virtual void HandleFocusChange(XWindow xid, bool focus_in);
+  virtual void HandleWindowPropertyChange(XWindow xid, XAtom xatom);
+  // End EventConsumer implementation.
 
   // Handle notification from a panel that it's been resized.  We just
   // forward this through to its container, if any.
   void HandlePanelResize(Panel* panel);
 
   // Handle notification from a dock that it has become visible or
-  // invisible.  We use this to notify the window manager so it can resize
-  // the area available for toplevel windows.
+  // invisible.  We notify the objects in 'area_change_listeners_'.
   void HandleDockVisibilityChange(PanelDock* dock);
-
-  // Handle the screen being resized.
-  void HandleScreenResize();
 
   // Take the input focus if possible.  Returns 'false' if it doesn't make
   // sense to take the focus (currently, we only take the focus if there's
   // at least one expanded panel).
   bool TakeFocus(XTime timestamp);
+
+  // Register or unregister a listener that will be notified when the
+  // screen area consumed by the PanelManager changes.
+  void RegisterAreaChangeListener(PanelManagerAreaChangeListener* listener);
+  void UnregisterAreaChangeListener(PanelManagerAreaChangeListener* listener);
+
+  // Get the area currently consumed by panel docks on the left and right
+  // edges of the screen.
+  void GetArea(int* left_width, int* right_width) const;
 
  private:
   friend class BasicWindowManagerTest;  // uses 'dragged_panel_event_coalescer_'
@@ -175,10 +195,6 @@ class PanelManager : public EventConsumer {
   // the container had installed one).
   void RemovePanelFromContainer(Panel* panel, PanelContainer* container);
 
-  // Compute how much area is available (after subtracting space taken up
-  // by visible panel docks) and update the window manager.
-  void UpdateAvailableArea();
-
   // Make the passed-in panel be displayed fullscreen.  If another panel is
   // already fullscreened, restores it to its original position and size
   // first.  Updates 'fullscreen_panel_' to point at this panel.
@@ -225,6 +241,10 @@ class PanelManager : public EventConsumer {
   // Event registrations for Chrome message types that the panel manager
   // needs to receive.
   scoped_ptr<EventConsumerRegistrar> event_consumer_registrar_;
+
+  // Listeners that will be notified when the screen area consumed by the
+  // PanelManager changes.  Listener objects aren't owned by us.
+  std::set<PanelManagerAreaChangeListener*> area_change_listeners_;
 
   DISALLOW_COPY_AND_ASSIGN(PanelManager);
 };

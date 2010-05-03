@@ -49,6 +49,10 @@ class EventConsumer {
   // Is the passed-in window an input window owned by this consumer?
   virtual bool IsInputWindow(XWindow xid) = 0;
 
+  // Handle the screen being resized.
+  // This method is invoked for all consumers.
+  virtual void HandleScreenResize() = 0;
+
   // Handle a window's request to be mapped.  This is invoked to give
   // consumers a chance to change a window's position, size, or stacking
   // before it gets mapped (note that the consumer is ultimately

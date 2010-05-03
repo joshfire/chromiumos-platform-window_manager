@@ -54,6 +54,7 @@ class TestEventConsumer : public EventConsumer {
 
   // Begin overridden EventConsumer virtual methods.
   bool IsInputWindow(XWindow xid) { return false; }
+  void HandleScreenResize() {}
   bool HandleWindowMapRequest(Window* win) { return false; }
   void HandleWindowMap(Window* win) { num_mapped_windows_++; }
   void HandleWindowUnmap(Window* win) { num_unmapped_windows_++; }

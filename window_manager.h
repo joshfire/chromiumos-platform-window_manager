@@ -127,10 +127,6 @@ class WindowManager {
   // panel window that has the focus).
   bool SetActiveWindowProperty(XWindow xid);
 
-  // Handle a change in the area available for the layout manager to use to
-  // display toplevel windows.
-  void HandleLayoutManagerAreaChange(int x, int y, int width, int height);
-
   // Set the WM_NAME and NET_WM_NAME properties on a window.
   bool SetNamePropertiesForXid(XWindow xid, const std::string& name);
 
@@ -353,8 +349,8 @@ class WindowManager {
   scoped_ptr<AtomCache> atom_cache_;
   scoped_ptr<WmIpc> wm_ipc_;
   scoped_ptr<KeyBindings> key_bindings_;
-  scoped_ptr<LayoutManager> layout_manager_;
   scoped_ptr<PanelManager> panel_manager_;
+  scoped_ptr<LayoutManager> layout_manager_;
   scoped_ptr<MetricsReporter> metrics_reporter_;
   scoped_ptr<LoginController> login_controller_;
 
@@ -373,12 +369,6 @@ class WindowManager {
   // Version of the IPC protocol that Chrome is currently using.  See
   // WM_NOTIFY_IPC_VERSION in wm_ipc.h for details.
   int wm_ipc_version_;
-
-  // Area currently available for the layout manager.
-  int layout_manager_x_;
-  int layout_manager_y_;
-  int layout_manager_width_;
-  int layout_manager_height_;
 
   // Key bindings that should only be enabled when a user is logged in (e.g.
   // starting a terminal).

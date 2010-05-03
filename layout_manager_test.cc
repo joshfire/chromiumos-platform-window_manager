@@ -569,8 +569,15 @@ TEST_F(LayoutManagerTest, Resize) {
 
   Window* win = wm_->GetWindowOrDie(xid);
 
+  const XWindow root_xid = xconn_->GetRootWindow();
+  MockXConnection::WindowInfo* root_info = xconn_->GetWindowInfoOrDie(root_xid);
+  EXPECT_EQ(0, lm_->x());
+  EXPECT_EQ(0, lm_->y());
+  EXPECT_EQ(root_info->width, lm_->width());
+  EXPECT_EQ(root_info->height, lm_->height());
+
   // The client window and its composited counterpart should be resized to
-  // take up all the space available to the layout manager.
+  // take up all the space onscreen.
   EXPECT_EQ(lm_->x(), info->x);
   EXPECT_EQ(lm_->y(), info->y);
   EXPECT_EQ(lm_->width(), info->width);
@@ -580,11 +587,16 @@ TEST_F(LayoutManagerTest, Resize) {
   EXPECT_DOUBLE_EQ(1.0, win->composited_scale_x());
   EXPECT_DOUBLE_EQ(1.0, win->composited_scale_y());
 
-  // Now tell the layout manager to resize itself.  The client window
-  // should also be resized.
-  int new_width = lm_->width() / 2;
-  int new_height = lm_->height() / 2;
-  lm_->MoveAndResize(0, 0, new_width, new_height);
+  // Now resize the screen and check that both the layout manager and
+  // client are also resized.
+  const int new_width = root_info->width / 2;
+  const int new_height = root_info->height / 2;
+  xconn_->ResizeWindow(root_xid, new_width, new_height);
+
+  XEvent event;
+  MockXConnection::InitConfigureNotifyEvent(&event, *root_info);
+  wm_->HandleEvent(&event);
+
   EXPECT_EQ(new_width, lm_->width());
   EXPECT_EQ(new_height, lm_->height());
   EXPECT_EQ(lm_->width(), info->width);

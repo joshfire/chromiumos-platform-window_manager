@@ -22,6 +22,7 @@
 using std::make_pair;
 using std::map;
 using std::pair;
+using std::set;
 using std::tr1::shared_ptr;
 using std::vector;
 
@@ -71,6 +72,15 @@ PanelManager::~PanelManager() {
 
 bool PanelManager::IsInputWindow(XWindow xid) {
   return container_input_xids_.count(xid) || panel_input_xids_.count(xid);
+}
+
+void PanelManager::HandleScreenResize() {
+  for (vector<PanelContainer*>::iterator it = containers_.begin();
+       it != containers_.end(); ++it) {
+    (*it)->HandleScreenResize();
+  }
+  for (PanelMap::iterator it = panels_.begin(); it != panels_.end(); ++it)
+    it->second->HandleScreenResize();
 }
 
 bool PanelManager::HandleWindowMapRequest(Window* win) {
@@ -419,23 +429,40 @@ void PanelManager::HandlePanelResize(Panel* panel) {
 }
 
 void PanelManager::HandleDockVisibilityChange(PanelDock* dock) {
-  UpdateAvailableArea();
-}
-
-void PanelManager::HandleScreenResize() {
-  for (vector<PanelContainer*>::iterator it = containers_.begin();
-       it != containers_.end(); ++it) {
-    (*it)->HandleScreenResize();
+  for (set<PanelManagerAreaChangeListener*>::const_iterator it =
+           area_change_listeners_.begin();
+       it != area_change_listeners_.end(); ++it) {
+    (*it)->HandlePanelManagerAreaChange();
   }
-  for (PanelMap::iterator it = panels_.begin(); it != panels_.end(); ++it)
-    it->second->HandleScreenResize();
-  UpdateAvailableArea();
+
 }
 
 bool PanelManager::TakeFocus(XTime timestamp) {
   return panel_bar_->TakeFocus(timestamp) ||
          left_panel_dock_->TakeFocus(timestamp) ||
          right_panel_dock_->TakeFocus(timestamp);
+}
+
+void PanelManager::RegisterAreaChangeListener(
+    PanelManagerAreaChangeListener* listener) {
+  DCHECK(listener);
+  bool added = area_change_listeners_.insert(listener).second;
+  DCHECK(added) << "Listener " << listener << " was already registered";
+}
+
+void PanelManager::UnregisterAreaChangeListener(
+    PanelManagerAreaChangeListener* listener) {
+  int num_removed = area_change_listeners_.erase(listener);
+  DCHECK_EQ(num_removed, 1) << "Listener " << listener << " wasn't registered";
+}
+
+void PanelManager::GetArea(int* left_width, int* right_width) const {
+  DCHECK(left_width);
+  DCHECK(right_width);
+  *left_width =
+      left_panel_dock_->is_visible() ? left_panel_dock_->width() : 0;
+  *right_width =
+      right_panel_dock_->is_visible() ? right_panel_dock_->width() : 0;
 }
 
 Panel* PanelManager::GetPanelByXid(XWindow xid) {
@@ -565,23 +592,6 @@ void PanelManager::RemovePanelFromContainer(Panel* panel,
   panel->SetResizable(false);
   panel->SetShadowOpacity(1.0, kDetachPanelAnimMs);
   panel->SetExpandedState(true);
-}
-
-void PanelManager::UpdateAvailableArea() {
-  int avail_x = 0;
-  int avail_y = 0;
-  int avail_width = wm_->width();
-  int avail_height = wm_->height();
-
-  if (left_panel_dock_->IsVisible()) {
-    avail_x += left_panel_dock_->width();
-    avail_width -= left_panel_dock_->width();
-  }
-  if (right_panel_dock_->IsVisible())
-    avail_width -= right_panel_dock_->width();
-
-  wm_->HandleLayoutManagerAreaChange(
-      avail_x, avail_y, avail_width, avail_height);
 }
 
 void PanelManager::MakePanelFullscreen(Panel* panel) {

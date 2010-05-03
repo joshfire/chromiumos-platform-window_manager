@@ -31,7 +31,7 @@ DEFINE_bool(lm_honor_window_size_hints, false,
             "When maximizing a client window, constrain its size according to "
             "the size hints that the client app has provided (e.g. max size, "
             "size increment, etc.) instead of automatically making it fill the "
-            "screen(s)");
+            "screen");
 
 using std::map;
 using std::max;
@@ -67,15 +67,16 @@ const int LayoutManager::kWindowAnimMs = 250;
 const int LayoutManager::kWindowOpacityAnimMs =
     LayoutManager::kWindowAnimMs / 4;
 
-LayoutManager::LayoutManager(WindowManager* wm,
-                             int x, int y,
-                             int width, int height)
+LayoutManager::LayoutManager(WindowManager* wm, PanelManager* panel_manager)
     : wm_(wm),
+      panel_manager_(panel_manager),
       mode_(MODE_NEW),
-      x_(x),
-      y_(y),
-      width_(-1),
-      height_(-1),
+      x_(0),
+      y_(0),
+      width_(wm_->width()),
+      height_(wm_->height()),
+      panel_manager_left_width_(0),
+      panel_manager_right_width_(0),
       current_toplevel_(NULL),
       current_snapshot_(NULL),
       overview_panning_offset_(0),
@@ -92,10 +93,14 @@ LayoutManager::LayoutManager(WindowManager* wm,
       active_mode_key_bindings_group_(new KeyBindingsGroup(wm->key_bindings())),
       overview_mode_key_bindings_group_(
           new KeyBindingsGroup(wm->key_bindings())) {
+  panel_manager_->RegisterAreaChangeListener(this);
+  panel_manager_->GetArea(&panel_manager_left_width_,
+                          &panel_manager_right_width_);
+
   // Disable the overview key bindings, since we start in active mode.
   overview_mode_key_bindings_group_->Disable();
 
-  MoveAndResize(x, y, width, height);
+  MoveAndResizeForAvailableArea();
 
   int event_mask = ButtonPressMask | ButtonReleaseMask | PointerMotionMask;
   wm_->xconn()->AddButtonGrabOnWindow(
@@ -253,6 +258,7 @@ LayoutManager::LayoutManager(WindowManager* wm,
 }
 
 LayoutManager::~LayoutManager() {
+  panel_manager_->UnregisterAreaChangeListener(this);
   wm_->xconn()->RemoveButtonGrabOnWindow(wm_->background_xid(), 1);
 
   KeyBindings* kb = wm_->key_bindings();
@@ -278,6 +284,10 @@ LayoutManager::~LayoutManager() {
 
 bool LayoutManager::IsInputWindow(XWindow xid) {
   return (GetSnapshotWindowByInputXid(xid) != NULL);
+}
+
+void LayoutManager::HandleScreenResize() {
+  MoveAndResizeForAvailableArea();
 }
 
 bool LayoutManager::HandleWindowMapRequest(Window* win) {
@@ -660,6 +670,12 @@ void LayoutManager::HandleWindowPropertyChange(XWindow xid, XAtom xatom) {
   }
 }
 
+void LayoutManager::HandlePanelManagerAreaChange() {
+  panel_manager_->GetArea(&panel_manager_left_width_,
+                          &panel_manager_right_width_);
+  MoveAndResizeForAvailableArea();
+}
+
 Window* LayoutManager::GetChromeWindow() {
   for (size_t i = 0; i < toplevels_.size(); ++i) {
     if (toplevels_[i]->win()->type() == chromeos::WM_IPC_WINDOW_CHROME_TOPLEVEL)
@@ -674,46 +690,6 @@ bool LayoutManager::TakeFocus(XTime timestamp) {
 
   current_toplevel_->TakeFocus(timestamp);
   return true;
-}
-
-void LayoutManager::MoveAndResize(int x, int y, int width, int height) {
-  if (x == x_ && y == y_ && width == width_ && height == height_)
-    return;
-
-  // If there's a larger difference between our new and old left edge than
-  // between the new and old right edge, then we keep the right sides of the
-  // windows fixed while resizing.
-  Gravity resize_gravity =
-      abs(x - x_) > abs(x + width - (x_ + width_)) ?
-      GRAVITY_NORTHEAST :
-      GRAVITY_NORTHWEST;
-
-  x_ = x;
-  y_ = y;
-  width_ = width;
-  height_ = height;
-
-  for (ToplevelWindows::iterator it = toplevels_.begin();
-       it != toplevels_.end(); ++it) {
-    int width = width_;
-    int height = height_;
-    if (FLAGS_lm_honor_window_size_hints)
-      (*it)->win()->GetMaxSize(width_, height_, &width, &height);
-    (*it)->win()->ResizeClient(width, height, resize_gravity);
-    if (mode_ == MODE_OVERVIEW) {
-      // Make sure the toplevel windows are offscreen still if we're
-      // in overview mode.
-      (*it)->win()->MoveClientOffscreen();
-    }
-  }
-
-  // Make sure the snapshot windows are offscreen still.
-  for (SnapshotWindows::iterator it = snapshots_.begin();
-       it != snapshots_.end(); ++it) {
-    (*it)->win()->MoveClientOffscreen();
-  }
-
-  LayoutWindows(true);
 }
 
 string LayoutManager::GetModeName(Mode mode) {
@@ -954,6 +930,47 @@ LayoutManager::SnapshotWindow* LayoutManager::GetSnapshotBefore(
 XWindow LayoutManager::GetInputXidForWindow(const Window& win) {
   SnapshotWindow* snapshot = GetSnapshotWindowByWindow(win);
   return snapshot ? snapshot->input_xid() : None;
+}
+
+void LayoutManager::MoveAndResizeForAvailableArea() {
+  const int old_x = x_;
+  const int old_width = width_;
+
+  x_ = panel_manager_left_width_;
+  y_ = 0;
+  width_ = wm_->width() -
+      (panel_manager_left_width_ + panel_manager_right_width_);
+  height_ = wm_->height();
+
+  // If there's a larger difference between our new and old left edge than
+  // between the new and old right edge, then we keep the right sides of the
+  // windows fixed while resizing.
+  Gravity resize_gravity =
+      abs(x_ - old_x) > abs(x_ + width_ - (old_x + old_width)) ?
+      GRAVITY_NORTHEAST :
+      GRAVITY_NORTHWEST;
+
+  for (ToplevelWindows::iterator it = toplevels_.begin();
+       it != toplevels_.end(); ++it) {
+    int width = width_;
+    int height = height_;
+    if (FLAGS_lm_honor_window_size_hints)
+      (*it)->win()->GetMaxSize(width_, height_, &width, &height);
+    (*it)->win()->ResizeClient(width, height, resize_gravity);
+    if (mode_ == MODE_OVERVIEW) {
+      // Make sure the toplevel windows are offscreen still if we're
+      // in overview mode.
+      (*it)->win()->MoveClientOffscreen();
+    }
+  }
+
+  // Make sure the snapshot windows are offscreen still.
+  for (SnapshotWindows::iterator it = snapshots_.begin();
+       it != snapshots_.end(); ++it) {
+    (*it)->win()->MoveClientOffscreen();
+  }
+
+  LayoutWindows(true);
 }
 
 void LayoutManager::SetCurrentToplevel(ToplevelWindow* toplevel) {

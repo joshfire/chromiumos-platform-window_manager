@@ -8,6 +8,7 @@
 #include <set>
 #include <vector>
 
+#include "base/logging.h"
 #include "window_manager/event_consumer.h"
 #include "window_manager/event_consumer_registrar.h"
 
@@ -26,7 +27,8 @@ class LoginController : public EventConsumer {
   explicit LoginController(WindowManager* wm);
   ~LoginController();
 
-  // EventConsumer:
+  // Begin EventConsumer implementation.
+  virtual void HandleScreenResize() { NOTIMPLEMENTED(); }
   virtual bool IsInputWindow(XWindow xid);
   virtual bool HandleWindowMapRequest(Window* win);
   virtual void HandleWindowMap(Window* win);
@@ -62,6 +64,7 @@ class LoginController : public EventConsumer {
                                    const long data[5]);
   virtual void HandleFocusChange(XWindow xid, bool focus_in);
   virtual void HandleWindowPropertyChange(XWindow xid, XAtom xatom);
+  // End EventConsumer implementation.
 
  private:
   // SelectionChangedManager is used to cleanup after the selection changes.

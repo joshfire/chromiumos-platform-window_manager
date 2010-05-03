@@ -8,9 +8,11 @@
 #include "base/scoped_ptr.h"
 #include "base/logging.h"
 #include "window_manager/event_loop.h"
+#include "window_manager/layout_manager.h"
 #include "window_manager/mock_x_connection.h"
 #include "window_manager/panel.h"
 #include "window_manager/panel_bar.h"
+#include "window_manager/panel_dock.h"
 #include "window_manager/panel_manager.h"
 #include "window_manager/test_lib.h"
 #include "window_manager/window.h"
@@ -28,10 +30,16 @@ class PanelManagerTest : public BasicWindowManagerTest {
     BasicWindowManagerTest::SetUp();
     panel_manager_ = wm_->panel_manager_.get();
     panel_bar_ = panel_manager_->panel_bar_.get();
+    left_panel_dock_ = panel_manager_->left_panel_dock_.get();
+    right_panel_dock_ = panel_manager_->right_panel_dock_.get();
+    layout_manager_ = wm_->layout_manager_.get();
   }
 
-  PanelManager* panel_manager_;  // instance belonging to 'wm_'
-  PanelBar* panel_bar_;          // instance belonging to 'panel_manager_'
+  PanelManager* panel_manager_;    // instance belonging to 'wm_'
+  PanelBar* panel_bar_;            // instance belonging to 'panel_manager_'
+  PanelDock* left_panel_dock_;     // instance belonging to 'panel_manager_'
+  PanelDock* right_panel_dock_;    // instance belonging to 'panel_manager_'
+  LayoutManager* layout_manager_;  // instance belonging to 'wm_'
 };
 
 // Test dragging a panel around to detach it and reattach it to the panel
@@ -374,8 +382,8 @@ TEST_F(PanelManagerTest, FocusPanelInDock) {
   Panel* panel_in_dock = CreatePanel(20, 200, 400, true);
 
   XConnection::WindowGeometry root_geometry;
-  ASSERT_TRUE(
-      xconn_->GetWindowGeometry(xconn_->GetRootWindow(), &root_geometry));
+  ASSERT_TRUE(xconn_->GetWindowGeometry(xconn_->GetRootWindow(),
+                                        &root_geometry));
 
   // Drag the second panel to the dock and check that it sticks there.
   SendPanelDraggedMessage(panel_in_dock, root_geometry.width - 1, 0);
@@ -396,6 +404,98 @@ TEST_F(PanelManagerTest, FocusPanelInDock) {
   MockXConnection::InitUnmapEvent(&event, panel_in_bar->content_xid());
   wm_->HandleEvent(&event);
   EXPECT_EQ(panel_in_dock->content_xid(), xconn_->focused_xid());
+}
+
+// Test that panel docks are made visible when they contain panels and
+// invisible when they don't, and that the layout manager gets resized as
+// needed to make room for the docks.
+TEST_F(PanelManagerTest, DockVisibilityAndResizing) {
+  XWindow root_xid = xconn_->GetRootWindow();
+  MockXConnection::WindowInfo* root_info = xconn_->GetWindowInfoOrDie(root_xid);
+
+  Panel* panel1 = CreatePanel(20, 200, 400, true);
+  Panel* panel2 = CreatePanel(20, 200, 400, true);
+
+  // Both panel docks should initially be invisible.
+  EXPECT_FALSE(left_panel_dock_->is_visible());
+  EXPECT_FALSE(right_panel_dock_->is_visible());
+
+  // The layout manager should initially fill the whole screen.
+  EXPECT_EQ(0, layout_manager_->x());
+  EXPECT_EQ(0, layout_manager_->y());
+  EXPECT_EQ(root_info->width, layout_manager_->width());
+  EXPECT_EQ(root_info->height, layout_manager_->height());
+
+  // Drag the first panel to the left dock.
+  SendPanelDraggedMessage(panel1, 0, 0);
+  SendPanelDragCompleteMessage(panel1);
+
+  // The left dock should become visible.
+  EXPECT_TRUE(left_panel_dock_->is_visible());
+  EXPECT_EQ(0, left_panel_dock_->x());
+  EXPECT_EQ(0, left_panel_dock_->y());
+
+  // The layout manager should move to the right and get narrower to make
+  // room for the left dock.
+  EXPECT_EQ(PanelManager::kPanelDockWidth, layout_manager_->x());
+  EXPECT_EQ(0, layout_manager_->y());
+  EXPECT_EQ(root_info->width - PanelManager::kPanelDockWidth,
+            layout_manager_->width());
+  EXPECT_EQ(root_info->height, layout_manager_->height());
+
+  // Dock the second panel on the right.
+  SendPanelDraggedMessage(panel2, root_info->width - 1, 0);
+  SendPanelDragCompleteMessage(panel2);
+
+  // The right dock should become visible.
+  EXPECT_TRUE(right_panel_dock_->is_visible());
+  EXPECT_EQ(root_info->width - PanelManager::kPanelDockWidth,
+            right_panel_dock_->x());
+  EXPECT_EQ(0, right_panel_dock_->y());
+
+  // The layout manager should get narrower to make room for the right dock.
+  EXPECT_EQ(PanelManager::kPanelDockWidth, layout_manager_->x());
+  EXPECT_EQ(0, layout_manager_->y());
+  EXPECT_EQ(root_info->width - 2 * PanelManager::kPanelDockWidth,
+            layout_manager_->width());
+  EXPECT_EQ(root_info->height, layout_manager_->height());
+
+  // Make the screen a bit smaller and send a ConfigureNotify event about it.
+  root_info->width -= 40;
+  root_info->height -= 30;
+  XEvent event;
+  MockXConnection::InitConfigureNotifyEvent(&event, *root_info);
+  wm_->HandleEvent(&event);
+
+  // The left dock should still be in the same place.  The right one should
+  // shift over as needed.
+  EXPECT_EQ(0, left_panel_dock_->x());
+  EXPECT_EQ(0, left_panel_dock_->y());
+  EXPECT_EQ(root_info->width - PanelManager::kPanelDockWidth,
+            right_panel_dock_->x());
+  EXPECT_EQ(0, right_panel_dock_->y());
+
+  // The layout manager should shrink accordingly (and it should still
+  // leave room for the panel docks).
+  EXPECT_EQ(PanelManager::kPanelDockWidth, layout_manager_->x());
+  EXPECT_EQ(0, layout_manager_->y());
+  EXPECT_EQ(root_info->width - 2 * PanelManager::kPanelDockWidth,
+            layout_manager_->width());
+  EXPECT_EQ(root_info->height, layout_manager_->height());
+
+  // Undock the left panel and check that the dock becomes invisible.
+  SendPanelDraggedMessage(
+      panel1, root_info->width * 0.5, root_info->height - 1);
+  SendPanelDragCompleteMessage(panel1);
+  EXPECT_FALSE(left_panel_dock_->is_visible());
+
+  // The layout manager should move back to the left edge of the screen and
+  // get a bit wider, so that it's just leaving room for the right dock.
+  EXPECT_EQ(0, layout_manager_->x());
+  EXPECT_EQ(0, layout_manager_->y());
+  EXPECT_EQ(root_info->width - PanelManager::kPanelDockWidth,
+            layout_manager_->width());
+  EXPECT_EQ(root_info->height, layout_manager_->height());
 }
 
 }  // namespace window_manager
