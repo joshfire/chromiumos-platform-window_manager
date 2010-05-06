@@ -489,6 +489,27 @@ void OpenGlDrawVisitor::VisitQuad(TidyInterface::QuadActor* actor) {
              << actor->width() << "x"  << actor->height()
              << ") and opacity " << actor_opacity;
 #endif
+
+  if (actor->tilt() > 0.001f) {
+    // Post-multiply a perspective matrix onto the model view matrix,
+    // and a rotation in Y so that all the other model view ops happen
+    // outside of the perspective transform.
+
+    // This matrix is the result of a translate by 0.5 in Y, followed
+    // by a simple perspective transform, followed by a translate in
+    // -0.5 in Y, so that the perspective foreshortening is centered
+    // vertically on the quad.
+    static float tilt_matrix [] = {
+      1.0f, 0.0f, 0.0f, 0.0f,
+      0.0f, 1.0f, 0.0f, 0.0f,
+      0.0f, -0.2f, 0.0f, -0.4f,
+      0.0f, 0.0f, 0.0f, 1.0f
+    };
+    gl_interface_->MultMatrixf(tilt_matrix);
+    gl_interface_->Rotatef(90.0f * actor->tilt(),
+                           0.f, 1.f, 0.f);
+  }
+
   gl_interface_->DrawArrays(GL_TRIANGLE_STRIP, 0, 4);
   gl_interface_->DisableClientState(GL_COLOR_ARRAY);
   gl_interface_->PopMatrix();

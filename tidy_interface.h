@@ -207,6 +207,8 @@ class TidyInterface : public ClutterInterface {
     void MoveY(int y, int duration_ms);
     void Scale(double scale_x, double scale_y, int duration_ms);
     void SetOpacity(double opacity, int duration_ms);
+    void SetTilt(double tilt, int duration_ms);
+    double GetTilt() const { return tilt_; }
     void SetClip(int x, int y, int width, int height) { NOTIMPLEMENTED(); }
 
     void Raise(ClutterInterface::Actor* other);
@@ -248,6 +250,7 @@ class TidyInterface : public ClutterInterface {
 
     bool IsVisible() const { return visible_ && opacity_ > 0.001f; }
     float opacity() const { return opacity_; }
+    float tilt() const { return tilt_; }
     float scale_x() const { return scale_x_; }
     float scale_y() const { return scale_y_; }
     void SetDirty() { interface_->SetDirty(); }
@@ -326,6 +329,11 @@ class TidyInterface : public ClutterInterface {
 
     // This is the opacity of the actor (0 = transparent, 1 = opaque)
     float opacity_;
+
+    // The amount that the actor should be "tilted".  This is a
+    // perspective effect where the actor is rotated around its left
+    // edge.
+    float tilt_;
 
     // Calculated during the layer visitor pass, and used to determine
     // if this object is opaque for traversal purposes.

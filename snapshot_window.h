@@ -16,6 +16,10 @@ class LayoutManager;
 
 class LayoutManager::SnapshotWindow {
  public:
+  // This is the amount of tilt to give to an unselected
+  // snapshot.
+  static const float kUnselectedTilt;
+
   SnapshotWindow(Window* win, LayoutManager* layout_manager);
   ~SnapshotWindow();
 
@@ -162,6 +166,7 @@ class LayoutManager::SnapshotWindow {
   int overview_y_;
   int overview_width_;
   int overview_height_;
+  float overview_scale_;
 
   // LayoutManager event registrations for this snapshot window and its
   // input window.

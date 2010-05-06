@@ -41,9 +41,6 @@ using std::tr1::shared_ptr;
 
 namespace window_manager {
 
-// Amount of padding that should be used between windows in overview mode.
-static const int kWindowPadding = 10;
-
 // What's the maximum fraction of the manager's total size that a window
 // should be scaled to in overview mode?
 static const double kOverviewWindowMaxSizeRatio = 0.5;
@@ -51,6 +48,10 @@ static const double kOverviewWindowMaxSizeRatio = 0.5;
 // What fraction of the manager's total width should each window use for
 // peeking out underneath the window on top of it in overview mode?
 static const double kOverviewExposedWindowRatio = 0.02;
+
+// How many pixels should be used for padding the snapshot on the
+// right side when it is selected.
+static const double kOverviewSelectedPadding = 4.0;
 
 // What fraction of the manager's total width should be placed between
 // groups of snapshots in overview mode?
@@ -63,7 +64,10 @@ static const int kOverviewDragUpdateMs = 50;
 // Animation speed used for windows.
 const int LayoutManager::kWindowAnimMs = 250;
 
-// Animation speed used for windows.
+// How much should we scale a snapshot window if it is selected?
+const double LayoutManager::kOverviewSelectedScale = 1.1;
+
+// Animation speed used for opacity of windows.
 const int LayoutManager::kWindowOpacityAnimMs =
     LayoutManager::kWindowAnimMs / 4;
 
@@ -1059,7 +1063,7 @@ void LayoutManager::CalculatePositionsForOverviewMode() {
   const int height_limit =
       min(static_cast<double>(height_) / sqrt(toplevels_.size()),
           kOverviewWindowMaxSizeRatio * height_);
-  int running_width = kWindowPadding;
+  int running_width = 0;
 
   ToplevelWindow* last_toplevel = snapshots_[0]->toplevel();
   for (int i = 0; static_cast<size_t>(i) < snapshots_.size(); ++i) {
@@ -1069,11 +1073,12 @@ void LayoutManager::CalculatePositionsForOverviewMode() {
     if (snapshot->toplevel() != last_toplevel)
       running_width += width_ * kOverviewGroupSpacing;
 
-    snapshot->SetSize(width_limit, height_limit);
+    double scale = is_selected ? kOverviewSelectedScale : 1.0;
+    snapshot->SetSize(width_limit * scale, height_limit * scale);
     snapshot->SetPosition(
         running_width, 0.5 * (height_ - snapshot->overview_height()));
     running_width += is_selected ?
-                     snapshot->overview_width() :
+                     snapshot->overview_width() + kOverviewSelectedPadding  :
                      (kOverviewExposedWindowRatio * width_ *
                       (width_limit / (kOverviewWindowMaxSizeRatio * width_)));
     if (is_selected && selected_x >= 0) {

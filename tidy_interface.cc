@@ -42,6 +42,8 @@ using std::tr1::shared_ptr;
 
 namespace window_manager {
 
+const float kMaxDimmedOpacity = 0.6f;
+
 const float TidyInterface::LayerVisitor::kMinDepth = 0.0f;
 const float TidyInterface::LayerVisitor::kMaxDepth =
     4096.0f + TidyInterface::LayerVisitor::kMinDepth;
@@ -155,6 +157,7 @@ TidyInterface::Actor::Actor(TidyInterface* interface)
       scale_x_(1.f),
       scale_y_(1.f),
       opacity_(1.f),
+      tilt_(0.f),
       is_opaque_(false),
       has_children_(false),
       visible_(true),
@@ -178,6 +181,7 @@ void TidyInterface::Actor::CloneImpl(TidyInterface::Actor* clone) {
   clone->scale_x_ = scale_x_;
   clone->scale_y_ = scale_y_;
   clone->opacity_ = opacity_;
+  clone->tilt_ = tilt_;
   clone->is_opaque_ = is_opaque_;
   clone->has_children_ = has_children_;
   clone->visible_ = visible_;
@@ -211,6 +215,12 @@ void TidyInterface::Actor::Scale(double scale_x, double scale_y,
 
 void TidyInterface::Actor::SetOpacity(double opacity, int duration_ms) {
   AnimateField(&float_animations_, &opacity_, static_cast<float>(opacity),
+               duration_ms);
+}
+
+void TidyInterface::Actor::SetTilt(double tilt, int duration_ms) {
+  AnimateField(&float_animations_, &tilt_,
+               static_cast<float>(tilt),
                duration_ms);
 }
 
@@ -251,7 +261,7 @@ string TidyInterface::Actor::GetDebugStringInternal(const string& type_name,
     out += "  ";
 
   out += StringPrintf("\"%s\" %p (%s%s) (%d, %d) %dx%d "
-                        "scale=(%.2f, %.2f) %.2f%%\n",
+                        "scale=(%.2f, %.2f) %.2f%% tilt=%0.2f\n",
                       !name_.empty() ? name_.c_str() : "",
                       this,
                       visible_ ? "" : "inv ",
@@ -259,7 +269,8 @@ string TidyInterface::Actor::GetDebugStringInternal(const string& type_name,
                       x_, y_,
                       width_, height_,
                       scale_x_, scale_y_,
-                      opacity_);
+                      opacity_,
+                      tilt_);
   return out;
 }
 
@@ -284,7 +295,7 @@ void TidyInterface::Actor::Update(int* count, AnimationTime now) {
 
 void TidyInterface::Actor::ShowDimmed(bool dimmed, int anim_ms) {
   AnimateField(&float_animations_, &dimmed_opacity_,
-               dimmed ? 1.f : 0.f, anim_ms);
+               dimmed ? kMaxDimmedOpacity : 0.f, anim_ms);
 }
 
 template<class T> void TidyInterface::Actor::AnimateField(

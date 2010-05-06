@@ -5,6 +5,7 @@
 #include "window_manager/snapshot_window.h"
 
 #include <algorithm>
+#include <cmath>
 #include <tr1/memory>
 
 #include <gflags/gflags.h>
@@ -30,13 +31,9 @@
 
 namespace window_manager {
 
-using std::list;
-using std::make_pair;
-using std::map;
-using std::pair;
 using std::string;
-using std::tr1::shared_ptr;
-using std::vector;
+
+const float LayoutManager::SnapshotWindow::kUnselectedTilt = 0.9;
 
 LayoutManager::SnapshotWindow::SnapshotWindow(Window* win,
                                               LayoutManager* layout_manager)
@@ -52,6 +49,7 @@ LayoutManager::SnapshotWindow::SnapshotWindow(Window* win,
       overview_y_(0),
       overview_width_(0),
       overview_height_(0),
+      overview_scale_(1.f),
       event_consumer_registrar_(
           new EventConsumerRegistrar(wm(), layout_manager_)) {
 #if defined(EXTRA_LOGGING)
@@ -101,7 +99,7 @@ string LayoutManager::SnapshotWindow::GetStateName(State state) {
     case STATE_NEW:
       return string("New");
     case STATE_ACTIVE_MODE_INVISIBLE:
-      return string("Active Mode Offscreen");
+      return string("Active Mode Invisible");
     case STATE_OVERVIEW_MODE_NORMAL:
       return string("Overview Mode Normal");
     case STATE_OVERVIEW_MODE_SELECTED:
@@ -175,13 +173,31 @@ void LayoutManager::SnapshotWindow::ConfigureForActiveMode(bool animate) {
             << " for " << GetStateName(state_);
 #endif
   win_->SetCompositedOpacity(0, opacity_anim_ms);
-  win_->MoveComposited(layout_manager_->x(), layout_manager_->y(), anim_ms);
+
+  int start_x = layout_manager_->x() +
+                layout_manager_->width() -
+                (win_->composited_scale_x() * win_->client_width());
+  int start_y = layout_manager_->y() +
+                layout_manager_->height() -
+                (win_->composited_scale_y() * win_->client_height());
+
+  // If this window is to the right of the selected snapshot window, then
+  // we want to start offscreen to the right.
+  if (layout_manager_->current_snapshot() &&
+      CalculateOverallIndex() >
+      layout_manager_->current_snapshot()->CalculateOverallIndex()) {
+    start_x += layout_manager_->width();
+  }
+
+  win_->MoveComposited(start_x, start_y, anim_ms);
 
   // The snapshot should cover the screen in its largest dimension.
   float snapshot_scale = std::min(
       layout_manager_->width() / win_->client_width(),
       layout_manager_->height() / win_->client_height());
   win_->ScaleComposited(snapshot_scale, snapshot_scale, anim_ms);
+  win_->actor()->ShowDimmed(false, anim_ms);
+  win_->actor()->SetTilt(0.0, anim_ms);
 
   // TODO: Maybe just unmap input windows.
   wm()->xconn()->ConfigureWindowOffscreen(input_xid_);
@@ -220,10 +236,19 @@ void LayoutManager::SnapshotWindow::ConfigureForOverviewMode(bool animate) {
     int start_y = layout_manager_->y() +
                   layout_manager_->height() -
                   (win_->composited_scale_y() * win_->client_height());
+
+    // If this window is to the right of the selected snapshot window, then
+    // we want to start offscreen to the right.
+    if (state_ == STATE_OVERVIEW_MODE_NORMAL &&
+        layout_manager_->current_snapshot() &&
+        CalculateOverallIndex() >
+        layout_manager_->current_snapshot()->CalculateOverallIndex()) {
+      start_x += layout_manager_->width();
+    }
+
     win_->MoveComposited(start_x, start_y, 0);
 
-    // Setup the animation of the scale and composite.
-    win_->ScaleComposited(1.f, 1.f, anim_ms);
+    // Setup the animation of the scale and opacity.
     win_->SetCompositedOpacity(1.f, opacity_anim_ms);
   }
 
@@ -255,12 +280,27 @@ void LayoutManager::SnapshotWindow::ConfigureForOverviewMode(bool animate) {
                             overview_x_;
   int absolute_overview_y = layout_manager_->y() + overview_y_;
 
+  double new_tilt =
+      state_ == STATE_OVERVIEW_MODE_NORMAL ? kUnselectedTilt : 0.0;
+
+  // Correct for the effect of tilt on the width so that the input
+  // window matches the width of the visible snapshot.  This is
+  // basically the x-axis component of the perspective transform for
+  // the tilt.
+  double theta = new_tilt * M_PI/2.0;
+  double x_scale_factor = cos(theta)/(0.4 * sin(theta) + 1.0);
+  int input_width =static_cast<int>(
+      static_cast<double>(overview_width_) * x_scale_factor);
+
   wm()->ConfigureInputWindow(input_xid_,
                              absolute_overview_x,
                              absolute_overview_y,
-                             overview_width_,
+                             input_width,
                              overview_height_);
+
   win_->actor()->ShowDimmed(state_ == STATE_OVERVIEW_MODE_NORMAL, anim_ms);
+  win_->actor()->SetTilt(new_tilt, anim_ms);
+  win_->ScaleComposited(overview_scale_, overview_scale_, anim_ms);
   win_->MoveComposited(absolute_overview_x, absolute_overview_y, anim_ms);
 }
 
@@ -269,12 +309,12 @@ void LayoutManager::SnapshotWindow::SetSize(int max_width, int max_height) {
   const int client_height = win_->client_height();
   if (static_cast<double>(client_width) / client_height >
       static_cast<double>(max_width) / max_height) {
+    overview_scale_ = static_cast<double>(max_width) / client_width;
     overview_width_ = max_width;
-    overview_height_ = client_height *
-                       (static_cast<double>(max_width) / client_width);
+    overview_height_ = client_height * overview_scale_;
   } else {
-    overview_width_ = client_width *
-                      (static_cast<double>(max_height) / client_height);
+    overview_scale_ = static_cast<double>(max_height) / client_height;
+    overview_width_ = client_width * overview_scale_;
     overview_height_ = max_height;
   }
 }

@@ -7,13 +7,14 @@
 #include <gflags/gflags.h>
 #include <gtest/gtest.h>
 
-#include "base/scoped_ptr.h"
 #include "base/logging.h"
+#include "base/scoped_ptr.h"
 #include "window_manager/clutter_interface.h"
 #include "window_manager/event_loop.h"
 #include "window_manager/layout_manager.h"
 #include "window_manager/mock_x_connection.h"
 #include "window_manager/panel.h"
+#include "window_manager/snapshot_window.h"
 #include "window_manager/stacking_manager.h"
 #include "window_manager/test_lib.h"
 #include "window_manager/toplevel_window.h"
@@ -34,6 +35,7 @@ class LayoutManagerTest : public BasicWindowManagerTest {
  protected:
   virtual void SetUp() {
     BasicWindowManagerTest::SetUp();
+
     lm_ = wm_->layout_manager_.get();
   }
   LayoutManager* lm_;  // points to wm_'s copy
@@ -690,6 +692,13 @@ TEST_F(LayoutManagerTest, OverviewFocus) {
   // The second snapshot window should still be current after being
   // created second.
   EXPECT_EQ(lm_->GetSnapshotWindowByXid(xid2), lm_->current_snapshot_);
+
+  // Make sure that unselected snapshots are tilted, and selected ones
+  // are not.
+  EXPECT_EQ(lm_->current_snapshot_->win()->actor()->GetTilt(), 0.0);
+  EXPECT_EQ(
+      lm_->GetSnapshotWindowByXid(xid)->win()->actor()->GetTilt(),
+      static_cast<double>(LayoutManager::SnapshotWindow::kUnselectedTilt));
 
   // This FocusIn event with detail NotifyPointer is odd, but appears to be
   // what happens in actuality.

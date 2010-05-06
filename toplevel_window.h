@@ -219,15 +219,6 @@ class LayoutManager::ToplevelWindow {
   // Keeps the previous state.
   State last_state_;
 
-  // Position, dimensions, and scale that should be used for drawing the
-  // window in overview mode.  The X and Y coordinates are relative to
-  // the layout manager's origin.
-  int overview_x_;
-  int overview_y_;
-  int overview_width_;
-  int overview_height_;
-  double overview_scale_;
-
   // Transient windows belonging to this toplevel window, keyed by XID.
   std::map<XWindow, std::tr1::shared_ptr<TransientWindow> > transients_;
 

@@ -284,6 +284,24 @@ void OpenGlesDrawVisitor::VisitQuad(TidyInterface::QuadActor* actor) {
                                            1.f));
   // Matrix4 mvp = new_model_view * perspective_;
   Matrix4 mvp = perspective_ * new_model_view;
+
+  if (actor->tilt() > 0.001f) {
+    // Post-multiply a perspective matrix onto the model view matrix, and
+    // a rotation in Y so that all the other model view ops happen
+    // outside of the perspective transform.
+
+    // This matrix is the result of a translate by 0.5 in Y, followed
+    // by a simple perspective transform, followed by a translate in
+    // -0.5 in Y, so that the perspective foreshortening is centered
+    // vertically on the quad.
+    static Matrix4 tilt_matrix(Vector4(1.0f, 0.0f, 0.0f, 0.0f),
+                               Vector4(0.0f, 1.0f, 0.0f, 0.0f),
+                               Vector4(0.0f, -0.2f, 0.0f, -0.4f),
+                               Vector4(0.0f, 0.0f, 0.0f, 1.0f));
+    mvp *= tilt_matrix;
+    mvp *= Matrix4::rotationY(actor->tilt() * M_PI/2.0);
+  }
+
   gl_->UniformMatrix4fv(mvp_location, 1, GL_FALSE, &mvp[0][0]);
 
   gl_->DrawArrays(GL_TRIANGLE_STRIP, 0, 4);
@@ -433,4 +451,3 @@ void OpenGlesEglImageData::Refresh() {
 }
 
 }  // namespace window_manager
-

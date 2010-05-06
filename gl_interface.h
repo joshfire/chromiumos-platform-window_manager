@@ -77,6 +77,7 @@ class GLInterface : virtual public GLInterfaceBase {
   virtual GLenum GetError() = 0;
   virtual void LoadIdentity() = 0;
   virtual void MatrixMode(GLenum mode) = 0;
+  virtual void MultMatrixf(GLfloat* matrix) = 0;
   virtual void Ortho(GLdouble left, GLdouble right, GLdouble bottom,
                      GLdouble top, GLdouble near, GLdouble far) = 0;
   virtual void PushMatrix() = 0;

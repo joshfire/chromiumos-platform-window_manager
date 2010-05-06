@@ -300,6 +300,10 @@ void RealGLInterface::LoadIdentity() {
   glLoadIdentity();
 }
 
+void RealGLInterface::MultMatrixf(GLfloat* matrix) {
+  glMultMatrixf(matrix);
+}
+
 void RealGLInterface::MatrixMode(GLenum mode) {
   glMatrixMode(mode);
 }

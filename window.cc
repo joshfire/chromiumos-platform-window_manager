@@ -738,6 +738,7 @@ void Window::UpdateShadowIfNecessary() {
       type_ != chromeos::WM_IPC_WINDOW_LOGIN_LABEL &&
       type_ != chromeos::WM_IPC_WINDOW_LOGIN_UNSELECTED_LABEL &&
       type_ != chromeos::WM_IPC_WINDOW_LOGIN_GUEST &&
+      type_ != chromeos::WM_IPC_WINDOW_CHROME_TAB_SNAPSHOT &&
       !shaped_;
 
   if (!should_use_shadow && using_shadow_) {

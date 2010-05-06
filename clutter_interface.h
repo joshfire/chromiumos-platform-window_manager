@@ -61,6 +61,13 @@ class ClutterInterface {
     virtual void MoveY(int y, int anim_ms) = 0;
     virtual void Scale(double scale_x, double scale_y, int anim_ms) = 0;
     virtual void SetOpacity(double opacity, int anim_ms) = 0;
+    // Tilt is the amount of perspective to show, from 0.0 to
+    // 1.0.  For 1.0, the actor is collapsed to a line.  For 0.0, the
+    // actor is purely orthographic (screen aligned).  This represents
+    // a perspective rotation around the Y axis, centered on the left
+    // side of the actor, from 0 to 90 degrees.
+    virtual void SetTilt(double tilt, int anim_ms) = 0;
+    virtual double GetTilt() const = 0;
     virtual void SetClip(int x, int y, int width, int height) = 0;
 
     // Move an actor directly above or below another actor in the stacking
@@ -208,6 +215,10 @@ class MockClutterInterface : public ClutterInterface {
       scale_y_ = scale_y;
     }
     void SetOpacity(double opacity, int anim_ms) { opacity_ = opacity; }
+    void SetTilt(double tilt, int anim_ms) {
+      tilt_ = tilt;
+    }
+    double GetTilt() const { return tilt_; }
     void SetClip(int x, int y, int width, int height) {}
     void Raise(ClutterInterface::Actor* other);
     void Lower(ClutterInterface::Actor* other);
@@ -222,6 +233,7 @@ class MockClutterInterface : public ClutterInterface {
     int width_, height_;
     double scale_x_, scale_y_;
     double opacity_;
+    double tilt_;
     bool visible_;
     bool is_dimmed_;
 

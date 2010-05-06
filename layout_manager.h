@@ -193,6 +193,10 @@ class LayoutManager : public EventConsumer,
   // Animation speed used for windows.
   static const int kWindowAnimMs;
 
+  // This is the scale of a selected snapshot window, relative to an
+  // unselected snapshot.
+  static const double kOverviewSelectedScale;
+
   // This is the speed that opacity should be animated for some
   // contexts.
   static const int kWindowOpacityAnimMs;
