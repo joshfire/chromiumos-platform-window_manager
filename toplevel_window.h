@@ -175,11 +175,11 @@ class LayoutManager::ToplevelWindow {
   // Update the passed-in transient window's client and composited
   // windows appropriately for the toplevel window's current
   // configuration.
-  void MoveAndScaleTransientWindow(TransientWindow* transient, int anim_ms);
+  void ConfigureTransientWindow(TransientWindow* transient, int anim_ms);
 
   // Call UpdateTransientWindowPositionAndScale() for all transient
   // windows.
-  void MoveAndScaleAllTransientWindows(int anim_ms);
+  void ConfigureAllTransientWindows(int anim_ms);
 
   // Stack a transient window's composited and client windows.  If
   // 'other_win' is non-NULL, we stack 'transient' above it; otherwise,

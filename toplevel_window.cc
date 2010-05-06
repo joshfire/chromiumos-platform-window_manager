@@ -298,12 +298,12 @@ void LayoutManager::ToplevelWindow::ConfigureForActiveMode(bool animate) {
 
   if (state_ == STATE_ACTIVE_MODE_ONSCREEN) {
     win_->MoveClient(win_x, win_y);
-    MoveAndScaleAllTransientWindows(anim_ms);
+    ConfigureAllTransientWindows(anim_ms);
     win_->SetShadowOpacity(1.0, anim_ms);
   } else {
     win_->MoveClientOffscreen();
     win_->SetShadowOpacity(0, anim_ms);
-    MoveAndScaleAllTransientWindows(
+    ConfigureAllTransientWindows(
          last_state_ == STATE_ACTIVE_MODE_ONSCREEN ? anim_ms : 0);
   }
 }
@@ -423,7 +423,7 @@ void LayoutManager::ToplevelWindow::AddTransientWindow(
 
   SetPreferredTransientWindowToFocus(transient_win);
 
-  MoveAndScaleTransientWindow(transient.get(), 0);
+  ConfigureTransientWindow(transient.get(), 0);
   ApplyStackingForTransientWindow(
       transient.get(),
       transient_to_stack_above ?
@@ -485,7 +485,7 @@ void LayoutManager::ToplevelWindow::HandleTransientWindowConfigureRequest(
   }
 
   if (moved)
-    MoveAndScaleTransientWindow(transient, 0);
+    ConfigureTransientWindow(transient, 0);
 }
 
 void LayoutManager::ToplevelWindow::HandleFocusChange(
@@ -526,7 +526,7 @@ LayoutManager::ToplevelWindow::GetTransientWindow(const Window& win) {
   return it->second.get();
 }
 
-void LayoutManager::ToplevelWindow::MoveAndScaleTransientWindow(
+void LayoutManager::ToplevelWindow::ConfigureTransientWindow(
     TransientWindow* transient, int anim_ms) {
   // TODO: Check if 'win_' is offscreen, and make sure that the transient
   // window is offscreen as well if so.
@@ -540,14 +540,15 @@ void LayoutManager::ToplevelWindow::MoveAndScaleTransientWindow(
       anim_ms);
   transient->win->ScaleComposited(
       win_->composited_scale_x(), win_->composited_scale_y(), anim_ms);
+  transient->win->SetCompositedOpacity(win_->composited_opacity(), anim_ms);
 }
 
-void LayoutManager::ToplevelWindow::MoveAndScaleAllTransientWindows(
+void LayoutManager::ToplevelWindow::ConfigureAllTransientWindows(
     int anim_ms) {
   for (map<XWindow, shared_ptr<TransientWindow> >::iterator it =
            transients_.begin();
        it != transients_.end(); ++it) {
-    MoveAndScaleTransientWindow(it->second.get(), anim_ms);
+    ConfigureTransientWindow(it->second.get(), anim_ms);
   }
 }
 
