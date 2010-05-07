@@ -16,8 +16,8 @@
 namespace window_manager {
 
 class EventLoop;
+class MockCompositor;
 class MockXConnection;
-class MockClutterInterface;
 class Panel;
 class WindowManager;
 
@@ -41,7 +41,7 @@ testing::AssertionResult BytesAreEqual(
 // '&FLAGS_logtostderr').
 int InitAndRunTests(int* argc, char** argv, bool* log_to_stderr);
 
-// A basic test that sets up fake X and Clutter interfaces and creates a
+// A basic test that sets up fake X and compositor interfaces and creates a
 // WindowManager object.  Also includes several methods that tests can use
 // for convenience.
 class BasicWindowManagerTest : public ::testing::Test {
@@ -149,7 +149,7 @@ class BasicWindowManagerTest : public ::testing::Test {
 
   scoped_ptr<EventLoop> event_loop_;
   scoped_ptr<MockXConnection> xconn_;
-  scoped_ptr<MockClutterInterface> clutter_;
+  scoped_ptr<MockCompositor> compositor_;
   scoped_ptr<WindowManager> wm_;
 };
 

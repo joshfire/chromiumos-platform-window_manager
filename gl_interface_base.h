@@ -14,7 +14,7 @@ namespace window_manager {
 
 // This is an abstract base class representing any kind of GL
 // interface, so that we can pass them opaquely into the
-// TidyInterface without knowing if it is OpenGL or OpenGL|ES.
+// RealCompositor without knowing if it is OpenGL or OpenGL|ES.
 class GLInterfaceBase {
  public:
   GLInterfaceBase() {}

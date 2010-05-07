@@ -21,15 +21,15 @@ class ShadowTest : public ::testing::Test {
  protected:
   virtual void SetUp() {
     xconn_.reset(new MockXConnection);
-    clutter_.reset(new MockClutterInterface(xconn_.get()));
+    compositor_.reset(new MockCompositor(xconn_.get()));
   }
 
   scoped_ptr<MockXConnection> xconn_;
-  scoped_ptr<MockClutterInterface> clutter_;
+  scoped_ptr<MockCompositor> compositor_;
 };
 
 TEST_F(ShadowTest, Basic) {
-  Shadow shadow(clutter_.get());
+  Shadow shadow(compositor_.get());
   int x = 10;
   int y = 20;
   int w = 200;

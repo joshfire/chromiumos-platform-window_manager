@@ -72,7 +72,7 @@ PanelBar::PanelBar(PanelManager* panel_manager)
       dragging_panel_horizontally_(false),
       anchor_input_xid_(wm()->CreateInputWindow(-1, -1, 1, 1, ButtonPressMask)),
       anchor_panel_(NULL),
-      anchor_actor_(wm()->clutter()->CreateImage(FLAGS_panel_anchor_image)),
+      anchor_actor_(wm()->compositor()->CreateImage(FLAGS_panel_anchor_image)),
       desired_panel_to_focus_(NULL),
       collapsed_panel_state_(COLLAPSED_PANEL_STATE_HIDDEN),
       show_collapsed_panels_input_xid_(

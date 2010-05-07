@@ -15,17 +15,16 @@
 #include "base/string_util.h"
 #include "window_manager/callback.h"
 #include "window_manager/event_loop.h"
-#include "window_manager/gl_interface_base.h"
 #include "window_manager/image_container.h"
-#ifdef TIDY_OPENGL
+#if defined(COMPOSITOR_OPENGL)
 #include "window_manager/opengl_visitor.h"
-#elif defined(TIDY_OPENGLES)
+#elif defined(COMPOSITOR_OPENGLES)
 #include "window_manager/gles/opengles_visitor.h"
 #endif
 #include "window_manager/util.h"
 #include "window_manager/x_connection.h"
 
-DEFINE_bool(tidy_display_debug_needle, false,
+DEFINE_bool(compositor_display_debug_needle, false,
             "Specify this to turn on a debugging aid for seeing when "
             "frames are being drawn.");
 
@@ -44,14 +43,14 @@ namespace window_manager {
 
 const float kMaxDimmedOpacity = 0.6f;
 
-const float TidyInterface::LayerVisitor::kMinDepth = 0.0f;
-const float TidyInterface::LayerVisitor::kMaxDepth =
-    4096.0f + TidyInterface::LayerVisitor::kMinDepth;
+const float RealCompositor::LayerVisitor::kMinDepth = 0.0f;
+const float RealCompositor::LayerVisitor::kMaxDepth =
+    4096.0f + RealCompositor::LayerVisitor::kMinDepth;
 
 // Minimum amount of time in milliseconds between scene redraws.
 static const int64_t kDrawTimeoutMs = 16;
 
-void TidyInterface::ActorVisitor::VisitContainer(ContainerActor* actor) {
+void RealCompositor::ActorVisitor::VisitContainer(ContainerActor* actor) {
   CHECK(actor);
   this->VisitActor(actor);
   ActorVector children = actor->GetChildren();
@@ -64,11 +63,11 @@ void TidyInterface::ActorVisitor::VisitContainer(ContainerActor* actor) {
   }
 }
 
-void TidyInterface::LayerVisitor::VisitQuad(TidyInterface::QuadActor* actor) {
+void RealCompositor::LayerVisitor::VisitQuad(RealCompositor::QuadActor* actor) {
   // Do all the regular actor stuff.
   this->VisitActor(actor);
 
-#ifdef TIDY_OPENGL
+#if defined(COMPOSITOR_OPENGL)
   OpenGlTextureData* data  = static_cast<OpenGlTextureData*>(
       actor->GetDrawingData(OpenGlDrawVisitor::TEXTURE_DATA).get());
   if (data) {
@@ -77,12 +76,12 @@ void TidyInterface::LayerVisitor::VisitQuad(TidyInterface::QuadActor* actor) {
 #endif
 }
 
-void TidyInterface::LayerVisitor::VisitTexturePixmap(
-    TidyInterface::TexturePixmapActor* actor) {
+void RealCompositor::LayerVisitor::VisitTexturePixmap(
+    RealCompositor::TexturePixmapActor* actor) {
   // Do all the regular Quad stuff.
   this->VisitQuad(actor);
 
-#ifdef TIDY_OPENGL
+#if defined(COMPOSITOR_OPENGL)
   OpenGlPixmapData* data  = static_cast<OpenGlPixmapData*>(
       actor->GetDrawingData(OpenGlDrawVisitor::PIXMAP_DATA).get());
   if (data) {
@@ -96,17 +95,17 @@ void TidyInterface::LayerVisitor::VisitTexturePixmap(
 #endif
 }
 
-void TidyInterface::LayerVisitor::VisitActor(TidyInterface::Actor* actor) {
+void RealCompositor::LayerVisitor::VisitActor(RealCompositor::Actor* actor) {
   actor->set_z(depth_);
   depth_ += layer_thickness_;
   actor->set_is_opaque(actor->opacity() > 0.999f);
 }
 
-void TidyInterface::LayerVisitor::VisitContainer(
-    TidyInterface::ContainerActor* actor) {
+void RealCompositor::LayerVisitor::VisitContainer(
+    RealCompositor::ContainerActor* actor) {
   CHECK(actor);
   ActorVector children = actor->GetChildren();
-  TidyInterface::ActorVector::const_iterator iterator = children.begin();
+  RealCompositor::ActorVector::const_iterator iterator = children.begin();
   while (iterator != children.end()) {
     if (*iterator) {
       (*iterator)->Accept(this);
@@ -118,7 +117,8 @@ void TidyInterface::LayerVisitor::VisitContainer(
   this->VisitActor(actor);
 }
 
-void TidyInterface::LayerVisitor::VisitStage(TidyInterface::StageActor* actor) {
+void RealCompositor::LayerVisitor::VisitStage(
+    RealCompositor::StageActor* actor) {
   // This calculates the next power of two for the actor count, so
   // that we can avoid roundoff errors when computing the depth.
   // Also, add two empty layers at the front and the back that we
@@ -139,15 +139,15 @@ void TidyInterface::LayerVisitor::VisitStage(TidyInterface::StageActor* actor) {
   VisitContainer(actor);
 }
 
-TidyInterface::Actor::~Actor() {
+RealCompositor::Actor::~Actor() {
   if (parent_) {
     parent_->RemoveActor(this);
   }
-  interface_->RemoveActor(this);
+  compositor_->RemoveActor(this);
 }
 
-TidyInterface::Actor::Actor(TidyInterface* interface)
-    : interface_(interface),
+RealCompositor::Actor::Actor(RealCompositor* compositor)
+    : compositor_(compositor),
       parent_(NULL),
       x_(0),
       y_(0),
@@ -162,16 +162,16 @@ TidyInterface::Actor::Actor(TidyInterface* interface)
       has_children_(false),
       visible_(true),
       dimmed_opacity_(0.f) {
-  interface_->AddActor(this);
+  compositor_->AddActor(this);
 }
 
-TidyInterface::Actor* TidyInterface::Actor::Clone() {
-  Actor* new_instance = new Actor(interface_);
+RealCompositor::Actor* RealCompositor::Actor::Clone() {
+  Actor* new_instance = new Actor(compositor_);
   CloneImpl(new_instance);
   return new_instance;
 }
 
-void TidyInterface::Actor::CloneImpl(TidyInterface::Actor* clone) {
+void RealCompositor::Actor::CloneImpl(RealCompositor::Actor* clone) {
   clone->x_ = x_;
   clone->y_ = y_;
   clone->width_ = width_;
@@ -192,20 +192,20 @@ void TidyInterface::Actor::CloneImpl(TidyInterface::Actor* clone) {
   clone->drawing_data_ = drawing_data_;
 }
 
-void TidyInterface::Actor::Move(int x, int y, int duration_ms) {
+void RealCompositor::Actor::Move(int x, int y, int duration_ms) {
   MoveX(x, duration_ms);
   MoveY(y, duration_ms);
 }
 
-void TidyInterface::Actor::MoveX(int x, int duration_ms) {
+void RealCompositor::Actor::MoveX(int x, int duration_ms) {
   AnimateField(&int_animations_, &x_, x, duration_ms);
 }
 
-void TidyInterface::Actor::MoveY(int y, int duration_ms) {
+void RealCompositor::Actor::MoveY(int y, int duration_ms) {
   AnimateField(&int_animations_, &y_, y, duration_ms);
 }
 
-void TidyInterface::Actor::Scale(double scale_x, double scale_y,
+void RealCompositor::Actor::Scale(double scale_x, double scale_y,
                                  int duration_ms) {
   AnimateField(&float_animations_, &scale_x_, static_cast<float>(scale_x),
                duration_ms);
@@ -213,48 +213,48 @@ void TidyInterface::Actor::Scale(double scale_x, double scale_y,
                duration_ms);
 }
 
-void TidyInterface::Actor::SetOpacity(double opacity, int duration_ms) {
+void RealCompositor::Actor::SetOpacity(double opacity, int duration_ms) {
   AnimateField(&float_animations_, &opacity_, static_cast<float>(opacity),
                duration_ms);
 }
 
-void TidyInterface::Actor::SetTilt(double tilt, int duration_ms) {
+void RealCompositor::Actor::SetTilt(double tilt, int duration_ms) {
   AnimateField(&float_animations_, &tilt_,
                static_cast<float>(tilt),
                duration_ms);
 }
 
-void TidyInterface::Actor::Raise(ClutterInterface::Actor* other) {
+void RealCompositor::Actor::Raise(Compositor::Actor* other) {
   CHECK(parent_) << "Tried to raise an actor that has no parent.";
-  TidyInterface::Actor* other_nc =
-      dynamic_cast<TidyInterface::Actor*>(other);
+  RealCompositor::Actor* other_nc =
+      dynamic_cast<RealCompositor::Actor*>(other);
   CHECK(other_nc) << "Failed to cast to an Actor in Raise";
   parent_->RaiseChild(this, other_nc);
   SetDirty();
 }
 
-void TidyInterface::Actor::Lower(ClutterInterface::Actor* other) {
+void RealCompositor::Actor::Lower(Compositor::Actor* other) {
   CHECK(parent_) << "Tried to lower an actor that has no parent.";
-  TidyInterface::Actor* other_nc =
-      dynamic_cast<TidyInterface::Actor*>(other);
+  RealCompositor::Actor* other_nc =
+      dynamic_cast<RealCompositor::Actor*>(other);
   CHECK(other_nc) << "Failed to cast to an Actor in Lower";
   parent_->LowerChild(this, other_nc);
   SetDirty();
 }
 
-void TidyInterface::Actor::RaiseToTop() {
+void RealCompositor::Actor::RaiseToTop() {
   CHECK(parent_) << "Tried to raise an actor to top that has no parent.";
   parent_->RaiseChild(this, NULL);
   SetDirty();
 }
 
-void TidyInterface::Actor::LowerToBottom() {
+void RealCompositor::Actor::LowerToBottom() {
   CHECK(parent_) << "Tried to lower an actor to bottom that has no parent.";
   parent_->LowerChild(this, NULL);
   SetDirty();
 }
 
-string TidyInterface::Actor::GetDebugStringInternal(const string& type_name,
+string RealCompositor::Actor::GetDebugStringInternal(const string& type_name,
                                                     int indent_level) {
   string out;
   for (int i = 0; i < indent_level; ++i)
@@ -274,7 +274,7 @@ string TidyInterface::Actor::GetDebugStringInternal(const string& type_name,
   return out;
 }
 
-TidyInterface::DrawingDataPtr TidyInterface::Actor::GetDrawingData(
+RealCompositor::DrawingDataPtr RealCompositor::Actor::GetDrawingData(
     int32 id) const {
   DrawingDataMap::const_iterator iterator = drawing_data_.find(id);
   if (iterator != drawing_data_.end()) {
@@ -283,7 +283,7 @@ TidyInterface::DrawingDataPtr TidyInterface::Actor::GetDrawingData(
   return DrawingDataPtr();
 }
 
-void TidyInterface::Actor::Update(int* count, AnimationTime now) {
+void RealCompositor::Actor::Update(int* count, AnimationTime now) {
   (*count)++;
   if (int_animations_.empty() && float_animations_.empty())
     return;
@@ -293,12 +293,12 @@ void TidyInterface::Actor::Update(int* count, AnimationTime now) {
   UpdateInternal(&float_animations_, now);
 }
 
-void TidyInterface::Actor::ShowDimmed(bool dimmed, int anim_ms) {
+void RealCompositor::Actor::ShowDimmed(bool dimmed, int anim_ms) {
   AnimateField(&float_animations_, &dimmed_opacity_,
                dimmed ? kMaxDimmedOpacity : 0.f, anim_ms);
 }
 
-template<class T> void TidyInterface::Actor::AnimateField(
+template<class T> void RealCompositor::Actor::AnimateField(
     map<T*, shared_ptr<Animation<T> > >* animation_map,
     T* field, T value, int duration_ms) {
   typeof(animation_map->begin()) iterator = animation_map->find(field);
@@ -308,7 +308,7 @@ template<class T> void TidyInterface::Actor::AnimateField(
     return;
 
   if (duration_ms > 0) {
-    AnimationTime now = interface_->GetCurrentTimeMs();
+    AnimationTime now = compositor_->GetCurrentTimeMs();
     if (iterator != animation_map->end()) {
       Animation<T>* animation = iterator->second.get();
       animation->Reset(value, now, now + duration_ms);
@@ -316,19 +316,19 @@ template<class T> void TidyInterface::Actor::AnimateField(
       shared_ptr<Animation<T> > animation(
           new Animation<T>(field, value, now, now + duration_ms));
       animation_map->insert(make_pair(field, animation));
-      interface_->IncrementNumAnimations();
+      compositor_->IncrementNumAnimations();
     }
   } else {
     if (iterator != animation_map->end()) {
       animation_map->erase(iterator);
-      interface_->DecrementNumAnimations();
+      compositor_->DecrementNumAnimations();
     }
     *field = value;
     SetDirty();
   }
 }
 
-template<class T> void TidyInterface::Actor::UpdateInternal(
+template<class T> void RealCompositor::Actor::UpdateInternal(
     map<T*, shared_ptr<Animation<T> > >* animation_map,
     AnimationTime now) {
   typeof(animation_map->begin()) iterator = animation_map->begin();
@@ -338,7 +338,7 @@ template<class T> void TidyInterface::Actor::UpdateInternal(
       typeof(iterator) old_iterator = iterator;
       ++iterator;
       animation_map->erase(old_iterator);
-      interface_->DecrementNumAnimations();
+      compositor_->DecrementNumAnimations();
     } else {
       ++iterator;
     }
@@ -346,14 +346,14 @@ template<class T> void TidyInterface::Actor::UpdateInternal(
 }
 
 
-TidyInterface::ContainerActor::~ContainerActor() {
+RealCompositor::ContainerActor::~ContainerActor() {
   for (ActorVector::iterator iterator = children_.begin();
        iterator != children_.end(); ++iterator) {
-    dynamic_cast<TidyInterface::Actor*>(*iterator)->set_parent(NULL);
+    dynamic_cast<RealCompositor::Actor*>(*iterator)->set_parent(NULL);
   }
 }
 
-string TidyInterface::ContainerActor::GetDebugString(int indent_level) {
+string RealCompositor::ContainerActor::GetDebugString(int indent_level) {
   string out = GetDebugStringInternal("ContainerActor", indent_level);
   for (ActorVector::iterator iterator = children_.begin();
        iterator != children_.end(); ++iterator) {
@@ -362,9 +362,8 @@ string TidyInterface::ContainerActor::GetDebugString(int indent_level) {
   return out;
 }
 
-void TidyInterface::ContainerActor::AddActor(
-    ClutterInterface::Actor* actor) {
-  TidyInterface::Actor* cast_actor = dynamic_cast<Actor*>(actor);
+void RealCompositor::ContainerActor::AddActor(Compositor::Actor* actor) {
+  RealCompositor::Actor* cast_actor = dynamic_cast<Actor*>(actor);
   CHECK(cast_actor) << "Unable to down-cast actor.";
   cast_actor->set_parent(this);
   children_.insert(children_.begin(), cast_actor);
@@ -375,8 +374,7 @@ void TidyInterface::ContainerActor::AddActor(
 // Note that the passed-in Actors might be partially destroyed (the
 // Actor destructor calls RemoveActor on its parent), so we shouldn't
 // rely on the contents of the Actor.
-void TidyInterface::ContainerActor::RemoveActor(
-    ClutterInterface::Actor* actor) {
+void RealCompositor::ContainerActor::RemoveActor(Compositor::Actor* actor) {
   ActorVector::iterator iterator =
       find(children_.begin(), children_.end(), actor);
   if (iterator != children_.end()) {
@@ -386,16 +384,16 @@ void TidyInterface::ContainerActor::RemoveActor(
   }
 }
 
-void TidyInterface::ContainerActor::Update(int* count, AnimationTime now) {
+void RealCompositor::ContainerActor::Update(int* count, AnimationTime now) {
   for (ActorVector::iterator iterator = children_.begin();
        iterator != children_.end(); ++iterator) {
-    dynamic_cast<TidyInterface::Actor*>(*iterator)->Update(count, now);
+    dynamic_cast<RealCompositor::Actor*>(*iterator)->Update(count, now);
   }
-  TidyInterface::Actor::Update(count, now);
+  RealCompositor::Actor::Update(count, now);
 }
 
-void TidyInterface::ContainerActor::RaiseChild(
-    TidyInterface::Actor* child, TidyInterface::Actor* above) {
+void RealCompositor::ContainerActor::RaiseChild(
+    RealCompositor::Actor* child, RealCompositor::Actor* above) {
   CHECK(child) << "Tried to raise a NULL child.";
   if (child == above) {
     // Do nothing if we're raising a child above itself.
@@ -435,8 +433,8 @@ void TidyInterface::ContainerActor::RaiseChild(
   }
 }
 
-void TidyInterface::ContainerActor::LowerChild(
-    TidyInterface::Actor* child, TidyInterface::Actor* below) {
+void RealCompositor::ContainerActor::LowerChild(
+    RealCompositor::Actor* child, RealCompositor::Actor* below) {
   CHECK(child) << "Tried to lower a NULL child.";
   if (child == below) {
     // Do nothing if we're lowering a child below itself,
@@ -479,93 +477,90 @@ void TidyInterface::ContainerActor::LowerChild(
 }
 
 
-TidyInterface::QuadActor::QuadActor(TidyInterface* interface)
-    : TidyInterface::Actor(interface),
+RealCompositor::QuadActor::QuadActor(RealCompositor* compositor)
+    : RealCompositor::Actor(compositor),
       color_(1.f, 1.f, 1.f),
       border_color_(1.f, 1.f, 1.f),
       border_width_(0) {
 }
 
-TidyInterface::Actor* TidyInterface::QuadActor::Clone() {
-  QuadActor* new_instance = new QuadActor(interface());
+RealCompositor::Actor* RealCompositor::QuadActor::Clone() {
+  QuadActor* new_instance = new QuadActor(compositor());
   CloneImpl(new_instance);
   return static_cast<Actor*>(new_instance);
 }
 
-void TidyInterface::QuadActor::CloneImpl(QuadActor* clone) {
-  Actor::CloneImpl(static_cast<TidyInterface::Actor*>(clone));
+void RealCompositor::QuadActor::CloneImpl(QuadActor* clone) {
+  Actor::CloneImpl(static_cast<RealCompositor::Actor*>(clone));
   clone->SetColor(color_, border_color_, border_width_);
 }
 
 
-TidyInterface::TexturePixmapActor::TexturePixmapActor(
-    TidyInterface* interface)
-    : TidyInterface::QuadActor(interface),
+RealCompositor::TexturePixmapActor::TexturePixmapActor(
+    RealCompositor* compositor)
+    : RealCompositor::QuadActor(compositor),
       window_(0),
       pixmap_invalid_(true) {
 }
 
-void TidyInterface::TexturePixmapActor::SetSizeImpl(int* width, int* height) {
+void RealCompositor::TexturePixmapActor::SetSizeImpl(int* width, int* height) {
   DestroyPixmap();
   SetDirty();
   set_pixmap_invalid(true);
 }
 
-bool TidyInterface::TexturePixmapActor::SetTexturePixmapWindow(
+bool RealCompositor::TexturePixmapActor::SetTexturePixmapWindow(
     XWindow xid) {
   Reset();
   window_ = xid;
-  interface()->StartMonitoringWindowForChanges(window_, this);
+  compositor()->StartMonitoringWindowForChanges(window_, this);
   SetDirty();
   return true;
 }
 
-void TidyInterface::TexturePixmapActor::Reset() {
+void RealCompositor::TexturePixmapActor::Reset() {
   if (window_)
-    interface()->StopMonitoringWindowForChanges(window_, this);
+    compositor()->StopMonitoringWindowForChanges(window_, this);
   window_ = None;
   DestroyPixmap();
   SetDirty();
 }
 
-void TidyInterface::TexturePixmapActor::DestroyPixmap() {
-#ifdef TIDY_OPENGL
+void RealCompositor::TexturePixmapActor::DestroyPixmap() {
+#if defined(COMPOSITOR_OPENGL)
   EraseDrawingData(OpenGlDrawVisitor::PIXMAP_DATA);
-#endif
-#ifdef TIDY_OPENGLES
+#elif defined(COMPOSITOR_OPENGLES)
   EraseDrawingData(OpenGlesDrawVisitor::kEglImageData);
 #endif
 }
 
-TidyInterface::Actor* TidyInterface::TexturePixmapActor::Clone() {
-  TexturePixmapActor* new_instance = new TexturePixmapActor(interface());
+RealCompositor::Actor* RealCompositor::TexturePixmapActor::Clone() {
+  TexturePixmapActor* new_instance = new TexturePixmapActor(compositor());
   CloneImpl(new_instance);
   return static_cast<Actor*>(new_instance);
 }
 
-void TidyInterface::TexturePixmapActor::CloneImpl(TexturePixmapActor* clone) {
-  QuadActor::CloneImpl(static_cast<TidyInterface::QuadActor*>(clone));
+void RealCompositor::TexturePixmapActor::CloneImpl(TexturePixmapActor* clone) {
+  QuadActor::CloneImpl(static_cast<RealCompositor::QuadActor*>(clone));
   clone->window_ = window_;
 }
 
-bool TidyInterface::TexturePixmapActor::HasPixmapDrawingData() {
-#ifdef TIDY_OPENGL
+bool RealCompositor::TexturePixmapActor::HasPixmapDrawingData() {
+#if defined(COMPOSITOR_OPENGL)
   return GetDrawingData(OpenGlDrawVisitor::PIXMAP_DATA) != NULL;
-#endif
-#ifdef TIDY_OPENGLES
+#elif defined(COMPOSITOR_OPENGLES)
   return GetDrawingData(OpenGlesDrawVisitor::kEglImageData) != NULL;
 #endif
 }
 
-void TidyInterface::TexturePixmapActor::RefreshPixmap() {
-#ifdef TIDY_OPENGL
+void RealCompositor::TexturePixmapActor::RefreshPixmap() {
+  // TODO: Lift common damage and pixmap creation code to RealCompositor
+#if defined(COMPOSITOR_OPENGL)
   OpenGlPixmapData* data  = dynamic_cast<OpenGlPixmapData*>(
       GetDrawingData(OpenGlDrawVisitor::PIXMAP_DATA).get());
   if (data)
     data->Refresh();
-#endif
-  // TODO: Lift common damage and pixmap creation code to TidyInterface
-#ifdef TIDY_OPENGLES
+#elif defined(COMPOSITOR_OPENGLES)
   OpenGlesEglImageData* data = dynamic_cast<OpenGlesEglImageData*>(
       GetDrawingData(OpenGlesDrawVisitor::kEglImageData).get());
   if (data)
@@ -574,39 +569,43 @@ void TidyInterface::TexturePixmapActor::RefreshPixmap() {
   SetDirty();
 }
 
-TidyInterface::StageActor::StageActor(TidyInterface* an_interface,
-                                      int width, int height)
-    : TidyInterface::ContainerActor(an_interface),
+RealCompositor::StageActor::StageActor(RealCompositor* the_compositor,
+                                       int width, int height)
+    : RealCompositor::ContainerActor(the_compositor),
       window_(0),
       was_resized_(true),
       stage_color_(1.f, 1.f, 1.f) {
-  window_ = interface()->x_conn()->CreateSimpleWindow(
-      interface()->x_conn()->GetRootWindow(),
+  window_ = compositor()->x_conn()->CreateSimpleWindow(
+      compositor()->x_conn()->GetRootWindow(),
       0, 0, width, height);
-  interface()->x_conn()->MapWindow(window_);
+  compositor()->x_conn()->MapWindow(window_);
   SetDirty();
 }
 
-TidyInterface::StageActor::~StageActor() {
-  interface()->x_conn()->DestroyWindow(window_);
+RealCompositor::StageActor::~StageActor() {
+  compositor()->x_conn()->DestroyWindow(window_);
 }
 
-void TidyInterface::StageActor::SetStageColor(
-    const ClutterInterface::Color& color) {
+void RealCompositor::StageActor::SetStageColor(const Compositor::Color& color) {
   stage_color_ = color;
 }
 
-void TidyInterface::StageActor::SetSizeImpl(int* width, int* height) {
+void RealCompositor::StageActor::SetSizeImpl(int* width, int* height) {
   // Have to resize the window to match the stage.
   CHECK(window_) << "Missing window in StageActor::SetSizeImpl.";
-  interface()->x_conn()->ResizeWindow(window_, *width, *height);
+  compositor()->x_conn()->ResizeWindow(window_, *width, *height);
   was_resized_ = true;
 }
 
 
-TidyInterface::TidyInterface(EventLoop* event_loop,
-                             XConnection* xconn,
-                             GLInterfaceBase* gl_interface)
+RealCompositor::RealCompositor(EventLoop* event_loop,
+                               XConnection* xconn,
+#if defined(COMPOSITOR_OPENGL)
+                               GLInterface* gl_interface
+#elif defined(COMPOSITOR_OPENGLES)
+                               Gles2Interface* gl_interface
+#endif
+                              )
     : event_loop_(event_loop),
       x_conn_(xconn),
       dirty_(true),
@@ -620,26 +619,24 @@ TidyInterface::TidyInterface(EventLoop* event_loop,
   XWindow root = x_conn()->GetRootWindow();
   XConnection::WindowGeometry geometry;
   x_conn()->GetWindowGeometry(root, &geometry);
-  default_stage_.reset(new TidyInterface::StageActor(this,
+  default_stage_.reset(new RealCompositor::StageActor(this,
                                                      geometry.width,
                                                      geometry.height));
 
-#ifdef TIDY_OPENGL
-  draw_visitor_ = new OpenGlDrawVisitor(gl_interface,
-                                        this,
-                                        default_stage_.get());
-#elif defined(TIDY_OPENGLES)
-  draw_visitor_ = new OpenGlesDrawVisitor(gl_interface,
-                                          this,
-                                          default_stage_.get());
+#if defined(COMPOSITOR_OPENGL)
+  draw_visitor_ =
+      new OpenGlDrawVisitor(gl_interface, this, default_stage_.get());
+#elif defined(COMPOSITOR_OPENGLES)
+  draw_visitor_ =
+      new OpenGlesDrawVisitor(gl_interface, this, default_stage_.get());
 #endif
 
   draw_timeout_id_ = event_loop_->AddTimeout(
-      NewPermanentCallback(this, &TidyInterface::Draw), 0, kDrawTimeoutMs);
+      NewPermanentCallback(this, &RealCompositor::Draw), 0, kDrawTimeoutMs);
   draw_timeout_enabled_ = true;
 }
 
-TidyInterface::~TidyInterface() {
+RealCompositor::~RealCompositor() {
   delete draw_visitor_;
   if (draw_timeout_id_ >= 0) {
     event_loop_->RemoveTimeout(draw_timeout_id_);
@@ -647,20 +644,20 @@ TidyInterface::~TidyInterface() {
   }
 }
 
-TidyInterface::ContainerActor* TidyInterface::CreateGroup() {
+RealCompositor::ContainerActor* RealCompositor::CreateGroup() {
   return new ContainerActor(this);
 }
 
-TidyInterface::Actor* TidyInterface::CreateRectangle(
-    const ClutterInterface::Color& color,
-    const ClutterInterface::Color& border_color,
+RealCompositor::Actor* RealCompositor::CreateRectangle(
+    const Compositor::Color& color,
+    const Compositor::Color& border_color,
     int border_width) {
   QuadActor* actor = new QuadActor(this);
   actor->SetColor(color, border_color, border_width);
   return actor;
 }
 
-TidyInterface::Actor* TidyInterface::CreateImage(const string& filename) {
+RealCompositor::Actor* RealCompositor::CreateImage(const string& filename) {
   QuadActor* actor = new QuadActor(this);
   scoped_ptr<ImageContainer> container(
       ImageContainer::CreateContainer(filename));
@@ -669,22 +666,21 @@ TidyInterface::Actor* TidyInterface::CreateImage(const string& filename) {
     draw_visitor_->BindImage(container.get(), actor);
     actor->SetSize(container->width(), container->height());
   } else {
-    ClutterInterface::Color color(1.f, 0.f, 1.f);
+    Compositor::Color color(1.f, 0.f, 1.f);
     actor->SetColor(color, color, 0);
   }
 
   return actor;
 }
 
-TidyInterface::TexturePixmapActor*
-TidyInterface::CreateTexturePixmap() {
+RealCompositor::TexturePixmapActor* RealCompositor::CreateTexturePixmap() {
   return new TexturePixmapActor(this);
 }
 
-TidyInterface::Actor* TidyInterface::CreateText(
+RealCompositor::Actor* RealCompositor::CreateText(
     const string& font_name,
     const string& text,
-    const ClutterInterface::Color& color) {
+    const Compositor::Color& color) {
   QuadActor* actor = new QuadActor(this);
   // TODO: Actually create the text.
   actor->SetColor(color, color, 0);
@@ -692,14 +688,13 @@ TidyInterface::Actor* TidyInterface::CreateText(
   return actor;
 }
 
-TidyInterface::Actor* TidyInterface::CloneActor(
-    ClutterInterface::Actor* orig) {
-  TidyInterface::Actor* actor = dynamic_cast<TidyInterface::Actor*>(orig);
+RealCompositor::Actor* RealCompositor::CloneActor(Compositor::Actor* orig) {
+  RealCompositor::Actor* actor = dynamic_cast<RealCompositor::Actor*>(orig);
   CHECK(actor);
   return actor->Clone();
 }
 
-void TidyInterface::HandleWindowDamaged(XWindow xid) {
+void RealCompositor::HandleWindowDamaged(XWindow xid) {
   TexturePixmapActor* actor =
       FindWithDefault(texture_pixmaps_,
                       xid,
@@ -708,26 +703,26 @@ void TidyInterface::HandleWindowDamaged(XWindow xid) {
     actor->RefreshPixmap();
 }
 
-void TidyInterface::RemoveActor(Actor* actor) {
+void RealCompositor::RemoveActor(Actor* actor) {
   ActorVector::iterator iterator = find(actors_.begin(), actors_.end(), actor);
   if (iterator != actors_.end()) {
     actors_.erase(iterator);
   }
 }
 
-void TidyInterface::StartMonitoringWindowForChanges(
+void RealCompositor::StartMonitoringWindowForChanges(
     XWindow xid, TexturePixmapActor* actor) {
   texture_pixmaps_[xid] = actor;
   x_conn()->RedirectWindowForCompositing(xid);
 }
 
-void TidyInterface::StopMonitoringWindowForChanges(
+void RealCompositor::StopMonitoringWindowForChanges(
     XWindow xid, TexturePixmapActor* actor) {
   x_conn()->UnredirectWindowForCompositing(xid);
   texture_pixmaps_.erase(xid);
 }
 
-TidyInterface::AnimationTime TidyInterface::GetCurrentTimeMs() {
+RealCompositor::AnimationTime RealCompositor::GetCurrentTimeMs() {
   if (current_time_ms_for_testing_ >= 0)
     return current_time_ms_for_testing_;
 
@@ -736,24 +731,24 @@ TidyInterface::AnimationTime TidyInterface::GetCurrentTimeMs() {
   return 1000ULL * tv.tv_sec + tv.tv_usec / 1000ULL;
 }
 
-void TidyInterface::SetDirty() {
+void RealCompositor::SetDirty() {
   if (!dirty_)
     EnableDrawTimeout();
   dirty_ = true;
 }
 
-void TidyInterface::IncrementNumAnimations() {
+void RealCompositor::IncrementNumAnimations() {
   num_animations_++;
   if (num_animations_ == 1)
     EnableDrawTimeout();
 }
 
-void TidyInterface::DecrementNumAnimations() {
+void RealCompositor::DecrementNumAnimations() {
   num_animations_--;
   DCHECK_GE(num_animations_, 0) << "Decrementing animation count below zero";
 }
 
-void TidyInterface::Draw() {
+void RealCompositor::Draw() {
   int64_t now = GetCurrentTimeMs();
   if (num_animations_ > 0 || dirty_) {
     actor_count_ = 0;
@@ -768,7 +763,7 @@ void TidyInterface::Draw() {
     DisableDrawTimeout();
 }
 
-void TidyInterface::EnableDrawTimeout() {
+void RealCompositor::EnableDrawTimeout() {
   if (!draw_timeout_enabled_) {
     int64_t ms_since_draw = max(GetCurrentTimeMs() - last_draw_time_ms_,
                                 static_cast<int64_t>(0));
@@ -778,7 +773,7 @@ void TidyInterface::EnableDrawTimeout() {
   }
 }
 
-void TidyInterface::DisableDrawTimeout() {
+void RealCompositor::DisableDrawTimeout() {
   if (draw_timeout_enabled_) {
     event_loop_->SuspendTimeout(draw_timeout_id_);
     draw_timeout_enabled_ = false;

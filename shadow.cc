@@ -15,14 +15,14 @@ using std::string;
 namespace window_manager {
 
 // Static members.
-ClutterInterface::Actor* Shadow::top_texture_    = NULL;
-ClutterInterface::Actor* Shadow::bottom_texture_ = NULL;
-ClutterInterface::Actor* Shadow::left_texture_   = NULL;
-ClutterInterface::Actor* Shadow::right_texture_  = NULL;
-ClutterInterface::Actor* Shadow::tl_texture_     = NULL;
-ClutterInterface::Actor* Shadow::tr_texture_     = NULL;
-ClutterInterface::Actor* Shadow::bl_texture_     = NULL;
-ClutterInterface::Actor* Shadow::br_texture_     = NULL;
+Compositor::Actor* Shadow::top_texture_    = NULL;
+Compositor::Actor* Shadow::bottom_texture_ = NULL;
+Compositor::Actor* Shadow::left_texture_   = NULL;
+Compositor::Actor* Shadow::right_texture_  = NULL;
+Compositor::Actor* Shadow::tl_texture_     = NULL;
+Compositor::Actor* Shadow::tr_texture_     = NULL;
+Compositor::Actor* Shadow::bl_texture_     = NULL;
+Compositor::Actor* Shadow::br_texture_     = NULL;
 
 int Shadow::kInset = 0;
 int Shadow::kTopHeight = 0;
@@ -30,12 +30,12 @@ int Shadow::kBottomHeight = 0;
 int Shadow::kLeftWidth = 0;
 int Shadow::kRightWidth = 0;
 
-Shadow::Shadow(ClutterInterface* clutter)
-    : clutter_(clutter),
+Shadow::Shadow(Compositor* compositor)
+    : compositor_(compositor),
       is_shown_(false),
       opacity_(1.0) {
-  CHECK(clutter_);
-  group_.reset(clutter_->CreateGroup());
+  CHECK(compositor_);
+  group_.reset(compositor_->CreateGroup());
   group_->SetName("shadow group");
 
   // Load the images the first time we get called.
@@ -43,14 +43,14 @@ Shadow::Shadow(ClutterInterface* clutter)
   if (!top_texture_)
     Init();
 
-  top_actor_.reset(clutter_->CloneActor(top_texture_));
-  bottom_actor_.reset(clutter_->CloneActor(bottom_texture_));
-  left_actor_.reset(clutter_->CloneActor(left_texture_));
-  right_actor_.reset(clutter_->CloneActor(right_texture_));
-  tl_actor_.reset(clutter_->CloneActor(tl_texture_));
-  tr_actor_.reset(clutter_->CloneActor(tr_texture_));
-  bl_actor_.reset(clutter_->CloneActor(bl_texture_));
-  br_actor_.reset(clutter_->CloneActor(br_texture_));
+  top_actor_.reset(compositor_->CloneActor(top_texture_));
+  bottom_actor_.reset(compositor_->CloneActor(bottom_texture_));
+  left_actor_.reset(compositor_->CloneActor(left_texture_));
+  right_actor_.reset(compositor_->CloneActor(right_texture_));
+  tl_actor_.reset(compositor_->CloneActor(tl_texture_));
+  tr_actor_.reset(compositor_->CloneActor(tr_texture_));
+  bl_actor_.reset(compositor_->CloneActor(bl_texture_));
+  br_actor_.reset(compositor_->CloneActor(br_texture_));
 
   top_actor_->SetName("shadow top");
   bottom_actor_->SetName("shadow bottom");
@@ -118,8 +118,7 @@ void Shadow::Resize(int width, int height, int anim_ms) {
   br_actor_->Move(width - kInset, height - kInset, anim_ms);
 
   // TODO: Figure out what to do for windows that are too small for these
-  // images -- currently, we get a Clutter error as we try to scale them to
-  // negative values.
+  // images -- currently, we'll try to scale them to negative values.
   top_actor_->Scale(width - 2 * kInset, 1.0, anim_ms);
   bottom_actor_->Scale(width - 2 * kInset, 1.0, anim_ms);
   left_actor_->Scale(1.0, height - 2 * kInset, anim_ms);
@@ -153,15 +152,16 @@ void Shadow::Init() {
   CHECK(tr_texture_->GetWidth() - kRightWidth == kInset);
 }
 
-ClutterInterface::Actor* Shadow::InitTexture(const string& filename) {
-  ClutterInterface::Actor* actor = clutter_->CreateImage(
+Compositor::Actor* Shadow::InitTexture(const string& filename) {
+  Compositor::Actor* actor = compositor_->CreateImage(
       FLAGS_shadow_image_dir + "/" + filename);
   actor->SetName(filename);
   // Even though we don't actually want to display it, we need to add the
-  // actor to the default stage; otherwise Clutter complains that actors
-  // that are cloned from it are unmappable.
+  // actor to the default stage; otherwise the compositor complains that
+  // actors that are cloned from it are unmappable.
+  // TODO: This used to be the case with Clutter; is it still true?
   actor->SetVisibility(false);
-  clutter_->GetDefaultStage()->AddActor(actor);
+  compositor_->GetDefaultStage()->AddActor(actor);
   return actor;
 }
 

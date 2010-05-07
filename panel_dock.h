@@ -148,7 +148,7 @@ class PanelDock : public PanelContainer {
   Panel* dragged_panel_;
 
   // The dock's background image and its drop shadow.
-  scoped_ptr<ClutterInterface::Actor> bg_actor_;
+  scoped_ptr<Compositor::Actor> bg_actor_;
   scoped_ptr<Shadow> bg_shadow_;
 
   // An input window at the same position as the dock.  Currently just used

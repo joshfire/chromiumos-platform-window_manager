@@ -2,8 +2,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifndef WINDOW_MANAGER_TIDY_INTERFACE_H_
-#define WINDOW_MANAGER_TIDY_INTERFACE_H_
+#ifndef WINDOW_MANAGER_REAL_COMPOSITOR_H_
+#define WINDOW_MANAGER_REAL_COMPOSITOR_H_
 
 #include <cmath>
 #include <list>
@@ -20,20 +20,21 @@
 #include "window_manager/clutter_interface.h"
 #include "window_manager/x_types.h"
 
-#if !(defined(TIDY_OPENGL) || defined(TIDY_OPENGLES))
-#error TIDY_OPENGL or TIDY_OPENGLES must be defined
+#if !(defined(COMPOSITOR_OPENGL) || defined(COMPOSITOR_OPENGLES))
+#error COMPOSITOR_OPENGL or COMPOSITOR_OPENGLES must be defined
 #endif
 
 namespace window_manager {
 
 class CompositorEventSource;
 class EventLoop;
-class GLInterfaceBase;
+class Gles2Interface;
+class GLInterface;
 class OpenGlDrawVisitor;
 class OpenGlesDrawVisitor;
 class XConnection;
 
-class TidyInterface : public ClutterInterface {
+class RealCompositor : public Compositor {
  public:
   class Actor;
   class ContainerActor;
@@ -143,7 +144,7 @@ class TidyInterface : public ClutterInterface {
     DISALLOW_COPY_AND_ASSIGN(VisitorDestination);
   };
 
-  class LayerVisitor : virtual public TidyInterface::ActorVisitor {
+  class LayerVisitor : virtual public RealCompositor::ActorVisitor {
    public:
     static const float kMinDepth;
     static const float kMaxDepth;
@@ -154,11 +155,11 @@ class TidyInterface : public ClutterInterface {
           count_(count) {}
     virtual ~LayerVisitor() {}
 
-    virtual void VisitActor(TidyInterface::Actor* actor);
-    virtual void VisitStage(TidyInterface::StageActor* actor);
-    virtual void VisitContainer(TidyInterface::ContainerActor* actor);
-    virtual void VisitQuad(TidyInterface::QuadActor* actor);
-    virtual void VisitTexturePixmap(TidyInterface::TexturePixmapActor* actor);
+    virtual void VisitActor(RealCompositor::Actor* actor);
+    virtual void VisitStage(RealCompositor::StageActor* actor);
+    virtual void VisitContainer(RealCompositor::ContainerActor* actor);
+    virtual void VisitQuad(RealCompositor::QuadActor* actor);
+    virtual void VisitTexturePixmap(RealCompositor::TexturePixmapActor* actor);
 
    private:
     float depth_;
@@ -168,20 +169,20 @@ class TidyInterface : public ClutterInterface {
     DISALLOW_COPY_AND_ASSIGN(LayerVisitor);
   };
 
-  class Actor : virtual public ClutterInterface::Actor,
-                public TidyInterface::VisitorDestination {
+  class Actor : virtual public Compositor::Actor,
+                public RealCompositor::VisitorDestination {
    public:
-    explicit Actor(TidyInterface* interface);
+    explicit Actor(RealCompositor* compositor);
     virtual ~Actor();
 
-    // Begin ClutterInterface::VisitorDestination methods
+    // Begin Compositor::VisitorDestination methods
     virtual void Accept(ActorVisitor* visitor) {
       DCHECK(visitor);
       visitor->VisitActor(this);
     }
-    // End ClutterInterface::VisitorDestination methods
+    // End Compositor::VisitorDestination methods
 
-    // Begin ClutterInterface::Actor methods
+    // Begin Compositor::Actor methods
     virtual Actor* Clone();
     int GetWidth() { return width_; }
     int GetHeight() { return height_; }
@@ -211,14 +212,14 @@ class TidyInterface : public ClutterInterface {
     double GetTilt() const { return tilt_; }
     void SetClip(int x, int y, int width, int height) { NOTIMPLEMENTED(); }
 
-    void Raise(ClutterInterface::Actor* other);
-    void Lower(ClutterInterface::Actor* other);
+    void Raise(Compositor::Actor* other);
+    void Lower(Compositor::Actor* other);
     void RaiseToTop();
     void LowerToBottom();
     virtual std::string GetDebugString(int indent_level) {
       return GetDebugStringInternal("Actor", indent_level);
     }
-    // End ClutterInterface::Actor methods
+    // End Compositor::Actor methods
 
     // Updates the actor in response to time passing, and counts the
     // number of actors as it goes.
@@ -253,7 +254,7 @@ class TidyInterface : public ClutterInterface {
     float tilt() const { return tilt_; }
     float scale_x() const { return scale_x_; }
     float scale_y() const { return scale_y_; }
-    void SetDirty() { interface_->SetDirty(); }
+    void SetDirty() { compositor_->SetDirty(); }
 
     // Shows a horizontal gradient (transparent on left to black on
     // right) over the window's client area if true.  Does nothing if
@@ -275,9 +276,9 @@ class TidyInterface : public ClutterInterface {
 
    protected:
     // So it can update the opacity flag.
-    friend class TidyInterface::LayerVisitor;
+    friend class RealCompositor::LayerVisitor;
 
-    TidyInterface* interface() { return interface_; }
+    RealCompositor* compositor() { return compositor_; }
 
     void CloneImpl(Actor* clone);
     virtual void SetSizeImpl(int* width, int* height) {}
@@ -304,7 +305,7 @@ class TidyInterface : public ClutterInterface {
         std::map<T*, std::tr1::shared_ptr<Animation<T> > >* animation_map,
         AnimationTime now);
 
-    TidyInterface* interface_;
+    RealCompositor* compositor_;
 
     // This points to the parent that has this actor as a child.
     ContainerActor* parent_;
@@ -366,11 +367,11 @@ class TidyInterface : public ClutterInterface {
     DISALLOW_COPY_AND_ASSIGN(Actor);
   };
 
-  class ContainerActor : public TidyInterface::Actor,
-                         virtual public ClutterInterface::ContainerActor {
+  class ContainerActor : public RealCompositor::Actor,
+                         virtual public Compositor::ContainerActor {
    public:
-    explicit ContainerActor(TidyInterface* interface)
-        : TidyInterface::Actor(interface) {
+    explicit ContainerActor(RealCompositor* compositor)
+        : RealCompositor::Actor(compositor) {
     }
     ~ContainerActor();
 
@@ -380,32 +381,32 @@ class TidyInterface : public ClutterInterface {
       visitor->VisitContainer(this);
     }
 
-    // Begin ClutterInterface::Actor methods
+    // Begin Compositor::Actor methods
     virtual Actor* Clone() {
       NOTIMPLEMENTED();
       CHECK(false);
       return NULL;
     }
     virtual std::string GetDebugString(int indent_level);
-    // End ClutterInterface::Actor methods
+    // End Compositor::Actor methods
 
-    // Begin TidyInterface::Actor methods
+    // Begin RealCompositor::Actor methods
     virtual ActorVector GetChildren() { return children_; }
-    // End TidyInterface::Actor methods
+    // End RealCompositor::Actor methods
 
-    // Begin ClutterInterface::ContainerActor methods
-    void AddActor(ClutterInterface::Actor* actor);
-    // End ClutterInterface::ContainerActor methods
+    // Begin Compositor::ContainerActor methods
+    void AddActor(Compositor::Actor* actor);
+    // End Compositor::ContainerActor methods
 
-    void RemoveActor(ClutterInterface::Actor* actor);
+    void RemoveActor(Compositor::Actor* actor);
     virtual void Update(int32* count, AnimationTime now);
 
     // Raise one child over another.  Raise to top if "above" is NULL.
-    void RaiseChild(TidyInterface::Actor* child,
-                    TidyInterface::Actor* above);
+    void RaiseChild(RealCompositor::Actor* child,
+                    RealCompositor::Actor* above);
     // Lower one child under another.  Lower to bottom if "below" is NULL.
-    void LowerChild(TidyInterface::Actor* child,
-                    TidyInterface::Actor* below);
+    void LowerChild(RealCompositor::Actor* child,
+                    RealCompositor::Actor* below);
 
    protected:
     virtual void SetSizeImpl(int* width, int* height) {
@@ -421,26 +422,26 @@ class TidyInterface : public ClutterInterface {
   };
 
   // This class represents a quadrilateral.
-  class QuadActor : public TidyInterface::Actor {
+  class QuadActor : public RealCompositor::Actor {
    public:
-    explicit QuadActor(TidyInterface* interface);
+    explicit QuadActor(RealCompositor* compositor);
 
-    // Begin ClutterInterface::Actor methods
+    // Begin Compositor::Actor methods
     virtual std::string GetDebugString(int indent_level) {
       return GetDebugStringInternal("QuadActor", indent_level);
     }
-    // End ClutterInterface::Actor methods
+    // End Compositor::Actor methods
 
-    void SetColor(const ClutterInterface::Color& color,
-                  const ClutterInterface::Color& border_color,
+    void SetColor(const Compositor::Color& color,
+                  const Compositor::Color& border_color,
                   int border_width) {
       DCHECK(border_width >= 0);
       color_ = color;
       border_color_ = color;
       border_width = border_width;
     }
-    const ClutterInterface::Color& color() const { return color_; }
-    const ClutterInterface::Color& border_color() const {
+    const Compositor::Color& color() const { return color_; }
+    const Compositor::Color& border_color() const {
       return border_color_;
     }
     const int border_width() const { return border_width_; }
@@ -457,27 +458,27 @@ class TidyInterface : public ClutterInterface {
     void CloneImpl(QuadActor* clone);
 
    private:
-    ClutterInterface::Color color_;
-    ClutterInterface::Color border_color_;
+    Compositor::Color color_;
+    Compositor::Color border_color_;
     int border_width_;
 
     DISALLOW_COPY_AND_ASSIGN(QuadActor);
   };
 
-  class TexturePixmapActor : public TidyInterface::QuadActor,
-                             public ClutterInterface::TexturePixmapActor {
+  class TexturePixmapActor : public RealCompositor::QuadActor,
+                             public Compositor::TexturePixmapActor {
    public:
-    explicit TexturePixmapActor(TidyInterface* interface);
+    explicit TexturePixmapActor(RealCompositor* compositor);
     virtual ~TexturePixmapActor() { Reset(); }
 
     XWindow texture_pixmap_window() const { return window_; }
 
-    // Begin ClutterInterface::Actor methods
+    // Begin Compositor::Actor methods
     virtual std::string GetDebugString(int indent_level) {
       return GetDebugStringInternal("TexturePixmapActor", indent_level);
     }
     virtual void SetSizeImpl(int* width, int* height);
-    // End ClutterInterface::Actor methods
+    // End Compositor::Actor methods
 
     // Implement VisitorDestination for visitor.
     void Accept(ActorVisitor* visitor) {
@@ -490,7 +491,7 @@ class TidyInterface : public ClutterInterface {
     void set_pixmap_invalid(bool invalid) { pixmap_invalid_ = invalid; }
     bool is_pixmap_invalid() { return pixmap_invalid_; }
 
-    // Begin ClutterInterface::TexturePixmapActor methods
+    // Begin Compositor::TexturePixmapActor methods
     bool SetTexturePixmapWindow(XWindow xid);
     bool IsUsingTexturePixmapExtension() { return true; }
     void UpdateContents() { RefreshPixmap(); }
@@ -499,7 +500,7 @@ class TidyInterface : public ClutterInterface {
       return true;
     }
     void ClearAlphaMask() { NOTIMPLEMENTED(); }
-    // End ClutterInterface::TexturePixmapActor methods
+    // End Compositor::TexturePixmapActor methods
 
     // Refresh the current pixmap.
     void RefreshPixmap();
@@ -518,7 +519,7 @@ class TidyInterface : public ClutterInterface {
     void CloneImpl(TexturePixmapActor* clone);
 
    private:
-    FRIEND_TEST(TidyTest, HandleXEvents);
+    FRIEND_TEST(RealCompositorTest, HandleXEvents);
 
     // Is there currently any pixmap drawing data?  Tests use this to
     // check that old pixmaps get thrown away when needed.
@@ -533,10 +534,10 @@ class TidyInterface : public ClutterInterface {
     DISALLOW_COPY_AND_ASSIGN(TexturePixmapActor);
   };
 
-  class StageActor : public TidyInterface::ContainerActor,
-                     public ClutterInterface::StageActor {
+  class StageActor : public RealCompositor::ContainerActor,
+                     public Compositor::StageActor {
    public:
-    StageActor(TidyInterface* interface, int width, int height);
+    StageActor(RealCompositor* compositor, int width, int height);
     virtual ~StageActor();
 
     // Implement VisitorDestination for visitor.
@@ -550,12 +551,12 @@ class TidyInterface : public ClutterInterface {
       return NULL;
     }
 
-    // Begin TidyInterface::StageActor implementation.
+    // Begin RealCompositor::StageActor implementation.
     XWindow GetStageXWindow() { return window_; }
-    void SetStageColor(const ClutterInterface::Color& color);
-    // End TidyInterface::StageActor implementation.
+    void SetStageColor(const Compositor::Color& color);
+    // End RealCompositor::StageActor implementation.
 
-    const ClutterInterface::Color& stage_color() const { return stage_color_; }
+    const Compositor::Color& stage_color() const { return stage_color_; }
     bool was_resized() const { return was_resized_; }
     void unset_was_resized() { was_resized_ = false; }
 
@@ -570,29 +571,34 @@ class TidyInterface : public ClutterInterface {
     // then checked and reset by the visitor after it resizes the viewport.
     bool was_resized_;
 
-    ClutterInterface::Color stage_color_;
+    Compositor::Color stage_color_;
     DISALLOW_COPY_AND_ASSIGN(StageActor);
   };
 
-  TidyInterface(EventLoop* event_loop,
-                XConnection* x_conn,
-                GLInterfaceBase* gl_interface);
-  ~TidyInterface();
+  RealCompositor(EventLoop* event_loop,
+                 XConnection* x_conn,
+#if defined(COMPOSITOR_OPENGL)
+                 GLInterface* gl_interface
+#elif defined(COMPOSITOR_OPENGLES)
+                 Gles2Interface* gl_interface
+#endif
+                );
+  ~RealCompositor();
 
-  // Begin ClutterInterface methods
+  // Begin Compositor methods
   ContainerActor* CreateGroup();
-  Actor* CreateRectangle(const ClutterInterface::Color& color,
-                         const ClutterInterface::Color& border_color,
+  Actor* CreateRectangle(const Compositor::Color& color,
+                         const Compositor::Color& border_color,
                          int border_width);
   Actor* CreateImage(const std::string& filename);
   TexturePixmapActor* CreateTexturePixmap();
   Actor* CreateText(const std::string& font_name,
                     const std::string& text,
-                    const ClutterInterface::Color& color);
-  Actor* CloneActor(ClutterInterface::Actor* orig);
+                    const Compositor::Color& color);
+  Actor* CloneActor(Compositor::Actor* orig);
   StageActor* GetDefaultStage() { return default_stage_.get(); }
   void HandleWindowDamaged(XWindow xid);
-  // End ClutterInterface methods
+  // End Compositor methods
 
   XConnection* x_conn() { return x_conn_; }
   int actor_count() { return actor_count_; }
@@ -647,7 +653,7 @@ class TidyInterface : public ClutterInterface {
   EventLoop* event_loop_;  // not owned
   XConnection* x_conn_;    // not owned
 
-  // This indicates if the interface is dirty and needs to be redrawn.
+  // This indicates if the scene is dirty and needs to be redrawn.
   bool dirty_;
 
   // Total number of in-progress animations.
@@ -674,9 +680,9 @@ class TidyInterface : public ClutterInterface {
   // layer depth calculations.
   int32 actor_count_;
 
-#ifdef TIDY_OPENGL
+#if defined(COMPOSITOR_OPENGL)
   OpenGlDrawVisitor* draw_visitor_;
-#elif defined(TIDY_OPENGLES)
+#elif defined(COMPOSITOR_OPENGLES)
   OpenGlesDrawVisitor* draw_visitor_;
 #endif
 
@@ -693,16 +699,16 @@ class TidyInterface : public ClutterInterface {
   // Is the drawing timeout currently enabled?
   bool draw_timeout_enabled_;
 
-  DISALLOW_COPY_AND_ASSIGN(TidyInterface);
+  DISALLOW_COPY_AND_ASSIGN(RealCompositor);
 };
 
 // Specialization for integer animations that rounds to the nearest position.
 template<>
-inline int TidyInterface::Animation<int>::InterpolateValue(
+inline int RealCompositor::Animation<int>::InterpolateValue(
     int start_value, int end_value, float fraction) {
   return roundf(start_value + fraction * (end_value - start_value));
 }
 
 }  // namespace window_manager
 
-#endif  // WINDOW_MANAGER_TIDY_INTERFACE_H_
+#endif  // WINDOW_MANAGER_REAL_COMPOSITOR_H_

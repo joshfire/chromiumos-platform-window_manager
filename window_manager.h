@@ -51,20 +51,20 @@ class WindowManager {
  public:
   WindowManager(EventLoop* event_loop,
                 XConnection* xconn,
-                ClutterInterface* clutter,
+                Compositor* compositor,
                 bool logged_in);
   ~WindowManager();
 
   EventLoop* event_loop() { return event_loop_; }
   XConnection* xconn() { return xconn_; }
-  ClutterInterface* clutter() { return clutter_; }
+  Compositor* compositor() { return compositor_; }
   StackingManager* stacking_manager() { return stacking_manager_.get(); }
 
   XWindow root() const { return root_; }
   XWindow background_xid() const { return background_xid_; }
 
-  ClutterInterface::StageActor* stage() { return stage_; }
-  ClutterInterface::Actor* background() { return background_.get(); }
+  Compositor::StageActor* stage() { return stage_; }
+  Compositor::Actor* background() { return background_.get(); }
 
   int width() const { return width_; }
   int height() const { return height_; }
@@ -208,8 +208,8 @@ class WindowManager {
 
   // Start tracking this window (more specifically, create a Window object
   // for it and register it in 'client_windows_').  Returns NULL for
-  // windows that we specifically shouldn't track (e.g. the Clutter stage
-  // or the compositing overlay window).
+  // windows that we specifically shouldn't track (e.g. the compositor's
+  // stage or the compositing overlay window).
   Window* TrackWindow(XWindow xid, bool override_redirect);
 
   // Handle a window getting mapped.  This is primarily used by
@@ -278,9 +278,9 @@ class WindowManager {
   // server and pass it to the overlay.
   void QueryKeyboardState();
 
-  EventLoop* event_loop_;      // not owned
-  XConnection* xconn_;         // not owned
-  ClutterInterface* clutter_;  // not owned
+  EventLoop* event_loop_;   // not owned
+  XConnection* xconn_;      // not owned
+  Compositor* compositor_;  // not owned
 
   XWindow root_;
 
@@ -291,10 +291,10 @@ class WindowManager {
   // Offscreen window that we just use for registering as the WM.
   XWindow wm_xid_;
 
-  ClutterInterface::StageActor* stage_;  // not owned
-  scoped_ptr<ClutterInterface::Actor> background_;
+  Compositor::StageActor* stage_;  // not owned
+  scoped_ptr<Compositor::Actor> background_;
 
-  // Window containing the Clutter stage.
+  // Window containing the compositor's stage.
   XWindow stage_xid_;
 
   // XComposite overlay window.
@@ -340,7 +340,7 @@ class WindowManager {
   ChromeMessageEventConsumerMap chrome_message_event_consumers_;
 
   // Actors that are currently being used to debug client windows.
-  std::vector<std::tr1::shared_ptr<ClutterInterface::Actor> >
+  std::vector<std::tr1::shared_ptr<Compositor::Actor> >
       client_window_debugging_actors_;
 
   // The last window that was passed to SetActiveWindowProperty().

@@ -481,7 +481,7 @@ TEST_F(LayoutManagerTest, MultipleTransients) {
   // of both its composited and client windows).
   Window* owner_win = wm_->GetWindowOrDie(owner_xid);
   Window* first_transient_win = wm_->GetWindowOrDie(first_transient_xid);
-  MockClutterInterface::StageActor* stage = clutter_->GetDefaultStage();
+  MockCompositor::StageActor* stage = compositor_->GetDefaultStage();
   EXPECT_LT(stage->GetStackingIndex(first_transient_win->actor()),
             stage->GetStackingIndex(owner_win->actor()));
   EXPECT_LT(xconn_->stacked_xids().GetIndex(first_transient_xid),
@@ -740,7 +740,7 @@ TEST_F(LayoutManagerTest, InitialWindowStacking) {
   wm_.reset(NULL);
   xconn_.reset(new MockXConnection);
   event_loop_.reset(new EventLoop);
-  clutter_.reset(new MockClutterInterface(xconn_.get()));
+  compositor_.reset(new MockCompositor(xconn_.get()));
   lm_ = NULL;
 
   // Create and map a toplevel window.
@@ -758,10 +758,10 @@ TEST_F(LayoutManagerTest, InitialWindowStacking) {
       StackingManager::LAYER_TOPLEVEL_WINDOW,
       static_cast<XWindow>(None));
   ASSERT_TRUE(toplevel_stacking_xid != None);
-  ClutterInterface::Actor* toplevel_stacking_actor = FindWithDefault(
+  Compositor::Actor* toplevel_stacking_actor = FindWithDefault(
       wm_->stacking_manager()->layer_to_actor_,
       StackingManager::LAYER_TOPLEVEL_WINDOW,
-      shared_ptr<ClutterInterface::Actor>()).get();
+      shared_ptr<Compositor::Actor>()).get();
   ASSERT_TRUE(toplevel_stacking_actor != None);
 
   XWindow lower_stacking_xid = FindWithDefault(
@@ -770,11 +770,11 @@ TEST_F(LayoutManagerTest, InitialWindowStacking) {
           StackingManager::LAYER_TOPLEVEL_WINDOW + 1),
       static_cast<XWindow>(None));
   ASSERT_TRUE(lower_stacking_xid != None);
-  ClutterInterface::Actor* lower_stacking_actor = FindWithDefault(
+  Compositor::Actor* lower_stacking_actor = FindWithDefault(
       wm_->stacking_manager()->layer_to_actor_,
       static_cast<StackingManager::Layer>(
           StackingManager::LAYER_TOPLEVEL_WINDOW + 1),
-      shared_ptr<ClutterInterface::Actor>()).get();
+      shared_ptr<Compositor::Actor>()).get();
   ASSERT_TRUE(lower_stacking_actor != None);
 
   // Check that the toplevel window is stacked between the two reference
@@ -784,7 +784,7 @@ TEST_F(LayoutManagerTest, InitialWindowStacking) {
   EXPECT_LT(xconn_->stacked_xids().GetIndex(xid),
             xconn_->stacked_xids().GetIndex(lower_stacking_xid));
 
-  MockClutterInterface::StageActor* stage = clutter_->GetDefaultStage();
+  MockCompositor::StageActor* stage = compositor_->GetDefaultStage();
   Window* win = wm_->GetWindowOrDie(xid);
   EXPECT_LT(stage->GetStackingIndex(toplevel_stacking_actor),
             stage->GetStackingIndex(win->actor()));
@@ -812,7 +812,7 @@ TEST_F(LayoutManagerTest, StackTransientsAbovePanels) {
   // Open a panel.  The transient windows should be stacked above the
   // panel, but the panel should be stacked above the toplevel.
   Panel* panel = CreatePanel(200, 20, 400, true);
-  MockClutterInterface::StageActor* stage = clutter_->GetDefaultStage();
+  MockCompositor::StageActor* stage = compositor_->GetDefaultStage();
   EXPECT_LT(stage->GetStackingIndex(second_transient_win->actor()),
             stage->GetStackingIndex(first_transient_win->actor()));
   EXPECT_LT(stage->GetStackingIndex(first_transient_win->actor()),
@@ -909,8 +909,8 @@ TEST_F(LayoutManagerTest, NoDimmingInActiveMode) {
 
   // Check that the second window is focused and not dimmed.
   EXPECT_EQ(xid2, xconn_->focused_xid());
-  MockClutterInterface::Actor* actor2 =
-      dynamic_cast<MockClutterInterface::Actor*>(wm_->GetWindow(xid2)->actor());
+  MockCompositor::Actor* actor2 =
+      dynamic_cast<MockCompositor::Actor*>(wm_->GetWindow(xid2)->actor());
   CHECK(actor2);
   EXPECT_FALSE(actor2->is_dimmed());
 
@@ -919,8 +919,8 @@ TEST_F(LayoutManagerTest, NoDimmingInActiveMode) {
   lm_->CycleCurrentToplevelWindow(true);
   EXPECT_EQ(xid1, xconn_->focused_xid());
   SendFocusEvents(xid2, xid1);
-  MockClutterInterface::Actor* actor1 =
-      dynamic_cast<MockClutterInterface::Actor*>(wm_->GetWindow(xid1)->actor());
+  MockCompositor::Actor* actor1 =
+      dynamic_cast<MockCompositor::Actor*>(wm_->GetWindow(xid1)->actor());
   CHECK(actor1);
   EXPECT_FALSE(actor1->is_dimmed());
 }
@@ -935,8 +935,8 @@ TEST_F(LayoutManagerTest, AvoidMovingCurrentWindow) {
   EXPECT_EQ(xid, xconn_->focused_xid());
   SendFocusEvents(xconn_->GetRootWindow(), xid);
 
-  MockClutterInterface::Actor* actor =
-      dynamic_cast<MockClutterInterface::Actor*>(wm_->GetWindow(xid)->actor());
+  MockCompositor::Actor* actor =
+      dynamic_cast<MockCompositor::Actor*>(wm_->GetWindow(xid)->actor());
   int initial_num_moves = actor->num_moves();
 
   // Now send a _NET_ACTIVE_WINDOW message asking the window manager to

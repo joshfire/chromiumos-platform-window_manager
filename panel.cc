@@ -48,15 +48,15 @@ static const int kResizeUpdateMs = 25;
 
 // Appearance of the box used for non-opaque resizing.
 
-// Equivalent to "#4181f5" X color.
-static const ClutterInterface::Color kResizeBoxBgColor(0.254902,
-                                                       0.505882,
-                                                       0.960784);
+// Equivalent to "#4181f5".
+static const Compositor::Color kResizeBoxBgColor(0.254902,
+                                                 0.505882,
+                                                 0.960784);
 
-// Equivalent to "#234583" X color.
-static const ClutterInterface::Color kResizeBoxBorderColor(0.137255,
-                                                           0.270588,
-                                                           0.513725);
+// Equivalent to "#234583".
+static const Compositor::Color kResizeBoxBorderColor(0.137255,
+                                                     0.270588,
+                                                     0.513725);
 static const double kResizeBoxOpacity = 0.3;
 
 const int Panel::kResizeBorderWidth = 5;
@@ -217,9 +217,9 @@ void Panel::HandleInputWindowButtonPress(
 
   if (!FLAGS_panel_opaque_resize) {
     DCHECK(!resize_actor_.get());
-    resize_actor_.reset(wm()->clutter()->CreateRectangle(kResizeBoxBgColor,
-                                                         kResizeBoxBorderColor,
-                                                         1));  // border_width
+    resize_actor_.reset(
+        wm()->compositor()->CreateRectangle(
+            kResizeBoxBgColor, kResizeBoxBorderColor, 1));  // border_width
     wm()->stage()->AddActor(resize_actor_.get());
     resize_actor_->Move(titlebar_x(), titlebar_y(), 0);
     resize_actor_->SetSize(content_width(), total_height());

@@ -97,16 +97,16 @@ wm_env.ParseConfig('pkg-config --cflags --libs libpcrecpp libpng12 ' +
                    'xcb x11-xcb xcb-composite xcb-randr xcb-shape xcb-damage ' +
                    'xdamage xext')
 
-# Add builder for .glsl* files, and GLESv2 libraries
-if backend == 'opengles':
-  make_shaders.AddBuildRules(wm_env)
-  wm_env.Append(LIBS=['EGL', 'GLESv2'])
 
-# This is needed so that glext headers include glBindBuffer and
-# related APIs.
 if backend == 'opengl':
+  # This is needed so that glext headers include glBindBuffer and
+  # related APIs.
   wm_env.Append(CPPDEFINES=['GL_GLEXT_PROTOTYPES'])
   wm_env.ParseConfig('pkg-config --cflags --libs gl')
+elif backend == 'opengles':
+  # Add builder for .glsl* files, and GLESv2 libraries
+  make_shaders.AddBuildRules(wm_env)
+  wm_env.Append(LIBS=['EGL', 'GLESv2'])
 
 wm_env.ProtocolBuffer('system_metrics.pb.cc', 'system_metrics.proto');
 
@@ -181,8 +181,8 @@ wm_env.Prepend(LIBS=[libwm_core, libwm_ipc])
 if 'USE_BREAKPAD' in ARGUMENTS:
   wm_env.Append(CPPDEFINES=['USE_BREAKPAD'], LIBS=['libbreakpad'])
 
-backend_defines = {'opengl': ['TIDY_OPENGL'],
-                   'opengles': ['TIDY_OPENGLES']}
+backend_defines = {'opengl': ['COMPOSITOR_OPENGL'],
+                   'opengles': ['COMPOSITOR_OPENGLES']}
 wm_env.Append(CPPDEFINES=backend_defines[backend])
 
 wm_env.Program('wm', 'main.cc')

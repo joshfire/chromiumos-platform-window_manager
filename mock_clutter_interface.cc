@@ -12,18 +12,18 @@ using std::list;
 
 namespace window_manager {
 
-MockClutterInterface::Actor::~Actor() {
+MockCompositor::Actor::~Actor() {
   if (parent_) {
     parent_->stacked_children()->Remove(this);
     parent_ = NULL;
   }
 }
 
-void MockClutterInterface::Actor::Raise(ClutterInterface::Actor* other) {
+void MockCompositor::Actor::Raise(Compositor::Actor* other) {
   CHECK(parent_);
   CHECK(other);
-  MockClutterInterface::Actor* cast_other =
-      dynamic_cast<MockClutterInterface::Actor*>(other);
+  MockCompositor::Actor* cast_other =
+      dynamic_cast<MockCompositor::Actor*>(other);
   CHECK(cast_other);
   CHECK(parent_->stacked_children()->Contains(this));
   CHECK(parent_->stacked_children()->Contains(cast_other));
@@ -31,11 +31,11 @@ void MockClutterInterface::Actor::Raise(ClutterInterface::Actor* other) {
   parent_->stacked_children()->AddAbove(this, cast_other);
 }
 
-void MockClutterInterface::Actor::Lower(ClutterInterface::Actor* other) {
+void MockCompositor::Actor::Lower(Compositor::Actor* other) {
   CHECK(parent_);
   CHECK(other);
-  MockClutterInterface::Actor* cast_other =
-      dynamic_cast<MockClutterInterface::Actor*>(other);
+  MockCompositor::Actor* cast_other =
+      dynamic_cast<MockCompositor::Actor*>(other);
   CHECK(cast_other);
   CHECK(parent_->stacked_children()->Contains(this));
   CHECK(parent_->stacked_children()->Contains(cast_other));
@@ -43,14 +43,14 @@ void MockClutterInterface::Actor::Lower(ClutterInterface::Actor* other) {
   parent_->stacked_children()->AddBelow(this, cast_other);
 }
 
-void MockClutterInterface::Actor::RaiseToTop() {
+void MockCompositor::Actor::RaiseToTop() {
   CHECK(parent_);
   CHECK(parent_->stacked_children()->Contains(this));
   parent_->stacked_children()->Remove(this);
   parent_->stacked_children()->AddOnTop(this);
 }
 
-void MockClutterInterface::Actor::LowerToBottom() {
+void MockCompositor::Actor::LowerToBottom() {
   CHECK(parent_);
   CHECK(parent_->stacked_children()->Contains(this));
   parent_->stacked_children()->Remove(this);
@@ -58,11 +58,11 @@ void MockClutterInterface::Actor::LowerToBottom() {
 }
 
 
-MockClutterInterface::ContainerActor::ContainerActor()
+MockCompositor::ContainerActor::ContainerActor()
     : stacked_children_(new Stacker<Actor*>) {
 }
 
-MockClutterInterface::ContainerActor::~ContainerActor() {
+MockCompositor::ContainerActor::~ContainerActor() {
   typedef list<Actor*>::const_iterator iterator;
 
   for (iterator it = stacked_children_->items().begin();
@@ -71,10 +71,9 @@ MockClutterInterface::ContainerActor::~ContainerActor() {
   }
 }
 
-void MockClutterInterface::ContainerActor::AddActor(
-    ClutterInterface::Actor* actor) {
-  MockClutterInterface::Actor* cast_actor =
-      dynamic_cast<MockClutterInterface::Actor*>(actor);
+void MockCompositor::ContainerActor::AddActor(Compositor::Actor* actor) {
+  MockCompositor::Actor* cast_actor =
+      dynamic_cast<MockCompositor::Actor*>(actor);
   CHECK(cast_actor);
   CHECK(cast_actor->parent() == static_cast<ContainerActor*>(NULL));
   cast_actor->set_parent(this);
@@ -82,23 +81,22 @@ void MockClutterInterface::ContainerActor::AddActor(
   stacked_children_->AddOnBottom(cast_actor);
 }
 
-int MockClutterInterface::ContainerActor::GetStackingIndex(
-    ClutterInterface::Actor* actor) {
+int MockCompositor::ContainerActor::GetStackingIndex(Compositor::Actor* actor) {
   CHECK(actor);
-  MockClutterInterface::Actor* cast_actor =
-      dynamic_cast<MockClutterInterface::Actor*>(actor);
+  MockCompositor::Actor* cast_actor =
+      dynamic_cast<MockCompositor::Actor*>(actor);
   CHECK(cast_actor);
   return stacked_children_->GetIndex(cast_actor);
 }
 
 
-bool MockClutterInterface::TexturePixmapActor::SetTexturePixmapWindow(
+bool MockCompositor::TexturePixmapActor::SetTexturePixmapWindow(
     XWindow xid) {
   xid_ = xid;
   return xconn_->RedirectWindowForCompositing(xid);
 }
 
-bool MockClutterInterface::TexturePixmapActor::SetAlphaMask(
+bool MockCompositor::TexturePixmapActor::SetAlphaMask(
     const unsigned char* bytes, int width, int height) {
   ClearAlphaMask();
   size_t size = width * height;
@@ -107,7 +105,7 @@ bool MockClutterInterface::TexturePixmapActor::SetAlphaMask(
   return true;
 }
 
-void MockClutterInterface::TexturePixmapActor::ClearAlphaMask() {
+void MockCompositor::TexturePixmapActor::ClearAlphaMask() {
   delete[] alpha_mask_bytes_;
   alpha_mask_bytes_ = NULL;
 }

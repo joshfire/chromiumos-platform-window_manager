@@ -234,7 +234,7 @@ class PanelBar : public PanelContainer {
   Panel* anchor_panel_;
 
   // Textured actor used to draw the anchor.
-  scoped_ptr<ClutterInterface::Actor> anchor_actor_;
+  scoped_ptr<Compositor::Actor> anchor_actor_;
 
   // Watches the pointer's position so we know when to destroy the anchor.
   scoped_ptr<PointerPositionWatcher> anchor_pointer_watcher_;

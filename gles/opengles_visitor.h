@@ -23,8 +23,7 @@ class TexShadeShader;
 class Gles2Interface;
 
 // This class vists an actor tree and draws it using OpenGLES
-class OpenGlesDrawVisitor
-    : virtual public TidyInterface::ActorVisitor {
+class OpenGlesDrawVisitor : virtual public RealCompositor::ActorVisitor {
  public:
   // IDs for storing drawing data
   enum DataId {
@@ -32,25 +31,24 @@ class OpenGlesDrawVisitor
     kEglImageData
   };
 
-  OpenGlesDrawVisitor(GLInterfaceBase* gl,
-                      TidyInterface* interface,
-                      ClutterInterface::StageActor* stage);
+  OpenGlesDrawVisitor(Gles2Interface* gl,
+                      RealCompositor* compositor,
+                      Compositor::StageActor* stage);
   virtual ~OpenGlesDrawVisitor();
 
   void BindImage(const ImageContainer* container,
-                 TidyInterface::QuadActor* actor);
+                 RealCompositor::QuadActor* actor);
 
-  virtual void VisitActor(TidyInterface::Actor* actor) {}
-  virtual void VisitStage(TidyInterface::StageActor* actor);
-  virtual void VisitContainer(TidyInterface::ContainerActor* actor);
-  virtual void VisitTexturePixmap(
-      TidyInterface::TexturePixmapActor* actor);
-  virtual void VisitQuad(TidyInterface::QuadActor* actor);
+  virtual void VisitActor(RealCompositor::Actor* actor) {}
+  virtual void VisitStage(RealCompositor::StageActor* actor);
+  virtual void VisitContainer(RealCompositor::ContainerActor* actor);
+  virtual void VisitTexturePixmap(RealCompositor::TexturePixmapActor* actor);
+  virtual void VisitQuad(RealCompositor::QuadActor* actor);
 
  private:
   Gles2Interface* gl_;  // Not owned.
-  TidyInterface* interface_;  // Not owned.
-  ClutterInterface::StageActor* stage_;  // Not owned.
+  RealCompositor* compositor_;  // Not owned.
+  Compositor::StageActor* stage_;  // Not owned.
   XConnection* x_connection_;  // Not owned.
 
   TexColorShader* tex_color_shader_;
@@ -76,7 +74,7 @@ class OpenGlesDrawVisitor
   DISALLOW_COPY_AND_ASSIGN(OpenGlesDrawVisitor);
 };
 
-class OpenGlesTextureData : public TidyInterface::DrawingData {
+class OpenGlesTextureData : public RealCompositor::DrawingData {
  public:
   explicit OpenGlesTextureData(Gles2Interface* gl);
   virtual ~OpenGlesTextureData();
@@ -99,14 +97,14 @@ class OpenGlesTextureData : public TidyInterface::DrawingData {
   DISALLOW_COPY_AND_ASSIGN(OpenGlesTextureData);
 };
 
-class OpenGlesEglImageData : public TidyInterface::DrawingData {
+class OpenGlesEglImageData : public RealCompositor::DrawingData {
  public:
   OpenGlesEglImageData(XConnection* x, Gles2Interface* gl);
   virtual ~OpenGlesEglImageData();
 
   // Bind to a window
   // HACK: work around broken eglCreateImageKHR calls that need the context
-  bool Bind(TidyInterface::TexturePixmapActor* actor, EGLContext egl_context);
+  bool Bind(RealCompositor::TexturePixmapActor* actor, EGLContext egl_context);
 
   // Has this been successfully bound?
   bool bound() const { return bound_; }
@@ -132,7 +130,7 @@ class OpenGlesEglImageData : public TidyInterface::DrawingData {
 
   // Named X pixmap
   // TODO: lift as much as we can of the pixmap allocation and damage
-  // region stuff to the Tidy layer
+  // region stuff to the RealCompositor layer
   XID pixmap_;
 
   // EGLImage

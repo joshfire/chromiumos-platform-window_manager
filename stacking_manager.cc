@@ -19,7 +19,7 @@ using std::tr1::shared_ptr;
 namespace window_manager {
 
 StackingManager::StackingManager(XConnection* xconn,
-                                 ClutterInterface* clutter,
+                                 Compositor* compositor,
                                  AtomCache* atom_cache)
     : xconn_(xconn) {
   XWindow root = xconn_->GetRootWindow();
@@ -35,10 +35,10 @@ StackingManager::StackingManager(XConnection* xconn,
     layer_to_xid_[layer] = xid;
     xids_.insert(xid);
 
-    shared_ptr<ClutterInterface::Actor> actor(clutter->CreateGroup());
+    shared_ptr<Compositor::Actor> actor(compositor->CreateGroup());
     actor->SetName(name);
     actor->SetVisibility(false);
-    clutter->GetDefaultStage()->AddActor(actor.get());
+    compositor->GetDefaultStage()->AddActor(actor.get());
     actor->RaiseToTop();
     layer_to_actor_[layer] = actor;
   }
@@ -52,13 +52,13 @@ StackingManager::~StackingManager() {
 bool StackingManager::StackWindowAtTopOfLayer(Window* win, Layer layer) {
   DCHECK(win);
 
-  ClutterInterface::Actor* layer_actor = GetActorForLayer(layer);
+  Compositor::Actor* layer_actor = GetActorForLayer(layer);
 
   // Find the next-lowest layer so we can stack the window's shadow
   // directly above it.
   // TODO: This won't work for the bottom layer; write additional code to
   // handle it if it ever becomes necessary.
-  ClutterInterface::Actor* lower_layer_actor =
+  Compositor::Actor* lower_layer_actor =
       GetActorForLayer(static_cast<Layer>(layer + 1));
   win->StackCompositedBelow(layer_actor, lower_layer_actor, true);
 
@@ -71,10 +71,10 @@ bool StackingManager::StackXidAtTopOfLayer(XWindow xid, Layer layer) {
   return xconn_->StackWindow(xid, layer_xid, false);  // above=false
 }
 
-void StackingManager::StackActorAtTopOfLayer(
-    ClutterInterface::Actor* actor, Layer layer) {
+void StackingManager::StackActorAtTopOfLayer(Compositor::Actor* actor,
+                                             Layer layer) {
   DCHECK(actor);
-  ClutterInterface::Actor* layer_actor = GetActorForLayer(layer);
+  Compositor::Actor* layer_actor = GetActorForLayer(layer);
   actor->Lower(layer_actor);
 }
 
@@ -83,7 +83,7 @@ bool StackingManager::StackWindowRelativeToOtherWindow(
   DCHECK(win);
   DCHECK(sibling);
 
-  ClutterInterface::Actor* lower_layer_actor =
+  Compositor::Actor* lower_layer_actor =
       GetActorForLayer(static_cast<Layer>(layer + 1));
   if (above)
     win->StackCompositedAbove(sibling->actor(), lower_layer_actor, true);
@@ -115,10 +115,9 @@ const char* StackingManager::LayerToName(Layer layer) {
   }
 }
 
-ClutterInterface::Actor* StackingManager::GetActorForLayer(Layer layer) {
-  shared_ptr<ClutterInterface::Actor> layer_actor =
-      FindWithDefault(
-          layer_to_actor_, layer, shared_ptr<ClutterInterface::Actor>());
+Compositor::Actor* StackingManager::GetActorForLayer(Layer layer) {
+  shared_ptr<Compositor::Actor> layer_actor =
+      FindWithDefault(layer_to_actor_, layer, shared_ptr<Compositor::Actor>());
   CHECK(layer_actor.get()) << "Invalid layer " << layer;
   return layer_actor.get();
 }

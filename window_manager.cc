@@ -184,11 +184,11 @@ static const char* FocusChangeEventDetailToName(int detail) {
 
 WindowManager::WindowManager(EventLoop* event_loop,
                              XConnection* xconn,
-                             ClutterInterface* clutter,
+                             Compositor* compositor,
                              bool logged_in)
     : event_loop_(event_loop),
       xconn_(xconn),
-      clutter_(clutter),
+      compositor_(compositor),
       root_(0),
       width_(0),
       height_(0),
@@ -210,7 +210,7 @@ WindowManager::WindowManager(EventLoop* event_loop,
       chrome_window_has_been_mapped_(false) {
   CHECK(event_loop_);
   CHECK(xconn_);
-  CHECK(clutter_);
+  CHECK(compositor_);
 }
 
 WindowManager::~WindowManager() {
@@ -245,19 +245,19 @@ bool WindowManager::Init() {
   // Set root window's cursor to left pointer.
   xconn_->SetWindowCursor(root_, XC_left_ptr);
 
-  stage_ = clutter_->GetDefaultStage();
+  stage_ = compositor_->GetDefaultStage();
   stage_xid_ = stage_->GetStageXWindow();
   stage_->SetName("stage");
   stage_->SetSize(width_, height_);
   // Color equivalent to "#222"
-  stage_->SetStageColor(ClutterInterface::Color(0.12549f, 0.12549f, 0.12549f));
+  stage_->SetStageColor(Compositor::Color(0.12549f, 0.12549f, 0.12549f));
   stage_->SetVisibility(true);
 
   stacking_manager_.reset(
-      new StackingManager(xconn_, clutter_, atom_cache_.get()));
+      new StackingManager(xconn_, compositor_, atom_cache_.get()));
 
   if (!FLAGS_wm_background_image.empty()) {
-    background_.reset(clutter_->CreateImage(FLAGS_wm_background_image));
+    background_.reset(compositor_->CreateImage(FLAGS_wm_background_image));
     background_->SetName("background");
     background_->Move(0, 0, 0);
     background_->SetSize(width_, height_);
@@ -302,7 +302,7 @@ bool WindowManager::Init() {
   login_controller_.reset(new LoginController(this));
   event_consumers_.insert(login_controller_.get());
 
-  hotkey_overlay_.reset(new HotkeyOverlay(xconn_, clutter_));
+  hotkey_overlay_.reset(new HotkeyOverlay(xconn_, compositor_));
   stage_->AddActor(hotkey_overlay_->group());
   stacking_manager_->StackActorAtTopOfLayer(
       hotkey_overlay_->group(), StackingManager::LAYER_HOTKEY_OVERLAY);
@@ -1115,9 +1115,9 @@ void WindowManager::HandleConfigureNotify(const XConfigureEvent& e) {
     // TODO: We should do something similar for non-override-redirect
     // windows as well, but it's a) less critical there, since we already
     // restack their composited windows ourselves when we restack the
-    // client windows, and b) tricky, because we also need to stack Clutter
-    // actors that aren't tied to X windows (e.g. the panel bar, shadows,
-    // etc.).
+    // client windows, and b) tricky, because we also need to stack
+    // compositing actors that aren't tied to X windows (e.g. the panel
+    // bar, shadows, etc.).
     XWindow above_xid = e.above;
     while (above_xid) {
       Window* above_win = GetWindow(above_xid);
@@ -1523,22 +1523,22 @@ void WindowManager::ToggleClientWindowDebugging() {
     return;
   }
 
-  DLOG(INFO) << "Clutter actors:\n" << stage_->GetDebugString(0);
+  DLOG(INFO) << "Compositing actors:\n" << stage_->GetDebugString(0);
 
   vector<XWindow> xids;
   if (!xconn_->GetChildWindows(root_, &xids))
     return;
 
   static const int kDebugFadeMs = 100;
-  static const ClutterInterface::Color kBgColor(1.f, 1.f, 1.f);
-  static const ClutterInterface::Color kFgColor(0.f, 0.f, 0.f);
+  static const Compositor::Color kBgColor(1.f, 1.f, 1.f);
+  static const Compositor::Color kFgColor(0.f, 0.f, 0.f);
 
   for (vector<XWindow>::iterator it = xids.begin(); it != xids.end(); ++it) {
     XConnection::WindowGeometry geometry;
     if (!xconn_->GetWindowGeometry(*it, &geometry))
       continue;
 
-    ClutterInterface::ContainerActor* group = clutter_->CreateGroup();
+    Compositor::ContainerActor* group = compositor_->CreateGroup();
     stage_->AddActor(group);
     stacking_manager_->StackActorAtTopOfLayer(
         group, StackingManager::LAYER_DEBUGGING);
@@ -1548,8 +1548,8 @@ void WindowManager::ToggleClientWindowDebugging() {
     group->SetVisibility(true);
     group->SetClip(0, 0, geometry.width, geometry.height);
 
-    ClutterInterface::Actor* rect =
-        clutter_->CreateRectangle(kBgColor, kFgColor, 1);
+    Compositor::Actor* rect =
+        compositor_->CreateRectangle(kBgColor, kFgColor, 1);
     group->AddActor(rect);
     rect->SetName("debug box");
     rect->Move(0, 0, 0);
@@ -1558,8 +1558,8 @@ void WindowManager::ToggleClientWindowDebugging() {
     rect->SetOpacity(0.5, kDebugFadeMs);
     rect->SetVisibility(true);
 
-    ClutterInterface::Actor* text =
-        clutter_->CreateText("Sans 10pt", XidStr(*it), kFgColor);
+    Compositor::Actor* text =
+        compositor_->CreateText("Sans 10pt", XidStr(*it), kFgColor);
     group->AddActor(text);
     text->SetName("debug label");
     text->Move(3, 3, 0);
@@ -1569,16 +1569,16 @@ void WindowManager::ToggleClientWindowDebugging() {
     text->Raise(rect);
 
     client_window_debugging_actors_.push_back(
-        shared_ptr<ClutterInterface::Actor>(group));
+        shared_ptr<Compositor::Actor>(group));
     client_window_debugging_actors_.push_back(
-        shared_ptr<ClutterInterface::Actor>(rect));
+        shared_ptr<Compositor::Actor>(rect));
     client_window_debugging_actors_.push_back(
-        shared_ptr<ClutterInterface::Actor>(text));
+        shared_ptr<Compositor::Actor>(text));
   }
 }
 
 void WindowManager::ToggleHotkeyOverlay() {
-  ClutterInterface::Actor* group = hotkey_overlay_->group();
+  Compositor::Actor* group = hotkey_overlay_->group();
   showing_hotkey_overlay_ = !showing_hotkey_overlay_;
   if (showing_hotkey_overlay_) {
     QueryKeyboardState();

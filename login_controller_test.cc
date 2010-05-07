@@ -31,7 +31,7 @@ class LoginControllerTest : public BasicWindowManagerTest {
     // yet so that LoginController will manage non-login windows as well.
     wm_.reset(new WindowManager(event_loop_.get(),
                                 xconn_.get(),
-                                clutter_.get(),
+                                compositor_.get(),
                                 false));  // logged_in=false
     CHECK(wm_->Init());
   }
@@ -53,8 +53,8 @@ TEST_F(LoginControllerTest, OtherWindows) {
   MockXConnection::InitCreateWindowEvent(&event, *info);
   wm_->HandleEvent(&event);
   Window* win = wm_->GetWindowOrDie(xid);
-  MockClutterInterface::Actor* actor =
-      dynamic_cast<MockClutterInterface::Actor*>(win->actor());
+  MockCompositor::Actor* actor =
+      dynamic_cast<MockCompositor::Actor*>(win->actor());
   CHECK(actor);
 
   // If LoginManager sees a MapRequest event before Chrome is logged in,

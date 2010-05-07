@@ -21,7 +21,7 @@ namespace window_manager {
 
 class OpenGlDrawVisitor;
 
-class OpenGlQuadDrawingData : public TidyInterface::DrawingData  {
+class OpenGlQuadDrawingData : public RealCompositor::DrawingData  {
  public:
   explicit OpenGlQuadDrawingData(GLInterface* gl_interface);
   virtual ~OpenGlQuadDrawingData();
@@ -44,7 +44,7 @@ class OpenGlQuadDrawingData : public TidyInterface::DrawingData  {
   scoped_array<float> color_buffer_;
 };
 
-class OpenGlPixmapData : public TidyInterface::DrawingData  {
+class OpenGlPixmapData : public RealCompositor::DrawingData  {
  public:
   OpenGlPixmapData(GLInterface* gl_interface, XConnection* x_conn);
   virtual ~OpenGlPixmapData();
@@ -55,7 +55,7 @@ class OpenGlPixmapData : public TidyInterface::DrawingData  {
   // up the texture id on the texture data object, and attaching it to
   // the actor.  Returns false if texture cannot be bound.
   static bool BindToPixmap(OpenGlDrawVisitor* visitor,
-                           TidyInterface::TexturePixmapActor* actor);
+                           RealCompositor::TexturePixmapActor* actor);
 
   void SetTexture(GLuint texture, bool has_alpha);
 
@@ -64,7 +64,7 @@ class OpenGlPixmapData : public TidyInterface::DrawingData  {
   bool has_alpha() const { return has_alpha_; }
 
  private:
-  // This is the gl interface to use for communicating with GL.
+  // This is the GL interface to use for communicating with GL.
   GLInterface* gl_interface_;
 
   // This is the X connection to use for communicating with X.
@@ -86,7 +86,7 @@ class OpenGlPixmapData : public TidyInterface::DrawingData  {
   bool has_alpha_;
 };
 
-class OpenGlTextureData : public TidyInterface::DrawingData  {
+class OpenGlTextureData : public RealCompositor::DrawingData  {
  public:
   explicit OpenGlTextureData(GLInterface* gl_interface);
   virtual ~OpenGlTextureData();
@@ -97,7 +97,7 @@ class OpenGlTextureData : public TidyInterface::DrawingData  {
   bool has_alpha() const { return has_alpha_; }
 
  private:
-  // This is the gl interface to use for communicating with GL.
+  // This is the GL interface to use for communicating with GL.
   GLInterface* gl_interface_;
 
   // This is the texture ID of the bound texture.
@@ -108,7 +108,7 @@ class OpenGlTextureData : public TidyInterface::DrawingData  {
 };
 
 // This class visits an actor tree and draws it using OpenGL.
-class OpenGlDrawVisitor : virtual public TidyInterface::ActorVisitor {
+class OpenGlDrawVisitor : virtual public RealCompositor::ActorVisitor {
  public:
   // These are IDs used when storing drawing data on the actors.
   enum DataId {
@@ -117,19 +117,19 @@ class OpenGlDrawVisitor : virtual public TidyInterface::ActorVisitor {
     DRAWING_DATA = 3,
   };
 
-  OpenGlDrawVisitor(GLInterfaceBase* gl_interface,
-                    TidyInterface* interface,
-                    ClutterInterface::StageActor* stage);
+  OpenGlDrawVisitor(GLInterface* gl_interface,
+                    RealCompositor* compositor,
+                    Compositor::StageActor* stage);
   virtual ~OpenGlDrawVisitor();
 
   void BindImage(const ImageContainer* container,
-                 TidyInterface::QuadActor* actor);
+                 RealCompositor::QuadActor* actor);
 
-  virtual void VisitActor(TidyInterface::Actor* actor);
-  virtual void VisitStage(TidyInterface::StageActor* actor);
-  virtual void VisitContainer(TidyInterface::ContainerActor* actor);
-  virtual void VisitTexturePixmap(TidyInterface::TexturePixmapActor* actor);
-  virtual void VisitQuad(TidyInterface::QuadActor* actor);
+  virtual void VisitActor(RealCompositor::Actor* actor);
+  virtual void VisitStage(RealCompositor::StageActor* actor);
+  virtual void VisitContainer(RealCompositor::ContainerActor* actor);
+  virtual void VisitTexturePixmap(RealCompositor::TexturePixmapActor* actor);
+  virtual void VisitQuad(RealCompositor::QuadActor* actor);
 
  private:
   // So it can get access to the config data.
@@ -143,14 +143,14 @@ class OpenGlDrawVisitor : virtual public TidyInterface::ActorVisitor {
   void FindFramebufferConfigurations();
 
   GLInterface* gl_interface_;  // Not owned.
-  TidyInterface* interface_;  // Not owned.
+  RealCompositor* compositor_;  // Not owned.
   XConnection* x_conn_;  // Not owned.
-  TidyInterface::StageActor* stage_; // Not owned.
+  RealCompositor::StageActor* stage_; // Not owned.
 
   // This holds the drawing data used for quads.  Note that only
   // QuadActors use this drawing data, and they all share the same
   // one (to keep from allocating a lot of quad vertex buffers).
-  TidyInterface::DrawingDataPtr quad_drawing_data_;
+  RealCompositor::DrawingDataPtr quad_drawing_data_;
 
   // The framebuffer configs to use with this display.
   GLXFBConfig framebuffer_config_rgb_;

@@ -20,15 +20,16 @@ class AtomCache;
 class Window;
 class XConnection;
 
-// Used to stack X11 client windows and Clutter actors.  StackingManager creates
-// a window and an actor to use as reference points for each logical stacking
-// layer and provides methods to move windows and actors between layers.
+// Used to stack X11 client windows and compositor actors.  StackingManager
+// creates a window and an actor to use as reference points for each
+// logical stacking layer and provides methods to move windows and actors
+// between layers.
 class StackingManager {
  public:
   // The layer reference points will be created at the top of the current stack
-  // of X windows and children of the default Clutter stage.
+  // of X windows and children of the default compositor stage.
   StackingManager(XConnection* xconn,
-                  ClutterInterface* clutter,
+                  Compositor* compositor,
                   AtomCache* atom_cache);
   ~StackingManager();
 
@@ -86,10 +87,10 @@ class StackingManager {
     return (xids_.find(xid) != xids_.end());
   }
 
-  // Stack a window (both its X window and its Clutter actor) at the top of the
-  // passed-in layer.  Its shadow will be stacked at the bottom of the layer so
-  // as to not appear above the windows' siblings.  Returns false if the X
-  // request fails.
+  // Stack a window (both its X window and its compositor actor) at the top
+  // of the passed-in layer.  Its shadow will be stacked at the bottom of
+  // the layer so as to not appear above the windows' siblings.  Returns
+  // false if the X request fails.
   bool StackWindowAtTopOfLayer(Window* win, Layer layer);
 
   // Stack an X window at the top of the passed-in layer.  This is useful for X
@@ -97,8 +98,8 @@ class StackingManager {
   // windows).  Returns false if the X request fails.
   bool StackXidAtTopOfLayer(XWindow xid, Layer layer);
 
-  // Stack a Clutter actor at the top of the passed-in layer.
-  void StackActorAtTopOfLayer(ClutterInterface::Actor* actor, Layer layer);
+  // Stack a compositor actor at the top of the passed-in layer.
+  void StackActorAtTopOfLayer(Compositor::Actor* actor, Layer layer);
 
   // Stack a window's client and composited windows directly above or below
   // another window.  As in StackWindowAtTopOfLayer(), the window's shadow
@@ -116,18 +117,18 @@ class StackingManager {
 
   // Get the actor or XID for a particular layer.  These crash if the layer
   // is invalid.
-  ClutterInterface::Actor* GetActorForLayer(Layer layer);
+  Compositor::Actor* GetActorForLayer(Layer layer);
   XWindow GetXidForLayer(Layer layer);
 
   XConnection* xconn_;  // not owned
 
-  // Maps from layers to the corresponding X or Clutter reference points.
+  // Maps from layers to the corresponding X or Compositor reference points.
   // The reference points are stacked at the top of their corresponding
   // layer (in other words, the Stack*AtTopOfLayer() methods will stack
   // windows and actors directly beneath the corresponding reference
   // points).
   std::map<Layer, XWindow> layer_to_xid_;
-  std::map<Layer, std::tr1::shared_ptr<ClutterInterface::Actor> >
+  std::map<Layer, std::tr1::shared_ptr<Compositor::Actor> >
       layer_to_actor_;
 
   // Set we can use for quick lookup of whether an X window belongs to us.

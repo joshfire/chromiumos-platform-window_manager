@@ -104,7 +104,7 @@ TEST_F(PanelBarTest, Basic) {
 
   // The titlebar and content actors and their shadows should all be stacked
   // on top of the toplevel window's actor.
-  MockClutterInterface::StageActor* stage = clutter_->GetDefaultStage();
+  MockCompositor::StageActor* stage = compositor_->GetDefaultStage();
   EXPECT_LT(stage->GetStackingIndex(titlebar_win->actor()),
             stage->GetStackingIndex(toplevel_win->actor()));
   EXPECT_LT(stage->GetStackingIndex(titlebar_win->shadow()->group()),

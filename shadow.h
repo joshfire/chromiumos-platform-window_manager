@@ -18,23 +18,23 @@ namespace window_manager {
 
 // This class displays a drop shadow that can be positioned under a window.
 //
-// This is a bit trickier than just scaling a single textured Clutter
-// actor.  We want shadows to have the same weight regardless of their
-// dimensions, so we arrange eight actors (corners and top/bottom/sides)
-// around the window, scaling the top/bottom/sides as needed.  A group
-// containing all of the shadow's actors is exposed for adding to
-// containers or restacking.
+// This is a bit trickier than just scaling a single textured actor.  We
+// want shadows to have the same weight regardless of their dimensions, so
+// we arrange eight actors (corners and top/bottom/sides) around the
+// window, scaling the top/bottom/sides as needed.  A group containing all
+// of the shadow's actors is exposed for adding to containers or
+// restacking.
 class Shadow {
  public:
   // The shadow is hidden when first created.
-  explicit Shadow(ClutterInterface* clutter);
+  explicit Shadow(Compositor* compositor);
   ~Shadow() {}
 
   bool is_shown() const { return is_shown_; }
   double opacity() const { return opacity_; }
 
   // Get the group containing all of the actors.
-  ClutterInterface::Actor* group() const { return group_.get(); }
+  Compositor::Actor* group() const { return group_.get(); }
 
   void Show();
   void Hide();
@@ -53,17 +53,17 @@ class Shadow {
 
   // Helper method for Init().  Given the base name of an image file,
   // creates and returns a new texture actor.
-  ClutterInterface::Actor* InitTexture(const std::string& filename);
+  Compositor::Actor* InitTexture(const std::string& filename);
 
-  // Static ClutterTextures that we clone for each shadow.
-  static ClutterInterface::Actor* top_texture_;
-  static ClutterInterface::Actor* bottom_texture_;
-  static ClutterInterface::Actor* left_texture_;
-  static ClutterInterface::Actor* right_texture_;
-  static ClutterInterface::Actor* tl_texture_;
-  static ClutterInterface::Actor* tr_texture_;
-  static ClutterInterface::Actor* bl_texture_;
-  static ClutterInterface::Actor* br_texture_;
+  // Static Compositor::TextureActors that we clone for each shadow.
+  static Compositor::Actor* top_texture_;
+  static Compositor::Actor* bottom_texture_;
+  static Compositor::Actor* left_texture_;
+  static Compositor::Actor* right_texture_;
+  static Compositor::Actor* tl_texture_;
+  static Compositor::Actor* tr_texture_;
+  static Compositor::Actor* bl_texture_;
+  static Compositor::Actor* br_texture_;
 
   // Size in pixels of one side of the transparent inset area in corner
   // images.
@@ -82,24 +82,24 @@ class Shadow {
   static int kLeftWidth;
   static int kRightWidth;
 
-  ClutterInterface* clutter_;  // not owned
+  Compositor* compositor_;  // not owned
 
   // These are just used by tests.
   bool is_shown_;
   double opacity_;
 
   // Group containing corner and top/bottom/side actors.
-  scoped_ptr<ClutterInterface::ContainerActor> group_;
+  scoped_ptr<Compositor::ContainerActor> group_;
 
-  // Per-instance ClutterClones of '*_texture_' actors.
-  scoped_ptr<ClutterInterface::Actor> top_actor_;
-  scoped_ptr<ClutterInterface::Actor> bottom_actor_;
-  scoped_ptr<ClutterInterface::Actor> left_actor_;
-  scoped_ptr<ClutterInterface::Actor> right_actor_;
-  scoped_ptr<ClutterInterface::Actor> tl_actor_;
-  scoped_ptr<ClutterInterface::Actor> tr_actor_;
-  scoped_ptr<ClutterInterface::Actor> bl_actor_;
-  scoped_ptr<ClutterInterface::Actor> br_actor_;
+  // Per-instance clones of '*_texture_' actors.
+  scoped_ptr<Compositor::Actor> top_actor_;
+  scoped_ptr<Compositor::Actor> bottom_actor_;
+  scoped_ptr<Compositor::Actor> left_actor_;
+  scoped_ptr<Compositor::Actor> right_actor_;
+  scoped_ptr<Compositor::Actor> tl_actor_;
+  scoped_ptr<Compositor::Actor> tr_actor_;
+  scoped_ptr<Compositor::Actor> bl_actor_;
+  scoped_ptr<Compositor::Actor> br_actor_;
 
   DISALLOW_COPY_AND_ASSIGN(Shadow);
 };

@@ -64,7 +64,7 @@ class Window {
 
   XWindow xid() const { return xid_; }
   const std::string& xid_str() const { return xid_str_; }
-  ClutterInterface::Actor* actor() { return actor_.get(); }
+  Compositor::Actor* actor() { return actor_.get(); }
   const Shadow* shadow() const { return shadow_.get(); }
   bool using_shadow() const { return using_shadow_; }
   XWindow transient_for_xid() const { return transient_for_xid_; }
@@ -139,8 +139,8 @@ class Window {
   void FetchAndApplyChromeState();
 
   // Check if the window has been shaped using the Shape extension and
-  // update its Clutter actor accordingly.  If 'update_shadow' is true, add
-  // or remove a drop shadow as needed.
+  // update its compositing actor accordingly.  If 'update_shadow' is true,
+  // add or remove a drop shadow as needed.
   void FetchAndApplyShape(bool update_shadow);
 
   // Query the X server to see if this window is currently mapped or not.
@@ -256,8 +256,8 @@ class Window {
   // 'actor' is NULL, the window's stacking isn't changed (but its shadow's
   // still is).  If 'shadow_actor' is supplied, 'stack_above_shadow_actor'
   // determines whether the shadow will be stacked above or below it.
-  void StackCompositedAbove(ClutterInterface::Actor* actor,
-                            ClutterInterface::Actor* shadow_actor,
+  void StackCompositedAbove(Compositor::Actor* actor,
+                            Compositor::Actor* shadow_actor,
                             bool stack_above_shadow_actor);
 
   // Stack the window directly below 'actor' and its shadow directly above
@@ -265,14 +265,14 @@ class Window {
   // 'actor' is NULL, the window's stacking isn't changed (but its shadow's
   // still is).  If 'shadow_actor' is supplied, 'stack_above_shadow_actor'
   // determines whether the shadow will be stacked above or below it.
-  void StackCompositedBelow(ClutterInterface::Actor* actor,
-                            ClutterInterface::Actor* shadow_actor,
+  void StackCompositedBelow(Compositor::Actor* actor,
+                            Compositor::Actor* shadow_actor,
                             bool stack_above_shadow_actor);
 
   // Return this window's bottom-most actor (either the window's shadow's
   // group, or its actor itself if there's no shadow).  This is useful for
   // stacking another actor underneath this window.
-  ClutterInterface::Actor* GetBottomActor();
+  Compositor::Actor* GetBottomActor();
 
   // Store the client window's position and size in 'rect'.
   void CopyClientBoundsToRect(Rect* rect) const;
@@ -297,7 +297,7 @@ class Window {
   XWindow xid_;
   std::string xid_str_;  // hex for debugging
   WindowManager* wm_;
-  scoped_ptr<ClutterInterface::TexturePixmapActor> actor_;
+  scoped_ptr<Compositor::TexturePixmapActor> actor_;
   scoped_ptr<Shadow> shadow_;
 
   // The XID that this window says it's transient for.  Note that the

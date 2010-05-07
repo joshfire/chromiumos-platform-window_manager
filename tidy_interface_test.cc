@@ -32,21 +32,11 @@ using std::vector;
 
 namespace window_manager {
 
-class TestInterface : virtual public TidyInterface {
- public:
-  TestInterface(EventLoop* event_loop,
-                XConnection* x_connection,
-                GLInterface* gl_interface)
-      : TidyInterface(event_loop, x_connection, gl_interface) {}
- private:
-  DISALLOW_COPY_AND_ASSIGN(TestInterface);
-};
-
-class NameCheckVisitor : virtual public TidyInterface::ActorVisitor {
+class NameCheckVisitor : virtual public RealCompositor::ActorVisitor {
  public:
   NameCheckVisitor() {}
   virtual ~NameCheckVisitor() {}
-  virtual void VisitActor(TidyInterface::Actor* actor) {
+  virtual void VisitActor(RealCompositor::Actor* actor) {
     results_.push_back(actor->name());
   }
   const vector<string>& results() { return results_; }
@@ -55,50 +45,47 @@ class NameCheckVisitor : virtual public TidyInterface::ActorVisitor {
   DISALLOW_COPY_AND_ASSIGN(NameCheckVisitor);
 };
 
-class TidyTest : public ::testing::Test {
+class RealCompositorTest : public ::testing::Test {
  public:
-  TidyTest()
-      : interface_(NULL),
-        gl_interface_(new MockGLInterface),
+  RealCompositorTest()
+      : gl_interface_(new MockGLInterface),
         x_connection_(new MockXConnection),
-        event_loop_(new EventLoop) {
-    interface_.reset(new TestInterface(event_loop_.get(),
+        event_loop_(new EventLoop),
+        compositor_(new RealCompositor(event_loop_.get(),
                                        x_connection_.get(),
-                                       gl_interface_.get()));
+                                       gl_interface_.get())) {
   }
-  virtual ~TidyTest() {
-    interface_.reset(NULL);  // Must explicitly delete so that we get
-                             // the order right.
+  virtual ~RealCompositorTest() {
   }
 
-  TidyInterface* interface() { return interface_.get(); }
+  RealCompositor* compositor() { return compositor_.get(); }
   MockXConnection* x_connection() { return x_connection_.get(); }
   EventLoop* event_loop() { return event_loop_.get(); }
 
  private:
-  scoped_ptr<TidyInterface> interface_;
-  scoped_ptr<GLInterface> gl_interface_;
+  scoped_ptr<MockGLInterface> gl_interface_;
   scoped_ptr<MockXConnection> x_connection_;
   scoped_ptr<EventLoop> event_loop_;
+  scoped_ptr<RealCompositor> compositor_;
 };
 
-class TidyTestTree : public TidyTest {
+class RealCompositorTestTree : public RealCompositorTest {
  public:
-  TidyTestTree() {}
-  virtual ~TidyTestTree() {}
+  RealCompositorTestTree() {}
+  virtual ~RealCompositorTestTree() {}
   void SetUp() {
     // Create an actor tree to test.
-    stage_ = interface()->GetDefaultStage();
-    group1_.reset(interface()->CreateGroup());
-    group2_.reset(interface()->CreateGroup());
-    group3_.reset(interface()->CreateGroup());
-    group4_.reset(interface()->CreateGroup());
-    rect1_.reset(interface()->CreateRectangle(ClutterInterface::Color(),
-                                              ClutterInterface::Color(), 0));
-    rect2_.reset(interface()->CreateRectangle(ClutterInterface::Color(),
-                                              ClutterInterface::Color(), 0));
-    rect3_.reset(interface()->CreateRectangle(ClutterInterface::Color(),
-                                              ClutterInterface::Color(), 0));
+    stage_ = compositor()->GetDefaultStage();
+    group1_.reset(compositor()->CreateGroup());
+    group2_.reset(compositor()->CreateGroup());
+    group3_.reset(compositor()->CreateGroup());
+    group4_.reset(compositor()->CreateGroup());
+    rect1_.reset(compositor()->CreateRectangle(Compositor::Color(),
+                                               Compositor::Color(), 0));
+    rect2_.reset(compositor()->CreateRectangle(Compositor::Color(),
+                                               Compositor::Color(), 0));
+    rect3_.reset(compositor()->CreateRectangle(Compositor::Color(),
+                                               Compositor::Color(), 0));
     stage_->SetName("stage");
     group1_->SetName("group1");
     group2_->SetName("group2");
@@ -147,181 +134,181 @@ class TidyTestTree : public TidyTest {
     stage_ = NULL;
   }
  protected:
-  TidyInterface::StageActor* stage_;
-  scoped_ptr<TidyInterface::ContainerActor> group1_;
-  scoped_ptr<TidyInterface::ContainerActor> group2_;
-  scoped_ptr<TidyInterface::ContainerActor> group3_;
-  scoped_ptr<TidyInterface::ContainerActor> group4_;
-  scoped_ptr<TidyInterface::Actor> rect1_;
-  scoped_ptr<TidyInterface::Actor> rect2_;
-  scoped_ptr<TidyInterface::Actor> rect3_;
+  RealCompositor::StageActor* stage_;
+  scoped_ptr<RealCompositor::ContainerActor> group1_;
+  scoped_ptr<RealCompositor::ContainerActor> group2_;
+  scoped_ptr<RealCompositor::ContainerActor> group3_;
+  scoped_ptr<RealCompositor::ContainerActor> group4_;
+  scoped_ptr<RealCompositor::Actor> rect1_;
+  scoped_ptr<RealCompositor::Actor> rect2_;
+  scoped_ptr<RealCompositor::Actor> rect3_;
 };
 
-TEST_F(TidyTestTree, LayerDepth) {
+TEST_F(RealCompositorTestTree, LayerDepth) {
   // Test lower-level layer-setting routines
   int32 count = 0;
   stage_->Update(&count, 0LL);
   EXPECT_EQ(8, count);
-  TidyInterface::ActorVector actors;
+  RealCompositor::ActorVector actors;
 
   // Code uses a depth range of kMinDepth to kMaxDepth.  Layers are
   // disributed evenly within that range, except we don't use the
   // frontmost or backmost values in that range.
   uint32 max_count = NextPowerOfTwo(static_cast<uint32>(count + 2));
-  float thickness = (TidyInterface::LayerVisitor::kMaxDepth -
-                     TidyInterface::LayerVisitor::kMinDepth) / max_count;
-  float depth = TidyInterface::LayerVisitor::kMinDepth + thickness;
+  float thickness = (RealCompositor::LayerVisitor::kMaxDepth -
+                     RealCompositor::LayerVisitor::kMinDepth) / max_count;
+  float depth = RealCompositor::LayerVisitor::kMinDepth + thickness;
 
   // First we test the layer visitor directly.
-  TidyInterface::LayerVisitor layer_visitor(count);
+  RealCompositor::LayerVisitor layer_visitor(count);
   stage_->Accept(&layer_visitor);
 
   EXPECT_FLOAT_EQ(
       depth,
-      dynamic_cast<TidyInterface::QuadActor*>(rect3_.get())->z());
+      dynamic_cast<RealCompositor::QuadActor*>(rect3_.get())->z());
   depth += thickness;
   EXPECT_FLOAT_EQ(
       depth,
-      dynamic_cast<TidyInterface::QuadActor*>(rect2_.get())->z());
+      dynamic_cast<RealCompositor::QuadActor*>(rect2_.get())->z());
   depth += thickness;
   EXPECT_FLOAT_EQ(
       depth,
-      dynamic_cast<TidyInterface::ContainerActor*>(group4_.get())->z());
+      dynamic_cast<RealCompositor::ContainerActor*>(group4_.get())->z());
   depth += thickness;
   EXPECT_FLOAT_EQ(
       depth,
-      dynamic_cast<TidyInterface::ContainerActor*>(group3_.get())->z());
+      dynamic_cast<RealCompositor::ContainerActor*>(group3_.get())->z());
   depth += thickness;
   EXPECT_FLOAT_EQ(
       depth,
-      dynamic_cast<TidyInterface::QuadActor*>(rect1_.get())->z());
+      dynamic_cast<RealCompositor::QuadActor*>(rect1_.get())->z());
   depth += thickness;
   EXPECT_FLOAT_EQ(
       depth,
-      dynamic_cast<TidyInterface::ContainerActor*>(group2_.get())->z());
+      dynamic_cast<RealCompositor::ContainerActor*>(group2_.get())->z());
   depth += thickness;
   EXPECT_FLOAT_EQ(
       depth,
-      dynamic_cast<TidyInterface::ContainerActor*>(group1_.get())->z());
+      dynamic_cast<RealCompositor::ContainerActor*>(group1_.get())->z());
 
   // Now we test higher-level layer depth results.
-  depth = TidyInterface::LayerVisitor::kMinDepth + thickness;
-  interface()->Draw();
-  EXPECT_EQ(8, interface()->actor_count());
+  depth = RealCompositor::LayerVisitor::kMinDepth + thickness;
+  compositor()->Draw();
+  EXPECT_EQ(8, compositor()->actor_count());
 
   EXPECT_FLOAT_EQ(
       depth,
-      dynamic_cast<TidyInterface::QuadActor*>(rect3_.get())->z());
+      dynamic_cast<RealCompositor::QuadActor*>(rect3_.get())->z());
   depth += thickness;
   EXPECT_FLOAT_EQ(
       depth,
-      dynamic_cast<TidyInterface::QuadActor*>(rect2_.get())->z());
+      dynamic_cast<RealCompositor::QuadActor*>(rect2_.get())->z());
   depth += thickness;
   EXPECT_FLOAT_EQ(
       depth,
-      dynamic_cast<TidyInterface::ContainerActor*>(group4_.get())->z());
+      dynamic_cast<RealCompositor::ContainerActor*>(group4_.get())->z());
   depth += thickness;
   EXPECT_FLOAT_EQ(
       depth,
-      dynamic_cast<TidyInterface::ContainerActor*>(group3_.get())->z());
+      dynamic_cast<RealCompositor::ContainerActor*>(group3_.get())->z());
   depth += thickness;
   EXPECT_FLOAT_EQ(
       depth,
-      dynamic_cast<TidyInterface::QuadActor*>(rect1_.get())->z());
+      dynamic_cast<RealCompositor::QuadActor*>(rect1_.get())->z());
   depth += thickness;
   EXPECT_FLOAT_EQ(
       depth,
-      dynamic_cast<TidyInterface::ContainerActor*>(group2_.get())->z());
+      dynamic_cast<RealCompositor::ContainerActor*>(group2_.get())->z());
   depth += thickness;
   EXPECT_FLOAT_EQ(
       depth,
-      dynamic_cast<TidyInterface::ContainerActor*>(group1_.get())->z());
+      dynamic_cast<RealCompositor::ContainerActor*>(group1_.get())->z());
 }
 
-TEST_F(TidyTestTree, LayerDepthWithOpacity) {
+TEST_F(RealCompositorTestTree, LayerDepthWithOpacity) {
   rect2_->SetOpacity(0.5f, 0);
 
   // Test lower-level layer-setting routines
   int32 count = 0;
   stage_->Update(&count, 0LL);
   EXPECT_EQ(8, count);
-  TidyInterface::ActorVector actors;
+  RealCompositor::ActorVector actors;
 
   // Code uses a depth range of kMinDepth to kMaxDepth.  Layers are
   // disributed evenly within that range, except we don't use the
   // frontmost or backmost values in that range.
   uint32 max_count = NextPowerOfTwo(static_cast<uint32>(count + 2));
-  float thickness = (TidyInterface::LayerVisitor::kMaxDepth -
-                     TidyInterface::LayerVisitor::kMinDepth) / max_count;
-  float depth = TidyInterface::LayerVisitor::kMinDepth + thickness;
+  float thickness = (RealCompositor::LayerVisitor::kMaxDepth -
+                     RealCompositor::LayerVisitor::kMinDepth) / max_count;
+  float depth = RealCompositor::LayerVisitor::kMinDepth + thickness;
 
   // First we test the layer visitor directly.
-  TidyInterface::LayerVisitor layer_visitor(count);
+  RealCompositor::LayerVisitor layer_visitor(count);
   stage_->Accept(&layer_visitor);
 
   EXPECT_FLOAT_EQ(
       depth,
-      dynamic_cast<TidyInterface::QuadActor*>(rect3_.get())->z());
+      dynamic_cast<RealCompositor::QuadActor*>(rect3_.get())->z());
   depth += thickness;
   EXPECT_FLOAT_EQ(
       depth,
-      dynamic_cast<TidyInterface::QuadActor*>(rect2_.get())->z());
+      dynamic_cast<RealCompositor::QuadActor*>(rect2_.get())->z());
   depth += thickness;
   EXPECT_FLOAT_EQ(
       depth,
-      dynamic_cast<TidyInterface::ContainerActor*>(group4_.get())->z());
+      dynamic_cast<RealCompositor::ContainerActor*>(group4_.get())->z());
   depth += thickness;
   EXPECT_FLOAT_EQ(
       depth,
-      dynamic_cast<TidyInterface::ContainerActor*>(group3_.get())->z());
+      dynamic_cast<RealCompositor::ContainerActor*>(group3_.get())->z());
   depth += thickness;
   EXPECT_FLOAT_EQ(
       depth,
-      dynamic_cast<TidyInterface::QuadActor*>(rect1_.get())->z());
+      dynamic_cast<RealCompositor::QuadActor*>(rect1_.get())->z());
   depth += thickness;
   EXPECT_FLOAT_EQ(
       depth,
-      dynamic_cast<TidyInterface::ContainerActor*>(group2_.get())->z());
+      dynamic_cast<RealCompositor::ContainerActor*>(group2_.get())->z());
   depth += thickness;
   EXPECT_FLOAT_EQ(
       depth,
-      dynamic_cast<TidyInterface::ContainerActor*>(group1_.get())->z());
+      dynamic_cast<RealCompositor::ContainerActor*>(group1_.get())->z());
 
   // Now we test higher-level layer depth results.
-  depth = TidyInterface::LayerVisitor::kMinDepth + thickness;
-  interface()->Draw();
-  EXPECT_EQ(8, interface()->actor_count());
+  depth = RealCompositor::LayerVisitor::kMinDepth + thickness;
+  compositor()->Draw();
+  EXPECT_EQ(8, compositor()->actor_count());
 
   EXPECT_FLOAT_EQ(
       depth,
-      dynamic_cast<TidyInterface::QuadActor*>(rect3_.get())->z());
+      dynamic_cast<RealCompositor::QuadActor*>(rect3_.get())->z());
   depth += thickness;
   EXPECT_FLOAT_EQ(
       depth,
-      dynamic_cast<TidyInterface::QuadActor*>(rect2_.get())->z());
+      dynamic_cast<RealCompositor::QuadActor*>(rect2_.get())->z());
   depth += thickness;
   EXPECT_FLOAT_EQ(
       depth,
-      dynamic_cast<TidyInterface::ContainerActor*>(group4_.get())->z());
+      dynamic_cast<RealCompositor::ContainerActor*>(group4_.get())->z());
   depth += thickness;
   EXPECT_FLOAT_EQ(
       depth,
-      dynamic_cast<TidyInterface::ContainerActor*>(group3_.get())->z());
+      dynamic_cast<RealCompositor::ContainerActor*>(group3_.get())->z());
   depth += thickness;
   EXPECT_FLOAT_EQ(
       depth,
-      dynamic_cast<TidyInterface::QuadActor*>(rect1_.get())->z());
+      dynamic_cast<RealCompositor::QuadActor*>(rect1_.get())->z());
   depth += thickness;
   EXPECT_FLOAT_EQ(
       depth,
-      dynamic_cast<TidyInterface::ContainerActor*>(group2_.get())->z());
+      dynamic_cast<RealCompositor::ContainerActor*>(group2_.get())->z());
   depth += thickness;
   EXPECT_FLOAT_EQ(
       depth,
-      dynamic_cast<TidyInterface::ContainerActor*>(group1_.get())->z());
+      dynamic_cast<RealCompositor::ContainerActor*>(group1_.get())->z());
 }
 
-TEST_F(TidyTestTree, ActorVisitor) {
+TEST_F(RealCompositorTestTree, ActorVisitor) {
   NameCheckVisitor visitor;
   stage_->Accept(&visitor);
 
@@ -349,8 +336,8 @@ TEST_F(TidyTestTree, ActorVisitor) {
   EXPECT_EQ(expected[7], results[7]);
 }
 
-TEST_F(TidyTestTree, ActorAttributes) {
-  TidyInterface::LayerVisitor layer_visitor(interface()->actor_count());
+TEST_F(RealCompositorTestTree, ActorAttributes) {
+  RealCompositor::LayerVisitor layer_visitor(compositor()->actor_count());
   stage_->Accept(&layer_visitor);
 
   // Make sure width and height set the right parameters.
@@ -409,8 +396,8 @@ TEST_F(TidyTestTree, ActorAttributes) {
   EXPECT_FALSE(rect1_->is_opaque());
 }
 
-TEST_F(TidyTestTree, ContainerActorAttributes) {
-  TidyInterface::LayerVisitor layer_visitor(interface()->actor_count());
+TEST_F(RealCompositorTestTree, ContainerActorAttributes) {
+  RealCompositor::LayerVisitor layer_visitor(compositor()->actor_count());
   stage_->Accept(&layer_visitor);
   rect1_->SetSize(10, 5);
   // Make sure width and height set the right parameters.
@@ -476,9 +463,9 @@ TEST_F(TidyTestTree, ContainerActorAttributes) {
   EXPECT_TRUE(rect1_->IsVisible());
 }
 
-TEST_F(TidyTest, FloatAnimation) {
+TEST_F(RealCompositorTest, FloatAnimation) {
   float value = -10.0f;
-  TidyInterface::Animation<float> anim(&value, 10.0f, 0, 20);
+  RealCompositor::Animation<float> anim(&value, 10.0f, 0, 20);
   EXPECT_FALSE(anim.Eval(0));
   EXPECT_FLOAT_EQ(-10.0f, value);
   EXPECT_FALSE(anim.Eval(5));
@@ -494,9 +481,9 @@ TEST_F(TidyTest, FloatAnimation) {
   EXPECT_FLOAT_EQ(10.0f, value);
 }
 
-TEST_F(TidyTest, IntAnimation) {
+TEST_F(RealCompositorTest, IntAnimation) {
   int value = -10;
-  TidyInterface::Animation<int> anim(&value, 10, 0, 200);
+  RealCompositor::Animation<int> anim(&value, 10, 0, 200);
   EXPECT_FALSE(anim.Eval(0));
   EXPECT_EQ(-10, value);
   EXPECT_FALSE(anim.Eval(50));
@@ -512,35 +499,35 @@ TEST_F(TidyTest, IntAnimation) {
   EXPECT_EQ(10, value);
 }
 
-TEST_F(TidyTestTree, CloneTest) {
+TEST_F(RealCompositorTestTree, CloneTest) {
   rect1_->Move(10, 20, 0);
   rect1_->SetSize(100, 200);
-  TidyInterface::Actor* clone = rect1_->Clone();
+  RealCompositor::Actor* clone = rect1_->Clone();
   EXPECT_EQ(10, clone->x());
   EXPECT_EQ(20, clone->y());
   EXPECT_EQ(100, clone->width());
   EXPECT_EQ(200, clone->height());
 }
 
-// Test TidyInterface's handling of X events concerning composited windows.
-TEST_F(TidyTest, HandleXEvents) {
-  // Draw once initially to make sure that the interface isn't dirty.
-  interface()->Draw();
-  EXPECT_FALSE(interface()->dirty());
+// Test RealCompositor's handling of X events concerning composited windows.
+TEST_F(RealCompositorTest, HandleXEvents) {
+  // Draw once initially to make sure that the compositor isn't dirty.
+  compositor()->Draw();
+  EXPECT_FALSE(compositor()->dirty());
 
   // Now create an texture pixmap actor and add it to the stage.
-  scoped_ptr<ClutterInterface::TexturePixmapActor> actor(
-      interface()->CreateTexturePixmap());
+  scoped_ptr<Compositor::TexturePixmapActor> actor(
+      compositor()->CreateTexturePixmap());
 
-  TidyInterface::TexturePixmapActor* cast_actor =
-      dynamic_cast<TidyInterface::TexturePixmapActor*>(actor.get());
+  RealCompositor::TexturePixmapActor* cast_actor =
+      dynamic_cast<RealCompositor::TexturePixmapActor*>(actor.get());
   CHECK(cast_actor);
   EXPECT_FALSE(cast_actor->HasPixmapDrawingData());
   actor->SetVisibility(true);
-  interface()->GetDefaultStage()->AddActor(actor.get());
-  EXPECT_TRUE(interface()->dirty());
-  interface()->Draw();
-  EXPECT_FALSE(interface()->dirty());
+  compositor()->GetDefaultStage()->AddActor(actor.get());
+  EXPECT_TRUE(compositor()->dirty());
+  compositor()->Draw();
+  EXPECT_FALSE(compositor()->dirty());
 
   XWindow xid = x_connection()->CreateWindow(
       x_connection()->GetRootWindow(),  // parent
@@ -555,27 +542,27 @@ TEST_F(TidyTest, HandleXEvents) {
   info->compositing_pixmap = 123;  // arbitrary
 
   // After we bind the actor to our window, the window should be
-  // redirected and the interface should be marked dirty.
+  // redirected and the compositor should be marked dirty.
   EXPECT_TRUE(actor->SetTexturePixmapWindow(xid));
   EXPECT_TRUE(info->redirected);
-  EXPECT_TRUE(interface()->dirty());
+  EXPECT_TRUE(compositor()->dirty());
 
   // We should pick up the window's pixmap the next time we draw.
-  interface()->Draw();
+  compositor()->Draw();
   EXPECT_TRUE(cast_actor->HasPixmapDrawingData());
-  EXPECT_FALSE(interface()->dirty());
+  EXPECT_FALSE(compositor()->dirty());
 
   // Now resize the window.  The pixmap should be marked dirty.
   info->width = 640;
   info->height = 480;
   actor->SetSize(info->width, info->height);
-  EXPECT_TRUE(interface()->dirty());
+  EXPECT_TRUE(compositor()->dirty());
   EXPECT_TRUE(cast_actor->is_pixmap_invalid());
 
   // A new pixmap should be loaded the next time we draw.
-  interface()->Draw();
+  compositor()->Draw();
   EXPECT_TRUE(cast_actor->HasPixmapDrawingData());
-  EXPECT_FALSE(interface()->dirty());
+  EXPECT_FALSE(compositor()->dirty());
   EXPECT_FALSE(cast_actor->is_pixmap_invalid());
 
   // TODO: Test that we refresh textures when we see damage events.
@@ -583,99 +570,98 @@ TEST_F(TidyTest, HandleXEvents) {
   // We should un-redirect the window when the actor is destroyed.
   actor.reset();
   EXPECT_FALSE(info->redirected);
-  EXPECT_TRUE(interface()->dirty());
+  EXPECT_TRUE(compositor()->dirty());
 }
 
 // Check that we don't crash when we delete a group that contains a child.
-TEST_F(TidyTest, DeleteGroup) {
-  scoped_ptr<TidyInterface::ContainerActor> group(interface()->CreateGroup());
-  scoped_ptr<TidyInterface::Actor> rect(
-    interface()->CreateRectangle(ClutterInterface::Color(),
-                                 ClutterInterface::Color(), 0));
+TEST_F(RealCompositorTest, DeleteGroup) {
+  scoped_ptr<RealCompositor::ContainerActor> group(compositor()->CreateGroup());
+  scoped_ptr<RealCompositor::Actor> rect(
+    compositor()->CreateRectangle(Compositor::Color(), Compositor::Color(), 0));
 
-  interface()->GetDefaultStage()->AddActor(group.get());
+  compositor()->GetDefaultStage()->AddActor(group.get());
   group->AddActor(rect.get());
 
   EXPECT_TRUE(rect->parent() == group.get());
   group.reset();
   EXPECT_TRUE(rect->parent() == NULL);
-  interface()->Draw();
+  compositor()->Draw();
 }
 
 // Test that we enable and disable the draw timeout as needed.
-TEST_F(TidyTest, DrawTimeout) {
+TEST_F(RealCompositorTest, DrawTimeout) {
   int64_t now = 1000;  // arbitrary
-  interface()->set_current_time_ms_for_testing(now);
+  compositor()->set_current_time_ms_for_testing(now);
 
-  // The interface should create a draw timeout and draw just once
+  // The compositor should create a draw timeout and draw just once
   // initially.
-  EXPECT_GE(interface()->draw_timeout_id(), 0);
-  EXPECT_TRUE(interface()->draw_timeout_enabled());
-  interface()->Draw();
-  EXPECT_FALSE(interface()->draw_timeout_enabled());
+  EXPECT_GE(compositor()->draw_timeout_id(), 0);
+  EXPECT_TRUE(compositor()->draw_timeout_enabled());
+  compositor()->Draw();
+  EXPECT_FALSE(compositor()->draw_timeout_enabled());
 
   // After we add an actor, we should draw another frame.
-  scoped_ptr<TidyInterface::Actor> actor(
-      interface()->CreateRectangle(
-          ClutterInterface::Color(), ClutterInterface::Color(), 0));
-  interface()->GetDefaultStage()->AddActor(actor.get());
-  EXPECT_TRUE(interface()->draw_timeout_enabled());
-  interface()->Draw();
-  EXPECT_FALSE(interface()->draw_timeout_enabled());
+  scoped_ptr<RealCompositor::Actor> actor(
+      compositor()->CreateRectangle(
+          Compositor::Color(), Compositor::Color(), 0));
+  compositor()->GetDefaultStage()->AddActor(actor.get());
+  EXPECT_TRUE(compositor()->draw_timeout_enabled());
+  compositor()->Draw();
+  EXPECT_FALSE(compositor()->draw_timeout_enabled());
 
   // Now animate the actor's X position over 100 ms and its Y position over
   // 200 ms.
   actor->MoveX(300, 100);
   actor->MoveY(400, 150);
-  EXPECT_TRUE(interface()->draw_timeout_enabled());
+  EXPECT_TRUE(compositor()->draw_timeout_enabled());
 
   // If we draw 50 ms later, both animations should still be active, as
   // well as the timeout.
   now += 50;
-  interface()->set_current_time_ms_for_testing(now);
-  interface()->Draw();
-  EXPECT_TRUE(interface()->draw_timeout_enabled());
+  compositor()->set_current_time_ms_for_testing(now);
+  compositor()->Draw();
+  EXPECT_TRUE(compositor()->draw_timeout_enabled());
 
   // After drawing 51 ms later, the first animation will be gone, but we
   // still keep the timeout alive for the second animation.
   now += 51;
-  interface()->set_current_time_ms_for_testing(now);
-  interface()->Draw();
-  EXPECT_TRUE(interface()->draw_timeout_enabled());
+  compositor()->set_current_time_ms_for_testing(now);
+  compositor()->Draw();
+  EXPECT_TRUE(compositor()->draw_timeout_enabled());
 
   // 100 ms later, the second animation has ended, so we should remove the
   // timeout after drawing.
   now += 100;
-  interface()->set_current_time_ms_for_testing(now);
-  interface()->Draw();
-  EXPECT_FALSE(interface()->draw_timeout_enabled());
+  compositor()->set_current_time_ms_for_testing(now);
+  compositor()->Draw();
+  EXPECT_FALSE(compositor()->draw_timeout_enabled());
 
   // If we move the actor instantaneously, we should draw a single frame.
   actor->Move(500, 600, 0);
-  EXPECT_TRUE(interface()->draw_timeout_enabled());
-  interface()->Draw();
-  EXPECT_FALSE(interface()->draw_timeout_enabled());
+  EXPECT_TRUE(compositor()->draw_timeout_enabled());
+  compositor()->Draw();
+  EXPECT_FALSE(compositor()->draw_timeout_enabled());
 
   // We should also draw one more time after deleting the actor.
   actor.reset();
-  EXPECT_TRUE(interface()->draw_timeout_enabled());
-  interface()->Draw();
-  EXPECT_FALSE(interface()->draw_timeout_enabled());
+  EXPECT_TRUE(compositor()->draw_timeout_enabled());
+  compositor()->Draw();
+  EXPECT_FALSE(compositor()->draw_timeout_enabled());
 
   // TODO: Test the durations that we set for for the timeout.
 }
 
 // Test that we replace existing animations rather than creating
 // overlapping animations for the same field.
-TEST_F(TidyTest, ReplaceAnimations) {
+TEST_F(RealCompositorTest, ReplaceAnimations) {
   int64_t now = 1000;  // arbitrary
-  interface()->set_current_time_ms_for_testing(now);
+  compositor()->set_current_time_ms_for_testing(now);
 
-  scoped_ptr<TidyInterface::Actor> actor(
-      interface()->CreateRectangle(
-          ClutterInterface::Color(), ClutterInterface::Color(), 0));
-  interface()->GetDefaultStage()->AddActor(actor.get());
-  interface()->Draw();
+  scoped_ptr<RealCompositor::Actor> actor(
+      compositor()->CreateRectangle(
+          Compositor::Color(), Compositor::Color(), 0));
+  compositor()->GetDefaultStage()->AddActor(actor.get());
+  compositor()->Draw();
 
   // Create 500-ms animations of the actor's X position to 200 and its
   // Y position to 300, but then replace the Y animation with one that goes
@@ -686,8 +672,8 @@ TEST_F(TidyTest, ReplaceAnimations) {
   // 101 ms later, the actor should be at the final Y position but not yet
   // at the final X position.
   now += 101;
-  interface()->set_current_time_ms_for_testing(now);
-  interface()->Draw();
+  compositor()->set_current_time_ms_for_testing(now);
+  compositor()->Draw();
   EXPECT_EQ(800, actor->GetY());
   EXPECT_LT(actor->GetX(), 200);
 
@@ -696,8 +682,8 @@ TEST_F(TidyTest, ReplaceAnimations) {
   // (i.e. the longer-running animation to 300 was replaced by the one to
   // 800).
   now += 400;
-  interface()->set_current_time_ms_for_testing(now);
-  interface()->Draw();
+  compositor()->set_current_time_ms_for_testing(now);
+  compositor()->Draw();
   EXPECT_EQ(200, actor->GetX());
   EXPECT_EQ(800, actor->GetY());
 
@@ -705,8 +691,8 @@ TEST_F(TidyTest, ReplaceAnimations) {
   // After 100 ms, we should be halfway to the final scale (at 3/4 scale).
   actor->Scale(0.5, 0.5, 200);
   now += 100;
-  interface()->set_current_time_ms_for_testing(now);
-  interface()->Draw();
+  compositor()->set_current_time_ms_for_testing(now);
+  compositor()->Draw();
   EXPECT_FLOAT_EQ(0.75, actor->GetXScale());
   EXPECT_FLOAT_EQ(0.75, actor->GetYScale());
 
@@ -716,43 +702,43 @@ TEST_F(TidyTest, ReplaceAnimations) {
   // scale.
   actor->Scale(1.0, 1.0, 200);
   now += 100;
-  interface()->set_current_time_ms_for_testing(now);
-  interface()->Draw();
+  compositor()->set_current_time_ms_for_testing(now);
+  compositor()->Draw();
   EXPECT_FLOAT_EQ(0.875, actor->GetXScale());
   EXPECT_FLOAT_EQ(0.875, actor->GetYScale());
 
   // After another 100 ms, we should be back at the original scale.
   now += 100;
-  interface()->set_current_time_ms_for_testing(now);
-  interface()->Draw();
+  compositor()->set_current_time_ms_for_testing(now);
+  compositor()->Draw();
   EXPECT_FLOAT_EQ(1, actor->GetXScale());
   EXPECT_FLOAT_EQ(1, actor->GetYScale());
 }
 
-TEST_F(TidyTest, SkipUnneededAnimations) {
+TEST_F(RealCompositorTest, SkipUnneededAnimations) {
   int64_t now = 1000;  // arbitrary
-  interface()->set_current_time_ms_for_testing(now);
+  compositor()->set_current_time_ms_for_testing(now);
 
   // After we add an actor, we should draw a frame.
-  scoped_ptr<TidyInterface::Actor> actor(
-      interface()->CreateRectangle(
-          ClutterInterface::Color(), ClutterInterface::Color(), 0));
-  interface()->GetDefaultStage()->AddActor(actor.get());
-  EXPECT_TRUE(interface()->draw_timeout_enabled());
-  interface()->Draw();
-  EXPECT_FALSE(interface()->draw_timeout_enabled());
+  scoped_ptr<RealCompositor::Actor> actor(
+      compositor()->CreateRectangle(
+          Compositor::Color(), Compositor::Color(), 0));
+  compositor()->GetDefaultStage()->AddActor(actor.get());
+  EXPECT_TRUE(compositor()->draw_timeout_enabled());
+  compositor()->Draw();
+  EXPECT_FALSE(compositor()->draw_timeout_enabled());
 
   // Set the actor's X position.  We should draw just once.
   // 200 ms.
   actor->MoveX(300, 0);
-  EXPECT_TRUE(interface()->draw_timeout_enabled());
-  interface()->Draw();
-  EXPECT_FALSE(interface()->draw_timeout_enabled());
+  EXPECT_TRUE(compositor()->draw_timeout_enabled());
+  compositor()->Draw();
+  EXPECT_FALSE(compositor()->draw_timeout_enabled());
 
   // We shouldn't do any drawing if we animate to the same position that
   // we're already in.
   actor->MoveX(300, 200);
-  EXPECT_FALSE(interface()->draw_timeout_enabled());
+  EXPECT_FALSE(compositor()->draw_timeout_enabled());
 }
 
 }  // end namespace window_manager

@@ -402,8 +402,8 @@ class LayoutManager : public EventConsumer,
   // perform the same setup at the MapNotify point for windows that were
   // already mapped or were in the process of being mapped when we were
   // started.
-  // TODO: This is yet another hack that could probably removed in favor of
-  // something more elegant now that we're grabbing the server at startup.
+  // TODO: Find another way to do this now that we're grabbing the server
+  // at startup.
   bool saw_map_request_;
 
   // Event registrations for the layout manager itself.

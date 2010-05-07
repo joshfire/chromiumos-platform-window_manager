@@ -28,10 +28,10 @@ namespace window_manager {
 // currently working.
 static const int kAnimMs = 0;
 
-HotkeyOverlay::HotkeyOverlay(XConnection* xconn, ClutterInterface* clutter)
+HotkeyOverlay::HotkeyOverlay(XConnection* xconn, Compositor* compositor)
     : xconn_(xconn),
-      clutter_(clutter),
-      group_(clutter_->CreateGroup()),
+      compositor_(compositor),
+      group_(compositor_->CreateGroup()),
       current_image_(NULL),
       left_ctrl_keycode_(0),
       right_ctrl_keycode_(0),
@@ -50,7 +50,7 @@ HotkeyOverlay::HotkeyOverlay(XConnection* xconn, ClutterInterface* clutter)
 }
 
 HotkeyOverlay::~HotkeyOverlay() {
-  clutter_ = NULL;
+  compositor_ = NULL;
 }
 
 void HotkeyOverlay::RefreshKeyMappings() {
@@ -121,10 +121,10 @@ void HotkeyOverlay::UpdateImage() {
 }
 
 void HotkeyOverlay::ShowImage(const string& filename) {
-  map<string, shared_ptr<ClutterInterface::Actor> >::iterator it =
+  map<string, shared_ptr<Compositor::Actor> >::iterator it =
       images_.find(filename);
   if (it == images_.end()) {
-    shared_ptr<ClutterInterface::Actor> image(clutter_->CreateImage(filename));
+    shared_ptr<Compositor::Actor> image(compositor_->CreateImage(filename));
     image->SetName("hotkey overlay image");
     image->SetOpacity(0, 0);
     image->SetVisibility(true);

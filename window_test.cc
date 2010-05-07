@@ -99,8 +99,8 @@ TEST_F(WindowTest, ChangeComposited) {
   XWindow xid = CreateBasicWindow(10, 20, 30, 40);
   Window window(wm_.get(), xid, false);
 
-  const MockClutterInterface::Actor* actor =
-      dynamic_cast<const MockClutterInterface::Actor*>(window.actor());
+  const MockCompositor::Actor* actor =
+      dynamic_cast<const MockCompositor::Actor*>(window.actor());
   ASSERT_TRUE(actor != NULL);
 
   // Initially, we should place the composited window at the same location
@@ -461,9 +461,9 @@ TEST_F(WindowTest, Shape) {
   double shadow_opacity = 0.5;
   win.SetShadowOpacity(shadow_opacity, 0);  // anim_ms
 
-  // Check that the shape mask got applied to the Clutter actor.
-  MockClutterInterface::TexturePixmapActor* mock_actor =
-      dynamic_cast<MockClutterInterface::TexturePixmapActor*>(win.actor());
+  // Check that the shape mask got applied to the compositing actor.
+  MockCompositor::TexturePixmapActor* mock_actor =
+      dynamic_cast<MockCompositor::TexturePixmapActor*>(win.actor());
   CHECK(mock_actor);
   ASSERT_TRUE(mock_actor->alpha_mask_bytes() != NULL);
   EXPECT_PRED_FORMAT3(BytesAreEqual,
@@ -513,8 +513,8 @@ TEST_F(WindowTest, DeferRedirection) {
   XWindow xid = 214895;
   Window win(wm_.get(), xid, true);
   EXPECT_FALSE(win.redirected());
-  MockClutterInterface::TexturePixmapActor* mock_actor =
-      dynamic_cast<MockClutterInterface::TexturePixmapActor*>(win.actor());
+  MockCompositor::TexturePixmapActor* mock_actor =
+      dynamic_cast<MockCompositor::TexturePixmapActor*>(win.actor());
   CHECK(mock_actor);
   EXPECT_EQ(None, mock_actor->xid());
 

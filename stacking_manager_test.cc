@@ -57,10 +57,10 @@ TEST_F(StackingManagerTest, StackXidAtTopOfLayer) {
 
 TEST_F(StackingManagerTest, StackActorAtTopOfLayer) {
   // Create two actors and add them to the stage.
-  MockClutterInterface::StageActor* stage = clutter_->GetDefaultStage();
-  scoped_ptr<MockClutterInterface::Actor> actor(clutter_->CreateGroup());
+  MockCompositor::StageActor* stage = compositor_->GetDefaultStage();
+  scoped_ptr<MockCompositor::Actor> actor(compositor_->CreateGroup());
   stage->AddActor(actor.get());
-  scoped_ptr<MockClutterInterface::Actor> actor2(clutter_->CreateGroup());
+  scoped_ptr<MockCompositor::Actor> actor2(compositor_->CreateGroup());
   stage->AddActor(actor2.get());
 
   // Check that the actors get stacked correctly.
@@ -96,7 +96,7 @@ TEST_F(StackingManagerTest, StackWindowAtTopOfLayer) {
 
   // Their actors should've been restacked as well, and the shadows should
   // be stacked at the bottom of the layer, beneath both windows.
-  MockClutterInterface::StageActor* stage = clutter_->GetDefaultStage();
+  MockCompositor::StageActor* stage = compositor_->GetDefaultStage();
   EXPECT_LT(stage->GetStackingIndex(win2.actor()),
             stage->GetStackingIndex(win.actor()));
   EXPECT_LT(stage->GetStackingIndex(win.actor()),

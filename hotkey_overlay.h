@@ -17,7 +17,7 @@
 
 namespace window_manager {
 
-class ClutterInterface;
+class Compositor;
 class XConnection;
 
 // Display overlay images to help users learn keyboard shortcuts.
@@ -26,10 +26,10 @@ class XConnection;
 // directly.
 class HotkeyOverlay {
  public:
-  HotkeyOverlay(XConnection* xconn, ClutterInterface* clutter);
+  HotkeyOverlay(XConnection* xconn, Compositor* compositor);
   ~HotkeyOverlay();
 
-  ClutterInterface::Actor* group() { return group_.get(); }
+  Compositor::Actor* group() { return group_.get(); }
 
   // Called when key mappings change to update internal state.
   void RefreshKeyMappings();
@@ -51,16 +51,16 @@ class HotkeyOverlay {
 
   XConnection* xconn_;  // not owned
 
-  ClutterInterface* clutter_;  // not owned
+  Compositor* compositor_;  // not owned
 
-  scoped_ptr<ClutterInterface::ContainerActor> group_;
+  scoped_ptr<Compositor::ContainerActor> group_;
 
   // Map filenames to image actors.
-  std::map<std::string, std::tr1::shared_ptr<ClutterInterface::Actor> > images_;
+  std::map<std::string, std::tr1::shared_ptr<Compositor::Actor> > images_;
 
   // The currently-shown image, or NULL if no image is currently shown.
   // Points at a value in 'images_'.
-  ClutterInterface::Actor* current_image_;
+  Compositor::Actor* current_image_;
 
   // X11 keycodes corresponding to various keysyms.
   KeyCode left_ctrl_keycode_;

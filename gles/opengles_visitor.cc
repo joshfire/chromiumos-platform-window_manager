@@ -19,8 +19,8 @@
 #include "window_manager/real_x_connection.h"
 #include "window_manager/x_connection.h"
 
-#ifndef TIDY_OPENGLES
-#error Need TIDY_OPENGLES defined to compile this file
+#ifndef COMPOSITOR_OPENGLES
+#error Need COMPOSITOR_OPENGLES defined to compile this file
 #endif
 
 // Work around broken eglext.h headers
@@ -33,13 +33,13 @@
 
 namespace window_manager {
 
-OpenGlesDrawVisitor::OpenGlesDrawVisitor(GLInterfaceBase* gl,
-                                         TidyInterface* interface,
-                                         ClutterInterface::StageActor* stage)
-    : gl_(dynamic_cast<Gles2Interface*>(gl)),
-      interface_(interface),
+OpenGlesDrawVisitor::OpenGlesDrawVisitor(Gles2Interface* gl,
+                                         RealCompositor* compositor,
+                                         Compositor::StageActor* stage)
+    : gl_(gl),
+      compositor_(compositor),
       stage_(stage),
-      x_connection_(interface_->x_conn()) {
+      x_connection_(compositor_->x_conn()) {
   CHECK(gl_);
   egl_display_ = gl_->egl_display();
 
@@ -113,7 +113,7 @@ OpenGlesDrawVisitor::~OpenGlesDrawVisitor() {
 }
 
 void OpenGlesDrawVisitor::BindImage(const ImageContainer* container,
-                                    TidyInterface::QuadActor* actor) {
+                                    RealCompositor::QuadActor* actor) {
   GLuint texture;
   gl_->GenTextures(1, &texture);
   CHECK(texture > 0) << "Failed to allocated texture.";
@@ -128,13 +128,12 @@ void OpenGlesDrawVisitor::BindImage(const ImageContainer* container,
 
   OpenGlesTextureData* data = new OpenGlesTextureData(gl_);
   data->SetTexture(texture, true);
-  actor->SetDrawingData(kTextureData,
-                        TidyInterface::DrawingDataPtr(data));
+  actor->SetDrawingData(kTextureData, RealCompositor::DrawingDataPtr(data));
   LOG(INFO) << "Binding image " << container->filename()
             << " to texture " << texture;
 }
 
-void OpenGlesDrawVisitor::VisitStage(TidyInterface::StageActor* actor) {
+void OpenGlesDrawVisitor::VisitStage(RealCompositor::StageActor* actor) {
   if (!actor->IsVisible())
     return;
 
@@ -152,12 +151,12 @@ void OpenGlesDrawVisitor::VisitStage(TidyInterface::StageActor* actor) {
 
   perspective_ = Matrix4::orthographic(
       0, actor->width(), actor->height(), 0,
-      -TidyInterface::LayerVisitor::kMinDepth,
-      -TidyInterface::LayerVisitor::kMaxDepth);
+      -RealCompositor::LayerVisitor::kMinDepth,
+      -RealCompositor::LayerVisitor::kMaxDepth);
   model_view_ = Matrix4::identity();
 
   // Set the z-depths for the actors.
-  TidyInterface::LayerVisitor layer_visitor(interface_->actor_count());
+  RealCompositor::LayerVisitor layer_visitor(compositor_->actor_count());
   actor->Accept(&layer_visitor);
 
   ancestor_opacity_ = actor->opacity();
@@ -168,8 +167,8 @@ void OpenGlesDrawVisitor::VisitStage(TidyInterface::StageActor* actor) {
   gl_->Enable(GL_BLEND);
 
   // Back to front rendering
-  const TidyInterface::ActorVector children = actor->GetChildren();
-  for (TidyInterface::ActorVector::const_reverse_iterator i =
+  const RealCompositor::ActorVector children = actor->GetChildren();
+  for (RealCompositor::ActorVector::const_reverse_iterator i =
        children.rbegin(); i != children.rend(); ++i) {
     (*i)->Accept(this);
   }
@@ -178,7 +177,7 @@ void OpenGlesDrawVisitor::VisitStage(TidyInterface::StageActor* actor) {
 }
 
 void OpenGlesDrawVisitor::VisitTexturePixmap(
-    TidyInterface::TexturePixmapActor* actor) {
+    RealCompositor::TexturePixmapActor* actor) {
   if (!actor->IsVisible())
     return;
 
@@ -188,7 +187,7 @@ void OpenGlesDrawVisitor::VisitTexturePixmap(
   if (!image_data) {
     image_data = new OpenGlesEglImageData(x_connection_, gl_);
     actor->SetDrawingData(kEglImageData,
-                          TidyInterface::DrawingDataPtr(image_data));
+                          RealCompositor::DrawingDataPtr(image_data));
   }
 
   if (!image_data->bound()) {
@@ -196,7 +195,7 @@ void OpenGlesDrawVisitor::VisitTexturePixmap(
       OpenGlesTextureData* texture = new OpenGlesTextureData(gl_);
       image_data->BindTexture(texture);
       actor->SetDrawingData(kTextureData,
-                            TidyInterface::DrawingDataPtr(texture));
+                            RealCompositor::DrawingDataPtr(texture));
       VisitQuad(actor);
     }
   } else {
@@ -204,7 +203,7 @@ void OpenGlesDrawVisitor::VisitTexturePixmap(
   }
 }
 
-void OpenGlesDrawVisitor::VisitQuad(TidyInterface::QuadActor* actor) {
+void OpenGlesDrawVisitor::VisitQuad(RealCompositor::QuadActor* actor) {
   if (!actor->IsVisible())
     return;
 
@@ -319,7 +318,7 @@ void OpenGlesDrawVisitor::VisitQuad(TidyInterface::QuadActor* actor) {
 }
 
 void OpenGlesDrawVisitor::VisitContainer(
-    TidyInterface::ContainerActor* actor) {
+    RealCompositor::ContainerActor* actor) {
   if (!actor->IsVisible())
     return;
 
@@ -334,8 +333,8 @@ void OpenGlesDrawVisitor::VisitContainer(
   ancestor_opacity_ *= actor->opacity();
 
   // Back to front rendering
-  const TidyInterface::ActorVector children = actor->GetChildren();
-  for (TidyInterface::ActorVector::const_reverse_iterator i =
+  const RealCompositor::ActorVector children = actor->GetChildren();
+  for (RealCompositor::ActorVector::const_reverse_iterator i =
        children.rbegin(); i != children.rend(); ++i) {
     (*i)->Accept(this);
   }
@@ -380,7 +379,7 @@ OpenGlesEglImageData::~OpenGlesEglImageData() {
     x_->FreePixmap(pixmap_);
 }
 
-bool OpenGlesEglImageData::Bind(TidyInterface::TexturePixmapActor* actor,
+bool OpenGlesEglImageData::Bind(RealCompositor::TexturePixmapActor* actor,
                                 EGLContext egl_context) {
   CHECK(!bound_);
 

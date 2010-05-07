@@ -2,8 +2,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifndef WINDOW_MANAGER_CLUTTER_INTERFACE_H_
-#define WINDOW_MANAGER_CLUTTER_INTERFACE_H_
+#ifndef WINDOW_MANAGER_COMPOSITOR_H_
+#define WINDOW_MANAGER_COMPOSITOR_H_
 
 #include <list>
 #include <map>
@@ -19,14 +19,8 @@ class CompositorEventSource;
 template<class T> class Stacker;  // from util.h
 class XConnection;
 
-// A wrapper around Clutter's C API.
-//
-// TODO: We'll almost certainly need something more flexible here.  For
-// example, it'd be nice to still have control over which alpha function
-// is used, or to specify multiple parameters to be animated at once (as
-// can be done with implicit animations), or to be able to chain sequential
-// animations together.
-class ClutterInterface {
+// A interface used for compositing windows and textures onscreen.
+class Compositor {
  public:
   struct Color {
     Color() : red(0.f), green(0.f), blue(0.f) {}
@@ -37,9 +31,9 @@ class ClutterInterface {
   };
 
   // Abstract base class for actors, inherited from by both:
-  // - more-specific abstract classes within ClutterInterface that add
+  // - more-specific abstract classes within Compositor that add
   //   additional virtual methods
-  // - concrete Actor classes inside of implementations of ClutterInterface
+  // - concrete Actor classes inside of implementations of Compositor
   //   that implement this class's methods
   class Actor {
    public:
@@ -129,12 +123,11 @@ class ClutterInterface {
     DISALLOW_COPY_AND_ASSIGN(TexturePixmapActor);
   };
 
-  ClutterInterface() {}
-  virtual ~ClutterInterface() {}
+  Compositor() {}
+  virtual ~Compositor() {}
 
   // These methods create new Actor objects.  The caller is responsible for
-  // deleting them, even (unlike Clutter) after they have been added to a
-  // container.  See RealClutterInterface::Actor for more details.
+  // deleting them, even after they have been added to a container.
   virtual ContainerActor* CreateGroup() = 0;
   virtual Actor* CreateRectangle(const Color& color, const Color& border_color,
                                  int border_width) = 0;
@@ -146,20 +139,19 @@ class ClutterInterface {
   virtual Actor* CloneActor(Actor* orig) = 0;
 
   // Get the default stage object.  Ownership of the StageActor remains
-  // with ClutterInterface -- the caller should not delete it.
+  // with Compositor -- the caller should not delete it.
   virtual StageActor* GetDefaultStage() = 0;
 
  private:
-  DISALLOW_COPY_AND_ASSIGN(ClutterInterface);
+  DISALLOW_COPY_AND_ASSIGN(Compositor);
 };
 
-// Mock implementation of ClutterInterface that can be used without calling
-// clutter_init().
-class MockClutterInterface : public ClutterInterface {
+// Mock implementation of Compositor that is used for testing.
+class MockCompositor : public Compositor {
  public:
   class ContainerActor;
 
-  class Actor : virtual public ClutterInterface::Actor {
+  class Actor : virtual public Compositor::Actor {
    public:
     Actor()
         : x_(-1),
@@ -185,12 +177,12 @@ class MockClutterInterface : public ClutterInterface {
     bool is_dimmed() const { return is_dimmed_; }
     int num_moves() const { return num_moves_; }
 
-    MockClutterInterface::ContainerActor* parent() { return parent_; }
-    void set_parent(MockClutterInterface::ContainerActor* new_parent) {
+    MockCompositor::ContainerActor* parent() { return parent_; }
+    void set_parent(MockCompositor::ContainerActor* new_parent) {
       parent_ = new_parent;
     }
 
-    // Begin ClutterInterface::Actor methods
+    // Begin Compositor::Actor methods
     void SetName(const std::string& name) {}
     int GetWidth() { return width_; }
     int GetHeight() { return height_; }
@@ -220,13 +212,13 @@ class MockClutterInterface : public ClutterInterface {
     }
     double GetTilt() const { return tilt_; }
     void SetClip(int x, int y, int width, int height) {}
-    void Raise(ClutterInterface::Actor* other);
-    void Lower(ClutterInterface::Actor* other);
+    void Raise(Compositor::Actor* other);
+    void Lower(Compositor::Actor* other);
     void RaiseToTop();
     void LowerToBottom();
     virtual std::string GetDebugString(int debug_level) { return ""; }
     void ShowDimmed(bool dimmed, int anim_ms) { is_dimmed_ = dimmed; }
-    // End ClutterInterface::Actor methods
+    // End Compositor::Actor methods
 
    protected:
     int x_, y_;
@@ -240,24 +232,24 @@ class MockClutterInterface : public ClutterInterface {
     // Number of times that the actor has been moved.
     int num_moves_;
 
-    MockClutterInterface::ContainerActor* parent_;  // not owned
+    MockCompositor::ContainerActor* parent_;  // not owned
 
     DISALLOW_COPY_AND_ASSIGN(Actor);
   };
 
-  class ContainerActor : public MockClutterInterface::Actor,
-                         virtual public ClutterInterface::ContainerActor {
+  class ContainerActor : public MockCompositor::Actor,
+                         virtual public Compositor::ContainerActor {
    public:
     ContainerActor();
     virtual ~ContainerActor();
-    void AddActor(ClutterInterface::Actor* actor);
+    void AddActor(Compositor::Actor* actor);
 
     Stacker<Actor*>* stacked_children() { return stacked_children_.get(); }
 
     // Get an index representing an actor's stacking position inside of
     // this container.  Objects stacked higher have lower indexes.
     // Convenient for testing.
-    int GetStackingIndex(ClutterInterface::Actor* actor);
+    int GetStackingIndex(Compositor::Actor* actor);
 
    private:
     scoped_ptr<Stacker<Actor*> > stacked_children_;
@@ -265,19 +257,19 @@ class MockClutterInterface : public ClutterInterface {
     DISALLOW_COPY_AND_ASSIGN(ContainerActor);
   };
 
-  class StageActor : public MockClutterInterface::ContainerActor,
-                     public ClutterInterface::StageActor {
+  class StageActor : public MockCompositor::ContainerActor,
+                     public Compositor::StageActor {
    public:
     StageActor() {}
     virtual ~StageActor() {}
     XWindow GetStageXWindow() { return 0; }
-    void SetStageColor(const ClutterInterface::Color& color) {}
+    void SetStageColor(const Compositor::Color& color) {}
    private:
     DISALLOW_COPY_AND_ASSIGN(StageActor);
   };
 
-  class TexturePixmapActor : public MockClutterInterface::Actor,
-                             public ClutterInterface::TexturePixmapActor {
+  class TexturePixmapActor : public MockCompositor::Actor,
+                             public Compositor::TexturePixmapActor {
    public:
     explicit TexturePixmapActor(XConnection* xconn)
         : xconn_(xconn),
@@ -307,13 +299,13 @@ class MockClutterInterface : public ClutterInterface {
     DISALLOW_COPY_AND_ASSIGN(TexturePixmapActor);
   };
 
-  explicit MockClutterInterface(XConnection* xconn) : xconn_(xconn) {}
-  ~MockClutterInterface() {}
+  explicit MockCompositor(XConnection* xconn) : xconn_(xconn) {}
+  ~MockCompositor() {}
 
-  // Begin ClutterInterface methods
+  // Begin Compositor methods
   ContainerActor* CreateGroup() { return new ContainerActor; }
-  Actor* CreateRectangle(const ClutterInterface::Color& color,
-                         const ClutterInterface::Color& border_color,
+  Actor* CreateRectangle(const Compositor::Color& color,
+                         const Compositor::Color& border_color,
                          int border_width) {
     return new Actor;
   }
@@ -323,20 +315,20 @@ class MockClutterInterface : public ClutterInterface {
   }
   Actor* CreateText(const std::string& font_name,
                     const std::string& text,
-                    const ClutterInterface::Color& color) {
+                    const Compositor::Color& color) {
     return new Actor;
   }
-  Actor* CloneActor(ClutterInterface::Actor* orig) { return new Actor; }
+  Actor* CloneActor(Compositor::Actor* orig) { return new Actor; }
   StageActor* GetDefaultStage() { return &default_stage_; }
-  // End ClutterInterface methods
+  // End Compositor methods
 
  private:
   XConnection* xconn_;  // not owned
   StageActor default_stage_;
 
-  DISALLOW_COPY_AND_ASSIGN(MockClutterInterface);
+  DISALLOW_COPY_AND_ASSIGN(MockCompositor);
 };
 
 }  // namespace window_manager
 
-#endif  // WINDOW_MANAGER_CLUTTER_INTERFACE_H_
+#endif  // WINDOW_MANAGER_COMPOSITOR_H_

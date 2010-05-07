@@ -27,9 +27,9 @@ extern "C" {
 #include "window_manager/clutter_interface.h"
 #include "window_manager/event_loop.h"
 #include "window_manager/tidy_interface.h"
-#if defined(TIDY_OPENGL)
+#if defined(COMPOSITOR_OPENGL)
 #include "window_manager/real_gl_interface.h"
-#elif defined(TIDY_OPENGLES)
+#elif defined(COMPOSITOR_OPENGLES)
 #include "window_manager/gles/real_gles2_interface.h"
 #endif
 #include "window_manager/real_x_connection.h"
@@ -53,17 +53,17 @@ DEFINE_int32(pause_at_start, 0,
 DEFINE_bool(logged_in, true, "Whether Chrome is logged in or not.");
 
 using std::string;
-using window_manager::ClutterInterface;
+using window_manager::Compositor;
 using window_manager::EventLoop;
 using window_manager::GetTimeAsString;
-using window_manager::MockClutterInterface;
-using window_manager::TidyInterface;
-#if defined(TIDY_OPENGL)
+using window_manager::MockCompositor;
+using window_manager::RealCompositor;
+#if defined(COMPOSITOR_OPENGL)
 using window_manager::RealGLInterface;
-#elif defined(TIDY_OPENGLES)
+#elif defined(COMPOSITOR_OPENGLES)
 using window_manager::RealGles2Interface;
 #else
-#error TIDY_OPENGL or TIDY_OPENGLES must be defined
+#error COMPOSITOR_OPENGL or COMPOSITOR_OPENGLES must be defined
 #endif
 using window_manager::RealXConnection;
 using window_manager::WindowManager;
@@ -150,25 +150,26 @@ int main(int argc, char** argv) {
 
   EventLoop event_loop;
 
-  scoped_ptr<ClutterInterface> clutter;
-#if defined(TIDY_OPENGL)
+  scoped_ptr<Compositor> compositor;
+#if defined(COMPOSITOR_OPENGL)
   scoped_ptr<RealGLInterface> gl_interface;
-#elif defined(TIDY_OPENGLES)
+#elif defined(COMPOSITOR_OPENGLES)
   scoped_ptr<RealGles2Interface> gl_interface;
 #endif
 
   if (FLAGS_wm_use_compositing) {
-#if defined(TIDY_OPENGL)
+#if defined(COMPOSITOR_OPENGL)
     gl_interface.reset(new RealGLInterface(&xconn));
-#elif defined(TIDY_OPENGLES)
+#elif defined(COMPOSITOR_OPENGLES)
     gl_interface.reset(new RealGles2Interface(&xconn));
 #endif
-    clutter.reset(new TidyInterface(&event_loop, &xconn, gl_interface.get()));
+    compositor.reset(
+        new RealCompositor(&event_loop, &xconn, gl_interface.get()));
   } else {
-    clutter.reset(new MockClutterInterface(&xconn));
+    compositor.reset(new MockCompositor(&xconn));
   }
 
-  WindowManager wm(&event_loop, &xconn, clutter.get(), FLAGS_logged_in);
+  WindowManager wm(&event_loop, &xconn, compositor.get(), FLAGS_logged_in);
   wm.Init();
 
   // TODO: Need to also use XAddConnectionWatch()?

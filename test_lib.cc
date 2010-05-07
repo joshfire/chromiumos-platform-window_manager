@@ -91,10 +91,10 @@ void BasicWindowManagerTest::SetUp() {
   xconn_->AddKeyMapping(next_keycode++, XK_Print);
   xconn_->AddKeyMapping(next_keycode++, XK_Tab);
 
-  clutter_.reset(new MockClutterInterface(xconn_.get()));
+  compositor_.reset(new MockCompositor(xconn_.get()));
   wm_.reset(new WindowManager(event_loop_.get(),
                               xconn_.get(),
-                              clutter_.get(),
+                              compositor_.get(),
                               true));  // logged_in
   CHECK(wm_->Init());
 
@@ -113,7 +113,7 @@ void BasicWindowManagerTest::SetUp() {
 void BasicWindowManagerTest::CreateAndInitNewWm() {
   wm_.reset(new WindowManager(event_loop_.get(),
                               xconn_.get(),
-                              clutter_.get(),
+                              compositor_.get(),
                               true));  // logged_in
   ASSERT_TRUE(wm_->Init());
 }
@@ -324,7 +324,7 @@ bool BasicWindowManagerTest::WindowIsInLayer(Window* win,
   if (win_index <= layer_index || win_index >= next_layer_index)
     return false;
 
-  MockClutterInterface::StageActor* stage = clutter_->GetDefaultStage();
+  MockCompositor::StageActor* stage = compositor_->GetDefaultStage();
   win_index = stage->GetStackingIndex(win->actor());
   layer_index = stage->GetStackingIndex(
       wm_->stacking_manager()->GetActorForLayer(layer));

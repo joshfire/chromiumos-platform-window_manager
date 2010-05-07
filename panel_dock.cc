@@ -52,9 +52,9 @@ PanelDock::PanelDock(PanelManager* panel_manager, DockType type, int width)
       height_(wm()->height()),
       total_panel_height_(0),
       dragged_panel_(NULL),
-      bg_actor_(wm()->clutter()->CreateImage(
+      bg_actor_(wm()->compositor()->CreateImage(
                     FLAGS_panel_dock_background_image)),
-      bg_shadow_(new Shadow(wm()->clutter())),
+      bg_shadow_(new Shadow(wm()->compositor())),
       bg_input_xid_(wm()->CreateInputWindow(
                         -1, -1, 1, 1, ButtonPressMask|ButtonReleaseMask)),
       event_consumer_registrar_(

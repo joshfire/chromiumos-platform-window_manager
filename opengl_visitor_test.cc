@@ -18,6 +18,7 @@
 #include "window_manager/mock_gl_interface.h"
 #include "window_manager/mock_x_connection.h"
 #include "window_manager/test_lib.h"
+#include "window_manager/tidy_interface.h"
 #include "window_manager/util.h"
 
 DEFINE_bool(logtostderr, false,
@@ -25,39 +26,27 @@ DEFINE_bool(logtostderr, false,
 
 namespace window_manager {
 
-class TestInterface : virtual public TidyInterface {
- public:
-  TestInterface(EventLoop* event_loop,
-                MockXConnection* x_connection,
-                MockGLInterface* gl_interface)
-      : TidyInterface(event_loop, x_connection, gl_interface) {}
- private:
-  DISALLOW_COPY_AND_ASSIGN(TestInterface);
-};
-
 class OpenGlVisitorTest : public ::testing::Test {
  public:
-  OpenGlVisitorTest() : interface_(NULL),
-                        gl_interface_(new MockGLInterface),
-                        x_connection_(new MockXConnection),
-                        event_loop_(new EventLoop) {
-    interface_.reset(new TestInterface(event_loop_.get(),
+  OpenGlVisitorTest()
+      : gl_interface_(new MockGLInterface),
+        x_connection_(new MockXConnection),
+        event_loop_(new EventLoop),
+        compositor_(new RealCompositor(event_loop_.get(),
                                        x_connection_.get(),
-                                       gl_interface_.get()));
+                                       gl_interface_.get())) {
   }
   virtual ~OpenGlVisitorTest() {
-    interface_.reset(NULL);  // Must explicitly delete so that we get
-                             // the order right.
   }
 
-  TidyInterface* interface() { return interface_.get(); }
+  RealCompositor* compositor() { return compositor_.get(); }
   MockGLInterface* gl_interface() { return gl_interface_.get(); }
 
  private:
-  scoped_ptr<TidyInterface> interface_;
   scoped_ptr<MockGLInterface> gl_interface_;
   scoped_ptr<MockXConnection> x_connection_;
   scoped_ptr<EventLoop> event_loop_;
+  scoped_ptr<RealCompositor> compositor_;
 };
 
 class OpenGlVisitorTestTree : public OpenGlVisitorTest {
@@ -67,17 +56,17 @@ class OpenGlVisitorTestTree : public OpenGlVisitorTest {
 
   void SetUp() {
     // Create an actor tree to test.
-    stage_ = interface()->GetDefaultStage();
-    group1_.reset(interface()->CreateGroup());
-    group2_.reset(interface()->CreateGroup());
-    group3_.reset(interface()->CreateGroup());
-    group4_.reset(interface()->CreateGroup());
-    rect1_.reset(interface()->CreateRectangle(ClutterInterface::Color(),
-                                              ClutterInterface::Color(), 0));
-    rect2_.reset(interface()->CreateRectangle(ClutterInterface::Color(),
-                                              ClutterInterface::Color(), 0));
-    rect3_.reset(interface()->CreateRectangle(ClutterInterface::Color(),
-                                              ClutterInterface::Color(), 0));
+    stage_ = compositor()->GetDefaultStage();
+    group1_.reset(compositor()->CreateGroup());
+    group2_.reset(compositor()->CreateGroup());
+    group3_.reset(compositor()->CreateGroup());
+    group4_.reset(compositor()->CreateGroup());
+    rect1_.reset(compositor()->CreateRectangle(Compositor::Color(),
+                                               Compositor::Color(), 0));
+    rect2_.reset(compositor()->CreateRectangle(Compositor::Color(),
+                                               Compositor::Color(), 0));
+    rect3_.reset(compositor()->CreateRectangle(Compositor::Color(),
+                                               Compositor::Color(), 0));
     stage_->SetName("stage");
     group1_->SetName("group1");
     group2_->SetName("group2");
@@ -127,66 +116,66 @@ class OpenGlVisitorTestTree : public OpenGlVisitorTest {
   }
 
  protected:
-  TidyInterface::StageActor* stage_;
-  scoped_ptr<TidyInterface::ContainerActor> group1_;
-  scoped_ptr<TidyInterface::ContainerActor> group2_;
-  scoped_ptr<TidyInterface::ContainerActor> group3_;
-  scoped_ptr<TidyInterface::ContainerActor> group4_;
-  scoped_ptr<TidyInterface::Actor> rect1_;
-  scoped_ptr<TidyInterface::Actor> rect2_;
-  scoped_ptr<TidyInterface::Actor> rect3_;
+  RealCompositor::StageActor* stage_;
+  scoped_ptr<RealCompositor::ContainerActor> group1_;
+  scoped_ptr<RealCompositor::ContainerActor> group2_;
+  scoped_ptr<RealCompositor::ContainerActor> group3_;
+  scoped_ptr<RealCompositor::ContainerActor> group4_;
+  scoped_ptr<RealCompositor::Actor> rect1_;
+  scoped_ptr<RealCompositor::Actor> rect2_;
+  scoped_ptr<RealCompositor::Actor> rect3_;
 };
 
 TEST_F(OpenGlVisitorTestTree, LayerDepth) {
   int32 count = 0;
   stage_->Update(&count, 0LL);
   EXPECT_EQ(8, count);
-  interface()->set_actor_count(count);
+  compositor()->set_actor_count(count);
 
-  OpenGlDrawVisitor visitor(gl_interface(), interface(), stage_);
+  OpenGlDrawVisitor visitor(gl_interface(), compositor(), stage_);
   stage_->Accept(&visitor);
 
   // Code uses a depth range of kMinDepth to kMaxDepth.  Layers are
   // disributed evenly within that range, except we don't use the
   // frontmost or backmost values in that range.
   uint32 max_count = NextPowerOfTwo(static_cast<uint32>(8 + 2));
-  float thickness = (TidyInterface::LayerVisitor::kMaxDepth -
-                     TidyInterface::LayerVisitor::kMinDepth) / max_count;
-  float depth = TidyInterface::LayerVisitor::kMinDepth + thickness;
+  float thickness = (RealCompositor::LayerVisitor::kMaxDepth -
+                     RealCompositor::LayerVisitor::kMinDepth) / max_count;
+  float depth = RealCompositor::LayerVisitor::kMinDepth + thickness;
 
   EXPECT_FLOAT_EQ(
       depth,
-      dynamic_cast<TidyInterface::QuadActor*>(rect3_.get())->z());
+      dynamic_cast<RealCompositor::QuadActor*>(rect3_.get())->z());
   depth += thickness;
   EXPECT_FLOAT_EQ(
       depth,
-      dynamic_cast<TidyInterface::QuadActor*>(rect2_.get())->z());
+      dynamic_cast<RealCompositor::QuadActor*>(rect2_.get())->z());
   depth += thickness;
   EXPECT_FLOAT_EQ(
       depth,
-      dynamic_cast<TidyInterface::ContainerActor*>(group4_.get())->z());
+      dynamic_cast<RealCompositor::ContainerActor*>(group4_.get())->z());
   depth += thickness;
   EXPECT_FLOAT_EQ(
       depth,
-      dynamic_cast<TidyInterface::ContainerActor*>(group3_.get())->z());
+      dynamic_cast<RealCompositor::ContainerActor*>(group3_.get())->z());
   depth += thickness;
   EXPECT_FLOAT_EQ(
       depth,
-      dynamic_cast<TidyInterface::QuadActor*>(rect1_.get())->z());
+      dynamic_cast<RealCompositor::QuadActor*>(rect1_.get())->z());
   depth += thickness;
   EXPECT_FLOAT_EQ(
       depth,
-      dynamic_cast<TidyInterface::ContainerActor*>(group2_.get())->z());
+      dynamic_cast<RealCompositor::ContainerActor*>(group2_.get())->z());
   depth += thickness;
   EXPECT_FLOAT_EQ(
       depth,
-      dynamic_cast<TidyInterface::ContainerActor*>(group1_.get())->z());
+      dynamic_cast<RealCompositor::ContainerActor*>(group1_.get())->z());
 }
 
 // Check that the viewport gets resized correctly when the stage is resized.
 TEST_F(OpenGlVisitorTest, ResizeViewport) {
-  TidyInterface::StageActor* stage = interface()->GetDefaultStage();
-  OpenGlDrawVisitor visitor(gl_interface(), interface(), stage);
+  RealCompositor::StageActor* stage = compositor()->GetDefaultStage();
+  OpenGlDrawVisitor visitor(gl_interface(), compositor(), stage);
 
   stage->Accept(&visitor);
   EXPECT_EQ(0, gl_interface()->viewport().x);

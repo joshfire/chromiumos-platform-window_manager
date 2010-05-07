@@ -22,10 +22,10 @@
 #include "window_manager/image_container.h"
 #include "window_manager/util.h"
 
-DECLARE_bool(tidy_display_debug_needle);
+DECLARE_bool(compositor_display_debug_needle);
 
-#ifndef TIDY_OPENGL
-#error Need TIDY_OPENGL defined to compile this file
+#ifndef COMPOSITOR_OPENGL
+#error Need COMPOSITOR_OPENGL defined to compile this file
 #endif
 
 // Turn this on if you want to debug something in this file in depth.
@@ -136,7 +136,7 @@ void OpenGlPixmapData::SetTexture(GLuint texture, bool has_alpha) {
 // static
 bool OpenGlPixmapData::BindToPixmap(
     OpenGlDrawVisitor* visitor,
-    TidyInterface::TexturePixmapActor* actor) {
+    RealCompositor::TexturePixmapActor* actor) {
   GLInterface* gl_interface = visitor->gl_interface_;
   XConnection* x_conn = visitor->x_conn_;
 
@@ -211,7 +211,7 @@ bool OpenGlPixmapData::BindToPixmap(
   // Set this in case we are adding the pixmap data as part of the pass.
   actor->set_is_opaque(actor->opacity() > 0.999f && !data->has_alpha_);
   actor->SetDrawingData(OpenGlDrawVisitor::PIXMAP_DATA,
-                        TidyInterface::DrawingDataPtr(data.release()));
+                        RealCompositor::DrawingDataPtr(data.release()));
   actor->set_pixmap_invalid(false);
   actor->SetDirty();
   return true;
@@ -236,12 +236,12 @@ void OpenGlTextureData::SetTexture(GLuint texture, bool has_alpha) {
   has_alpha_ = has_alpha;
 }
 
-OpenGlDrawVisitor::OpenGlDrawVisitor(GLInterfaceBase* gl_interface,
-                                     TidyInterface* interface,
-                                     ClutterInterface::StageActor* stage)
-    : gl_interface_(dynamic_cast<GLInterface*>(gl_interface)),
-      interface_(interface),
-      x_conn_(interface->x_conn()),
+OpenGlDrawVisitor::OpenGlDrawVisitor(GLInterface* gl_interface,
+                                     RealCompositor* compositor,
+                                     Compositor::StageActor* stage)
+    : gl_interface_(gl_interface),
+      compositor_(compositor),
+      x_conn_(compositor_->x_conn()),
       stage_(NULL),
       framebuffer_config_rgb_(0),
       framebuffer_config_rgba_(0),
@@ -337,7 +337,7 @@ void OpenGlDrawVisitor::FindFramebufferConfigurations() {
 OpenGlDrawVisitor::~OpenGlDrawVisitor() {
   gl_interface_->Finish();
   // Make sure the vertex buffer is deleted.
-  quad_drawing_data_ = TidyInterface::DrawingDataPtr();
+  quad_drawing_data_ = RealCompositor::DrawingDataPtr();
   CHECK_GL_ERROR(gl_interface_);
   gl_interface_->MakeGlxCurrent(0, 0);
   if (context_) {
@@ -346,7 +346,7 @@ OpenGlDrawVisitor::~OpenGlDrawVisitor() {
 }
 
 void OpenGlDrawVisitor::BindImage(const ImageContainer* container,
-                                  TidyInterface::QuadActor* actor) {
+                                  RealCompositor::QuadActor* actor) {
   // Create an OpenGL texture with the loaded image data.
   GLuint new_texture;
   gl_interface_->Enable(GL_TEXTURE_2D);
@@ -377,17 +377,17 @@ void OpenGlDrawVisitor::BindImage(const ImageContainer* container,
   data->SetTexture(new_texture, true);
   actor->SetSize(container->width(), container->height());
   actor->SetDrawingData(OpenGlDrawVisitor::TEXTURE_DATA,
-                        TidyInterface::DrawingDataPtr(data));
+                        RealCompositor::DrawingDataPtr(data));
   DLOG(INFO) << "Binding image " << container->filename()
              << " to texture " << new_texture;
 }
 
-void OpenGlDrawVisitor::VisitActor(TidyInterface::Actor* actor) {
+void OpenGlDrawVisitor::VisitActor(RealCompositor::Actor* actor) {
   // Base actors actually don't have anything to draw.
 }
 
 void OpenGlDrawVisitor::VisitTexturePixmap(
-    TidyInterface::TexturePixmapActor* actor) {
+    RealCompositor::TexturePixmapActor* actor) {
   if (!actor->IsVisible()) return;
   // Make sure there's a bound texture.
   if (!actor->GetDrawingData(PIXMAP_DATA).get() ||
@@ -404,20 +404,22 @@ void OpenGlDrawVisitor::VisitTexturePixmap(
   VisitQuad(actor);
 }
 
-void OpenGlDrawVisitor::VisitQuad(TidyInterface::QuadActor* actor) {
+void OpenGlDrawVisitor::VisitQuad(RealCompositor::QuadActor* actor) {
   if (!actor->IsVisible()) return;
 #ifdef EXTRA_LOGGING
   DLOG(INFO) << "Drawing quad " << actor->name() << ".";
 #endif
-  OpenGlQuadDrawingData* draw_data = dynamic_cast<OpenGlQuadDrawingData*>(
-      actor->GetDrawingData(DRAWING_DATA).get());
 
-  if (!draw_data) {
-    // This actor hasn't been here before, so let's set the drawing
-    // data on it.
+  RealCompositor::DrawingData* generic_drawing_data =
+      actor->GetDrawingData(DRAWING_DATA).get();
+  if (!generic_drawing_data) {
+    // This actor hasn't been here before, so let's set the drawing data on it.
     actor->SetDrawingData(DRAWING_DATA, quad_drawing_data_);
-    draw_data = dynamic_cast<OpenGlQuadDrawingData*>(quad_drawing_data_.get());
+    generic_drawing_data = quad_drawing_data_.get();
   }
+  OpenGlQuadDrawingData* drawing_data =
+      dynamic_cast<OpenGlQuadDrawingData*>(generic_drawing_data);
+  CHECK(drawing_data);
 
   // Calculate the vertex colors, taking into account the actor color,
   // opacity and the dimming gradient.
@@ -446,29 +448,41 @@ void OpenGlDrawVisitor::VisitQuad(TidyInterface::QuadActor* actor) {
   float dim_green = green * dimmed_transparency;
   float dim_blue = blue * dimmed_transparency;
 
-  draw_data->set_vertex_color(0, red, green, blue, actor_opacity);
-  draw_data->set_vertex_color(1, red, green, blue, actor_opacity);
-  draw_data->set_vertex_color(2, dim_red, dim_green, dim_blue, actor_opacity);
-  draw_data->set_vertex_color(3, dim_red, dim_green, dim_blue, actor_opacity);
+  drawing_data->set_vertex_color(
+      0, red, green, blue, actor_opacity);
+  drawing_data->set_vertex_color(
+      1, red, green, blue, actor_opacity);
+  drawing_data->set_vertex_color(
+      2, dim_red, dim_green, dim_blue, actor_opacity);
+  drawing_data->set_vertex_color(
+      3, dim_red, dim_green, dim_blue, actor_opacity);
 
   gl_interface_->EnableClientState(GL_COLOR_ARRAY);
   // Have to un-bind the array buffer to set the color pointer so that
   // it uses the color buffer instead of the vertex buffer memory.
   gl_interface_->BindBuffer(GL_ARRAY_BUFFER, 0);
-  gl_interface_->ColorPointer(4, GL_FLOAT, 0, draw_data->color_buffer());
-  gl_interface_->BindBuffer(GL_ARRAY_BUFFER, draw_data->vertex_buffer());
+  gl_interface_->ColorPointer(4, GL_FLOAT, 0, drawing_data->color_buffer());
+  gl_interface_->BindBuffer(GL_ARRAY_BUFFER, drawing_data->vertex_buffer());
   CHECK_GL_ERROR(gl_interface_);
 
   // Find out if this quad has pixmap or texture data to bind.
-  OpenGlPixmapData* pixmap_data = dynamic_cast<OpenGlPixmapData*>(
-      actor->GetDrawingData(PIXMAP_DATA).get());
+  RealCompositor::DrawingData* generic_pixmap_data =
+      actor->GetDrawingData(PIXMAP_DATA).get();
+  OpenGlPixmapData* pixmap_data =
+      dynamic_cast<OpenGlPixmapData*>(generic_pixmap_data);
+  if (generic_pixmap_data)
+    CHECK(pixmap_data);
   if (pixmap_data && pixmap_data->texture()) {
     // Actor has a pixmap texture to bind.
     gl_interface_->Enable(GL_TEXTURE_2D);
     gl_interface_->BindTexture(GL_TEXTURE_2D, pixmap_data->texture());
   } else {
-    OpenGlTextureData* texture_data = dynamic_cast<OpenGlTextureData*>(
-        actor->GetDrawingData(TEXTURE_DATA).get());
+    RealCompositor::DrawingData* generic_texture_data =
+        actor->GetDrawingData(TEXTURE_DATA).get();
+    OpenGlTextureData* texture_data =
+        dynamic_cast<OpenGlTextureData*>(generic_texture_data);
+    if (generic_texture_data)
+      CHECK(texture_data);
     if (texture_data && texture_data->texture()) {
       // Actor has a texture to bind.
       gl_interface_->Enable(GL_TEXTURE_2D);
@@ -517,9 +531,10 @@ void OpenGlDrawVisitor::VisitQuad(TidyInterface::QuadActor* actor) {
 }
 
 void OpenGlDrawVisitor::DrawNeedle() {
-  OpenGlQuadDrawingData* draw_data = dynamic_cast<OpenGlQuadDrawingData*>(
-      quad_drawing_data_.get());
-  gl_interface_->BindBuffer(GL_ARRAY_BUFFER, draw_data->vertex_buffer());
+  OpenGlQuadDrawingData* drawing_data =
+      dynamic_cast<OpenGlQuadDrawingData*>(quad_drawing_data_.get());
+  CHECK(drawing_data);
+  gl_interface_->BindBuffer(GL_ARRAY_BUFFER, drawing_data->vertex_buffer());
   gl_interface_->EnableClientState(GL_VERTEX_ARRAY);
   gl_interface_->VertexPointer(2, GL_FLOAT, 0, 0);
   gl_interface_->DisableClientState(GL_TEXTURE_COORD_ARRAY);
@@ -536,12 +551,13 @@ void OpenGlDrawVisitor::DrawNeedle() {
   gl_interface_->PopMatrix();
 }
 
-void OpenGlDrawVisitor::VisitStage(TidyInterface::StageActor* actor) {
+void OpenGlDrawVisitor::VisitStage(RealCompositor::StageActor* actor) {
   if (!actor->IsVisible()) return;
 
   stage_ = actor;
-  OpenGlQuadDrawingData* draw_data = dynamic_cast<OpenGlQuadDrawingData*>(
-      quad_drawing_data_.get());
+  OpenGlQuadDrawingData* drawing_data =
+      dynamic_cast<OpenGlQuadDrawingData*>(quad_drawing_data_.get());
+  CHECK(drawing_data);
 
   if (actor->was_resized()) {
     gl_interface_->Viewport(0, 0, actor->width(), actor->height());
@@ -551,13 +567,12 @@ void OpenGlDrawVisitor::VisitStage(TidyInterface::StageActor* actor) {
   gl_interface_->MatrixMode(GL_PROJECTION);
   gl_interface_->LoadIdentity();
   gl_interface_->Ortho(0, actor->width(), actor->height(), 0,
-                       -TidyInterface::LayerVisitor::kMinDepth,
-                       -TidyInterface::LayerVisitor::kMaxDepth);
+                       -RealCompositor::LayerVisitor::kMinDepth,
+                       -RealCompositor::LayerVisitor::kMaxDepth);
   gl_interface_->MatrixMode(GL_MODELVIEW);
   gl_interface_->LoadIdentity();
   gl_interface_->Clear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-  gl_interface_->BindBuffer(GL_ARRAY_BUFFER,
-                            draw_data->vertex_buffer());
+  gl_interface_->BindBuffer(GL_ARRAY_BUFFER, drawing_data->vertex_buffer());
   gl_interface_->EnableClientState(GL_VERTEX_ARRAY);
   gl_interface_->VertexPointer(2, GL_FLOAT, 0, 0);
   gl_interface_->EnableClientState(GL_TEXTURE_COORD_ARRAY);
@@ -566,7 +581,7 @@ void OpenGlDrawVisitor::VisitStage(TidyInterface::StageActor* actor) {
   CHECK_GL_ERROR(gl_interface_);
 
   // Set the z-depths for the actors, update is_opaque.
-  TidyInterface::LayerVisitor layer_visitor(interface_->actor_count());
+  RealCompositor::LayerVisitor layer_visitor(compositor_->actor_count());
   actor->Accept(&layer_visitor);
 
 #ifdef EXTRA_LOGGING
@@ -596,7 +611,7 @@ void OpenGlDrawVisitor::VisitStage(TidyInterface::StageActor* actor) {
   gl_interface_->DepthMask(GL_TRUE);
   CHECK_GL_ERROR(gl_interface_);
 
-  if (FLAGS_tidy_display_debug_needle) {
+  if (FLAGS_compositor_display_debug_needle) {
     DrawNeedle();
   }
   gl_interface_->SwapGlxBuffers(actor->GetStageXWindow());
@@ -607,8 +622,7 @@ void OpenGlDrawVisitor::VisitStage(TidyInterface::StageActor* actor) {
   stage_ = NULL;
 }
 
-void OpenGlDrawVisitor::VisitContainer(
-    TidyInterface::ContainerActor* actor) {
+void OpenGlDrawVisitor::VisitContainer(RealCompositor::ContainerActor* actor) {
   if (!actor->IsVisible()) {
     return;
   }
@@ -629,12 +643,11 @@ void OpenGlDrawVisitor::VisitContainer(
              << actor->scale_x() << ", "  << actor->scale_y() << ") at size ("
              << actor->width() << "x"  << actor->height() << ")";
 #endif
-  TidyInterface::ActorVector children = actor->GetChildren();
+  RealCompositor::ActorVector children = actor->GetChildren();
   if (visit_opaque_) {
-    for (TidyInterface::ActorVector::const_iterator iterator = children.begin();
-         iterator != children.end(); ++iterator) {
-      TidyInterface::Actor* child =
-          dynamic_cast<TidyInterface::Actor*>(*iterator);
+    for (RealCompositor::ActorVector::const_iterator iterator =
+           children.begin(); iterator != children.end(); ++iterator) {
+      RealCompositor::Actor* child = *iterator;
       // Only traverse if the child is visible, and opaque.
       if (child->IsVisible() && child->is_opaque()) {
 #ifdef EXTRA_LOGGING
@@ -643,7 +656,7 @@ void OpenGlDrawVisitor::VisitContainer(
                    << ", opacity: " << child->opacity()
                    << ", is_opaque: " << child->is_opaque() << ")";
 #endif
-        (*iterator)->Accept(this);
+        child->Accept(this);
       } else {
 #ifdef EXTRA_LOGGING
         DLOG(INFO) << "NOT drawing transparent child " << child->name()
@@ -659,11 +672,10 @@ void OpenGlDrawVisitor::VisitContainer(
     ancestor_opacity_ *= actor->opacity();
 
     // Walk backwards so we go back to front.
-    TidyInterface::ActorVector::const_reverse_iterator iterator;
+    RealCompositor::ActorVector::const_reverse_iterator iterator;
     for (iterator = children.rbegin(); iterator != children.rend();
          ++iterator) {
-      TidyInterface::Actor* child =
-          dynamic_cast<TidyInterface::Actor*>(*iterator);
+      RealCompositor::Actor* child = *iterator;
       // Only traverse if child is visible, and either transparent or
       // has children that might be transparent.
       if (child->IsVisible() &&
@@ -677,7 +689,7 @@ void OpenGlDrawVisitor::VisitContainer(
                    << ", ancestor_opacity: " << ancestor_opacity_
                    << ", is_opaque: " << child->is_opaque() << ")";
 #endif
-        (*iterator)->Accept(this);
+        child->Accept(this);
       } else {
 #ifdef EXTRA_LOGGING
         DLOG(INFO) << "NOT drawing opaque child " << child->name()

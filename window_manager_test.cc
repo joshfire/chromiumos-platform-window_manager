@@ -153,7 +153,7 @@ TEST_F(WindowManagerTest, ExistingWindows) {
   wm_.reset(NULL);
   xconn_.reset(new MockXConnection);
   event_loop_.reset(new EventLoop);
-  clutter_.reset(new MockClutterInterface(xconn_.get()));
+  compositor_.reset(new MockCompositor(xconn_.get()));
   XWindow xid = CreateSimpleWindow();
   MockXConnection::WindowInfo* info = xconn_->GetWindowInfoOrDie(xid);
   xconn_->MapWindow(xid);
@@ -161,7 +161,7 @@ TEST_F(WindowManagerTest, ExistingWindows) {
   CreateAndInitNewWm();
   Window* win = wm_->GetWindowOrDie(xid);
   EXPECT_TRUE(win->mapped());
-  EXPECT_TRUE(dynamic_cast<const MockClutterInterface::Actor*>(
+  EXPECT_TRUE(dynamic_cast<const MockCompositor::Actor*>(
                   win->actor())->visible());
 
   // Now test the case where the window starts out unmapped and
@@ -170,7 +170,7 @@ TEST_F(WindowManagerTest, ExistingWindows) {
   wm_.reset(NULL);
   xconn_.reset(new MockXConnection);
   event_loop_.reset(new EventLoop);
-  clutter_.reset(new MockClutterInterface(xconn_.get()));
+  compositor_.reset(new MockCompositor(xconn_.get()));
   xid = CreateSimpleWindow();
   info = xconn_->GetWindowInfoOrDie(xid);
 
@@ -178,7 +178,7 @@ TEST_F(WindowManagerTest, ExistingWindows) {
   EXPECT_FALSE(info->mapped);
   win = wm_->GetWindowOrDie(xid);
   EXPECT_FALSE(win->mapped());
-  EXPECT_FALSE(dynamic_cast<const MockClutterInterface::Actor*>(
+  EXPECT_FALSE(dynamic_cast<const MockCompositor::Actor*>(
                    win->actor())->visible());
 
   XEvent event;
@@ -189,7 +189,7 @@ TEST_F(WindowManagerTest, ExistingWindows) {
   MockXConnection::InitMapEvent(&event, xid);
   wm_->HandleEvent(&event);
   EXPECT_TRUE(win->mapped());
-  EXPECT_TRUE(dynamic_cast<const MockClutterInterface::Actor*>(
+  EXPECT_TRUE(dynamic_cast<const MockCompositor::Actor*>(
                   win->actor())->visible());
 
   // Finally, test the typical case where a window is created after
@@ -197,7 +197,7 @@ TEST_F(WindowManagerTest, ExistingWindows) {
   wm_.reset(NULL);
   xconn_.reset(new MockXConnection);
   event_loop_.reset(new EventLoop);
-  clutter_.reset(new MockClutterInterface(xconn_.get()));
+  compositor_.reset(new MockCompositor(xconn_.get()));
   xid = None;
   info = NULL;
 
@@ -211,7 +211,7 @@ TEST_F(WindowManagerTest, ExistingWindows) {
   EXPECT_FALSE(info->mapped);
   win = wm_->GetWindowOrDie(xid);
   EXPECT_FALSE(win->mapped());
-  EXPECT_FALSE(dynamic_cast<const MockClutterInterface::Actor*>(
+  EXPECT_FALSE(dynamic_cast<const MockCompositor::Actor*>(
                    win->actor())->visible());
 
   MockXConnection::InitMapRequestEvent(&event, *info);
@@ -222,7 +222,7 @@ TEST_F(WindowManagerTest, ExistingWindows) {
   MockXConnection::InitMapEvent(&event, xid);
   wm_->HandleEvent(&event);
   EXPECT_TRUE(win->mapped());
-  EXPECT_TRUE(dynamic_cast<const MockClutterInterface::Actor*>(
+  EXPECT_TRUE(dynamic_cast<const MockCompositor::Actor*>(
                   win->actor())->visible());
 }
 
@@ -253,7 +253,7 @@ TEST_F(WindowManagerTest, OverrideRedirectMapping) {
   // Now test the other possibility, where the window isn't mapped on the X
   // server yet when we receive the CreateNotify event.
   Window* win = wm_->GetWindowOrDie(xid);
-  EXPECT_TRUE(dynamic_cast<const MockClutterInterface::Actor*>(
+  EXPECT_TRUE(dynamic_cast<const MockCompositor::Actor*>(
                   win->actor())->visible());
 
   XWindow xid2 = xconn_->CreateWindow(
@@ -273,7 +273,7 @@ TEST_F(WindowManagerTest, OverrideRedirectMapping) {
   wm_->HandleEvent(&event);
 
   Window* win2 = wm_->GetWindowOrDie(xid2);
-  EXPECT_TRUE(dynamic_cast<const MockClutterInterface::Actor*>(
+  EXPECT_TRUE(dynamic_cast<const MockCompositor::Actor*>(
                   win2->actor())->visible());
 }
 
@@ -479,12 +479,12 @@ TEST_F(WindowManagerTest, RestackOverrideRedirectWindows) {
   Window* win2 = wm_->GetWindowOrDie(xid2);
 
   // Send a ConfigureNotify saying that the second window has been stacked
-  // on top of the first and then make sure that the Clutter actors are
+  // on top of the first and then make sure that the compositing actors are
   // stacked in the same manner.
   MockXConnection::InitConfigureNotifyEvent(&event, *info2);
   event.xconfigure.above = xid;
   wm_->HandleEvent(&event);
-  MockClutterInterface::StageActor* stage = clutter_->GetDefaultStage();
+  MockCompositor::StageActor* stage = compositor_->GetDefaultStage();
   EXPECT_LT(stage->GetStackingIndex(win2->actor()),
             stage->GetStackingIndex(win->actor()));
 
@@ -709,7 +709,7 @@ TEST_F(WindowManagerTest, DeferRedirection) {
   wm_.reset(NULL);
   xconn_.reset(new MockXConnection);
   event_loop_.reset(new EventLoop);
-  clutter_.reset(new MockClutterInterface(xconn_.get()));
+  compositor_.reset(new MockCompositor(xconn_.get()));
   XWindow existing_xid = CreateSimpleWindow();
   MockXConnection::WindowInfo* existing_info =
       xconn_->GetWindowInfoOrDie(existing_xid);
@@ -720,9 +720,8 @@ TEST_F(WindowManagerTest, DeferRedirection) {
   EXPECT_TRUE(existing_info->redirected);
   Window* existing_win = wm_->GetWindowOrDie(existing_xid);
   EXPECT_TRUE(existing_win->redirected());
-  MockClutterInterface::TexturePixmapActor* existing_mock_actor =
-      dynamic_cast<MockClutterInterface::TexturePixmapActor*>(
-          existing_win->actor());
+  MockCompositor::TexturePixmapActor* existing_mock_actor =
+      dynamic_cast<MockCompositor::TexturePixmapActor*>(existing_win->actor());
   CHECK(existing_mock_actor);
   EXPECT_EQ(existing_xid, existing_mock_actor->xid());
 
@@ -737,8 +736,8 @@ TEST_F(WindowManagerTest, DeferRedirection) {
   EXPECT_FALSE(info->redirected);
   Window* win = wm_->GetWindowOrDie(xid);
   EXPECT_FALSE(win->redirected());
-  MockClutterInterface::TexturePixmapActor* mock_actor =
-      dynamic_cast<MockClutterInterface::TexturePixmapActor*>(win->actor());
+  MockCompositor::TexturePixmapActor* mock_actor =
+      dynamic_cast<MockCompositor::TexturePixmapActor*>(win->actor());
   CHECK(mock_actor);
   EXPECT_EQ(None, mock_actor->xid());
 
@@ -779,8 +778,8 @@ TEST_F(WindowManagerTest, DeferRedirection) {
   EXPECT_TRUE(override_redirect_info->redirected);
   Window* override_redirect_win = wm_->GetWindowOrDie(override_redirect_xid);
   EXPECT_TRUE(override_redirect_win->redirected());
-  MockClutterInterface::TexturePixmapActor* override_redirect_mock_actor =
-      dynamic_cast<MockClutterInterface::TexturePixmapActor*>(
+  MockCompositor::TexturePixmapActor* override_redirect_mock_actor =
+      dynamic_cast<MockCompositor::TexturePixmapActor*>(
           override_redirect_win->actor());
   CHECK(override_redirect_mock_actor);
   EXPECT_EQ(override_redirect_xid, override_redirect_mock_actor->xid());
@@ -878,7 +877,7 @@ TEST_F(WindowManagerTest, LoggedIn) {
 
   wm_.reset(new WindowManager(event_loop_.get(),
                               xconn_.get(),
-                              clutter_.get(),
+                              compositor_.get(),
                               false));  // logged_in=false
   CHECK(wm_->Init());
   EXPECT_FALSE(wm_->logged_in());

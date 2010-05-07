@@ -35,8 +35,8 @@ Window::Window(WindowManager* wm, XWindow xid, bool override_redirect)
     : xid_(xid),
       xid_str_(XidStr(xid_)),
       wm_(wm),
-      actor_(wm_->clutter()->CreateTexturePixmap()),
-      shadow_(FLAGS_window_drop_shadows ? new Shadow(wm->clutter()) : NULL),
+      actor_(wm_->compositor()->CreateTexturePixmap()),
+      shadow_(FLAGS_window_drop_shadows ? new Shadow(wm->compositor()) : NULL),
       transient_for_xid_(None),
       override_redirect_(override_redirect),
       mapped_(false),
@@ -81,14 +81,15 @@ Window::Window(WindowManager* wm, XWindow xid, bool override_redirect)
     client_height_ = geometry.height;
 
     // If the window has a border, remove it -- they make things more confusing
-    // (we need to include the border when telling Clutter the window's size,
-    // but it's not included when telling X to resize the window, etc.).
+    // (we need to include the border when telling the compositor the
+    // window's size, but it's not included when telling X to resize the
+    // window, etc.).
     if (geometry.border_width > 0)
       wm_->xconn()->SetWindowBorderWidth(xid_, 0);
   }
 
-  // We don't need to redirect the window for compositing; Clutter already
-  // does it for us.
+  // We don't need to redirect the window for compositing; the compositor
+  // already does it for us.
   DLOG(INFO) << "Constructing object to track "
              << (override_redirect_ ? "override-redirect " : "")
              << "window " << xid_str() << " "
@@ -683,8 +684,8 @@ void Window::SetShadowOpacity(double opacity, int anim_ms) {
     shadow_->SetOpacity(opacity, anim_ms);
 }
 
-void Window::StackCompositedAbove(ClutterInterface::Actor* actor,
-                                  ClutterInterface::Actor* shadow_actor,
+void Window::StackCompositedAbove(Compositor::Actor* actor,
+                                  Compositor::Actor* shadow_actor,
                                   bool stack_above_shadow_actor) {
   if (actor)
     actor_->Raise(actor);
@@ -697,8 +698,8 @@ void Window::StackCompositedAbove(ClutterInterface::Actor* actor,
   }
 }
 
-void Window::StackCompositedBelow(ClutterInterface::Actor* actor,
-                                  ClutterInterface::Actor* shadow_actor,
+void Window::StackCompositedBelow(Compositor::Actor* actor,
+                                  Compositor::Actor* shadow_actor,
                                   bool stack_above_shadow_actor) {
   if (actor)
     actor_->Lower(actor);
@@ -711,7 +712,7 @@ void Window::StackCompositedBelow(ClutterInterface::Actor* actor,
   }
 }
 
-ClutterInterface::Actor* Window::GetBottomActor() {
+Compositor::Actor* Window::GetBottomActor() {
   return (shadow_.get() ? shadow_->group() : actor_.get());
 }
 
