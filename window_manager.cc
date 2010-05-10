@@ -268,6 +268,7 @@ bool WindowManager::Init() {
   }
 
   if (FLAGS_wm_use_compositing) {
+    CHECK(xconn_->RedirectSubwindowsForCompositing(root_));
     // Create the compositing overlay, put the stage's window inside of it,
     // and make events fall through both to the client windows underneath.
     overlay_xid_ = xconn_->GetCompositingOverlayWindow(root_);
@@ -871,10 +872,6 @@ void WindowManager::HandleMappedWindow(Window* win) {
     }
   }
 
-  // Redirect the window if we didn't already do it in response to a MapNotify
-  // event (i.e. previously-existing or override-redirect).
-  if (FLAGS_wm_use_compositing && !win->redirected())
-    win->Redirect();
   SetWmStateProperty(win->xid(), 1);  // NormalState
   FOR_EACH_EVENT_CONSUMER(event_consumers_, HandleWindowMap(win));
 
@@ -1351,8 +1348,6 @@ void WindowManager::HandleMapRequest(const XMapRequestEvent& e) {
     return;
   }
 
-  if (FLAGS_wm_use_compositing)
-    win->Redirect();
   if (win->override_redirect()) {
     LOG(WARNING) << "Huh?  Got a MapRequest event for override-redirect "
                  << "window " << XidStr(e.window);
@@ -1446,19 +1441,15 @@ void WindowManager::HandleReparentNotify(const XReparentEvent& e) {
       if (!win->override_redirect())
         UpdateClientListStackingProperty();
 
-      bool was_mapped = false;
-      if (win->mapped()) {
-        // Make sure that all event consumers know that the window's going
-        // away.
+      // Make sure that all event consumers know that the window's going away.
+      if (win->mapped())
         FOR_EACH_EVENT_CONSUMER(event_consumers_, HandleWindowUnmap(win));
-        was_mapped = true;
-      }
 
       client_windows_.erase(e.window);
 
       // We're not going to be compositing the window anymore, so
       // unredirect it so it'll get drawn using the usual path.
-      if (FLAGS_wm_use_compositing && was_mapped)
+      if (FLAGS_wm_use_compositing)
         xconn_->UnredirectWindowForCompositing(e.window);
     }
   }
@@ -1494,7 +1485,6 @@ void WindowManager::HandleUnmapNotify(const XUnmapEvent& e) {
   SetWmStateProperty(e.window, 0);  // WithdrawnState
   win->set_mapped(false);
   win->HideComposited();
-  win->reset_redirected();
 
   FOR_EACH_EVENT_CONSUMER(event_consumers_, HandleWindowUnmap(win));
 

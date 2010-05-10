@@ -54,7 +54,7 @@ class MockXConnection : public XConnection {
   bool GetSizeHintsForWindow(XWindow xid, SizeHints* hints_out);
   bool GetTransientHintForWindow(XWindow xid, XWindow* owner_out);
   bool GetWindowAttributes(XWindow xid, WindowAttributes* attr_out);
-  bool RedirectWindowForCompositing(XWindow xid);
+  bool RedirectSubwindowsForCompositing(XWindow xid);
   bool UnredirectWindowForCompositing(XWindow xid);
   XWindow GetCompositingOverlayWindow(XWindow root) { return overlay_; }
   XPixmap GetCompositingPixmapForWindow(XWindow xid);
@@ -137,6 +137,7 @@ class MockXConnection : public XConnection {
     bool mapped;
     bool override_redirect;
     bool input_only;
+    bool redirect_subwindows;
     bool redirected;
     int event_mask;
     std::map<XAtom, std::vector<int> > int_properties;

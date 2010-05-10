@@ -493,7 +493,6 @@ class RealCompositor : public Compositor {
 
     // Begin Compositor::TexturePixmapActor methods
     bool SetTexturePixmapWindow(XWindow xid);
-    bool IsUsingTexturePixmapExtension() { return true; }
     void UpdateContents() { RefreshPixmap(); }
     bool SetAlphaMask(const unsigned char* bytes, int width, int height) {
       NOTIMPLEMENTED();

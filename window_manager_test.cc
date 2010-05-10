@@ -360,24 +360,19 @@ TEST_F(WindowManagerTest, EventConsumer) {
   EXPECT_EQ(2, ec.num_unmapped_windows());
 }
 
+// Check that windows that get reparented away from the root (like Flash
+// plugin windows) get unredirected.
 TEST_F(WindowManagerTest, Reparent) {
   XWindow xid = CreateSimpleWindow();
   MockXConnection::WindowInfo* info = xconn_->GetWindowInfoOrDie(xid);
-  ASSERT_FALSE(info->redirected);
+  ASSERT_TRUE(info->redirected);
 
   XEvent event;
   MockXConnection::InitCreateWindowEvent(&event, *info);
   wm_->HandleEvent(&event);
-  // The window shouldn't be redirected yet, since it hasn't been mapped.
-  EXPECT_FALSE(info->redirected);
-
-  // After we send a map request, the window should be redirected.
   MockXConnection::InitMapRequestEvent(&event, *info);
   wm_->HandleEvent(&event);
   EXPECT_TRUE(info->mapped);
-  EXPECT_TRUE(info->redirected);
-
-  // Finally, let the window manager know that the window has been mapped.
   MockXConnection::InitMapEvent(&event, xid);
   wm_->HandleEvent(&event);
 
@@ -700,10 +695,8 @@ TEST_F(WindowManagerTest, WmIpcVersion) {
   EXPECT_EQ(3, wm_->wm_ipc_version());
 }
 
-// Test that we defer redirection of client windows until we see them getting
-// mapped (and also that we redirect windows that were already mapped at
-// startup).
-TEST_F(WindowManagerTest, DeferRedirection) {
+// Test that all windows get redirected when they're created.
+TEST_F(WindowManagerTest, RedirectWindows) {
   // First, create a window that's already mapped when the window manager is
   // started.
   wm_.reset(NULL);
@@ -714,48 +707,35 @@ TEST_F(WindowManagerTest, DeferRedirection) {
   MockXConnection::WindowInfo* existing_info =
       xconn_->GetWindowInfoOrDie(existing_xid);
   xconn_->MapWindow(existing_xid);
+  EXPECT_FALSE(existing_info->redirected);
   CreateAndInitNewWm();
 
   // Check that the window manager redirected it.
   EXPECT_TRUE(existing_info->redirected);
   Window* existing_win = wm_->GetWindowOrDie(existing_xid);
-  EXPECT_TRUE(existing_win->redirected());
   MockCompositor::TexturePixmapActor* existing_mock_actor =
       dynamic_cast<MockCompositor::TexturePixmapActor*>(existing_win->actor());
   CHECK(existing_mock_actor);
   EXPECT_EQ(existing_xid, existing_mock_actor->xid());
 
-  // Now, create a new window, but don't map it yet.
+  // Now, create a new window, but don't map it yet.  The window manager
+  // should've already told the X server to automatically redirect toplevel
+  // windows.
   XWindow xid = CreateSimpleWindow();
   MockXConnection::WindowInfo* info = xconn_->GetWindowInfoOrDie(xid);
+  EXPECT_TRUE(info->redirected);
+
   XEvent event;
   MockXConnection::InitCreateWindowEvent(&event, *info);
   wm_->HandleEvent(&event);
-
-  // The window shouldn't be redirected initially.
-  EXPECT_FALSE(info->redirected);
   Window* win = wm_->GetWindowOrDie(xid);
-  EXPECT_FALSE(win->redirected());
   MockCompositor::TexturePixmapActor* mock_actor =
       dynamic_cast<MockCompositor::TexturePixmapActor*>(win->actor());
   CHECK(mock_actor);
-  EXPECT_EQ(None, mock_actor->xid());
-
-  // After we send a MapRequest event, the window should be mapped and
-  // redirected.
-  MockXConnection::InitMapRequestEvent(&event, *info);
-  wm_->HandleEvent(&event);
-  EXPECT_TRUE(info->mapped);
-  EXPECT_TRUE(info->redirected);
-  EXPECT_TRUE(win->redirected());
   EXPECT_EQ(xid, mock_actor->xid());
 
-  // Finally, let the window manager know that the window has been mapped.
-  MockXConnection::InitMapEvent(&event, xid);
-  wm_->HandleEvent(&event);
-
   // There won't be a MapRequest event for override-redirect windows, but they
-  // should still get redirected in response to the MapNotify.
+  // should still get redirected automatically.
   XWindow override_redirect_xid = xconn_->CreateWindow(
         xconn_->GetRootWindow(),
         10, 20,  // x, y
@@ -765,67 +745,19 @@ TEST_F(WindowManagerTest, DeferRedirection) {
         0);      // event mask
   MockXConnection::WindowInfo* override_redirect_info =
       xconn_->GetWindowInfoOrDie(override_redirect_xid);
+  EXPECT_TRUE(override_redirect_info->redirected);
   xconn_->MapWindow(override_redirect_xid);
   ASSERT_TRUE(override_redirect_info->mapped);
 
-  // Send CreateNotify and MapNotify events to the window manager.
+  // Send a CreateNotify event to the window manager.
   MockXConnection::InitCreateWindowEvent(&event, *override_redirect_info);
   wm_->HandleEvent(&event);
-  MockXConnection::InitMapEvent(&event, override_redirect_xid);
-  wm_->HandleEvent(&event);
-
-  // Now check that it's redirected.
-  EXPECT_TRUE(override_redirect_info->redirected);
   Window* override_redirect_win = wm_->GetWindowOrDie(override_redirect_xid);
-  EXPECT_TRUE(override_redirect_win->redirected());
   MockCompositor::TexturePixmapActor* override_redirect_mock_actor =
       dynamic_cast<MockCompositor::TexturePixmapActor*>(
           override_redirect_win->actor());
   CHECK(override_redirect_mock_actor);
   EXPECT_EQ(override_redirect_xid, override_redirect_mock_actor->xid());
-}
-
-// This tests that redirected flag is resetted after window gets unmapped.
-TEST_F(WindowManagerTest, UnmapResetsRedirectFlag) {
-  // Creates a window
-  XWindow xid = CreateSimpleWindow();
-  MockXConnection::WindowInfo* info = xconn_->GetWindowInfoOrDie(xid);
-
-  XEvent event;
-  MockXConnection::InitCreateWindowEvent(&event, *info);
-  wm_->HandleEvent(&event);
-
-  Window* win = wm_->GetWindowOrDie(xid);
-
-  // Maps it.
-  xconn_->MapWindow(xid);
-  MockXConnection::InitMapRequestEvent(&event, *info);
-  wm_->HandleEvent(&event);
-
-  // It should be mapped and redirected.
-  EXPECT_TRUE(info->mapped);
-  EXPECT_TRUE(info->redirected);
-  EXPECT_TRUE(win->redirected());
-
-  // Unmaps it.
-  xconn_->UnmapWindow(xid);
-  MockXConnection::InitUnmapEvent(&event, xid);
-  wm_->HandleEvent(&event);
-
-  // Unmapped and unredirected.
-  EXPECT_FALSE(info->mapped);
-  EXPECT_FALSE(info->redirected);
-  EXPECT_FALSE(win->redirected());
-
-  // Maps it again.
-  xconn_->MapWindow(xid);
-  MockXConnection::InitMapRequestEvent(&event, *info);
-  wm_->HandleEvent(&event);
-
-  // It should be mapped and redirected.
-  EXPECT_TRUE(info->mapped);
-  EXPECT_TRUE(info->redirected);
-  EXPECT_TRUE(win->redirected());
 }
 
 // This tests against a bug where the window manager would fail to handle

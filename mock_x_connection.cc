@@ -81,7 +81,6 @@ bool MockXConnection::UnmapWindow(XWindow xid) {
   if (!info)
     return false;
   info->mapped = false;
-  info->redirected = false;
   if (focused_xid_ == xid)
     focused_xid_ = None;
   info->changed = true;
@@ -234,11 +233,19 @@ bool MockXConnection::GetWindowAttributes(
   return true;
 }
 
-bool MockXConnection::RedirectWindowForCompositing(XWindow xid) {
+bool MockXConnection::RedirectSubwindowsForCompositing(XWindow xid) {
   WindowInfo* info = GetWindowInfo(xid);
   if (!info)
     return false;
-  info->redirected = true;
+  info->redirect_subwindows = true;
+
+  for (map<XWindow, shared_ptr<WindowInfo> >::iterator it = windows_.begin();
+       it != windows_.end(); ++it) {
+    WindowInfo* other_win_info = it->second.get();
+    if (other_win_info->parent == xid)
+      other_win_info->redirected = true;
+  }
+
   return true;
 }
 
@@ -276,6 +283,11 @@ XWindow MockXConnection::CreateWindow(
   info->event_mask = event_mask;
   windows_[xid] = info;
   stacked_xids_->AddOnTop(xid);
+
+  const WindowInfo* parent_info = GetWindowInfo(parent);
+  if (parent_info && parent_info->redirect_subwindows)
+    info->redirected = true;
+
   return xid;
 }
 
@@ -549,6 +561,7 @@ MockXConnection::WindowInfo::WindowInfo(XWindow xid, XWindow parent)
       mapped(false),
       override_redirect(false),
       input_only(false),
+      redirect_subwindows(false),
       redirected(false),
       event_mask(0),
       transient_for(None),

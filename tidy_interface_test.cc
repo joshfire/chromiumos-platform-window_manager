@@ -538,13 +538,11 @@ TEST_F(RealCompositorTest, HandleXEvents) {
       0);        // event_mask
   MockXConnection::WindowInfo* info =
       x_connection()->GetWindowInfoOrDie(xid);
-  EXPECT_FALSE(info->redirected);
   info->compositing_pixmap = 123;  // arbitrary
 
-  // After we bind the actor to our window, the window should be
-  // redirected and the compositor should be marked dirty.
+  // After we bind the actor to our window, the compositor should be marked
+  // dirty.
   EXPECT_TRUE(actor->SetTexturePixmapWindow(xid));
-  EXPECT_TRUE(info->redirected);
   EXPECT_TRUE(compositor()->dirty());
 
   // We should pick up the window's pixmap the next time we draw.
@@ -567,9 +565,7 @@ TEST_F(RealCompositorTest, HandleXEvents) {
 
   // TODO: Test that we refresh textures when we see damage events.
 
-  // We should un-redirect the window when the actor is destroyed.
   actor.reset();
-  EXPECT_FALSE(info->redirected);
   EXPECT_TRUE(compositor()->dirty());
 }
 

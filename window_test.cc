@@ -507,22 +507,6 @@ TEST_F(WindowTest, OverrideRedirectForDestroyedWindow) {
   EXPECT_TRUE(win.override_redirect());
 }
 
-TEST_F(WindowTest, DeferRedirection) {
-  // Test that we don't redirect client windows until we're explicitly told to
-  // do so.
-  XWindow xid = 214895;
-  Window win(wm_.get(), xid, true);
-  EXPECT_FALSE(win.redirected());
-  MockCompositor::TexturePixmapActor* mock_actor =
-      dynamic_cast<MockCompositor::TexturePixmapActor*>(win.actor());
-  CHECK(mock_actor);
-  EXPECT_EQ(None, mock_actor->xid());
-
-  win.Redirect();
-  EXPECT_TRUE(win.redirected());
-  EXPECT_EQ(xid, mock_actor->xid());
-}
-
 // Test that we remove windows' borders.
 TEST_F(WindowTest, RemoveBorder) {
   XWindow xid = CreateSimpleWindow();

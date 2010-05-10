@@ -713,12 +713,10 @@ void RealCompositor::RemoveActor(Actor* actor) {
 void RealCompositor::StartMonitoringWindowForChanges(
     XWindow xid, TexturePixmapActor* actor) {
   texture_pixmaps_[xid] = actor;
-  x_conn()->RedirectWindowForCompositing(xid);
 }
 
 void RealCompositor::StopMonitoringWindowForChanges(
     XWindow xid, TexturePixmapActor* actor) {
-  x_conn()->UnredirectWindowForCompositing(xid);
   texture_pixmaps_.erase(xid);
 }
 

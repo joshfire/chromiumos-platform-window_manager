@@ -105,7 +105,6 @@ class Compositor {
     TexturePixmapActor() {}
     virtual ~TexturePixmapActor() {}
     virtual bool SetTexturePixmapWindow(XWindow xid) = 0;
-    virtual bool IsUsingTexturePixmapExtension() = 0;
 
     // Update our copy of the window's contents in response to notification
     // that they have been modified.
@@ -281,8 +280,7 @@ class MockCompositor : public Compositor {
     const unsigned char* alpha_mask_bytes() const { return alpha_mask_bytes_; }
     const XWindow xid() const { return xid_; }
 
-    bool SetTexturePixmapWindow(XWindow xid);
-    bool IsUsingTexturePixmapExtension() { return false; }
+    bool SetTexturePixmapWindow(XWindow xid) { xid_ = xid; return true; }
     void UpdateContents() {}
     bool SetAlphaMask(const unsigned char* bytes, int width, int height);
     void ClearAlphaMask();

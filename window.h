@@ -76,8 +76,6 @@ class Window {
   bool focused() const { return focused_; }
   void set_focused(bool focused) { focused_ = focused; }
   bool shaped() const { return shaped_; }
-  bool redirected() const { return redirected_; }
-  void reset_redirected() { redirected_ = false; }
 
   int client_x() const { return client_x_; }
   int client_y() const { return client_y_; }
@@ -325,9 +323,6 @@ class Window {
 
   // Is the window shaped (using the Shape extension)?
   bool shaped_;
-
-  // Has the window been redirected for compositing already?
-  bool redirected_;
 
   // Client-supplied window type.
   chromeos::WmIpcWindowType type_;

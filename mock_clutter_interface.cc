@@ -90,12 +90,6 @@ int MockCompositor::ContainerActor::GetStackingIndex(Compositor::Actor* actor) {
 }
 
 
-bool MockCompositor::TexturePixmapActor::SetTexturePixmapWindow(
-    XWindow xid) {
-  xid_ = xid;
-  return xconn_->RedirectWindowForCompositing(xid);
-}
-
 bool MockCompositor::TexturePixmapActor::SetAlphaMask(
     const unsigned char* bytes, int width, int height) {
   ClearAlphaMask();

@@ -234,12 +234,13 @@ class XConnection {
   // Get a window's attributes.
   virtual bool GetWindowAttributes(XWindow xid, WindowAttributes* attr_out) = 0;
 
-  // Redirect the window to an offscreen pixmap so it can be composited.
-  virtual bool RedirectWindowForCompositing(XWindow xid) = 0;
+  // Redirect all of a window's present and future child windows to
+  // offscreen pixmaps so they can be composited.
+  virtual bool RedirectSubwindowsForCompositing(XWindow xid) = 0;
 
-  // Undo a previous call to RedirectWindowForCompositing().  This is
-  // useful when a plugin window gets reparented away from the root and we
-  // realize that we won't need to composite it after all.
+  // Un-redirect a previously-redirected window.  This is useful when a
+  // plugin window gets reparented away from the root and we realize that
+  // we won't need to composite it after all.
   virtual bool UnredirectWindowForCompositing(XWindow xid) = 0;
 
   // Get the overlay window.  (XComposite provides a window that is stacked

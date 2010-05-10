@@ -465,8 +465,9 @@ bool RealXConnection::GetWindowAttributes(
   return true;
 }
 
-bool RealXConnection::RedirectWindowForCompositing(XWindow xid) {
-  xcb_composite_redirect_window(xcb_conn_, xid, XCB_COMPOSITE_REDIRECT_MANUAL);
+bool RealXConnection::RedirectSubwindowsForCompositing(XWindow xid) {
+  xcb_composite_redirect_subwindows(
+      xcb_conn_, xid, XCB_COMPOSITE_REDIRECT_MANUAL);
   return true;
 }
 
