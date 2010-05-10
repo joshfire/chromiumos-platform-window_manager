@@ -24,9 +24,9 @@ extern "C" {
 #include "handler/exception_handler.h"
 #endif
 #include "window_manager/callback.h"
-#include "window_manager/clutter_interface.h"
+#include "window_manager/compositor.h"
 #include "window_manager/event_loop.h"
-#include "window_manager/tidy_interface.h"
+#include "window_manager/real_compositor.h"
 #if defined(COMPOSITOR_OPENGL)
 #include "window_manager/real_gl_interface.h"
 #elif defined(COMPOSITOR_OPENGLES)

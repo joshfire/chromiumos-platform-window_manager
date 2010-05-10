@@ -11,10 +11,10 @@
 
 #include "base/logging.h"
 #include "base/scoped_ptr.h"
-#include "window_manager/clutter_interface.h"
+#include "window_manager/compositor.h"
 #include "window_manager/gl_interface.h"
 #include "window_manager/image_container.h"
-#include "window_manager/tidy_interface.h"
+#include "window_manager/real_compositor.h"
 #include "window_manager/x_connection.h"
 
 namespace window_manager {

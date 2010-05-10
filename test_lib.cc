@@ -12,7 +12,7 @@
 #include "base/command_line.h"
 #include "base/string_util.h"
 #include "cros/chromeos_wm_ipc_enums.h"
-#include "window_manager/clutter_interface.h"
+#include "window_manager/compositor.h"
 #include "window_manager/event_loop.h"
 #include "window_manager/mock_x_connection.h"
 #include "window_manager/motion_event_coalescer.h"

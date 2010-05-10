@@ -12,8 +12,9 @@
 #include "base/logging.h"
 #include "base/scoped_ptr.h"
 
-#include "window_manager/tidy_interface.h"
+#include "window_manager/compositor.h"
 #include "window_manager/gles/math_types.h"
+#include "window_manager/real_compositor.h"
 
 namespace window_manager {
 

@@ -9,7 +9,7 @@ extern "C" {
 }
 #include <gflags/gflags.h>
 
-#include "window_manager/clutter_interface.h"
+#include "window_manager/compositor.h"
 #include "window_manager/x_connection.h"
 
 DEFINE_string(hotkey_overlay_image_dir, "../assets/images",

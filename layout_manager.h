@@ -15,7 +15,7 @@
 #include "base/basictypes.h"
 #include "base/scoped_ptr.h"
 #include "cros/chromeos_wm_ipc_enums.h"
-#include "window_manager/clutter_interface.h"
+#include "window_manager/compositor.h"
 #include "window_manager/event_consumer.h"
 #include "window_manager/key_bindings.h"
 #include "window_manager/panel_manager.h"

@@ -17,7 +17,7 @@
 #include "base/hash_tables.h"
 #include "base/logging.h"
 #include "base/scoped_ptr.h"
-#include "window_manager/clutter_interface.h"
+#include "window_manager/compositor.h"
 #include "window_manager/x_types.h"
 
 #if !(defined(COMPOSITOR_OPENGL) || defined(COMPOSITOR_OPENGLES))

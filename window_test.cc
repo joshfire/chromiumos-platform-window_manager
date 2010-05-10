@@ -11,7 +11,7 @@
 #include "base/logging.h"
 #include "base/scoped_ptr.h"
 #include "cros/chromeos_wm_ipc_enums.h"
-#include "window_manager/clutter_interface.h"
+#include "window_manager/compositor.h"
 #include "window_manager/event_loop.h"
 #include "window_manager/mock_x_connection.h"
 #include "window_manager/shadow.h"

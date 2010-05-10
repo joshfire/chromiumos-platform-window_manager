@@ -119,10 +119,6 @@ srcs = Split('''\
   wm_ipc.cc
   x_connection.cc
 ''')
-if backend == 'opengl':
-  srcs.append(Split('''\
-    real_gl_interface.cc
-  '''))
 libwm_ipc = wm_env.Library('wm_ipc', srcs)
 
 # Create a library with just the additional files needed by the window
@@ -132,19 +128,21 @@ libwm_ipc = wm_env.Library('wm_ipc', srcs)
 srcs = Split('''\
   event_consumer_registrar.cc
   event_loop.cc
+  gl_interface_base.cc
   hotkey_overlay.cc
   image_container.cc
   key_bindings.cc
   layout_manager.cc
   login_controller.cc
   metrics_reporter.cc
-  mock_clutter_interface.cc
+  mock_compositor.cc
   motion_event_coalescer.cc
   panel.cc
   panel_bar.cc
   panel_dock.cc
   panel_manager.cc
   pointer_position_watcher.cc
+  real_compositor.cc
   shadow.cc
   snapshot_window.cc
   stacking_manager.cc
@@ -154,14 +152,11 @@ srcs = Split('''\
 ''')
 if backend == 'opengl':
   srcs.append(Split('''\
-    gl_interface_base.cc
     opengl_visitor.cc
-  tidy_interface.cc
+    real_gl_interface.cc
   '''))
 elif backend == 'opengles':
   srcs.append(Split('''\
-    gl_interface_base.cc
-    tidy_interface.cc
     gles/opengles_visitor.cc
     gles/shader_base.cc
     gles/shaders.cc
@@ -194,7 +189,7 @@ test_env.Prepend(LIBS=[libtest])
 tests = []
 
 # These are tests that only get built when we use particular backends
-backend_tests = {'opengl': ['tidy_interface_test.cc',
+backend_tests = {'opengl': ['real_compositor_test.cc',
                             'opengl_visitor_test.cc'],
                  'opengles': []}
 all_backend_tests = set(itertools.chain(*backend_tests.values()))
