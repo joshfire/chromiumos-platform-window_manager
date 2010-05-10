@@ -1126,8 +1126,10 @@ void LayoutManager::CalculatePositionsForOverviewMode() {
     // overage, and once we reach that point, start scrolling only a
     // percentage of the overage.
     int background_overage = wm_->background()->GetWidth() - wm_->width();
-    int offset_limit = (running_width - current_snapshot_->overview_width() -
-                        kOverviewSelectedPadding) * kBackgroundScrollRatio;
+    int offset_limit =
+        (running_width -
+         (current_snapshot_ ? current_snapshot_->overview_width() : 0) -
+         kOverviewSelectedPadding) * kBackgroundScrollRatio;
     if (offset_limit > background_overage) {
       overview_background_offset_ = -background_overage * selected_index /
                                     snapshots_.size();
