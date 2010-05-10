@@ -23,13 +23,17 @@ using std::vector;
 
 namespace window_manager {
 
+const int MockXConnection::kDisplayWidth = 1024;
+const int MockXConnection::kDisplayHeight = 768;
+
 MockXConnection::MockXConnection()
     : windows_(),
       stacked_xids_(new Stacker<XWindow>),
       next_window_(1),
-      // TODO: Replace magic numbers.
-      root_(CreateWindow(None, 0, 0, 1024, 768, true, false, 0)),
-      overlay_(CreateWindow(root_, 0, 0, 1024, 768, true, false, 0)),
+      root_(CreateWindow(None, 0, 0,
+                         kDisplayWidth, kDisplayHeight, true, false, 0)),
+      overlay_(CreateWindow(root_, 0, 0,
+                            kDisplayWidth, kDisplayHeight, true, false, 0)),
       next_atom_(1000),
       focused_xid_(None),
       pointer_grab_xid_(None),

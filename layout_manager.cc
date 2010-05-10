@@ -45,10 +45,6 @@ namespace window_manager {
 // should be scaled to in overview mode?
 static const double kOverviewWindowMaxSizeRatio = 0.5;
 
-// What fraction of the manager's total width should each window use for
-// peeking out underneath the window on top of it in overview mode?
-static const double kOverviewExposedWindowRatio = 0.02;
-
 // How many pixels should be used for padding the snapshot on the
 // right side when it is selected.
 static const double kOverviewSelectedPadding = 4.0;
@@ -60,6 +56,17 @@ static const double kOverviewGroupSpacing = 0.05;
 // Duration between panning updates while a drag is occurring on the
 // background window in overview mode.
 static const int kOverviewDragUpdateMs = 50;
+
+// What fraction of the manager's total width should each window use for
+// peeking out underneath the window on top of it in overview mode?
+const double LayoutManager::kOverviewExposedWindowRatio = 0.02;
+
+// This is the speed at which the background image moves relative to
+// how much the snapshots move when a new snapshot is selected.  Note
+// that if there are enough snapshots that scrolling to the last one
+// would cause the background to not cover the entire screen, then
+// this ratio is ignored (and a smaller ratio is calculuated).
+const double LayoutManager::kBackgroundScrollRatio = 0.33;
 
 // Animation speed used for windows.
 const int LayoutManager::kWindowAnimMs = 250;
@@ -84,6 +91,7 @@ LayoutManager::LayoutManager(WindowManager* wm, PanelManager* panel_manager)
       current_toplevel_(NULL),
       current_snapshot_(NULL),
       overview_panning_offset_(0),
+      overview_background_offset_(0),
       overview_background_event_coalescer_(
           new MotionEventCoalescer(
               wm_->event_loop(),
@@ -738,6 +746,9 @@ void LayoutManager::LayoutWindows(bool animate) {
        it != toplevels_.end(); ++it) {
     (*it)->UpdateLayout(animate);
   }
+
+  if (wm_->background())
+    wm_->background()->MoveX(overview_background_offset_, kWindowAnimMs);
 }
 
 void LayoutManager::SetMode(Mode mode) {
@@ -790,7 +801,6 @@ void LayoutManager::SetMode(Mode mode) {
       break;
     case MODE_OVERVIEW: {
       UpdateCurrentSnapshot();
-      CalculatePositionsForOverviewMode();
       if (current_toplevel_->IsWindowOrTransientFocused()) {
         // We need to take the input focus away here; otherwise the
         // previously-focused window would continue to get keyboard events
@@ -1058,14 +1068,15 @@ void LayoutManager::CalculatePositionsForOverviewMode() {
   int selected_x = 0.5 * width_;
 
   const int width_limit =
-      min(static_cast<double>(width_) / sqrt(toplevels_.size()),
+      min(static_cast<double>(width_) / sqrt(snapshots_.size()),
           kOverviewWindowMaxSizeRatio * width_);
   const int height_limit =
-      min(static_cast<double>(height_) / sqrt(toplevels_.size()),
+      min(static_cast<double>(height_) / sqrt(snapshots_.size()),
           kOverviewWindowMaxSizeRatio * height_);
-  int running_width = 0;
-
   ToplevelWindow* last_toplevel = snapshots_[0]->toplevel();
+  int running_width = 0;
+  int selected_index = 0;
+  int selected_offset = 0;
   for (int i = 0; static_cast<size_t>(i) < snapshots_.size(); ++i) {
     SnapshotWindow* snapshot = snapshots_[i].get();
     bool is_selected = (snapshot == current_snapshot_);
@@ -1073,14 +1084,19 @@ void LayoutManager::CalculatePositionsForOverviewMode() {
     if (snapshot->toplevel() != last_toplevel)
       running_width += width_ * kOverviewGroupSpacing;
 
+    if (is_selected) {
+      selected_index = i;
+      selected_offset = running_width;
+    }
+
     double scale = is_selected ? kOverviewSelectedScale : 1.0;
     snapshot->SetSize(width_limit * scale, height_limit * scale);
     snapshot->SetPosition(
         running_width, 0.5 * (height_ - snapshot->overview_height()));
     running_width += is_selected ?
                      snapshot->overview_width() + kOverviewSelectedPadding  :
-                     (kOverviewExposedWindowRatio * width_ *
-                      (width_limit / (kOverviewWindowMaxSizeRatio * width_)));
+                     (kOverviewExposedWindowRatio * width_limit /
+                      kOverviewWindowMaxSizeRatio);
     if (is_selected && selected_x >= 0) {
       // If the window will be under 'selected_x' when centered, just
       // center it.  Otherwise, move it as close to centered as possible
@@ -1099,6 +1115,25 @@ void LayoutManager::CalculatePositionsForOverviewMode() {
       }
     }
     last_toplevel = snapshot->toplevel();
+  }
+
+  if (wm_->background()) {
+    // Now we scroll the background to the right location.  The
+    // algorithm is the following: scroll the background by
+    // kBackgroundScrollRatio times the offset distance to the
+    // selected snapshot until there are enough snapshots that
+    // selecting the last snapshot would scroll past the end of the
+    // overage, and once we reach that point, start scrolling only a
+    // percentage of the overage.
+    int background_overage = wm_->background()->GetWidth() - wm_->width();
+    int offset_limit = (running_width - current_snapshot_->overview_width() -
+                        kOverviewSelectedPadding) * kBackgroundScrollRatio;
+    if (offset_limit > background_overage) {
+      overview_background_offset_ = -background_overage * selected_index /
+                                    snapshots_.size();
+    } else {
+      overview_background_offset_ = -selected_offset * kBackgroundScrollRatio;
+    }
   }
 }
 

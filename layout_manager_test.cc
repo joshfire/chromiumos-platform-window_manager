@@ -734,6 +734,61 @@ TEST_F(LayoutManagerTest, OverviewFocus) {
   EXPECT_FALSE(toplevel_info->button_is_grabbed(AnyButton));
 }
 
+TEST_F(LayoutManagerTest, OverviewScrolling) {
+  const int window_width = 640;
+  const int window_height = 480;
+
+  // Create a background actor.
+  Compositor::Actor* background = compositor_->CreateRectangle(
+      Compositor::Color(0xff, 0xff, 0xff),
+      Compositor::Color(0xff, 0xff, 0xff), 0);
+  background->SetSize(window_width, window_height);
+  wm_->SetBackgroundActor(background);
+
+  // Create and map a toplevel window.
+  XWindow toplevel_xid = CreateToplevelWindow(2, 0, 0, 0,
+                                              window_width, window_height);
+  SendInitialEventsForWindow(toplevel_xid);
+  SendFocusEvents(xconn_->GetRootWindow(), toplevel_xid);
+
+  // Create an associated snapshot window.
+  XWindow xid = CreateSnapshotWindow(toplevel_xid, 0, 0, 0,
+                                     window_width / 2, window_height / 2);
+  SendInitialEventsForWindow(xid);
+  SendFocusEvents(xconn_->GetRootWindow(), toplevel_xid);
+
+  // This is the vertical offset to center the background.
+  int centering_offset = -(MockXConnection::kDisplayHeight *
+                           WindowManager::kBackgroundExpansionFactor -
+                           MockXConnection::kDisplayHeight)/2;
+
+  // The background should not be scrolled horizontally yet.
+  EXPECT_EQ(0, background->GetX());
+  EXPECT_EQ(centering_offset, background->GetY());
+
+  // Now switch to overview mode.
+  lm_->SetMode(LayoutManager::MODE_OVERVIEW);
+  XEvent event;
+  MockXConnection::InitFocusOutEvent(
+      &event, toplevel_xid, NotifyWhileGrabbed, NotifyVirtual);
+  wm_->HandleEvent(&event);
+
+  // Now create and map a second snapshot window.
+  XWindow xid2 = CreateSnapshotWindow(toplevel_xid, 1, 0, 0,
+                                      window_width / 2, window_height / 2);
+  SendInitialEventsForWindow(xid2);
+  ChangeTabInfo(toplevel_xid, 2, 1);
+  SendWindowTypeEvent(toplevel_xid);
+
+  // The background should be scrolled back a little now, since
+  // the second snapshot is selected.
+  EXPECT_EQ(static_cast<int>(-LayoutManager::kBackgroundScrollRatio *
+                             LayoutManager::kOverviewExposedWindowRatio *
+                             MockXConnection::kDisplayWidth),
+            background->GetX());
+  EXPECT_EQ(centering_offset, background->GetY());
+}
+
 // Test that already-existing windows get stacked correctly.
 TEST_F(LayoutManagerTest, InitialWindowStacking) {
   // Reset everything so we can start from scratch.

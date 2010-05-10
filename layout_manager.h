@@ -158,6 +158,7 @@ class LayoutManager : public EventConsumer,
   FRIEND_TEST(LayoutManagerTest, StackTransientsAbovePanels);
   FRIEND_TEST(LayoutManagerTest, NoDimmingInActiveMode);
   FRIEND_TEST(LayoutManagerTest, AvoidMovingCurrentWindow);
+  FRIEND_TEST(LayoutManagerTest, OverviewScrolling);
 
   // Internal private class, declared in toplevel_window.h
   class ToplevelWindow;
@@ -189,6 +190,15 @@ class LayoutManager : public EventConsumer,
     // toplevel windows.
     MODE_OVERVIEW,
   };
+
+  // What fraction of the manager's total width should each window use
+  // for peeking out underneath the window on top of it in overview
+  // mode?
+  static const double kOverviewExposedWindowRatio;
+
+  // This is the speed at which the background image moves relative to
+  // how much the snapshots move when a new snapshot is selected.
+  static const double kBackgroundScrollRatio;
 
   // Animation speed used for windows.
   static const int kWindowAnimMs;
@@ -382,9 +392,16 @@ class LayoutManager : public EventConsumer,
   // snapshot windows, this should never be NULL.
   SnapshotWindow* current_snapshot_;
 
-  // Amount that toplevel windows' positions should be offset to the left
+  // Amount that snapshot windows' positions should be offset to the left
   // for overview mode.  Used to implement panning.
   int overview_panning_offset_;
+
+  // Amount that the background position should be offset to the left
+  // for overview mode, based on the currently selected snapshot.
+  // This is to simulate a 3D effect: that the snapshots are "in front
+  // of" the background by panning the background slightly when the
+  // selection changes.
+  int overview_background_offset_;
 
   // Mouse pointer motion gets stored here during a drag on the background
   // window in overview mode so that it can be applied periodically in

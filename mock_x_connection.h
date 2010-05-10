@@ -25,6 +25,9 @@ namespace window_manager {
 // This is a fake implementation of a connection to an X server.
 class MockXConnection : public XConnection {
  public:
+  static const int kDisplayWidth;
+  static const int kDisplayHeight;
+
   MockXConnection();
   ~MockXConnection();
 

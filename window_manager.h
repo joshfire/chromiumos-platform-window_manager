@@ -163,18 +163,25 @@ class WindowManager {
   friend class PanelDockTest;             // uses 'panel_manager_'
   friend class PanelManagerTest;          // uses 'panel_manager_'
   FRIEND_TEST(LayoutManagerTest, Basic);  // uses TrackWindow()
+  FRIEND_TEST(LayoutManagerTest, OverviewScrolling);
   FRIEND_TEST(WindowTest, TransientFor);  // uses TrackWindow()
   FRIEND_TEST(WindowManagerTest, RegisterExistence);
   FRIEND_TEST(WindowManagerTest, EventConsumer);
   FRIEND_TEST(WindowManagerTest, ResizeScreen);
   FRIEND_TEST(WindowManagerTest, KeepPanelsAfterRestart);
   FRIEND_TEST(WindowManagerTest, LoggedIn);
+  FRIEND_TEST(WindowManagerTest, ConfigureBackground);
 
   typedef std::map<XWindow, std::set<EventConsumer*> > WindowEventConsumerMap;
   typedef std::map<std::pair<XWindow, XAtom>, std::set<EventConsumer*> >
       PropertyChangeEventConsumerMap;
   typedef std::map<chromeos::WmIpcMessageType, std::set<EventConsumer*> >
       ChromeMessageEventConsumerMap;
+
+  // This is the factor by which to stretch the background
+  // horizontally so that it will scroll when the tab is changed in
+  // overview mode.
+  static const float kBackgroundExpansionFactor;
 
   // Is this one of our internally-created windows?
   bool IsInternalWindow(XWindow xid) {
@@ -227,6 +234,14 @@ class WindowManager {
   // we should use NormalState even when drawing a scaled-down version of
   // the window.
   bool SetWmStateProperty(XWindow xid, int state);
+
+  // Resizes and positions the background to account for the image
+  // aspect ratio and for scrolling in overview mode.
+  void ConfigureBackground(int width, int height);
+
+  // Sets and configures actor as the background.  Takes ownership of
+  // given actor.
+  void SetBackgroundActor(Compositor::Actor* actor);
 
   // Update the _NET_CLIENT_LIST and _NET_CLIENT_LIST_STACKING properties
   // on the root window (as described in EWMH).

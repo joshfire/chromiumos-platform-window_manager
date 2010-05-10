@@ -87,6 +87,10 @@ static const int kHotkeyOverlayAnimMs = 100;
 // update the hotkey overlay (when it's being shown).
 static const int kHotkeyOverlayPollMs = 100;
 
+// This is the factor by which to stretch the background horizontally
+// so that it will scroll when the tab is changed in overview mode.
+const float WindowManager::kBackgroundExpansionFactor = 1.3;
+
 // Invoke 'function_call' for each event consumer in 'consumers' (a set).
 #define FOR_EACH_EVENT_CONSUMER(consumers, function_call)                      \
   do {                                                                         \
@@ -256,16 +260,8 @@ bool WindowManager::Init() {
   stacking_manager_.reset(
       new StackingManager(xconn_, compositor_, atom_cache_.get()));
 
-  if (!FLAGS_wm_background_image.empty()) {
-    background_.reset(compositor_->CreateImage(FLAGS_wm_background_image));
-    background_->SetName("background");
-    background_->Move(0, 0, 0);
-    background_->SetSize(width_, height_);
-    stage_->AddActor(background_.get());
-    stacking_manager_->StackActorAtTopOfLayer(
-        background_.get(), StackingManager::LAYER_BACKGROUND);
-    background_->SetVisibility(true);
-  }
+  if (!FLAGS_wm_background_image.empty())
+    SetBackgroundActor(compositor_->CreateImage(FLAGS_wm_background_image));
 
   if (FLAGS_wm_use_compositing) {
     CHECK(xconn_->RedirectSubwindowsForCompositing(root_));
@@ -899,9 +895,7 @@ void WindowManager::HandleScreenResize(int new_width, int new_height) {
   height_ = new_height;
   SetEwmhSizeProperties();
   stage_->SetSize(width_, height_);
-  if (background_.get())
-    background_->SetSize(width_, height_);
-  xconn_->ResizeWindow(background_xid_, width_, height_);
+  ConfigureBackground(width_, height_);
   hotkey_overlay_->group()->Move(width_ / 2, height_ / 2, 0);
 
   FOR_EACH_EVENT_CONSUMER(event_consumers_, HandleScreenResize());
@@ -913,6 +907,54 @@ bool WindowManager::SetWmStateProperty(XWindow xid, int state) {
   values.push_back(0);  // we don't use icons
   XAtom xatom = GetXAtom(ATOM_WM_STATE);
   return xconn_->SetIntArrayProperty(xid, xatom, xatom, values);
+}
+
+void WindowManager::SetBackgroundActor(Compositor::Actor* actor) {
+  background_.reset(actor);
+  background_->SetName("background");
+  ConfigureBackground(width_, height_);
+  stage_->AddActor(background_.get());
+  stacking_manager_->StackActorAtTopOfLayer(
+      background_.get(), StackingManager::LAYER_BACKGROUND);
+}
+
+void WindowManager::ConfigureBackground(int width, int height) {
+  if (background_xid_)
+    xconn_->ResizeWindow(background_xid_, width_, height_);
+
+  if (!background_.get())
+    return;
+
+  // Calculate the expansion of the background image.  It should be
+  // zoomed to preserve aspect ratio and fill the screen, and then
+  // scaled up by kBackgroundExpansionFactor so that it is wider
+  // than the physical display so that we can scroll it horizontally
+  // when the user switches tabs in overview mode.
+  double image_aspect = static_cast<double>(background_->GetWidth()) /
+                        static_cast<double>(background_->GetHeight());
+  double display_aspect = static_cast<double>(width) /
+                          static_cast<double>(height);
+  int background_height, background_width;
+  if (image_aspect > display_aspect) {
+    // Image is wider than the display, scale image height to match
+    // the height of the display, and the image width to preserve
+    // the image ratio, and then expand them both to make it wide
+    // enough for scrolling.
+    background_height = kBackgroundExpansionFactor * height;
+    background_width = kBackgroundExpansionFactor * height * image_aspect;
+  } else {
+    // Image is narrower than the display, scale image width to
+    // match the width of the display, and the image height to
+    // preserve the image ratio, and then expand them both to make
+    // it wide enough for scrolling.
+    background_width = kBackgroundExpansionFactor * width;
+    background_height = kBackgroundExpansionFactor * width / image_aspect;
+  }
+  background_->SetSize(background_width, background_height);
+
+  // Center the image vertically.
+  background_->Move(0, (height - background_height) / 2, 0);
+  background_->SetVisibility(true);
 }
 
 bool WindowManager::UpdateClientListProperty() {
