@@ -64,7 +64,7 @@ class Window {
 
   XWindow xid() const { return xid_; }
   const std::string& xid_str() const { return xid_str_; }
-  Compositor::Actor* actor() { return actor_.get(); }
+  Compositor::TexturePixmapActor* actor() { return actor_.get(); }
   const Shadow* shadow() const { return shadow_.get(); }
   bool using_shadow() const { return using_shadow_; }
   XWindow transient_for_xid() const { return transient_for_xid_; }

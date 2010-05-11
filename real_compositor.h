@@ -477,7 +477,7 @@ class RealCompositor : public Compositor {
     virtual std::string GetDebugString(int indent_level) {
       return GetDebugStringInternal("TexturePixmapActor", indent_level);
     }
-    virtual void SetSizeImpl(int* width, int* height);
+    virtual void SetSizeImpl(int* width, int* height) { DiscardPixmap(); }
     // End Compositor::Actor methods
 
     // Implement VisitorDestination for visitor.
@@ -494,6 +494,7 @@ class RealCompositor : public Compositor {
     // Begin Compositor::TexturePixmapActor methods
     bool SetTexturePixmapWindow(XWindow xid);
     void UpdateContents() { RefreshPixmap(); }
+    void DiscardPixmap();
     bool SetAlphaMask(const unsigned char* bytes, int width, int height) {
       NOTIMPLEMENTED();
       return true;

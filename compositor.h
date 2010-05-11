@@ -10,6 +10,7 @@
 #include <string>
 
 #include "base/basictypes.h"
+#include "base/logging.h"
 #include "base/scoped_ptr.h"
 #include "window_manager/x_types.h"
 
@@ -110,6 +111,11 @@ class Compositor {
     // that they have been modified.
     virtual void UpdateContents() = 0;
 
+    // Discard the current pixmap.  The X Composite extension creates a new
+    // pixmap when a window gets mapped or resized; the old pixmap needs to
+    // be discarded in these cases.
+    virtual void DiscardPixmap() = 0;
+
     // Add an additional texture to mask out parts of the actor.
     // 'bytes' must be of size 'width' * 'height'.
     virtual bool SetAlphaMask(
@@ -193,6 +199,7 @@ class MockCompositor : public Compositor {
     void SetSize(int width, int height) {
       width_ = width;
       height_ = height;
+      SetSizeImpl(width, height);
     }
     void Move(int x, int y, int anim_ms) {
       x_ = x;
@@ -218,6 +225,8 @@ class MockCompositor : public Compositor {
     virtual std::string GetDebugString(int debug_level) { return ""; }
     void ShowDimmed(bool dimmed, int anim_ms) { is_dimmed_ = dimmed; }
     // End Compositor::Actor methods
+
+    virtual void SetSizeImpl(int width, int height) {}
 
    protected:
     int x_, y_;
@@ -273,17 +282,24 @@ class MockCompositor : public Compositor {
     explicit TexturePixmapActor(XConnection* xconn)
         : xconn_(xconn),
           alpha_mask_bytes_(NULL),
-          xid_(0) {}
-    virtual ~TexturePixmapActor() {
-      ClearAlphaMask();
-    }
+          xid_(0),
+          num_pixmap_discards_(0) {}
+    virtual ~TexturePixmapActor() { ClearAlphaMask(); }
     const unsigned char* alpha_mask_bytes() const { return alpha_mask_bytes_; }
-    const XWindow xid() const { return xid_; }
+    XWindow xid() const { return xid_; }
+    int num_pixmap_discards() const { return num_pixmap_discards_; }
 
+    // Begin Compositor::TexturePixmapActor implementation.
     bool SetTexturePixmapWindow(XWindow xid) { xid_ = xid; return true; }
     void UpdateContents() {}
+    void DiscardPixmap() { num_pixmap_discards_++; }
     bool SetAlphaMask(const unsigned char* bytes, int width, int height);
     void ClearAlphaMask();
+    // End Compositor::TexturePixmapActor implementation.
+
+    // Begin MockCompositor::Actor implementation.
+    virtual void SetSizeImpl(int width, int height) { DiscardPixmap(); }
+    // End MockCompositor::Actor implementation.
 
    private:
     XConnection* xconn_;  // not owned
@@ -293,6 +309,9 @@ class MockCompositor : public Compositor {
 
     // Redirected window that we're displaying.
     XWindow xid_;
+
+    // Number of times that DiscardPixmap() has been called.
+    int num_pixmap_discards_;
 
     DISALLOW_COPY_AND_ASSIGN(TexturePixmapActor);
   };

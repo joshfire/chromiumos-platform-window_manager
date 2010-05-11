@@ -503,19 +503,18 @@ RealCompositor::TexturePixmapActor::TexturePixmapActor(
       pixmap_invalid_(true) {
 }
 
-void RealCompositor::TexturePixmapActor::SetSizeImpl(int* width, int* height) {
-  DestroyPixmap();
-  SetDirty();
-  set_pixmap_invalid(true);
-}
-
-bool RealCompositor::TexturePixmapActor::SetTexturePixmapWindow(
-    XWindow xid) {
+bool RealCompositor::TexturePixmapActor::SetTexturePixmapWindow(XWindow xid) {
   Reset();
   window_ = xid;
   compositor()->StartMonitoringWindowForChanges(window_, this);
   SetDirty();
   return true;
+}
+
+void RealCompositor::TexturePixmapActor::DiscardPixmap() {
+  DestroyPixmap();
+  SetDirty();
+  set_pixmap_invalid(true);
 }
 
 void RealCompositor::TexturePixmapActor::Reset() {

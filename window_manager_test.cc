@@ -883,6 +883,33 @@ TEST_F(WindowManagerTest, HandleMappingNotify) {
   EXPECT_FALSE(xconn_->KeyIsGrabbed(old_keycode, ControlMask | Mod1Mask));
 }
 
+// Check that the window manager tells the compositor to discard the pixmap
+// for a window when the window is resized or unmapped.  See
+// http://crosbug.com/3159.
+TEST_F(WindowManagerTest, DiscardPixmapOnUnmap) {
+  XWindow xid = CreateSimpleWindow();
+  MockXConnection::WindowInfo* info = xconn_->GetWindowInfoOrDie(xid);
+  SendInitialEventsForWindow(xid);
+
+  Window* win = wm_->GetWindowOrDie(xid);
+  MockCompositor::TexturePixmapActor* actor =
+      dynamic_cast<MockCompositor::TexturePixmapActor*>(win->actor());
+  CHECK(actor);
+  int initial_pixmap_discards = actor->num_pixmap_discards();
+
+  // Check that the pixmap gets discarded when the window gets resized.
+  XEvent event;
+  info->width += 10;
+  MockXConnection::InitConfigureNotifyEvent(&event, *info);
+  wm_->HandleEvent(&event);
+  EXPECT_EQ(initial_pixmap_discards + 1, actor->num_pixmap_discards());
+
+  // We should try to discard it when the window is unmapped, too.
+  MockXConnection::InitUnmapEvent(&event, xid);
+  wm_->HandleEvent(&event);
+  EXPECT_EQ(initial_pixmap_discards + 2, actor->num_pixmap_discards());
+}
+
 }  // namespace window_manager
 
 int main(int argc, char** argv) {

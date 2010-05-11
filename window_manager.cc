@@ -1528,6 +1528,12 @@ void WindowManager::HandleUnmapNotify(const XUnmapEvent& e) {
   win->set_mapped(false);
   win->HideComposited();
 
+  // The Composite extension creates a new pixmap each time that a window
+  // is mapped.  Throw out the current pixmap to make sure that we'll pick
+  // up a new one if it gets mapped again later -- see
+  // http://crosbug.com/3159.
+  win->actor()->DiscardPixmap();
+
   FOR_EACH_EVENT_CONSUMER(event_consumers_, HandleWindowUnmap(win));
 
   if (mapped_xids_->Contains(win->xid())) {
