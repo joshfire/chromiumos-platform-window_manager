@@ -64,7 +64,6 @@ class PanelBar : public PanelContainer {
                                       int button,
                                       XTime timestamp);
   virtual void HandlePanelTitlebarPointerEnter(Panel* panel, XTime timestamp);
-  virtual void HandlePanelFocusChange(Panel* panel, bool focus_in);
   virtual void HandleSetPanelStateMessage(Panel* panel, bool expand);
   virtual bool HandleNotifyPanelDraggedMessage(Panel* panel,
                                                int drag_x, int drag_y);
@@ -142,12 +141,9 @@ class PanelBar : public PanelContainer {
   // Collapse a panel.
   void CollapsePanel(Panel* panel, int anim_ms);
 
-  // Focus the passed-in panel's content window.  Also removes its passive
-  // button grab and updates 'desired_panel_to_focus_'.  If
-  // 'remove_pointer_grab' is true, removes the active pointer grab and
-  // replays any grabbed events (this is used when the panel is being
-  // focused in response to a grabbed click).
-  void FocusPanel(Panel* panel, bool remove_pointer_grab, XTime timestamp);
+  // Focus the passed-in panel's content window.
+  // Also updates 'desired_panel_to_focus_'.
+  void FocusPanel(Panel* panel, XTime timestamp);
 
   // Get the panel with the passed-in content or titlebar window.
   // Returns NULL for unknown windows.

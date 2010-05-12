@@ -12,6 +12,7 @@
 #include "base/string_util.h"
 #include "cros/chromeos_wm_ipc_enums.h"
 #include "window_manager/atom_cache.h"
+#include "window_manager/focus_manager.h"
 #include "window_manager/geometry.h"
 #include "window_manager/shadow.h"
 #include "window_manager/util.h"
@@ -63,9 +64,8 @@ Window::Window(WindowManager* wm, XWindow xid, bool override_redirect)
       wm_state_modal_(false),
       wm_hint_urgent_(false),
       wm_window_type_(WM_WINDOW_TYPE_NORMAL) {
-  // Listen for focus, property, and shape changes on this window.
-  wm_->xconn()->SelectInputOnWindow(
-      xid_, FocusChangeMask | PropertyChangeMask, true);
+  // Listen for property and shape changes on this window.
+  wm_->xconn()->SelectInputOnWindow(xid_, PropertyChangeMask, true);
   wm_->xconn()->SelectShapeEventsOnWindow(xid_);
 
   // We update 'mapped_' when we get the MapNotify event instead of doing
@@ -140,6 +140,10 @@ void Window::SetTitle(const string& title) {
       actor_->SetName(string("window '") + title_ + "' (" + xid_str() + ")");
     }
   }
+}
+
+bool Window::IsFocused() const {
+  return wm_->focus_manager()->focused_win() == this;
 }
 
 bool Window::FetchAndApplySizeHints() {
@@ -416,7 +420,6 @@ bool Window::TakeFocus(XTime timestamp) {
     if (!wm_->xconn()->FocusWindow(xid_, timestamp))
       return false;
   }
-  focused_ = true;
   return true;
 }
 

@@ -742,18 +742,6 @@ void MockXConnection::InitEnterOrLeaveWindowEvent(XEvent* event,
 }
 
 // static
-void MockXConnection::InitFocusEvent(
-    XEvent* event, XWindow xid, int mode, int detail, bool focus_in) {
-  CHECK(event);
-  XFocusChangeEvent* focus_event = &(event->xfocus);
-  memset(focus_event, 0, sizeof(*focus_event));
-  focus_event->type = focus_in ? FocusIn : FocusOut;
-  focus_event->window = xid;
-  focus_event->mode = mode;
-  focus_event->detail = detail;
-}
-
-// static
 void MockXConnection::InitMapEvent(XEvent* event, XWindow xid) {
   CHECK(event);
   XMapEvent* map_event = &(event->xmap);

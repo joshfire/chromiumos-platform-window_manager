@@ -15,6 +15,7 @@
 #include "base/basictypes.h"
 #include "base/scoped_ptr.h"
 #include "window_manager/event_consumer.h"
+#include "window_manager/focus_manager.h"
 #include "window_manager/panel_container.h"  // for PanelSource enum
 #include "window_manager/util.h"
 #include "window_manager/x_types.h"
@@ -42,7 +43,7 @@ class PanelManagerAreaChangeListener {
 // PanelContainer objects, adds new panels to the appropriate container,
 // routes X events to panels and containers, coordinates drags of panels
 // between containers, etc.
-class PanelManager : public EventConsumer {
+class PanelManager : public EventConsumer, public FocusChangeListener {
  public:
   // Width of panel docks.
   static const int kPanelDockWidth;
@@ -113,9 +114,12 @@ class PanelManager : public EventConsumer {
   virtual void HandleClientMessage(XWindow xid,
                                    XAtom message_type,
                                    const long data[5]);
-  virtual void HandleFocusChange(XWindow xid, bool focus_in);
   virtual void HandleWindowPropertyChange(XWindow xid, XAtom xatom);
   // End EventConsumer implementation.
+
+  // Begin FocusChangeListener implementation.
+  virtual void HandleFocusChange();
+  // End FocusChangeListener implementation.
 
   // Handle notification from a panel that it's been resized.  We just
   // forward this through to its container, if any.

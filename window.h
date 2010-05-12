@@ -73,8 +73,6 @@ class Window {
   const std::vector<int>& type_params() const { return type_params_; }
   bool mapped() const { return mapped_; }
   void set_mapped(bool mapped) { mapped_ = mapped; }
-  bool focused() const { return focused_; }
-  void set_focused(bool focused) { focused_ = focused; }
   bool shaped() const { return shaped_; }
 
   int client_x() const { return client_x_; }
@@ -96,11 +94,9 @@ class Window {
   bool wm_state_modal() const { return wm_state_modal_; }
   bool wm_hint_urgent() const { return wm_hint_urgent_; }
 
-  // Redirect the client window for compositing.  This should be called once
-  // after we're sure that we're going to display the window (i.e. after it's
-  // been mapped).  Otherwise, there's a potential race for Flash windows -- see
-  // http://code.google.com/p/chromium-os/issues/detail?id=1151 .
-  void Redirect();
+  // Is this window currently focused?  We don't go to the X server for
+  // this; we just check with the FocusManager.
+  bool IsFocused() const;
 
   // Get and apply hints that have been set for the client window.
   bool FetchAndApplySizeHints();
@@ -165,6 +161,10 @@ class Window {
   // message if the client supports it or a SetInputFocus request
   // otherwise.  (Note that the client doesn't necessarily need to accept
   // the focus if WM_TAKE_FOCUS is used; see ICCCM 4.1.7.)
+  //
+  // Most callers should call FocusManager::FocusWindow() instead of
+  // invoking this directly; FocusManager handles adding or removing button
+  // grabs for click-to-focus and updating the _NET_ACTIVE_WINDOW property.
   bool TakeFocus(XTime timestamp);
 
   // If the window supports WM_DELETE_WINDOW messages, ask it to delete
@@ -178,6 +178,9 @@ class Window {
   // XConnection::RemovePointerGrab() -- this can be used to ensure that
   // the client receives the initial click on its window when implementing
   // click-to-focus behavior.
+  //
+  // Most callers should use FocusManager::UseClickToFocusForWindow(),
+  // which will handle all of this for them.
   bool AddButtonGrab();
   bool RemoveButtonGrab();
 
@@ -313,13 +316,6 @@ class Window {
   // appropriately), so e.g. a call to MapClient() will not be immediately
   // reflected in this variable.
   bool mapped_;
-
-  // Does the client window have the input focus?
-  // Note that this is set to true in response to calls to TakeFocus() but
-  // only set to false after receiving FocusOut events from the X server,
-  // so there will be points in time at which multiple windows claim to be
-  // focused.
-  bool focused_;
 
   // Is the window shaped (using the Shape extension)?
   bool shaped_;

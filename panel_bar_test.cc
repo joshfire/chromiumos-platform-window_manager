@@ -45,7 +45,6 @@ TEST_F(PanelBarTest, Basic) {
 
   // It should be initially focused.
   EXPECT_EQ(toplevel_xid, xconn_->focused_xid());
-  SendFocusEvents(xconn_->GetRootWindow(), toplevel_xid);
   EXPECT_EQ(toplevel_xid, GetActiveWindowProperty());
 
   // Now create a panel titlebar, and then the content window.
@@ -67,7 +66,6 @@ TEST_F(PanelBarTest, Basic) {
   // The panel's content window should take the focus, and no button grab
   // should be installed yet.
   EXPECT_EQ(content_xid, xconn_->focused_xid());
-  SendFocusEvents(toplevel_xid, content_xid);
   EXPECT_EQ(content_xid, GetActiveWindowProperty());
 
   // Click on the toplevel window to give it the focus again.  A button
@@ -79,7 +77,6 @@ TEST_F(PanelBarTest, Basic) {
   wm_->HandleEvent(&event);
   EXPECT_EQ(None, xconn_->pointer_grab_xid());
   EXPECT_EQ(toplevel_xid, xconn_->focused_xid());
-  SendFocusEvents(content_xid, toplevel_xid);
   EXPECT_TRUE(content_info->button_is_grabbed(AnyButton));
   EXPECT_EQ(toplevel_xid, GetActiveWindowProperty());
 
@@ -129,10 +126,6 @@ TEST_F(PanelBarTest, Basic) {
   EXPECT_EQ(None, xconn_->pointer_grab_xid());
   EXPECT_EQ(content_xid, xconn_->focused_xid());
   EXPECT_FALSE(content_info->button_is_grabbed(AnyButton));
-
-  // Send FocusOut and FocusIn events and check that the active window hint
-  // is updated to contain the content window.
-  SendFocusEvents(toplevel_xid, content_xid);
   EXPECT_EQ(content_xid, GetActiveWindowProperty());
 
   // Create a second toplevel window.
@@ -143,7 +136,6 @@ TEST_F(PanelBarTest, Basic) {
   // Check that the new toplevel window takes the focus (note that this is
   // testing LayoutManager code).
   EXPECT_EQ(toplevel_xid2, xconn_->focused_xid());
-  SendFocusEvents(content_xid, toplevel_xid2);
   EXPECT_EQ(toplevel_xid2, GetActiveWindowProperty());
 
   // The panel's and titlebar's client and composited windows should be
@@ -211,7 +203,6 @@ TEST_F(PanelBarTest, FocusNewPanel) {
 
   // It should be focused initially.
   EXPECT_EQ(content_xid, xconn_->focused_xid());
-  SendFocusEvents(xconn_->GetRootWindow(), content_xid);
   EXPECT_EQ(content_xid, GetActiveWindowProperty());
 
   // The panel's address should be contained in 'desired_panel_to_focus_'.

@@ -389,56 +389,6 @@ TEST_F(WindowManagerTest, Reparent) {
   EXPECT_FALSE(info->redirected);
 }
 
-// Test that we ignore FocusIn and FocusOut events that occur as the result
-// of a keyboard grab or ungrab, but honor other ones.
-TEST_F(WindowManagerTest, IgnoreGrabFocusEvents) {
-  XWindow xid = CreateSimpleWindow();
-  SendInitialEventsForWindow(xid);
-
-  Window* win = wm_->GetWindowOrDie(xid);
-  EXPECT_TRUE(win->focused());
-
-  // We should ignore a focus-out event caused by a grab...
-  XEvent event;
-  MockXConnection::InitFocusOutEvent(&event, xid, NotifyGrab, NotifyNonlinear);
-  wm_->HandleEvent(&event);
-  EXPECT_TRUE(win->focused());
-
-  // ... but honor one that comes in independently from a grab.
-  MockXConnection::InitFocusOutEvent(
-      &event, xid, NotifyNormal, NotifyNonlinear);
-  wm_->HandleEvent(&event);
-  EXPECT_FALSE(win->focused());
-
-  // Similarly, we should ignore a focus-in event caused by an ungrab...
-  MockXConnection::InitFocusInEvent(
-      &event, xid, NotifyUngrab, NotifyNonlinear);
-  wm_->HandleEvent(&event);
-  EXPECT_FALSE(win->focused());
-
-  // ... but honor one that comes in independently.
-  MockXConnection::InitFocusInEvent(
-      &event, xid, NotifyNormal, NotifyNonlinear);
-  wm_->HandleEvent(&event);
-  EXPECT_TRUE(win->focused());
-
-  // We should pay attention to events that come in while a grab is already
-  // active, though.
-  MockXConnection::InitFocusOutEvent(
-      &event, xid, NotifyWhileGrabbed, NotifyNonlinear);
-  wm_->HandleEvent(&event);
-  EXPECT_FALSE(win->focused());
-  MockXConnection::InitFocusInEvent(
-      &event, xid, NotifyWhileGrabbed, NotifyNonlinear);
-  wm_->HandleEvent(&event);
-  EXPECT_TRUE(win->focused());
-
-  // Events with a detail of NotifyPointer should be ignored.
-  MockXConnection::InitFocusOutEvent(&event, xid, NotifyNormal, NotifyPointer);
-  wm_->HandleEvent(&event);
-  EXPECT_TRUE(win->focused());
-}
-
 TEST_F(WindowManagerTest, RestackOverrideRedirectWindows) {
   XEvent event;
 

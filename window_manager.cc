@@ -29,6 +29,7 @@ extern "C" {
 #include "window_manager/callback.h"
 #include "window_manager/event_consumer.h"
 #include "window_manager/event_loop.h"
+#include "window_manager/focus_manager.h"
 #include "window_manager/hotkey_overlay.h"
 #include "window_manager/key_bindings.h"
 #include "window_manager/layout_manager.h"
@@ -162,30 +163,6 @@ static const char* XEventTypeToName(int type) {
 }
 #endif
 
-static const char* FocusChangeEventModeToName(int mode) {
-  switch (mode) {
-    CASE_RETURN_LABEL(NotifyNormal);
-    CASE_RETURN_LABEL(NotifyWhileGrabbed);
-    CASE_RETURN_LABEL(NotifyGrab);
-    CASE_RETURN_LABEL(NotifyUngrab);
-    default: return "Unknown";
-  }
-}
-
-static const char* FocusChangeEventDetailToName(int detail) {
-  switch (detail) {
-    CASE_RETURN_LABEL(NotifyAncestor);
-    CASE_RETURN_LABEL(NotifyVirtual);
-    CASE_RETURN_LABEL(NotifyInferior);
-    CASE_RETURN_LABEL(NotifyNonlinear);
-    CASE_RETURN_LABEL(NotifyNonlinearVirtual);
-    CASE_RETURN_LABEL(NotifyPointer);
-    CASE_RETURN_LABEL(NotifyPointerRoot);
-    CASE_RETURN_LABEL(NotifyDetailNone);
-    default: return "Unknown";
-  }
-}
-
 WindowManager::WindowManager(EventLoop* event_loop,
                              XConnection* xconn,
                              Compositor* compositor,
@@ -202,7 +179,6 @@ WindowManager::WindowManager(EventLoop* event_loop,
       stage_xid_(0),
       overlay_xid_(0),
       background_xid_(0),
-      stacking_manager_(NULL),
       mapped_xids_(new Stacker<XWindow>),
       stacked_xids_(new Stacker<XWindow>),
       active_window_xid_(0),
@@ -259,6 +235,7 @@ bool WindowManager::Init() {
 
   stacking_manager_.reset(
       new StackingManager(xconn_, compositor_, atom_cache_.get()));
+  focus_manager_.reset(new FocusManager(this));
 
   if (!FLAGS_wm_background_image.empty())
     SetBackgroundActor(compositor_->CreateImage(FLAGS_wm_background_image));
@@ -367,9 +344,6 @@ void WindowManager::HandleEvent(XEvent* event) {
       HandleDestroyNotify(event->xdestroywindow); break;
     case EnterNotify:
       HandleEnterNotify(event->xcrossing); break;
-    case FocusIn:
-    case FocusOut:
-      HandleFocusChange(event->xfocus); break;
     case KeyPress:
       HandleKeyPress(event->xkey); break;
     case KeyRelease:
@@ -463,10 +437,14 @@ Window* WindowManager::GetWindowOrDie(XWindow xid) {
   return win;
 }
 
+void WindowManager::FocusWindow(Window* win, XTime timestamp) {
+  focus_manager_->FocusWindow(win, timestamp);
+}
+
 void WindowManager::TakeFocus(XTime timestamp) {
   if (!layout_manager_->TakeFocus(timestamp) &&
       !panel_manager_->TakeFocus(timestamp)) {
-    xconn_->FocusWindow(root_, timestamp);
+    focus_manager_->FocusWindow(NULL, timestamp);
   }
 }
 
@@ -1008,6 +986,10 @@ void WindowManager::HandleButtonPress(const XButtonEvent& e) {
   DLOG(INFO) << "Handling button press in window " << XidStr(e.window)
              << " at relative (" << e.x << ", " << e.y << "), absolute ("
              << e.x_root << ", " << e.y_root << ") with button " << e.button;
+  Window* win = GetWindow(e.window);
+  if (win)
+    focus_manager_->HandleButtonPressInWindow(win, e.time);
+
   FOR_EACH_INTERESTED_EVENT_CONSUMER(
       window_event_consumers_,
       e.window,
@@ -1314,36 +1296,6 @@ void WindowManager::HandleEnterNotify(const XEnterWindowEvent& e) {
       HandlePointerEnter(e.window, e.x, e.y, e.x_root, e.y_root, e.time));
 }
 
-void WindowManager::HandleFocusChange(const XFocusChangeEvent& e) {
-  bool focus_in = (e.type == FocusIn);
-  DLOG(INFO) << "Handling focus-" << (focus_in ? "in" : "out") << " event for "
-             << XidStr(e.window) << " with mode "
-             << FocusChangeEventModeToName(e.mode)
-             << " and detail " << FocusChangeEventDetailToName(e.detail);
-
-  // Don't bother doing anything when we lose or gain the focus due to a
-  // grab, or just hear about it because of the pointer's location.
-  // TODO: Trying to add/remove button grabs and update hints in response
-  // to FocusIn and FocusOut events is likely hopeless; see
-  // http://tronche.com/gui/x/xlib/events/input-focus/normal-and-grabbed.html
-  // for the full insanity.  It would probably be better to just update
-  // things ourselves when we change the focus and rely on the fact that
-  // clients shouldn't be assigning the focus themselves.
-  if (e.mode == NotifyGrab ||
-      e.mode == NotifyUngrab ||
-      e.detail == NotifyPointer) {
-    return;
-  }
-
-  Window* win = GetWindow(e.window);
-  if (win)
-    win->set_focused(focus_in);
-
-  FOR_EACH_INTERESTED_EVENT_CONSUMER(window_event_consumers_,
-                                     e.window,
-                                     HandleFocusChange(e.window, focus_in));
-}
-
 void WindowManager::HandleKeyPress(const XKeyEvent& e) {
   KeySym keysym = xconn_->GetKeySymFromKeyCode(e.keycode);
   key_bindings_->HandleKeyPress(keysym, e.state);
@@ -1486,6 +1438,7 @@ void WindowManager::HandleReparentNotify(const XReparentEvent& e) {
       // Make sure that all event consumers know that the window's going away.
       if (win->mapped())
         FOR_EACH_EVENT_CONSUMER(event_consumers_, HandleWindowUnmap(win));
+      focus_manager_->HandleWindowUnmap(win);
 
       client_windows_.erase(e.window);
 
@@ -1536,13 +1489,15 @@ void WindowManager::HandleUnmapNotify(const XUnmapEvent& e) {
 
   FOR_EACH_EVENT_CONSUMER(event_consumers_, HandleWindowUnmap(win));
 
+  // Notify the focus manager last in case any event consumers need to do
+  // something special when they see the focused window getting unmapped.
+  focus_manager_->HandleWindowUnmap(win);
+
   if (mapped_xids_->Contains(win->xid())) {
     mapped_xids_->Remove(win->xid());
     UpdateClientListProperty();
     UpdateClientListStackingProperty();
   }
-  if (active_window_xid_ == e.window)
-    SetActiveWindowProperty(0);
 }
 
 void WindowManager::RunCommand(string command) {

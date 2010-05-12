@@ -93,10 +93,6 @@ class LayoutManager::ToplevelWindow {
       int req_x, int req_y, int req_width, int req_height);
 
   // Handle one of this toplevel's windows (either the toplevel window
-  // itself or one of its transients) gaining or losing the input focus.
-  void HandleFocusChange(Window* focus_win, bool focus_in);
-
-  // Handle one of this toplevel's windows (either the toplevel window
   // itself or one of its transients) getting a button press.  We remove
   // the active pointer grab and try to assign the focus to the
   // clicked-on window.

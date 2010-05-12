@@ -16,6 +16,7 @@ extern "C" {
 #include "cros/chromeos_wm_ipc_enums.h"
 #include "window_manager/atom_cache.h"
 #include "window_manager/event_consumer_registrar.h"
+#include "window_manager/focus_manager.h"
 #include "window_manager/panel_manager.h"
 #include "window_manager/util.h"
 #include "window_manager/window_manager.h"
@@ -164,6 +165,7 @@ Panel::Panel(PanelManager* panel_manager,
   wm()->SetNamePropertiesForXid(
       right_input_xid_, string("right input window for panel ") + xid_str());
 
+  wm()->focus_manager()->UseClickToFocusForWindow(content_win_);
   UpdateChromeStateProperty();
 }
 
@@ -178,7 +180,6 @@ Panel::~Panel() {
   wm()->xconn()->DestroyWindow(top_right_input_xid_);
   wm()->xconn()->DestroyWindow(left_input_xid_);
   wm()->xconn()->DestroyWindow(right_input_xid_);
-  content_win_->RemoveButtonGrab();
   panel_manager_ = NULL;
   content_win_ = NULL;
   titlebar_win_ = NULL;
@@ -394,22 +395,12 @@ bool Panel::SetExpandedState(bool expanded) {
   return success;
 }
 
-void Panel::AddButtonGrab() {
-  // We grab button presses on the panel so we'll know when it gets clicked
-  // and can focus it.  (We can't just listen on ButtonPressMask, since
-  // only one client is allowed to do so for a given window and the app is
-  // probably doing it itself.)
-  content_win_->AddButtonGrab();
-}
-
-void Panel::RemoveButtonGrab(bool remove_pointer_grab) {
-  content_win_->RemoveButtonGrab();
-  if (remove_pointer_grab)
-    wm()->xconn()->RemovePointerGrab(true, CurrentTime);  // replay_events
-}
-
 WindowManager* Panel::wm() {
   return panel_manager_->wm();
+}
+
+void Panel::TakeFocus(XTime timestamp) {
+  wm()->FocusWindow(content_win_, timestamp);
 }
 
 void Panel::ResizeContent(int width, int height, Gravity gravity) {
@@ -460,10 +451,10 @@ void Panel::SetFullscreenState(bool fullscreen) {
     content_win_->MoveClient(0, 0);
     content_win_->ResizeClient(
         wm()->width(), wm()->height(), GRAVITY_NORTHWEST);
-    if (!content_win_->focused()) {
+    if (!content_win_->IsFocused()) {
       LOG(WARNING) << "Fullscreening unfocused panel " << xid_str()
                    << ", so automatically giving it the focus";
-      content_win_->TakeFocus(wm()->GetCurrentTimeFromServer());
+      wm()->FocusWindow(content_win_, wm()->GetCurrentTimeFromServer());
     }
   } else {
     content_win_->ResizeClient(

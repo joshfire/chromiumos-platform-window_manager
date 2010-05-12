@@ -128,6 +128,7 @@ libwm_ipc = wm_env.Library('wm_ipc', srcs)
 srcs = Split('''\
   event_consumer_registrar.cc
   event_loop.cc
+  focus_manager.cc
   gl_interface_base.cc
   hotkey_overlay.cc
   image_container.cc

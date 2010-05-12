@@ -44,8 +44,7 @@ class PanelContainer {
   };
 
   // Add a panel to this container.  Ownership of the object's memory
-  // remains with the caller.  The container should add a button grab on
-  // the panel if it doesn't focus it.
+  // remains with the caller.
   virtual void AddPanel(Panel* panel, PanelSource source) = 0;
 
   // Remove a panel from this container.  Ownership remains with the
@@ -84,9 +83,6 @@ class PanelContainer {
                                       XTime timestamp) = 0;
   virtual void HandlePanelTitlebarPointerEnter(Panel* panel,
                                                XTime timestamp) = 0;
-
-  // Handle a panel gaining or losing the input focus.
-  virtual void HandlePanelFocusChange(Panel* panel, bool focus_in) = 0;
 
   // Handle a message asking us to expand or collapse one of our panels.
   virtual void HandleSetPanelStateMessage(Panel* panel, bool expand) = 0;

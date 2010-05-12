@@ -9,6 +9,7 @@
 #include "cros/chromeos_wm_ipc_enums.h"
 #include "window_manager/callback.h"
 #include "window_manager/event_loop.h"
+#include "window_manager/focus_manager.h"
 #include "window_manager/geometry.h"
 #include "window_manager/stacking_manager.h"
 #include "window_manager/util.h"
@@ -114,7 +115,8 @@ LoginController::LoginController(WindowManager* wm)
       selection_changed_manager_(this),
       guest_window_(NULL),
       background_window_(NULL),
-      initial_show_timeout_id_(kNoTimer) {
+      initial_show_timeout_id_(kNoTimer),
+      login_window_to_focus_(NULL) {
   registrar_.RegisterForChromeMessages(
       chromeos::WM_IPC_MESSAGE_WM_HIDE_LOGIN);
   registrar_.RegisterForChromeMessages(
@@ -169,6 +171,8 @@ void LoginController::HandleWindowMap(Window* win) {
         LOG(WARNING) << "two guest windows encountered.";
 
       guest_window_ = win;
+      wm_->focus_manager()->UseClickToFocusForWindow(guest_window_);
+      registrar_.RegisterForWindowEvents(guest_window_->xid());
       break;
     }
     case chromeos::WM_IPC_WINDOW_LOGIN_BORDER: {
@@ -180,6 +184,7 @@ void LoginController::HandleWindowMap(Window* win) {
         LOG(WARNING) << "two borders at index " << GetUserIndex(win);
 
       entry->border_window = win;
+      wm_->xconn()->RemoveInputRegionFromWindow(entry->border_window->xid());
       break;
     }
     case chromeos::WM_IPC_WINDOW_LOGIN_IMAGE: {
@@ -191,6 +196,7 @@ void LoginController::HandleWindowMap(Window* win) {
         LOG(WARNING) << "two images at index " << GetUserIndex(win);
 
       entry->image_window = win;
+      wm_->xconn()->RemoveInputRegionFromWindow(entry->image_window->xid());
       break;
     }
     case chromeos::WM_IPC_WINDOW_LOGIN_CONTROLS: {
@@ -202,6 +208,8 @@ void LoginController::HandleWindowMap(Window* win) {
         LOG(WARNING) << "two controls at index " << GetUserIndex(win);
 
       entry->controls_window = win;
+      wm_->focus_manager()->UseClickToFocusForWindow(entry->controls_window);
+      registrar_.RegisterForWindowEvents(entry->controls_window->xid());
       break;
     }
     case chromeos::WM_IPC_WINDOW_LOGIN_LABEL: {
@@ -213,6 +221,7 @@ void LoginController::HandleWindowMap(Window* win) {
         LOG(WARNING) << "two labels at index " << GetUserIndex(win);
 
       entry->label_window = win;
+      wm_->xconn()->RemoveInputRegionFromWindow(entry->label_window->xid());
       break;
     }
     case chromeos::WM_IPC_WINDOW_LOGIN_UNSELECTED_LABEL: {
@@ -224,6 +233,8 @@ void LoginController::HandleWindowMap(Window* win) {
         LOG(WARNING) << "two unselected labels at index " << GetUserIndex(win);
 
       entry->unselected_label_window = win;
+      wm_->xconn()->RemoveInputRegionFromWindow(
+          entry->unselected_label_window->xid());
       break;
     }
     case chromeos::WM_IPC_WINDOW_LOGIN_BACKGROUND: {
@@ -235,9 +246,11 @@ void LoginController::HandleWindowMap(Window* win) {
       if (background_window_)
         LOG(WARNING) << "two background windows encountered.";
 
-      LOG(INFO) << "background mapped " << win->xid_str();
+      DLOG(INFO) << "background mapped " << win->xid_str();
 
       background_window_ = win;
+      wm_->focus_manager()->UseClickToFocusForWindow(background_window_);
+      registrar_.RegisterForWindowEvents(background_window_->xid());
       registrar_.RegisterForPropertyChanges(
           background_window_->xid(),
           wm_->GetXAtom(ATOM_CHROME_WINDOW_TYPE));
@@ -258,17 +271,20 @@ void LoginController::HandleWindowMap(Window* win) {
           wm_->stacking_manager()->StackWindowAtTopOfLayer(
               win, StackingManager::LAYER_TOPLEVEL_WINDOW);
 
-          if (win->transient_for_xid()) {
-            // If this is a transient window, center it over its owner.
+          // If this is a transient window, center it over its owner
+          // (unless it's an infobubble, which we just let Chrome position
+          // wherever it wants).
+          if (win->transient_for_xid() &&
+              win->type() != chromeos::WM_IPC_WINDOW_CHROME_INFO_BUBBLE) {
             Window* owner_win = wm_->GetWindow(win->transient_for_xid());
-            if (owner_win) {
+            if (owner_win)
               win->CenterClientOverWindow(owner_win);
-              win->MoveCompositedToClient();
-            }
           }
+          wm_->focus_manager()->UseClickToFocusForWindow(win);
         }
+        win->MoveCompositedToClient();
         win->ShowComposited();
-        win->TakeFocus(wm_->GetCurrentTimeFromServer());
+        wm_->FocusWindow(win, wm_->GetCurrentTimeFromServer());
       }
 
       return;
@@ -294,6 +310,8 @@ void LoginController::HandleWindowUnmap(Window* win) {
   if (other_windows_it != other_windows_.end()) {
     other_windows_.erase(other_windows_it);
     registrar_.UnregisterForWindowEvents(win->xid());
+    if (win->IsFocused() && login_window_to_focus_)
+      wm_->FocusWindow(login_window_to_focus_, wm_->GetCurrentTimeFromServer());
     return;
   }
 
@@ -306,25 +324,29 @@ void LoginController::HandleWindowUnmap(Window* win) {
     registrar_.UnregisterForPropertyChanges(
         background_window_->xid(),
         wm_->GetXAtom(ATOM_CHROME_WINDOW_TYPE));
+    registrar_.UnregisterForWindowEvents(background_window_->xid());
     background_window_ = NULL;
   } else if (win == guest_window_) {
+    registrar_.UnregisterForWindowEvents(guest_window_->xid());
     guest_window_ = NULL;
     waiting_for_guest_ = false;
   } else {
     for (size_t i = 0; i < entries_.size(); ++i) {
       Entry& entry = entries_[i];
-      if (entry.border_window == win)
+      if (entry.border_window == win) {
         entry.border_window = NULL;
-      else if (entry.image_window == win)
+      } else if (entry.image_window == win) {
         entry.image_window = NULL;
-      else if (entry.controls_window == win)
+      } else if (entry.controls_window == win) {
+        registrar_.UnregisterForWindowEvents(entry.controls_window->xid());
         entry.controls_window = NULL;
-      else if (entry.label_window == win)
+      } else if (entry.label_window == win) {
         entry.label_window = NULL;
-      else if (entry.unselected_label_window == win)
+      } else if (entry.unselected_label_window == win) {
         entry.unselected_label_window = NULL;
-      else
+      } else {
         continue;
+      }
 
       if (entry.has_no_windows()) {
         UnregisterInputWindow(&entry);
@@ -338,6 +360,9 @@ void LoginController::HandleWindowUnmap(Window* win) {
   }
 
   known_windows_.erase(win->xid());
+
+  if (login_window_to_focus_ == win)
+    login_window_to_focus_ = NULL;
 }
 
 void LoginController::HandleWindowConfigureRequest(Window* win,
@@ -365,6 +390,15 @@ void LoginController::HandleButtonPress(XWindow xid,
                                         int x_root, int y_root,
                                         int button,
                                         XTime timestamp) {
+  // If we saw a click in one of the other windows, focus and raise it.
+  if (other_windows_.count(xid)) {
+    Window* win = wm_->GetWindowOrDie(xid);
+    wm_->FocusWindow(win, timestamp);
+    wm_->stacking_manager()->StackWindowAtTopOfLayer(
+        win, StackingManager::LAYER_TOPLEVEL_WINDOW);
+    return;
+  }
+
   if (known_windows_.count(xid) == 0)
     return;
 
@@ -375,6 +409,11 @@ void LoginController::HandleButtonPress(XWindow xid,
       return;
     }
   }
+
+  // Otherwise, this was probably just some window that had a button grab
+  // as a result of us calling FocusManager::UseClickToFocusForWindow().
+  if (login_window_to_focus_)
+    wm_->FocusWindow(login_window_to_focus_, wm_->GetCurrentTimeFromServer());
 }
 
 void LoginController::HandleChromeMessage(const WmIpc::Message& msg) {
@@ -397,28 +436,20 @@ void LoginController::HandleChromeMessage(const WmIpc::Message& msg) {
 void LoginController::HandleClientMessage(XWindow xid,
                                           XAtom message_type,
                                           const long data[5]) {
+  if (wm_->logged_in())
+    return;
+
   Window* win = wm_->GetWindow(xid);
   if (!win)
     return;
 
-  if (!wm_->logged_in() &&
-      message_type == wm_->GetXAtom(ATOM_NET_ACTIVE_WINDOW)) {
-    // If we're not logged in and a window asks for the focus, give it to it.
-    win->TakeFocus(data[1]);
-  }
-}
-
-void LoginController::HandleFocusChange(XWindow xid, bool focus_in) {
-  if (!wm_->logged_in()) {
-    Window* win = wm_->GetWindow(xid);
-    if (!win)
-      return;
-
-    if (focus_in) {
-      wm_->SetActiveWindowProperty(xid);
-    } else {
-      if (xid == wm_->active_window_xid())
-        wm_->SetActiveWindowProperty(0);
+  if (message_type == wm_->GetXAtom(ATOM_NET_ACTIVE_WINDOW)) {
+    if (other_windows_.count(xid)) {
+      wm_->FocusWindow(win, data[1]);
+      wm_->stacking_manager()->StackWindowAtTopOfLayer(
+          win, StackingManager::LAYER_TOPLEVEL_WINDOW);
+    } else if (known_windows_.count(xid)) {
+      wm_->FocusWindow(win, data[1]);
     }
   }
 }
@@ -506,7 +537,7 @@ void LoginController::InitialShow() {
     if (selected) {
       // Move the input window off screen.
       wm_->ConfigureInputWindow(entry.input_window_xid, -1, -1, 1, 1);
-      entry.controls_window->TakeFocus(wm_->GetCurrentTimeFromServer());
+      FocusLoginWindow(entry.controls_window, wm_->GetCurrentTimeFromServer());
       entry.unselected_label_window->HideComposited();
       entry.label_window->ShowComposited();
       entry.controls_window->MoveClient(controls_bounds.x, controls_bounds.y);
@@ -623,7 +654,7 @@ void LoginController::SelectEntryAt(size_t index) {
       entry.controls_window->ScaleComposited(1, 1, kAnimationTimeInMs);
       entry.controls_window->MoveClient(controls_bounds.x, controls_bounds.y);
       wm_->ConfigureInputWindow(entry.input_window_xid, -1, -1, 1, 1);
-      entry.controls_window->TakeFocus(wm_->GetCurrentTimeFromServer());
+      FocusLoginWindow(entry.controls_window, wm_->GetCurrentTimeFromServer());
 
       // This item became selected. Move the label window to match the bounds
       // of the unselected label and scale it up.
@@ -765,13 +796,14 @@ void LoginController::SelectGuest() {
   guest_window_->StackClientBelow(guest_entry.border_window->xid());
   guest_window_->ShowComposited();
 
-  // Move the guest window to its target location.
+  // Move the guest window to its target location and focus it.
   guest_window_->ScaleComposited(1, 1, kAnimationTimeInMs);
   guest_window_->SetCompositedOpacity(1, kAnimationTimeInMs);
   guest_window_->MoveComposited((wm_->width() - guest_width) / 2,
                                 (wm_->height() - guest_height) / 2,
                                 kAnimationTimeInMs);
   guest_window_->MoveClientToComposited();
+  FocusLoginWindow(guest_window_, wm_->GetCurrentTimeFromServer());
 
   // Move the guest entry to the center of the window, expanding it to normal
   // size and fading out.
@@ -1029,6 +1061,7 @@ void LoginController::OnGotNewWindowOrPropertyChange() {
         background_window_->actor(), NULL, true);
     guest_window_->StackClientAbove(background_window_->xid());
     guest_window_->ShowComposited();
+    FocusLoginWindow(guest_window_, wm_->GetCurrentTimeFromServer());
   }
 }
 
@@ -1036,6 +1069,12 @@ bool LoginController::IsBackgroundWindowReady() {
   // Wait until chrome painted the background window, otherwise we get an ugly
   // gray flash.
   return background_window_ && background_window_->type_params()[0] == 1;
+}
+
+void LoginController::FocusLoginWindow(Window* win, XTime timestamp) {
+  DCHECK(win);
+  wm_->FocusWindow(win, timestamp);
+  login_window_to_focus_ = win;
 }
 
 }  // namespace window_manager

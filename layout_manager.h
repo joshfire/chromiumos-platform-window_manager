@@ -125,7 +125,6 @@ class LayoutManager : public EventConsumer,
                                    int x, int y,
                                    int x_root, int y_root,
                                    XTime timestamp);
-  virtual void HandleFocusChange(XWindow xid, bool focus_in);
   virtual void HandleChromeMessage(const WmIpc::Message& msg) {}
   virtual void HandleClientMessage(XWindow xid,
                                    XAtom message_type,

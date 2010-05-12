@@ -79,7 +79,6 @@ class PanelDock : public PanelContainer {
                                       int button,
                                       XTime timestamp);
   virtual void HandlePanelTitlebarPointerEnter(Panel* panel, XTime timestamp) {}
-  virtual void HandlePanelFocusChange(Panel* panel, bool focus_in);
   virtual void HandleSetPanelStateMessage(Panel* panel, bool expand);
   virtual bool HandleNotifyPanelDraggedMessage(Panel* panel,
                                                int drag_x, int drag_y);
@@ -119,7 +118,7 @@ class PanelDock : public PanelContainer {
   void PackPanels(Panel* fixed_panel);
 
   // Focus a panel.
-  void FocusPanel(Panel* panel, bool remove_pointer_grab, XTime timestamp);
+  void FocusPanel(Panel* panel, XTime timestamp);
 
   PanelManager* panel_manager_;  // not owned
 

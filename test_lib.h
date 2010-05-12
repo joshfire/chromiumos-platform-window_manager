@@ -97,11 +97,6 @@ class BasicWindowManagerTest : public ::testing::Test {
   // (expected if we sent a MapRequest), send a MapNotify event.
   void SendInitialEventsForWindow(XWindow xid);
 
-  // Make the window manager handle FocusNotify events saying that the
-  // focus was passed from 'out_xid' to 'in_xid'.  Events are only sent for
-  // windows that are neither None nor the root window.
-  void SendFocusEvents(XWindow out_xid, XWindow in_xid);
-
   // Send a property change notification for the chrome window type.
   void SendWindowTypeEvent(XWindow xid);
 

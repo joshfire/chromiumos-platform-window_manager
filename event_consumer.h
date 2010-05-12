@@ -119,9 +119,6 @@ class EventConsumer {
                                    XAtom message_type,
                                    const long data[5]) = 0;
 
-  // Handle a focus change on a window.
-  virtual void HandleFocusChange(XWindow xid, bool focus_in) = 0;
-
   // Handle a property change.  These changes are sent to consumers that
   // have expressed interest in the (xid, xatom) pair with
   // WindowManager::RegisterEventConsumerForPropertyChanges().

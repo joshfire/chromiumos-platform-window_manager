@@ -135,12 +135,6 @@ void PanelDock::AddPanel(Panel* panel, PanelSource source) {
   // being dragged -- some of them will be with regard to the panel's old
   // dimensions and others will be with regard to the new dimensions.
   // Instead, we defer resizing the panel until the drag is complete.
-
-  if (panel->content_win()->focused()) {
-    FocusPanel(panel, false, wm()->GetCurrentTimeFromServer());
-  } else {
-    panel->AddButtonGrab();
-  }
 }
 
 void PanelDock::RemovePanel(Panel* panel) {
@@ -175,15 +169,7 @@ bool PanelDock::ShouldAddDraggedPanel(const Panel* panel,
 void PanelDock::HandlePanelButtonPress(Panel* panel,
                                        int button,
                                        XTime timestamp) {
-  FocusPanel(panel, true, timestamp);
-}
-
-void PanelDock::HandlePanelFocusChange(Panel* panel, bool focus_in) {
-  if (focus_in) {
-    wm()->SetActiveWindowProperty(panel->content_xid());
-  } else {
-    panel->AddButtonGrab();
-  }
+  FocusPanel(panel, timestamp);
 }
 
 void PanelDock::HandleSetPanelStateMessage(Panel* panel, bool expand) {
@@ -236,7 +222,7 @@ void PanelDock::HandleNotifyPanelDragCompleteMessage(Panel* panel) {
 }
 
 void PanelDock::HandleFocusPanelMessage(Panel* panel, XTime timestamp) {
-  FocusPanel(panel, false, timestamp);
+  FocusPanel(panel, timestamp);
 }
 
 void PanelDock::HandlePanelResize(Panel* panel) {
@@ -276,7 +262,7 @@ bool PanelDock::TakeFocus(XTime timestamp) {
   if (panels_.empty())
     return false;
 
-  PanelDock::FocusPanel(panels_[0], false, timestamp);
+  PanelDock::FocusPanel(panels_[0], timestamp);
   return true;
 }
 
@@ -345,13 +331,9 @@ void PanelDock::PackPanels(Panel* fixed_panel) {
   }
 }
 
-void PanelDock::FocusPanel(Panel* panel,
-                           bool remove_pointer_grab,
-                           XTime timestamp) {
+void PanelDock::FocusPanel(Panel* panel, XTime timestamp) {
   DCHECK(panel);
-  panel->RemoveButtonGrab(remove_pointer_grab);
-  wm()->SetActiveWindowProperty(panel->content_win()->xid());
-  panel->content_win()->TakeFocus(timestamp);
+  panel->TakeFocus(timestamp);
 }
 
 };  // namespace window_manager

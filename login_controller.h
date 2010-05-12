@@ -8,6 +8,8 @@
 #include <set>
 #include <vector>
 
+#include <gtest/gtest_prod.h>  // for FRIEND_TEST() macro
+
 #include "base/logging.h"
 #include "window_manager/event_consumer.h"
 #include "window_manager/event_consumer_registrar.h"
@@ -62,11 +64,13 @@ class LoginController : public EventConsumer {
   virtual void HandleClientMessage(XWindow xid,
                                    XAtom message_type,
                                    const long data[5]);
-  virtual void HandleFocusChange(XWindow xid, bool focus_in);
   virtual void HandleWindowPropertyChange(XWindow xid, XAtom xatom);
   // End EventConsumer implementation.
 
  private:
+  friend class LoginControllerTest;  // runs InitialShow() manually
+  FRIEND_TEST(LoginControllerTest, Focus);
+
   // SelectionChangedManager is used to cleanup after the selection changes.
   // When the selection changes |Schedule| is invoked on the
   // SelectionChangedManager. SelectionChangedManager then invokes
@@ -224,6 +228,9 @@ class LoginController : public EventConsumer {
   // Returns true if the background window is valid and has painted.
   bool IsBackgroundWindowReady();
 
+  // Focus a window and save it to login_window_to_focus_.
+  void FocusLoginWindow(Window* win, XTime timestamp);
+
   WindowManager* wm_;
 
   EventConsumerRegistrar registrar_;
@@ -290,6 +297,11 @@ class LoginController : public EventConsumer {
   // We delay the initial show slightly to make sure it appears smoothly. If
   // this is non-zero we're waiting for the initial show.
   int initial_show_timeout_id_;
+
+  // The controls or guest window that we've most recently focused.  We
+  // track this so that if a transient window takes the focus and then gets
+  // closed, we can re-focus the window that had the focus before.
+  Window* login_window_to_focus_;
 
   DISALLOW_COPY_AND_ASSIGN(LoginController);
 };

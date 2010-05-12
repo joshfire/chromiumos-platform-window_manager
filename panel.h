@@ -75,6 +75,8 @@ class Panel {
   int titlebar_height() const { return titlebar_bounds_.height; }
   int total_height() const { return content_height() + titlebar_height(); }
 
+  bool IsFocused() const { return content_win_->IsFocused(); }
+
   // Fill the passed-in vector with all of the panel's input windows (in an
   // arbitrary order).
   void GetInputWindows(std::vector<XWindow>* windows_out);
@@ -122,13 +124,8 @@ class Panel {
   // still updates the local variable).
   bool SetExpandedState(bool expanded);
 
-  // Add a button grab on the content window so we'll be notified when it
-  // gets clicked.  This is done for unfocused panels.
-  void AddButtonGrab();
-
-  // Remove a button grab on the content window, optionally also removing a
-  // pointer grab and replaying the click that triggered the pointer grab.
-  void RemoveButtonGrab(bool remove_pointer_grab);
+  // Give the focus to the content window.
+  void TakeFocus(XTime timestamp);
 
   // Resize the content window to the passed-in dimensions.  The titlebar
   // window is moved above the content window if necessary and resized to

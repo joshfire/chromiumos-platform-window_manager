@@ -16,6 +16,7 @@
 #include "window_manager/atom_cache.h"
 #include "window_manager/callback.h"
 #include "window_manager/event_consumer_registrar.h"
+#include "window_manager/focus_manager.h"
 #include "window_manager/geometry.h"
 #include "window_manager/motion_event_coalescer.h"
 #include "window_manager/snapshot_window.h"
@@ -468,7 +469,7 @@ void LayoutManager::HandleWindowUnmap(Window* win) {
         GetToplevelWindowOwningTransientWindow(*win);
 
     if (toplevel_owner) {
-      bool transient_had_focus = win->focused();
+      bool transient_had_focus = win->IsFocused();
       toplevel_owner->RemoveTransientWindow(win);
       if (transient_to_toplevel_.erase(win->xid()) != 1)
         LOG(WARNING) << "No transient-to-toplevel mapping for "
@@ -576,28 +577,6 @@ void LayoutManager::HandlePointerMotion(XWindow xid,
                                         XTime timestamp) {
   if (xid == wm_->background_xid())
     overview_background_event_coalescer_->StorePosition(x, y);
-}
-
-void LayoutManager::HandleFocusChange(XWindow xid, bool focus_in) {
-  Window* win = wm_->GetWindow(xid);
-  if (!win)
-    return;
-
-  ToplevelWindow* toplevel = GetToplevelWindowOwningTransientWindow(*win);
-  if (!toplevel)
-    toplevel = GetToplevelWindowByWindow(*win);
-
-  // If this is not a toplevel or transient window, we don't care
-  // about the focus change.
-  if (!toplevel)
-    return;
-
-  toplevel->HandleFocusChange(win, focus_in);
-
-  // Announce that the new window is the "active" window (in the
-  // _NET_ACTIVE_WINDOW sense).
-  if (focus_in)
-    wm_->SetActiveWindowProperty(win->xid());
 }
 
 void LayoutManager::HandleClientMessage(XWindow xid,
@@ -805,7 +784,6 @@ void LayoutManager::SetMode(Mode mode) {
         // We need to take the input focus away here; otherwise the
         // previously-focused window would continue to get keyboard events
         // in overview mode.  Let the WindowManager decide what to do with it.
-        wm_->SetActiveWindowProperty(None);
         wm_->TakeFocus(wm_->GetCurrentTimeFromServer());
       }
 
@@ -1387,12 +1365,8 @@ void LayoutManager::RemoveToplevel(ToplevelWindow* toplevel) {
           (index + toplevels_.size() - 1) % toplevels_.size();
       SetCurrentToplevel(toplevels_[new_index].get());
     } else {
-      if (mode_ == MODE_ACTIVE) {
-        if (win->focused()) {
-          wm_->SetActiveWindowProperty(None);
-          wm_->TakeFocus(wm_->GetCurrentTimeFromServer());
-        }
-      }
+      if (mode_ == MODE_ACTIVE && win->IsFocused())
+        wm_->TakeFocus(wm_->GetCurrentTimeFromServer());
     }
   }
   UpdateCurrentSnapshot();

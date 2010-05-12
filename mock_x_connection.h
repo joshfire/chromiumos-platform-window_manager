@@ -254,20 +254,6 @@ class MockXConnection : public XConnection {
                                    int x, int y) {
     InitEnterOrLeaveWindowEvent(event, info, x, y, true);
   }
-  // The 'mode' parameter is e.g. NotifyNormal, NotifyGrab, etc., and
-  // 'detail' is e.g. NotifyAncestor, NotifyVirtual, etc.  See
-  // http://tronche.com/gui/x/xlib/events/input-focus/normal-and-grabbed.html
-  // for more information about this.
-  static void InitFocusEvent(
-      XEvent* event, XWindow xid, int mode, int detail, bool focus_in);
-  static void InitFocusInEvent(
-      XEvent* event, XWindow xid, int mode, int detail) {
-    InitFocusEvent(event, xid, mode, detail, true);
-  }
-  static void InitFocusOutEvent(
-      XEvent* event, XWindow xid, int mode, int detail) {
-    InitFocusEvent(event, xid, mode, detail, false);
-  }
   static void InitLeaveWindowEvent(XEvent* event, const WindowInfo& info,
                                    int x, int y) {
     InitEnterOrLeaveWindowEvent(event, info, x, y, false);

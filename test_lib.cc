@@ -221,24 +221,6 @@ void BasicWindowManagerTest::SendInitialEventsForWindow(XWindow xid) {
   }
 }
 
-void BasicWindowManagerTest::SendFocusEvents(XWindow out_xid, XWindow in_xid) {
-  XWindow root_xid = xconn_->GetRootWindow();
-
-  XEvent event;
-  if (out_xid != None && out_xid != root_xid) {
-    MockXConnection::InitFocusOutEvent(
-        &event, out_xid, NotifyNormal,
-        (in_xid == root_xid) ? NotifyAncestor : NotifyNonlinear);
-    wm_->HandleEvent(&event);
-  }
-  if (in_xid != None && in_xid != root_xid) {
-    MockXConnection::InitFocusInEvent(
-        &event, in_xid, NotifyNormal,
-        (out_xid == root_xid) ? NotifyAncestor : NotifyNonlinear);
-    wm_->HandleEvent(&event);
-  }
-}
-
 void BasicWindowManagerTest::SendWindowTypeEvent(XWindow xid) {
   XEvent event;
   MockXConnection::InitPropertyNotifyEvent(

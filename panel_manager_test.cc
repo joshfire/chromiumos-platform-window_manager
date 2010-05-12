@@ -122,7 +122,6 @@ TEST_F(PanelManagerTest, DragFocusedPanel) {
       CreatePanelContentWindow(200, 300, old_titlebar_xid, true);
   SendInitialEventsForWindow(old_content_xid);
   ASSERT_EQ(old_content_xid, xconn_->focused_xid());
-  SendFocusEvents(xconn_->GetRootWindow(), old_content_xid);
 
   // Create a second panel, which should take the focus.
   XWindow titlebar_xid = CreatePanelTitlebarWindow(150, 20);
@@ -130,7 +129,6 @@ TEST_F(PanelManagerTest, DragFocusedPanel) {
   XWindow content_xid = CreatePanelContentWindow(200, 300, titlebar_xid, true);
   SendInitialEventsForWindow(content_xid);
   ASSERT_EQ(content_xid, xconn_->focused_xid());
-  SendFocusEvents(old_content_xid, content_xid);
   EXPECT_EQ(content_xid, GetActiveWindowProperty());
 
   // Drag the second panel out of the panel bar and check that it still has
@@ -164,7 +162,6 @@ TEST_F(PanelManagerTest, DragFocusedPanel) {
 
   // The first panel should be focused now.
   ASSERT_EQ(old_content_xid, xconn_->focused_xid());
-  SendFocusEvents(xconn_->GetRootWindow(), old_content_xid);
   EXPECT_EQ(old_content_xid, GetActiveWindowProperty());
 }
 
@@ -243,22 +240,18 @@ TEST_F(PanelManagerTest, Fullscreen) {
   const int content_width = 200;
   const int content_height = 400;
 
-  // Create three panels, sending the appropriate FocusOut and FocusIn
-  // events as we go.
+  // Create three panels.
   Panel* panel1 =
       CreatePanel(content_width, titlebar_height, content_height, true);
   EXPECT_EQ(panel1->content_xid(), xconn_->focused_xid());
-  SendFocusEvents(xconn_->GetRootWindow(), panel1->content_xid());
 
   Panel* panel2 =
       CreatePanel(content_width, titlebar_height, content_height, true);
   EXPECT_EQ(panel2->content_xid(), xconn_->focused_xid());
-  SendFocusEvents(panel1->content_xid(), panel2->content_xid());
 
   Panel* panel3 =
       CreatePanel(content_width, titlebar_height, content_height, true);
   EXPECT_EQ(panel3->content_xid(), xconn_->focused_xid());
-  SendFocusEvents(panel2->content_xid(), panel3->content_xid());
 
   // Check that they're positioned as expecded.
   const int rightmost_panel_right =
@@ -295,7 +288,6 @@ TEST_F(PanelManagerTest, Fullscreen) {
   // whole screen, and stacked above the other panels.
   EXPECT_TRUE(panel2->is_fullscreen());
   EXPECT_EQ(panel2->content_xid(), xconn_->focused_xid());
-  SendFocusEvents(panel3->content_xid(), panel2->content_xid());
   TestPanelContentBounds(panel2, 0, 0, wm_->width(), wm_->height());
   EXPECT_TRUE(WindowIsInLayer(panel2->content_win(),
                               StackingManager::LAYER_FULLSCREEN_PANEL));
@@ -311,7 +303,6 @@ TEST_F(PanelManagerTest, Fullscreen) {
 
   EXPECT_TRUE(panel3->is_fullscreen());
   EXPECT_EQ(panel3->content_xid(), xconn_->focused_xid());
-  SendFocusEvents(panel2->content_xid(), panel3->content_xid());
   TestPanelContentBounds(panel3, 0, 0, wm_->width(), wm_->height());
   EXPECT_TRUE(WindowIsInLayer(panel3->content_win(),
                               StackingManager::LAYER_FULLSCREEN_PANEL));
@@ -364,13 +355,11 @@ TEST_F(PanelManagerTest, Fullscreen) {
   wm_->HandleEvent(&fullscreen_event);
   EXPECT_TRUE(panel2->is_fullscreen());
   EXPECT_EQ(panel2->content_xid(), xconn_->focused_xid());
-  SendFocusEvents(panel3->content_xid(), panel2->content_xid());
 
   MockXConnection::InitUnmapEvent(&event, panel2->content_xid());
   wm_->HandleEvent(&event);
   EXPECT_TRUE(panel_manager_->fullscreen_panel_ == NULL);
   EXPECT_EQ(panel3->content_xid(), xconn_->focused_xid());
-  SendFocusEvents(xconn_->GetRootWindow(), panel3->content_xid());
 }
 
 // Test that panels in the dock take the focus when they get the chance.
@@ -396,7 +385,6 @@ TEST_F(PanelManagerTest, FocusPanelInDock) {
   EXPECT_EQ(panel_in_dock->content_xid(), xconn_->focused_xid());
   SendActiveWindowMessage(panel_in_bar->content_xid());
   EXPECT_EQ(panel_in_bar->content_xid(), xconn_->focused_xid());
-  SendFocusEvents(panel_in_dock->content_xid(), panel_in_bar->content_xid());
 
   // Now unmap the panel in the bar and check that the docked panel gets
   // the focus.

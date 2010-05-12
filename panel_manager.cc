@@ -61,12 +61,15 @@ PanelManager::PanelManager(WindowManager* wm)
   event_consumer_registrar_->RegisterForChromeMessages(
       chromeos::WM_IPC_MESSAGE_WM_NOTIFY_PANEL_DRAG_COMPLETE);
 
+  wm_->focus_manager()->RegisterFocusChangeListener(this);
+
   RegisterContainer(panel_bar_.get());
   RegisterContainer(left_panel_dock_.get());
   RegisterContainer(right_panel_dock_.get());
 }
 
 PanelManager::~PanelManager() {
+  wm_->focus_manager()->UnregisterFocusChangeListener(this);
   dragged_panel_ = NULL;
 }
 
@@ -181,7 +184,7 @@ void PanelManager::HandleWindowUnmap(Window* win) {
 
   // If the panel was focused, assign the focus to another panel, or
   // failing that, let the window manager decide what to do with it.
-  if (panel->content_win()->focused()) {
+  if (panel->IsFocused()) {
     XTime timestamp = wm()->GetCurrentTimeFromServer();
     if (!TakeFocus(timestamp))
       wm_->TakeFocus(timestamp);
@@ -397,19 +400,6 @@ void PanelManager::HandleClientMessage(XWindow xid,
   }
 }
 
-void PanelManager::HandleFocusChange(XWindow xid, bool focus_in) {
-  Panel* panel = GetPanelByXid(xid);
-  if (!panel)
-    return;
-
-  if (panel->is_fullscreen() && !focus_in)
-    RestoreFullscreenPanel(panel);
-
-  PanelContainer* container = GetContainerForPanel(*panel);
-  if (container)
-    container->HandlePanelFocusChange(panel, focus_in);
-}
-
 void PanelManager::HandleWindowPropertyChange(XWindow xid, XAtom xatom) {
   Panel* panel = GetPanelByXid(xid);
   DCHECK(panel) << "Got property change for non-panel window " << XidStr(xid);
@@ -419,6 +409,12 @@ void PanelManager::HandleWindowPropertyChange(XWindow xid, XAtom xatom) {
   PanelContainer* container = GetContainerForPanel(*panel);
   if (container)
     container->HandlePanelUrgencyChange(panel);
+}
+
+void PanelManager::HandleFocusChange() {
+  // If a fullscreen panel loses the focus, un-fullscreen it.
+  if (fullscreen_panel_ && !fullscreen_panel_->IsFocused())
+    RestoreFullscreenPanel(fullscreen_panel_);
 }
 
 void PanelManager::HandlePanelResize(Panel* panel) {
@@ -588,7 +584,6 @@ void PanelManager::RemovePanelFromContainer(Panel* panel,
   DCHECK(GetContainerForPanel(*panel) == container);
   CHECK(containers_by_panel_.erase(panel) == static_cast<size_t>(1));
   container->RemovePanel(panel);
-  panel->RemoveButtonGrab(false);  // remove_pointer_grab=false
   panel->SetResizable(false);
   panel->SetShadowOpacity(1.0, kDetachPanelAnimMs);
   panel->SetExpandedState(true);

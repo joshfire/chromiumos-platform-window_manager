@@ -34,6 +34,7 @@ namespace window_manager {
 
 class EventConsumer;
 class EventLoop;
+class FocusManager;
 class HotkeyOverlay;
 class KeyBindings;
 class KeyBindingsGroup;
@@ -59,6 +60,7 @@ class WindowManager {
   XConnection* xconn() { return xconn_; }
   Compositor* compositor() { return compositor_; }
   StackingManager* stacking_manager() { return stacking_manager_.get(); }
+  FocusManager* focus_manager() { return focus_manager_.get(); }
 
   XWindow root() const { return root_; }
   XWindow background_xid() const { return background_xid_; }
@@ -117,6 +119,10 @@ class WindowManager {
   Window* GetWindow(XWindow xid);
   Window* GetWindowOrDie(XWindow xid);
 
+  // Focus a window.  Convenience method that just calls
+  // focus_manager_->FocusWindow().
+  void FocusWindow(Window* win, XTime timestamp);
+
   // Do something reasonable with the input focus.
   // This is intended to be called by EventConsumers when they give up the
   // focus and aren't sure what to do with it.
@@ -158,6 +164,7 @@ class WindowManager {
  private:
   friend class BasicWindowManagerTest;
   friend class LayoutManagerTest;         // uses 'layout_manager_'
+  friend class LoginControllerTest;       // uses 'login_controller_'
   friend class PanelTest;                 // uses 'panel_manager_'
   friend class PanelBarTest;              // uses 'panel_manager_'
   friend class PanelDockTest;             // uses 'panel_manager_'
@@ -258,7 +265,6 @@ class WindowManager {
   void HandleDamageNotify(const XDamageNotifyEvent& e);
   void HandleDestroyNotify(const XDestroyWindowEvent& e);
   void HandleEnterNotify(const XEnterWindowEvent& e);
-  void HandleFocusChange(const XFocusChangeEvent& e);
   void HandleKeyPress(const XKeyEvent& e);
   void HandleKeyRelease(const XKeyEvent& e);
   void HandleLeaveNotify(const XLeaveWindowEvent& e);
@@ -323,6 +329,7 @@ class WindowManager {
   XWindow background_xid_;
 
   scoped_ptr<StackingManager> stacking_manager_;
+  scoped_ptr<FocusManager> focus_manager_;
 
   // Windows that are being tracked.
   std::map<XWindow, std::tr1::shared_ptr<Window> > client_windows_;

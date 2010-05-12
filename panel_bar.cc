@@ -174,10 +174,8 @@ void PanelBar::AddPanel(Panel* panel, PanelSource source) {
   // call FocusPanel() to focus it if needed and update
   // 'desired_panel_to_focus_'.
   if (panel->is_expanded() &&
-      (source == PANEL_SOURCE_NEW || panel->content_win()->focused())) {
-    FocusPanel(panel, false, wm()->GetCurrentTimeFromServer());
-  } else {
-    panel->AddButtonGrab();
+      (source == PANEL_SOURCE_NEW || panel->IsFocused())) {
+    FocusPanel(panel, wm()->GetCurrentTimeFromServer());
   }
 
   // If this is the only collapsed panel, we need to configure the input
@@ -295,7 +293,7 @@ void PanelBar::HandlePanelButtonPress(
              << "; giving it the focus";
   // Get rid of the passive button grab, and then ungrab the pointer
   // and replay events so the panel will get a copy of the click.
-  FocusPanel(panel, true, timestamp);  // remove_pointer_grab=true
+  FocusPanel(panel, timestamp);
 }
 
 void PanelBar::HandlePanelTitlebarPointerEnter(Panel* panel, XTime timestamp) {
@@ -305,15 +303,6 @@ void PanelBar::HandlePanelTitlebarPointerEnter(Panel* panel, XTime timestamp) {
   if (collapsed_panel_state_ != COLLAPSED_PANEL_STATE_SHOWN &&
       !panel->is_expanded()) {
     ShowCollapsedPanels();
-  }
-}
-
-void PanelBar::HandlePanelFocusChange(Panel* panel, bool focus_in) {
-  DCHECK(panel);
-  if (focus_in) {
-    wm()->SetActiveWindowProperty(panel->content_xid());
-  } else {
-    panel->AddButtonGrab();
   }
 }
 
@@ -374,7 +363,7 @@ void PanelBar::HandleFocusPanelMessage(Panel* panel, XTime timestamp) {
   DCHECK(panel);
   if (!panel->is_expanded())
     ExpandPanel(panel, false, kPanelStateAnimMs);
-  FocusPanel(panel, false, timestamp);
+  FocusPanel(panel, timestamp);
 }
 
 void PanelBar::HandlePanelResize(Panel* panel) {
@@ -415,14 +404,14 @@ void PanelBar::HandlePanelUrgencyChange(Panel* panel) {
 bool PanelBar::TakeFocus(XTime timestamp) {
   // If we already decided on a panel to focus, use it.
   if (desired_panel_to_focus_) {
-    FocusPanel(desired_panel_to_focus_, false, timestamp);
+    FocusPanel(desired_panel_to_focus_, timestamp);
     return true;
   }
 
   // Just focus the first expanded panel.
   for (Panels::iterator it = panels_.begin(); it != panels_.end(); ++it) {
     if ((*it)->is_expanded()) {
-      FocusPanel(*it, false, timestamp);  // remove_pointer_grab=false
+      FocusPanel(*it, timestamp);
       return true;
     }
   }
@@ -496,26 +485,20 @@ void PanelBar::CollapsePanel(Panel* panel, int anim_ms) {
   panel->SetResizable(false);
 
   // Give up the focus if this panel had it.
-  if (panel->content_win()->focused()) {
+  if (panel->IsFocused()) {
     desired_panel_to_focus_ = panel_to_focus;
     XTime timestamp = wm()->GetCurrentTimeFromServer();
-    if (!TakeFocus(timestamp)) {
-      wm()->SetActiveWindowProperty(None);
+    if (!TakeFocus(timestamp))
       wm()->TakeFocus(timestamp);
-    }
   }
 
   if (GetNumCollapsedPanels() == 1)
     ConfigureShowCollapsedPanelsInputWindow(true);
 }
 
-void PanelBar::FocusPanel(Panel* panel,
-                          bool remove_pointer_grab,
-                          XTime timestamp) {
+void PanelBar::FocusPanel(Panel* panel, XTime timestamp) {
   CHECK(panel);
-  panel->RemoveButtonGrab(true);  // remove_pointer_grab
-  wm()->SetActiveWindowProperty(panel->content_win()->xid());
-  panel->content_win()->TakeFocus(timestamp);
+  panel->TakeFocus(timestamp);
   desired_panel_to_focus_ = panel;
 }
 
@@ -554,7 +537,7 @@ void PanelBar::HandlePanelDragComplete(Panel* panel) {
     const int anim_ms = 0.5 * kPanelStateAnimMs;
     if (mostly_visible && !panel->is_expanded()) {
       ExpandPanel(panel, false, anim_ms);
-      FocusPanel(panel, false, wm()->GetCurrentTimeFromServer());
+      FocusPanel(panel, wm()->GetCurrentTimeFromServer());
     } else if (!mostly_visible && panel->is_expanded()) {
       CollapsePanel(panel, anim_ms);
     } else {
