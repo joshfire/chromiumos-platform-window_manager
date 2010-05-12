@@ -438,7 +438,7 @@ class RealCompositor : public Compositor {
       DCHECK(border_width >= 0);
       color_ = color;
       border_color_ = color;
-      border_width = border_width;
+      border_width_ = border_width;
     }
     const Compositor::Color& color() const { return color_; }
     const Compositor::Color& border_color() const {
