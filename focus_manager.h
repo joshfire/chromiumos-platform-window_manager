@@ -72,6 +72,10 @@ class FocusManager {
   // Listeners that will be notified when the focus changes.
   std::set<FocusChangeListener*> focus_change_listeners_;  // not owned
 
+  // The last timestamp that was used in a call to FocusWindow().
+  // Initially 0.
+  XTime last_focus_timestamp_;
+
   DISALLOW_COPY_AND_ASSIGN(FocusManager);
 };
 

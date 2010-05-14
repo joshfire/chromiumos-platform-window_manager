@@ -127,6 +127,32 @@ TEST_F(FocusManagerTest, FocusChangeListener) {
   EXPECT_EQ(2, listener.num_changes);
 }
 
+// Test that we don't let the timestamps that we use when focusing
+// windows move backwards.
+TEST_F(FocusManagerTest, AdjustTimestamp) {
+  XTime timestamp = 123;  // arbitrary
+
+  // We need two windows, since FocusManager will ignore attempts to
+  // focus the already-focused window.
+  XWindow xid = CreateSimpleWindow();
+  Window win(wm_.get(), xid, false);
+  XWindow xid2 = CreateSimpleWindow();
+  Window win2(wm_.get(), xid2, false);
+
+  focus_manager_->FocusWindow(&win, timestamp);
+  EXPECT_EQ(xid, xconn_->focused_xid());
+  EXPECT_EQ(timestamp, xconn_->last_focus_timestamp());
+
+  timestamp += 5;
+  focus_manager_->FocusWindow(&win2, timestamp);
+  EXPECT_EQ(xid2, xconn_->focused_xid());
+  EXPECT_EQ(timestamp, xconn_->last_focus_timestamp());
+
+  focus_manager_->FocusWindow(&win, timestamp - 5);
+  EXPECT_EQ(xid, xconn_->focused_xid());
+  EXPECT_EQ(timestamp, xconn_->last_focus_timestamp());
+}
+
 }  // namespace window_manager
 
 int main(int argc, char** argv) {

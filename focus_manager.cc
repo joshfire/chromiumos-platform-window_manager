@@ -14,7 +14,8 @@ namespace window_manager {
 
 FocusManager::FocusManager(WindowManager* wm)
     : wm_(wm),
-      focused_win_(NULL) {
+      focused_win_(NULL),
+      last_focus_timestamp_(0) {
   DCHECK(wm_);
 }
 
@@ -24,6 +25,16 @@ FocusManager::~FocusManager() {
 void FocusManager::FocusWindow(Window* win, XTime timestamp) {
   if (win == focused_win_)
     return;
+
+  if (timestamp < last_focus_timestamp_) {
+    DLOG(INFO) << "Timestamp for focusing " << (win ? win->xid_str() : "root")
+               << " (" << timestamp << ") precedes the last timestamp "
+               << "used for focusing (" << last_focus_timestamp_ << "); "
+               << "reusing the last timestamp instead";
+    timestamp = last_focus_timestamp_;
+  } else {
+    last_focus_timestamp_ = timestamp;
+  }
 
   if (focused_win_ && click_to_focus_windows_.count(focused_win_))
     focused_win_->AddButtonGrab();

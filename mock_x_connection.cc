@@ -36,6 +36,7 @@ MockXConnection::MockXConnection()
                             kDisplayWidth, kDisplayHeight, true, false, 0)),
       next_atom_(1000),
       focused_xid_(None),
+      last_focus_timestamp_(0),
       pointer_grab_xid_(None),
       num_keymap_refreshes_(0),
       pointer_x_(0),
@@ -123,7 +124,13 @@ bool MockXConnection::FocusWindow(XWindow xid, XTime event_time) {
   WindowInfo* info = GetWindowInfo(xid);
   if (!info)
     return false;
+
+  // The X server ignores requests with old timestamps.
+  if (event_time < last_focus_timestamp_)
+    return true;
+
   focused_xid_ = xid;
+  last_focus_timestamp_ = event_time;
   return true;
 }
 

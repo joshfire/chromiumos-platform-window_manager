@@ -186,6 +186,7 @@ class MockXConnection : public XConnection {
   }
 
   XWindow focused_xid() const { return focused_xid_; }
+  XTime last_focus_timestamp() const { return last_focus_timestamp_; }
   XWindow pointer_grab_xid() const { return pointer_grab_xid_; }
   int num_keymap_refreshes() const { return num_keymap_refreshes_; }
 
@@ -284,6 +285,9 @@ class MockXConnection : public XConnection {
   std::map<XAtom, std::string> atom_to_name_;
   std::map<XAtom, XWindow> selection_owners_;
   XWindow focused_xid_;
+
+  // Timestamp from the last FocusWindow() invocation.
+  XTime last_focus_timestamp_;
 
   // Window that has currently grabbed the pointer, or None.
   XWindow pointer_grab_xid_;
