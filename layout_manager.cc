@@ -218,7 +218,7 @@ LayoutManager::LayoutManager(WindowManager* wm, PanelManager* panel_manager)
         NULL, NULL);
     overview_mode_key_bindings_group_->AddBinding(
         KeyBindings::KeyCombo(XK_1 + i, KeyBindings::kAltMask),
-        StringPrintf("select-toplevel-with-index-%d", i));
+        StringPrintf("select-snapshot-with-index-%d", i));
   }
 
   kb->AddAction(
