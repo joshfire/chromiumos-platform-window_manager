@@ -568,6 +568,50 @@ TEST_F(WindowManagerTest, ResizeScreen) {
       wm_->background_->GetHeight());
 }
 
+// Test that the _NET_WORKAREA property on the root window excludes areas
+// used for panel docks.
+TEST_F(WindowManagerTest, SubtractPanelDocksFromNetWorkareaProperty) {
+  // The _NET_WORKAREA property should initially cover the dimensions of
+  // the screen.
+  XAtom workarea_atom = None;
+  ASSERT_TRUE(xconn_->GetAtom("_NET_WORKAREA", &workarea_atom));
+  XWindow root_xid = xconn_->GetRootWindow();
+  MockXConnection::WindowInfo* root_info = xconn_->GetWindowInfoOrDie(root_xid);
+  TestIntArrayProperty(root_xid, workarea_atom, 4,
+                       0, 0, root_info->width, root_info->height);
+
+  // Create a panel and drag it to the left so it's attached to the left
+  // dock.  The workarea property should leave room on the left side of the
+  // screen for the dock.
+  Panel* panel = CreatePanel(200, 20, 400, true);
+  SendPanelDraggedMessage(panel, 0, 0);
+  SendPanelDragCompleteMessage(panel);
+  TestIntArrayProperty(root_xid, workarea_atom, 4,
+                       PanelManager::kPanelDockWidth, 0,
+                       root_info->width - PanelManager::kPanelDockWidth,
+                       root_info->height);
+
+  // Now dock it on the right.
+  SendPanelDraggedMessage(panel, root_info->width - 1, 0);
+  SendPanelDragCompleteMessage(panel);
+  TestIntArrayProperty(root_xid, workarea_atom, 4,
+                       0, 0,
+                       root_info->width - PanelManager::kPanelDockWidth,
+                       root_info->height);
+
+  // After the screen gets resized, the dock should still be taken into
+  // account.
+  root_info->width += 20;
+  root_info->height += 10;
+  XEvent event;
+  MockXConnection::InitConfigureNotifyEvent(&event, *root_info);
+  wm_->HandleEvent(&event);
+  TestIntArrayProperty(root_xid, workarea_atom, 4,
+                       0, 0,
+                       root_info->width - PanelManager::kPanelDockWidth,
+                       root_info->height);
+}
+
 // Test that the _NET_CLIENT_LIST and _NET_CLIENT_LIST_STACKING properties
 // on the root window get updated correctly.
 TEST_F(WindowManagerTest, ClientListProperties) {

@@ -202,6 +202,12 @@ WindowManager::~WindowManager() {
     event_loop_->RemoveTimeout(metrics_reporter_timeout_id_);
   if (query_keyboard_state_timeout_id_ >= 0)
     event_loop_->RemoveTimeout(query_keyboard_state_timeout_id_);
+  if (panel_manager_.get())
+    panel_manager_->UnregisterAreaChangeListener(this);
+}
+
+void WindowManager::HandlePanelManagerAreaChange() {
+  SetEwmhWorkareaProperty();
 }
 
 bool WindowManager::Init() {
@@ -267,6 +273,8 @@ bool WindowManager::Init() {
 
   panel_manager_.reset(new PanelManager(this));
   event_consumers_.insert(panel_manager_.get());
+  panel_manager_->RegisterAreaChangeListener(this);
+  HandlePanelManagerAreaChange();
 
   layout_manager_.reset(new LayoutManager(this, panel_manager_.get()));
   event_consumers_.insert(layout_manager_.get());
@@ -659,18 +667,31 @@ bool WindowManager::SetEwmhSizeProperties() {
   success &= xconn_->SetIntArrayProperty(
       root_, GetXAtom(ATOM_NET_DESKTOP_VIEWPORT), XA_CARDINAL, viewport);
 
-  // This isn't really applicable to us (EWMH just says that it should be
-  // used to determine where desktop icons can be placed), but we set it to
-  // the size of the screen.
-  vector<int> workarea;
-  workarea.push_back(0);  // x
-  workarea.push_back(0);  // y
-  workarea.push_back(width_);
-  workarea.push_back(height_);
-  success &= xconn_->SetIntArrayProperty(
-      root_, GetXAtom(ATOM_NET_WORKAREA), XA_CARDINAL, workarea);
+  success &= SetEwmhWorkareaProperty();
 
   return success;
+}
+
+bool WindowManager::SetEwmhWorkareaProperty() {
+  // _NET_WORKAREA describes the region of the screen "minus space occupied
+  // by dock and panel windows", so we subtract out the space used by panel
+  // docks. :-P  Chrome can use this to guess the initial size for new
+  // windows.
+  int panel_manager_left_width = 0, panel_manager_right_width = 0;
+  if (panel_manager_.get()) {
+    // We invoke this before the panel manager has been created to try to
+    // get the hints set as soon as possible.
+    panel_manager_->GetArea(&panel_manager_left_width,
+                            &panel_manager_right_width);
+  }
+  vector<int> workarea;
+  workarea.push_back(panel_manager_left_width);  // x
+  workarea.push_back(0);  // y
+  workarea.push_back(
+      width_ - panel_manager_left_width - panel_manager_right_width);
+  workarea.push_back(height_);
+  return xconn_->SetIntArrayProperty(
+      root_, GetXAtom(ATOM_NET_WORKAREA), XA_CARDINAL, workarea);
 }
 
 void WindowManager::RegisterKeyBindings() {

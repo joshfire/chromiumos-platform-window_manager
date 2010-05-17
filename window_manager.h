@@ -27,6 +27,7 @@ extern "C" {
 #include "cros/chromeos_wm_ipc_enums.h"
 #include "window_manager/atom_cache.h"  // for Atom enum
 #include "window_manager/compositor.h"
+#include "window_manager/panel_manager.h"
 #include "window_manager/wm_ipc.h"
 #include "window_manager/x_types.h"
 
@@ -41,14 +42,13 @@ class KeyBindingsGroup;
 class LayoutManager;
 class LoginController;
 class MetricsReporter;
-class PanelManager;
 class StackingManager;
 class Window;
 class WmIpc;
 class XConnection;
 template<class T> class Stacker;
 
-class WindowManager {
+class WindowManager : public PanelManagerAreaChangeListener {
  public:
   WindowManager(EventLoop* event_loop,
                 XConnection* xconn,
@@ -83,6 +83,10 @@ class WindowManager {
   // Get the title for the window that we create to take ownership of management
   // selections.  This is also used to name our log files.
   static const char* GetWmName() { return "chromeos-wm"; }
+
+  // Begin PanelManagerAreaChangeListener implementation.
+  virtual void HandlePanelManagerAreaChange();
+  // End PanelManagerAreaChangeListener implementation.
 
   // Perform initial setup.  This must be called immediately after the
   // WindowManager object is created.
@@ -210,8 +214,14 @@ class WindowManager {
   bool SetEwmhGeneralProperties();
 
   // Set EWMH properties on the root window relating to the current screen
-  // size (as stored in 'width_' and 'height_').
+  // size (as stored in 'width_' and 'height_'): _NET_DESKTOP_GEOMETRY,
+  // _NET_DESKTOP_VIEWPORT, and _NET_WORKAREA (by way of calling
+  // SetEwmhWorkareaProperty()).
   bool SetEwmhSizeProperties();
+
+  // Set the _NET_WORKAREA property on the root window to the screen area
+  // minus space used by panel docks.
+  bool SetEwmhWorkareaProperty();
 
   // Register all of our key bindings.  Called by Init().
   void RegisterKeyBindings();
