@@ -318,6 +318,13 @@ bool LayoutManager::HandleWindowMapRequest(Window* win) {
   } else {
     wm_->stacking_manager()->StackWindowAtTopOfLayer(
         win, StackingManager::LAYER_TOPLEVEL_WINDOW);
+
+    // Resize windows to their final size before mapping them to give them
+    // more time to draw their contents.
+    if (win->type() == chromeos::WM_IPC_WINDOW_CHROME_TOPLEVEL ||
+        win->type() == chromeos::WM_IPC_WINDOW_UNKNOWN) {
+      win->ResizeClient(width_, height_, GRAVITY_NORTHWEST);
+    }
   }
   win->MapClient();
   return true;

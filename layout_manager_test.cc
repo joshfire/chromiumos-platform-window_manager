@@ -930,6 +930,47 @@ TEST_F(LayoutManagerTest, AvoidMovingCurrentWindow) {
   EXPECT_EQ(xid, xconn_->focused_xid());
 }
 
+// Test that LayoutManager resizes non-Chrome and toplevel Chrome windows
+// to fill the screen as soon as it gets MapRequest events about them.
+TEST_F(LayoutManagerTest, ResizeWindowsBeforeMapping) {
+  // Create a small non-Chrome window and check that it gets resized to the
+  // layout manager's dimensions on MapRequest.
+  const XWindow nonchrome_xid = CreateBasicWindow(0, 0, 50, 40);
+  MockXConnection::WindowInfo* nonchrome_info =
+      xconn_->GetWindowInfoOrDie(nonchrome_xid);
+  XEvent event;
+  MockXConnection::InitCreateWindowEvent(&event, *nonchrome_info);
+  wm_->HandleEvent(&event);
+  MockXConnection::InitMapRequestEvent(&event, *nonchrome_info);
+  wm_->HandleEvent(&event);
+  EXPECT_EQ(lm_->width(), nonchrome_info->width);
+  EXPECT_EQ(lm_->height(), nonchrome_info->height);
+
+  // We should do the same thing with toplevel Chrome windows.
+  const XWindow toplevel_xid = CreateToplevelWindow(1, 0, 0, 0, 50, 40);
+  MockXConnection::WindowInfo* toplevel_info =
+      xconn_->GetWindowInfoOrDie(toplevel_xid);
+  MockXConnection::InitCreateWindowEvent(&event, *toplevel_info);
+  wm_->HandleEvent(&event);
+  MockXConnection::InitMapRequestEvent(&event, *toplevel_info);
+  wm_->HandleEvent(&event);
+  EXPECT_EQ(lm_->width(), toplevel_info->width);
+  EXPECT_EQ(lm_->height(), toplevel_info->height);
+
+  // Snapshot windows should retain their original dimensions.
+  const int orig_width = 50, orig_height = 40;
+  const XWindow snapshot_xid =
+      CreateSnapshotWindow(toplevel_xid, 0, 0, 0, orig_width, orig_height);
+  MockXConnection::WindowInfo* snapshot_info =
+      xconn_->GetWindowInfoOrDie(snapshot_xid);
+  MockXConnection::InitCreateWindowEvent(&event, *snapshot_info);
+  wm_->HandleEvent(&event);
+  MockXConnection::InitMapRequestEvent(&event, *snapshot_info);
+  wm_->HandleEvent(&event);
+  EXPECT_EQ(orig_width, snapshot_info->width);
+  EXPECT_EQ(orig_height, snapshot_info->height);
+}
+
 }  // namespace window_manager
 
 int main(int argc, char** argv) {
