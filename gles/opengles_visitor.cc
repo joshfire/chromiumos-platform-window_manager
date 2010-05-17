@@ -81,6 +81,8 @@ OpenGlesDrawVisitor::OpenGlesDrawVisitor(Gles2Interface* gl,
   // Allocate shaders
   tex_color_shader_ = new TexColorShader();
   tex_shade_shader_ = new TexShadeShader();
+  no_alpha_color_shader_ = new NoAlphaColorShader();
+  no_alpha_shade_shader_ = new NoAlphaShadeShader();
   gl_->ReleaseShaderCompiler();
 
   // TODO: Move away from one global Vertex Buffer Object
@@ -99,6 +101,8 @@ OpenGlesDrawVisitor::OpenGlesDrawVisitor(Gles2Interface* gl,
 OpenGlesDrawVisitor::~OpenGlesDrawVisitor() {
   delete tex_color_shader_;
   delete tex_shade_shader_;
+  delete no_alpha_color_shader_;
+  delete no_alpha_shade_shader_;
 
   gl_->DeleteBuffers(1, &vertex_buffer_object_);
 
@@ -207,25 +211,77 @@ void OpenGlesDrawVisitor::VisitQuad(RealCompositor::QuadActor* actor) {
   if (!actor->IsVisible())
     return;
 
+  // This must live until after the draw call, so it's at the top level
   scoped_array<float> colors;
-  GLuint mvp_location;
 
-  // color
+  // mvp matrix
+  Matrix4 new_model_view = model_view_;
+  new_model_view *= Matrix4::translation(Vector3(actor->x(), actor->y(),
+                                                 actor->z()));
+  new_model_view *= Matrix4::scale(Vector3(actor->width() * actor->scale_x(),
+                                           actor->height() * actor->scale_y(),
+                                           1.f));
+  Matrix4 mvp = perspective_ * new_model_view;
+
+  if (actor->tilt() > 0.001f) {
+    // Post-multiply a perspective matrix onto the model view matrix, and
+    // a rotation in Y so that all the other model view ops happen
+    // outside of the perspective transform.
+
+    // This matrix is the result of a translate by 0.5 in Y, followed
+    // by a simple perspective transform, followed by a translate in
+    // -0.5 in Y, so that the perspective foreshortening is centered
+    // vertically on the quad.
+    static Matrix4 tilt_matrix(Vector4(1.0f, 0.0f, 0.0f, 0.0f),
+                               Vector4(0.0f, 1.0f, 0.0f, 0.0f),
+                               Vector4(0.0f, -0.2f, 0.0f, -0.4f),
+                               Vector4(0.0f, 0.0f, 0.0f, 1.0f));
+    mvp *= tilt_matrix;
+    mvp *= Matrix4::rotationY(actor->tilt() * M_PI / 2.0);
+  }
+
+  // texture
+  OpenGlesTextureData* texture_data = reinterpret_cast<OpenGlesTextureData*>(
+      actor->GetDrawingData(kTextureData).get());
+  gl_->BindTexture(GL_TEXTURE_2D, texture_data ? texture_data->texture() : 0);
+  const bool texture_has_alpha = texture_data ?
+                                   texture_data->has_alpha() :
+                                   true;
+
+  // shader
   if (actor->dimmed_opacity() == 0.f) {
-    mvp_location = tex_color_shader_->MvpLocation();
+    if (texture_has_alpha) {
+      gl_->UseProgram(tex_color_shader_->program());
+      gl_->UniformMatrix4fv(tex_color_shader_->MvpLocation(), 1, GL_FALSE,
+                            &mvp[0][0]);
+      gl_->Uniform1i(tex_color_shader_->SamplerLocation(), 0);
+      gl_->Uniform4f(tex_color_shader_->ColorLocation(), actor->color().red,
+                     actor->color().green, actor->color().blue,
+                     actor->opacity() * ancestor_opacity_);
 
-    gl_->UseProgram(tex_color_shader_->program());
-    gl_->Uniform4f(tex_color_shader_->ColorLocation(), actor->color().red,
-                   actor->color().green, actor->color().blue,
-                   actor->opacity() * ancestor_opacity_);
+      gl_->BindBuffer(GL_ARRAY_BUFFER, vertex_buffer_object_);
+      gl_->VertexAttribPointer(tex_color_shader_->PosLocation(),
+                               2, GL_FLOAT, GL_FALSE, 0, 0);
+      gl_->VertexAttribPointer(tex_color_shader_->TexInLocation(),
+                               2, GL_FLOAT, GL_FALSE, 0, 0);
+      tex_color_shader_->EnableVertexAttribs();
+    } else {
+      gl_->UseProgram(no_alpha_color_shader_->program());
+      gl_->UniformMatrix4fv(no_alpha_color_shader_->MvpLocation(), 1, GL_FALSE,
+                            &mvp[0][0]);
+      gl_->Uniform1i(no_alpha_color_shader_->SamplerLocation(), 0);
+      gl_->Uniform4f(no_alpha_color_shader_->ColorLocation(),
+                     actor->color().red, actor->color().green,
+                     actor->color().blue,
+                     actor->opacity() * ancestor_opacity_);
 
-    gl_->BindBuffer(GL_ARRAY_BUFFER, vertex_buffer_object_);
-    gl_->VertexAttribPointer(tex_color_shader_->PosLocation(),
-                             2, GL_FLOAT, GL_FALSE, 0, 0);
-    gl_->EnableVertexAttribArray(tex_color_shader_->PosLocation());
-    gl_->VertexAttribPointer(tex_color_shader_->TexInLocation(),
-                          2, GL_FLOAT, GL_FALSE, 0, 0);
-    gl_->EnableVertexAttribArray(tex_color_shader_->TexInLocation());
+      gl_->BindBuffer(GL_ARRAY_BUFFER, vertex_buffer_object_);
+      gl_->VertexAttribPointer(no_alpha_color_shader_->PosLocation(),
+                               2, GL_FLOAT, GL_FALSE, 0, 0);
+      gl_->VertexAttribPointer(no_alpha_color_shader_->TexInLocation(),
+                               2, GL_FLOAT, GL_FALSE, 0, 0);
+      no_alpha_color_shader_->EnableVertexAttribs();
+    }
   } else {
     const float actor_opacity = actor->opacity() * ancestor_opacity_;
     const float dimmed_transparency = 1.f - actor->dimmed_opacity();
@@ -252,69 +308,39 @@ void OpenGlesDrawVisitor::VisitQuad(RealCompositor::QuadActor* actor) {
     colors_[14] = dimmed_transparency * actor->color().blue;
     colors_[15] = actor_opacity;
 
-    mvp_location = tex_shade_shader_->MvpLocation();
-
-    gl_->UseProgram(tex_shade_shader_->program());
-    gl_->BindBuffer(GL_ARRAY_BUFFER, vertex_buffer_object_);
-    gl_->VertexAttribPointer(tex_shade_shader_->PosLocation(),
-                             2, GL_FLOAT, GL_FALSE, 0, 0);
-    gl_->EnableVertexAttribArray(tex_shade_shader_->PosLocation());
-    gl_->VertexAttribPointer(tex_shade_shader_->TexInLocation(),
-                          2, GL_FLOAT, GL_FALSE, 0, 0);
-    gl_->EnableVertexAttribArray(tex_shade_shader_->TexInLocation());
-    gl_->BindBuffer(GL_ARRAY_BUFFER, 0);
-    gl_->VertexAttribPointer(tex_shade_shader_->ColorInLocation(),
-                             4, GL_FLOAT, GL_FALSE, 0, colors_);
-    gl_->EnableVertexAttribArray(tex_shade_shader_->ColorInLocation());
+    if (texture_has_alpha) {
+      gl_->UseProgram(tex_shade_shader_->program());
+      gl_->UniformMatrix4fv(tex_shade_shader_->MvpLocation(), 1, GL_FALSE,
+                            &mvp[0][0]);
+      gl_->Uniform1i(tex_shade_shader_->SamplerLocation(), 0);
+      gl_->BindBuffer(GL_ARRAY_BUFFER, vertex_buffer_object_);
+      gl_->VertexAttribPointer(tex_shade_shader_->PosLocation(),
+                               2, GL_FLOAT, GL_FALSE, 0, 0);
+      gl_->VertexAttribPointer(tex_shade_shader_->TexInLocation(),
+                               2, GL_FLOAT, GL_FALSE, 0, 0);
+      gl_->BindBuffer(GL_ARRAY_BUFFER, 0);
+      gl_->VertexAttribPointer(tex_shade_shader_->ColorInLocation(),
+                               4, GL_FLOAT, GL_FALSE, 0, colors_);
+      tex_shade_shader_->EnableVertexAttribs();
+    } else {
+      gl_->UseProgram(no_alpha_shade_shader_->program());
+      gl_->UniformMatrix4fv(no_alpha_shade_shader_->MvpLocation(), 1, GL_FALSE,
+                            &mvp[0][0]);
+      gl_->Uniform1i(no_alpha_shade_shader_->SamplerLocation(), 0);
+      gl_->BindBuffer(GL_ARRAY_BUFFER, vertex_buffer_object_);
+      gl_->VertexAttribPointer(no_alpha_shade_shader_->PosLocation(),
+                               2, GL_FLOAT, GL_FALSE, 0, 0);
+      gl_->VertexAttribPointer(no_alpha_shade_shader_->TexInLocation(),
+                               2, GL_FLOAT, GL_FALSE, 0, 0);
+      gl_->BindBuffer(GL_ARRAY_BUFFER, 0);
+      gl_->VertexAttribPointer(no_alpha_shade_shader_->ColorInLocation(),
+                               4, GL_FLOAT, GL_FALSE, 0, colors_);
+      no_alpha_shade_shader_->EnableVertexAttribs();
+    }
   }
 
-  // texture
-  OpenGlesTextureData* texture_data = reinterpret_cast<OpenGlesTextureData*>(
-      actor->GetDrawingData(kTextureData).get());
-  gl_->BindTexture(GL_TEXTURE_2D, texture_data ? texture_data->texture() : 0);
-  gl_->Uniform1i(tex_color_shader_->SamplerLocation(), 0);
-
-  // mvp matrix
-  Matrix4 new_model_view = model_view_;
-  new_model_view *= Matrix4::translation(Vector3(actor->x(), actor->y(),
-                                                 actor->z()));
-  new_model_view *= Matrix4::scale(Vector3(actor->width() * actor->scale_x(),
-                                           actor->height() * actor->scale_y(),
-                                           1.f));
-  // Matrix4 mvp = new_model_view * perspective_;
-  Matrix4 mvp = perspective_ * new_model_view;
-
-  if (actor->tilt() > 0.001f) {
-    // Post-multiply a perspective matrix onto the model view matrix, and
-    // a rotation in Y so that all the other model view ops happen
-    // outside of the perspective transform.
-
-    // This matrix is the result of a translate by 0.5 in Y, followed
-    // by a simple perspective transform, followed by a translate in
-    // -0.5 in Y, so that the perspective foreshortening is centered
-    // vertically on the quad.
-    static Matrix4 tilt_matrix(Vector4(1.0f, 0.0f, 0.0f, 0.0f),
-                               Vector4(0.0f, 1.0f, 0.0f, 0.0f),
-                               Vector4(0.0f, -0.2f, 0.0f, -0.4f),
-                               Vector4(0.0f, 0.0f, 0.0f, 1.0f));
-    mvp *= tilt_matrix;
-    mvp *= Matrix4::rotationY(actor->tilt() * M_PI/2.0);
-  }
-
-  gl_->UniformMatrix4fv(mvp_location, 1, GL_FALSE, &mvp[0][0]);
-
+  // Draw
   gl_->DrawArrays(GL_TRIANGLE_STRIP, 0, 4);
-
-  // Disable Vertex Attrib Arrays
-  // TODO: Implement VertexAttribArray tracking in the shader objects.
-  if (actor->dimmed_opacity() == 0.f) {
-    gl_->DisableVertexAttribArray(tex_color_shader_->PosLocation());
-    gl_->DisableVertexAttribArray(tex_color_shader_->TexInLocation());
-  } else {
-    gl_->DisableVertexAttribArray(tex_shade_shader_->PosLocation());
-    gl_->DisableVertexAttribArray(tex_shade_shader_->TexInLocation());
-    gl_->DisableVertexAttribArray(tex_shade_shader_->ColorInLocation());
-  }
 }
 
 void OpenGlesDrawVisitor::VisitContainer(

@@ -21,6 +21,8 @@ namespace window_manager {
 class ImageContainer;
 class TexColorShader;
 class TexShadeShader;
+class NoAlphaColorShader;
+class NoAlphaShadeShader;
 class Gles2Interface;
 
 // This class vists an actor tree and draws it using OpenGLES
@@ -54,6 +56,8 @@ class OpenGlesDrawVisitor : virtual public RealCompositor::ActorVisitor {
 
   TexColorShader* tex_color_shader_;
   TexShadeShader* tex_shade_shader_;
+  NoAlphaColorShader* no_alpha_color_shader_;
+  NoAlphaShadeShader* no_alpha_shade_shader_;
 
   EGLDisplay egl_display_;
   EGLSurface egl_surface_;

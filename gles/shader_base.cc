@@ -11,6 +11,8 @@ namespace window_manager {
 
 // TODO: make this use the Gles2Interface
 
+unsigned int Shader::active_vertex_attribs_ = 0u;
+
 Shader::Shader(const char* vertex_shader, const char* fragment_shader) {
   program_ = glCreateProgram();
   CHECK(program_) << "Unable to allocate shader program.";
@@ -59,6 +61,26 @@ void Shader::AttachShader(const char* source, GLenum type) {
 
   glAttachShader(program_, shader);
   glDeleteShader(shader);
+}
+
+void Shader::EnableVertexAttribs() {
+  const unsigned int diff = active_vertex_attribs_ ^ used_vertex_attribs_;
+
+  unsigned int enable = diff & used_vertex_attribs_;
+  for (int i = 0; enable; ++i, enable >>= 1)
+    if (enable & 1)
+      glEnableVertexAttribArray(i);
+
+  unsigned int disable = diff & ~used_vertex_attribs_;
+  for (int i = 0; disable; ++i, disable >>= 1)
+    if (disable & 1)
+      glDisableVertexAttribArray(i);
+
+  active_vertex_attribs_ = used_vertex_attribs_;
+}
+
+void Shader::ResetActiveVertexAttribs() {
+  active_vertex_attribs_ = 0;
 }
 
 }  // namespace window_manager

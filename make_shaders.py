@@ -66,6 +66,7 @@ ctor_template = """
 $ShaderName::$ShaderName()
     : Shader($VertexSource, $FragmentSource) {
 $FetchSlots
+$UsedVertexAttribs
 }
 """
 
@@ -73,9 +74,13 @@ $FetchSlots
 shaders = {'TexColorVertex': 'gles/tex_color.glslv',
            'TexColorFragment': 'gles/tex_color.glslf',
            'TexShadeVertex': 'gles/tex_shade.glslv',
-           'TexShadeFragment': 'gles/tex_shade.glslf'}
+           'TexShadeFragment': 'gles/tex_shade.glslf',
+           'NoAlphaColorFragment': 'gles/noalpha_color.glslf',
+           'NoAlphaShadeFragment': 'gles/noalpha_shade.glslf'}
 programs = [('TexColorShader', 'TexColorVertex', 'TexColorFragment'),
-            ('TexShadeShader', 'TexShadeVertex', 'TexShadeFragment')]
+            ('TexShadeShader', 'TexShadeVertex', 'TexShadeFragment'),
+            ('NoAlphaColorShader', 'TexColorVertex', 'NoAlphaColorFragment'),
+            ('NoAlphaShadeShader', 'TexShadeVertex', 'NoAlphaShadeFragment')]
 
 
 def CamelCase(identifier):
@@ -122,6 +127,7 @@ class Program(object):
                  'FragmentSource': self.fragment.SourceName(),
                  'ShaderName': self.name,
                  'Slots': self.Slots(),
+                 'UsedVertexAttribs': self.UsedVertexAttribs(),
                  'VertexSource': self.vertex.SourceName()}
 
   def _MakeSlots(self):
@@ -148,6 +154,20 @@ class Program(object):
     for slot in sorted(self.slots):
       out.append('  GLint %s_;' % slot)
     return '\n'.join(out)
+
+  def UsedVertexAttribs(self):
+    attribs = []
+    for slot in sorted(self.slots):
+      if self.slots[slot] == 'attribute':
+        attribs.append(slot)
+
+    prefix = '  SetUsedVertexAttribs('
+    if len(attribs) == 1:
+      out = '1 << %s_' % attribs[0]
+    else:
+      separator = ' |\n' + len(prefix) * ' '
+      out = separator.join('(1 << %s_)' % attrib for attrib in attribs)
+    return prefix + out + ');'
 
   def Accessors(self):
     out = []

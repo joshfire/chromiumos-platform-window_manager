@@ -15,13 +15,29 @@ class Shader {
  public:
   ~Shader();
 
+  // Call gl(Enable|Disable)VertexAttribArray to enable only the arrays needed
+  // for this shader.  The currently enabled vertex attribs are tracked and
+  // only minimal calls are made.
+  void EnableVertexAttribs();
+
+  // If gl(Enabe|Disable)VertexAttribArray is called from outside of
+  // EnableVertexAttribs(), disable all verex attribs and call this function.
+  static void ResetActiveVertexAttribs();
+
   int program() const { return program_; }
 
  protected:
   Shader(const char* vertex_shader, const char* fragment_shader);
 
+  void SetUsedVertexAttribs(unsigned int used_vertex_attribs) {
+    used_vertex_attribs_ = used_vertex_attribs;
+  }
+
  private:
+  static unsigned int active_vertex_attribs_;
+
   GLint program_;
+  unsigned int used_vertex_attribs_;
 
   void AttachShader(const char* source, GLenum type);
 
