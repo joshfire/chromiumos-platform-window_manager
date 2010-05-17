@@ -55,6 +55,10 @@ class LayoutManager::SnapshotWindow {
   int overview_y() const { return overview_y_; }
   int overview_width() const { return overview_width_; }
   int overview_height() const { return overview_height_; }
+  int overview_tilted_width() const {
+    return Compositor::Actor::GetTiltedWidth(
+        overview_width_, win_->actor()->GetTilt());
+  }
   State state() const { return state_; }
 
   // Used for debugging to get the readable name of a state.
@@ -103,10 +107,12 @@ class LayoutManager::SnapshotWindow {
   // in the dimensions 'max_width' and 'max_height'.
   void SetSize(int max_width, int max_height);
 
-  // Handle this snapshot window's input window getting a button press
-  // by selecting it as the current snapshot, or switching back to
-  // active mode if this snapshot is already the current one.
-  void HandleButtonPress(XTime timestamp);
+  // Handle this snapshot window's input window getting a button
+  // release event by selecting it as the current snapshot, or
+  // switching back to active mode if this snapshot is already the
+  // current one.  |x| and |y| are mouse coordinates that are relative
+  // to the layout manager's origin.
+  void HandleButtonRelease(XTime timestamp, int x, int y);
 
  private:
   WindowManager* wm() { return layout_manager_->wm_; }

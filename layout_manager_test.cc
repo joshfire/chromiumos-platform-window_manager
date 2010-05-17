@@ -646,16 +646,20 @@ TEST_F(LayoutManagerTest, OverviewFocus) {
 
   // Click on the first window's input window to make it current.
   XWindow input_xid = lm_->GetInputXidForWindow(*(wm_->GetWindowOrDie(xid)));
-  MockXConnection::InitButtonPressEvent(
-      &event, *xconn_->GetWindowInfoOrDie(input_xid), 0, 0, 1);  // x, y, button
+  MockXConnection::WindowInfo* input_info =
+      xconn_->GetWindowInfoOrDie(input_xid);
+  MockXConnection::InitButtonPressEvent(&event, *input_info, 0, 0, 1);
+  wm_->HandleEvent(&event);
+  MockXConnection::InitButtonReleaseEvent(&event, *input_info, 0, 0, 1);
   wm_->HandleEvent(&event);
   EXPECT_EQ(lm_->GetSnapshotWindowByXid(xid), lm_->current_snapshot_);
 
   // Now click on it again to activate it.  The first window should be
   // focused and set as the active window, and only the second window
   // should still have a button grab.
-  MockXConnection::InitButtonPressEvent(
-      &event, *xconn_->GetWindowInfoOrDie(input_xid), 0, 0, 1);  // x, y, button
+  MockXConnection::InitButtonPressEvent(&event, *input_info, 0, 0, 1);
+  wm_->HandleEvent(&event);
+  MockXConnection::InitButtonReleaseEvent(&event, *input_info, 0, 0, 1);
   wm_->HandleEvent(&event);
   EXPECT_EQ(lm_->GetToplevelWindowByXid(toplevel_xid), lm_->current_toplevel_);
   EXPECT_EQ(toplevel_xid, xconn_->focused_xid());
@@ -703,11 +707,44 @@ TEST_F(LayoutManagerTest, OverviewScrolling) {
   ChangeTabInfo(toplevel_xid, 2, 1);
   SendWindowTypeEvent(toplevel_xid);
 
-  // The background should be scrolled back a little now, since
-  // the second snapshot is selected.
-  EXPECT_EQ(static_cast<int>(-LayoutManager::kBackgroundScrollRatio *
-                             LayoutManager::kOverviewExposedWindowRatio *
-                             MockXConnection::kDisplayWidth),
+  XEvent event;
+  XWindow input_xid = lm_->GetInputXidForWindow(*(wm_->GetWindowOrDie(xid2)));
+  MockXConnection::WindowInfo* input_info =
+      xconn_->GetWindowInfoOrDie(input_xid);
+  MockXConnection::InitButtonPressEvent(&event, *input_info, 0, 0, 1);
+  wm_->HandleEvent(&event);
+  MockXConnection::InitButtonReleaseEvent(&event, *input_info, 0, 0, 1);
+  wm_->HandleEvent(&event);
+
+  EXPECT_EQ(static_cast<int>(MockXConnection::kDisplayWidth *
+                             LayoutManager::kOverviewExposedWindowRatio),
+            lm_->snapshots_.back()->overview_x());
+  EXPECT_EQ(0, lm_->snapshots_.front()->overview_x());
+  EXPECT_EQ(static_cast<int>(0.5 + LayoutManager::kOverviewSelectedScale *
+                             MockXConnection::kDisplayWidth / 2.f),
+            lm_->snapshots_.back()->overview_width());
+  EXPECT_EQ(MockXConnection::kDisplayWidth / 2,
+            lm_->snapshots_.front()->overview_width());
+  EXPECT_EQ(-(lm_->current_snapshot_->overview_x() +
+              (lm_->current_snapshot_->overview_width() -
+               MockXConnection::kDisplayWidth) / 2),
+            lm_->overview_panning_offset_);
+
+  const float kMargin = MockXConnection::kDisplayWidth *
+                        LayoutManager::kSideMarginRatio;
+  const int overview_width_of_snapshots =
+      MockXConnection::kDisplayWidth *
+      LayoutManager::kOverviewExposedWindowRatio +
+      lm_->snapshots_.back()->overview_tilted_width();
+  int min_x = kMargin;
+  int max_x = MockXConnection::kDisplayWidth - overview_width_of_snapshots -
+              kMargin;
+  int background_overage = wm_->background()->GetWidth() - wm_->width();
+  float scroll_percent = static_cast<float>(lm_->overview_panning_offset_ -
+                                            min_x)/(max_x - min_x);
+  scroll_percent = std::max(0.f, scroll_percent);
+  scroll_percent = std::min(scroll_percent, 1.f);
+  EXPECT_EQ(static_cast<int>(-scroll_percent * background_overage),
             background->GetX());
   EXPECT_EQ(centering_offset, background->GetY());
 }

@@ -42,7 +42,8 @@ LayoutManager::SnapshotWindow::SnapshotWindow(Window* win,
       tab_index_(-1),
       toplevel_(NULL),
       toplevel_xid_(0),
-      input_xid_(wm()->CreateInputWindow(-1, -1, 1, 1, ButtonPressMask)),
+      input_xid_(wm()->CreateInputWindow(-1, -1, 1, 1,
+                                         ButtonPressMask | ButtonReleaseMask)),
       state_(STATE_NEW),
       last_state_(STATE_NEW),
       overview_x_(0),
@@ -275,7 +276,7 @@ void LayoutManager::SnapshotWindow::ConfigureForOverviewMode(bool animate) {
         input_xid_, StackingManager::LAYER_SNAPSHOT_WINDOW);
   }
 
-  int absolute_overview_x = layout_manager_->x() -
+  int absolute_overview_x = layout_manager_->x() +
                             layout_manager_->overview_panning_offset() +
                             overview_x_;
   int absolute_overview_y = layout_manager_->y() + overview_y_;
@@ -283,15 +284,8 @@ void LayoutManager::SnapshotWindow::ConfigureForOverviewMode(bool animate) {
   double new_tilt =
       state_ == STATE_OVERVIEW_MODE_NORMAL ? kUnselectedTilt : 0.0;
 
-  // Correct for the effect of tilt on the width so that the input
-  // window matches the width of the visible snapshot.  This is
-  // basically the x-axis component of the perspective transform for
-  // the tilt.
-  double theta = new_tilt * M_PI/2.0;
-  double x_scale_factor = cos(theta)/(0.4 * sin(theta) + 1.0);
-  int input_width =static_cast<int>(
-      static_cast<double>(overview_width_) * x_scale_factor);
-
+  int input_width = Compositor::Actor::GetTiltedWidth(overview_width_,
+                                                      new_tilt);
   wm()->ConfigureInputWindow(input_xid_,
                              absolute_overview_x,
                              absolute_overview_y,
@@ -311,20 +305,21 @@ void LayoutManager::SnapshotWindow::SetSize(int max_width, int max_height) {
       static_cast<double>(max_width) / max_height) {
     overview_scale_ = static_cast<double>(max_width) / client_width;
     overview_width_ = max_width;
-    overview_height_ = client_height * overview_scale_;
+    overview_height_ = client_height * overview_scale_ + 0.5;
   } else {
     overview_scale_ = static_cast<double>(max_height) / client_height;
-    overview_width_ = client_width * overview_scale_;
+    overview_width_ = client_width * overview_scale_ + 0.5;
     overview_height_ = max_height;
   }
 }
 
-void LayoutManager::SnapshotWindow::HandleButtonPress(XTime timestamp) {
+void LayoutManager::SnapshotWindow::HandleButtonRelease(XTime timestamp,
+                                                        int x, int y) {
   if (layout_manager_->current_snapshot() == this) {
     // If we're already the current snapshot, then switch modes to ACTIVE mode.
     layout_manager_->SetMode(LayoutManager::MODE_ACTIVE);
   } else {
-    layout_manager_->SetCurrentSnapshot(this);
+    layout_manager_->SetCurrentSnapshotWithClick(this, x, y);
     layout_manager_->LayoutWindows(true);
   }
 }

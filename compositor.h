@@ -63,6 +63,10 @@ class Compositor {
     // side of the actor, from 0 to 90 degrees.
     virtual void SetTilt(double tilt, int anim_ms) = 0;
     virtual double GetTilt() const = 0;
+
+    // The width of an actor if it were tilted by the given amount.
+    static int GetTiltedWidth(int width, double tilt);
+
     virtual void SetClip(int x, int y, int width, int height) = 0;
 
     // Move an actor directly above or below another actor in the stacking

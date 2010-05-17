@@ -52,22 +52,20 @@ static const double kOverviewSelectedPadding = 4.0;
 
 // What fraction of the manager's total width should be placed between
 // groups of snapshots in overview mode?
-static const double kOverviewGroupSpacing = 0.05;
+static const double kOverviewGroupSpacing = 0.06;
 
 // Duration between panning updates while a drag is occurring on the
 // background window in overview mode.
 static const int kOverviewDragUpdateMs = 50;
 
+// What fraction of the manager's total width should be visible on the
+// sides when the snapshots are panned all the way to one end or the
+// other.
+const double LayoutManager::kSideMarginRatio = 0.4;
+
 // What fraction of the manager's total width should each window use for
 // peeking out underneath the window on top of it in overview mode?
-const double LayoutManager::kOverviewExposedWindowRatio = 0.02;
-
-// This is the speed at which the background image moves relative to
-// how much the snapshots move when a new snapshot is selected.  Note
-// that if there are enough snapshots that scrolling to the last one
-// would cause the background to not cover the entire screen, then
-// this ratio is ignored (and a smaller ratio is calculuated).
-const double LayoutManager::kBackgroundScrollRatio = 0.33;
+const double LayoutManager::kOverviewExposedWindowRatio = 0.04;
 
 // Animation speed used for windows.
 const int LayoutManager::kWindowAnimMs = 250;
@@ -93,6 +91,7 @@ LayoutManager::LayoutManager(WindowManager* wm, PanelManager* panel_manager)
       current_snapshot_(NULL),
       overview_panning_offset_(0),
       overview_background_offset_(0),
+      overview_width_of_snapshots_(0),
       overview_background_event_coalescer_(
           new MotionEventCoalescer(
               wm_->event_loop(),
@@ -362,8 +361,8 @@ void LayoutManager::HandleWindowMap(Window* win) {
       snapshots_.push_back(snapshot);
       SortSnapshots();
       DLOG(INFO) << "Adding snapshot " << win->xid_str()
-                << " at tab index " << snapshot->tab_index()
-                << " (total of " << snapshots_.size() << ")";
+                 << " at tab index " << snapshot->tab_index()
+                 << " (total of " << snapshots_.size() << ")";
       UpdateCurrentSnapshot();
       if (mode_ == MODE_OVERVIEW) {
         if (snapshot.get() == current_snapshot_) {
@@ -457,7 +456,7 @@ void LayoutManager::HandleWindowUnmap(Window* win) {
   DCHECK(win);
 
   DLOG(INFO) << "Unmapping window " << win->xid_str()
-            << " of type " << win->type();
+             << " of type " << win->type();
 
   if (!IsHandledWindowType(win->type()))
     return;
@@ -528,18 +527,6 @@ void LayoutManager::HandleButtonPress(XWindow xid,
                                       int x_root, int y_root,
                                       int button,
                                       XTime timestamp) {
-  SnapshotWindow* snapshot = GetSnapshotWindowByInputXid(xid);
-  if (snapshot) {
-    if (button == 1) {  // Ignore buttons other than 1.
-      LOG_IF(WARNING, mode_ != MODE_OVERVIEW)
-          << "Got a click in input window " << XidStr(xid)
-          << " for snapshot window " << snapshot->win()->xid_str()
-          << " while not in overview mode";
-      snapshot->HandleButtonPress(timestamp);
-    }
-    return;
-  }
-
   if (xid == wm_->background_xid() && button == 1) {
     overview_drag_last_x_ = x;
     overview_background_event_coalescer_->Start();
@@ -564,6 +551,18 @@ void LayoutManager::HandleButtonRelease(XWindow xid,
                                         int x_root, int y_root,
                                         int button,
                                         XTime timestamp) {
+  SnapshotWindow* snapshot = GetSnapshotWindowByInputXid(xid);
+  if (snapshot) {
+    if (button == 1) {  // Ignore buttons other than 1.
+      LOG_IF(WARNING, mode_ != MODE_OVERVIEW)
+          << "Got a click in input window " << XidStr(xid)
+          << " for snapshot window " << snapshot->win()->xid_str()
+          << " while not in overview mode";
+      snapshot->HandleButtonRelease(timestamp, x_root - x_, y_root - y_);
+    }
+    return;
+  }
+
   if (xid != wm_->background_xid() || button != 1)
     return;
 
@@ -714,8 +713,34 @@ void LayoutManager::LayoutWindows(bool animate) {
 
   DLOG(INFO) << "Laying out windows for " << GetModeName(mode_) << " mode.";
 
-  if (mode_ == MODE_OVERVIEW)
+  if (mode_ == MODE_OVERVIEW) {
     CalculatePositionsForOverviewMode();
+    // Unless we're doing a layout in "immediate" mode (i.e. no
+    // animation, which usually means we're dragging), we want to
+    // enforce the bounds of scrolling.
+    if (animate) {
+      const float kMargin = width_ * kSideMarginRatio;
+      int min_x = kMargin;
+      int max_x = width_ - overview_width_of_snapshots_ - kMargin;
+      if (max_x < min_x) {
+        std::swap(max_x, min_x);
+      }
+      // There's two modes here: one where the snapshots are too wide
+      // to fit, and one where they aren't.  Just so happens that we
+      // want to do similar things in both cases.
+      if (overview_panning_offset_ < min_x) {
+        overview_panning_offset_ = min_x;
+      } else {
+        if (snapshots_.size() > 0) {
+          if (overview_panning_offset_ > max_x)
+            overview_panning_offset_ = max_x;
+        } else {
+          // If there are no snapshots, might as well center it all.
+          overview_panning_offset_ = width_ / 2;
+        }
+      }
+    }
+  }
 
   // We iterate through the snapshot windows in descending stacking
   // order (right-to-left).  Otherwise, we'd get spurious pointer
@@ -734,7 +759,8 @@ void LayoutManager::LayoutWindows(bool animate) {
   }
 
   if (wm_->background())
-    wm_->background()->MoveX(overview_background_offset_, kWindowAnimMs);
+    wm_->background()->MoveX(overview_background_offset_,
+                             animate ? kWindowAnimMs : 0);
 }
 
 void LayoutManager::SetMode(Mode mode) {
@@ -938,7 +964,7 @@ void LayoutManager::MoveAndResizeForAvailableArea() {
   x_ = panel_manager_left_width_;
   y_ = 0;
   width_ = wm_->width() -
-      (panel_manager_left_width_ + panel_manager_right_width_);
+           (panel_manager_left_width_ + panel_manager_right_width_);
   height_ = wm_->height();
 
   // If there's a larger difference between our new and old left edge than
@@ -1046,18 +1072,29 @@ void LayoutManager::Metrics::Populate(chrome_os_pb::SystemMetrics *metrics_pb) {
       window_cycle_by_keystroke_count);
 }
 
+void LayoutManager::CenterCurrentSnapshot(int x, int y) {
+  int center_x = (x >= 0 && y >= 0) ? x : width_ / 2;
+  if (current_snapshot_) {
+    // If part of the window will be under 'center_x' when centered
+    // (and not tilted), just center it.  Otherwise, leave it where it
+    // is so we can select it on a double click.
+    if ((width_ - current_snapshot_->overview_width()) / 2 < center_x &&
+        (width_ + current_snapshot_->overview_width()) / 2 >= center_x) {
+      overview_panning_offset_ = -(current_snapshot_->overview_x() +
+                                   (current_snapshot_->overview_width() -
+                                    width_) / 2);
+    }
+  } else {
+    overview_panning_offset_  = center_x;
+  }
+}
+
 void LayoutManager::CalculatePositionsForOverviewMode() {
   if (toplevels_.empty() || snapshots_.empty() || mode_ != MODE_OVERVIEW)
     return;
 
-  int selected_x = 0.5 * width_;
-
-  const int width_limit =
-      min(static_cast<double>(width_) / sqrt(snapshots_.size()),
-          kOverviewWindowMaxSizeRatio * width_);
-  const int height_limit =
-      min(static_cast<double>(height_) / sqrt(snapshots_.size()),
-          kOverviewWindowMaxSizeRatio * height_);
+  const int width_limit = kOverviewWindowMaxSizeRatio * width_;
+  const int height_limit = kOverviewWindowMaxSizeRatio * height_;
   ToplevelWindow* last_toplevel = snapshots_[0]->toplevel();
   int running_width = 0;
   int selected_index = 0;
@@ -1076,51 +1113,36 @@ void LayoutManager::CalculatePositionsForOverviewMode() {
 
     double scale = is_selected ? kOverviewSelectedScale : 1.0;
     snapshot->SetSize(width_limit * scale, height_limit * scale);
-    snapshot->SetPosition(
-        running_width, 0.5 * (height_ - snapshot->overview_height()));
+    snapshot->SetPosition(running_width,
+                          (height_ - snapshot->overview_height()) / 2);
     running_width += is_selected ?
                      snapshot->overview_width() + kOverviewSelectedPadding  :
                      (kOverviewExposedWindowRatio * width_limit /
                       kOverviewWindowMaxSizeRatio);
-    if (is_selected && selected_x >= 0) {
-      // If the window will be under 'selected_x' when centered, just
-      // center it.  Otherwise, move it as close to centered as possible
-      // while still being under 'selected_x'.
-      if (0.5 * (width_ - snapshot->overview_width()) < selected_x &&
-          0.5 * (width_ + snapshot->overview_width()) >= selected_x) {
-        overview_panning_offset_ =
-            snapshot->overview_x() +
-            0.5 * snapshot->overview_width() -
-            0.5 * width_;
-      } else if (0.5 * (width_ - snapshot->overview_width()) > selected_x) {
-        overview_panning_offset_ = snapshot->overview_x() - selected_x + 1;
-      } else {
-        overview_panning_offset_ = snapshot->overview_x() - selected_x +
-                                   snapshot->overview_width() - 1;
-      }
-    }
     last_toplevel = snapshot->toplevel();
   }
 
+  // Calculate the overall size of all the snapshots.
+  if (snapshots_.back().get() != current_snapshot_) {
+    overview_width_of_snapshots_ = running_width -
+                                   (kOverviewExposedWindowRatio * width_limit /
+                                    kOverviewWindowMaxSizeRatio) +
+                                   snapshots_.back()->overview_tilted_width();
+  } else {
+    overview_width_of_snapshots_ = running_width - kOverviewSelectedPadding;
+  }
+
   if (wm_->background()) {
-    // Now we scroll the background to the right location.  The
-    // algorithm is the following: scroll the background by
-    // kBackgroundScrollRatio times the offset distance to the
-    // selected snapshot until there are enough snapshots that
-    // selecting the last snapshot would scroll past the end of the
-    // overage, and once we reach that point, start scrolling only a
-    // percentage of the overage.
+    // Now we scroll the background to the right location.
+    const float kMargin = width_ * kSideMarginRatio;
+    int min_x = kMargin;
+    int max_x = width_ - overview_width_of_snapshots_ - kMargin;
     int background_overage = wm_->background()->GetWidth() - wm_->width();
-    int offset_limit =
-        (running_width -
-         (current_snapshot_ ? current_snapshot_->overview_width() : 0) -
-         kOverviewSelectedPadding) * kBackgroundScrollRatio;
-    if (offset_limit > background_overage) {
-      overview_background_offset_ = -background_overage * selected_index /
-                                    snapshots_.size();
-    } else {
-      overview_background_offset_ = -selected_offset * kBackgroundScrollRatio;
-    }
+    float scroll_percent =
+        static_cast<float>(overview_panning_offset_ - min_x) / (max_x - min_x);
+    scroll_percent = max(0.f, scroll_percent);
+    scroll_percent = min(scroll_percent, 1.f);
+    overview_background_offset_ = -background_overage * scroll_percent;
   }
 }
 
@@ -1177,7 +1199,8 @@ void LayoutManager::CycleCurrentSnapshotWindow(bool forward) {
     LayoutWindows(true);
 }
 
-void LayoutManager::SetCurrentSnapshot(SnapshotWindow* snapshot) {
+void LayoutManager::SetCurrentSnapshotWithClick(SnapshotWindow* snapshot,
+                                                int x, int y) {
   CHECK(snapshot);
 
   if (current_snapshot_ != snapshot) {
@@ -1203,6 +1226,9 @@ void LayoutManager::SetCurrentSnapshot(SnapshotWindow* snapshot) {
     // toplevel windows.
     if (current_snapshot_->toplevel())
       SetCurrentToplevel(current_snapshot_->toplevel());
+
+    CalculatePositionsForOverviewMode();
+    CenterCurrentSnapshot(x, y);
   }
 }
 
@@ -1248,7 +1274,7 @@ void LayoutManager::PanOverviewMode(int offset) {
 void LayoutManager::UpdateOverviewPanningForMotion() {
   int dx = overview_background_event_coalescer_->x() - overview_drag_last_x_;
   overview_drag_last_x_ = overview_background_event_coalescer_->x();
-  overview_panning_offset_ -= dx;
+  overview_panning_offset_ += dx;
   LayoutWindows(false);  // animate = false
 }
 

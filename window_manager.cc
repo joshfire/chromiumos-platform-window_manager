@@ -938,17 +938,34 @@ void WindowManager::ConfigureBackground(int width, int height) {
     // Image is wider than the display, scale image height to match
     // the height of the display, and the image width to preserve
     // the image ratio, and then expand them both to make it wide
-    // enough for scrolling.
-    background_height = kBackgroundExpansionFactor * height;
-    background_width = kBackgroundExpansionFactor * height * image_aspect;
+    // enough for scrolling.  The "+.5"'s are for proper rounding.
+    background_height = height;
+    background_width = height * image_aspect + 0.5f;
+
+    if (background_width < width * kBackgroundExpansionFactor) {
+      // Even with the tall aspect ratio we have, the width still
+      // isn't wide enough, so we scale up the image some more so it
+      // is wide enough, preserving the aspect.
+      float extra_expansion =
+          width * kBackgroundExpansionFactor / background_width;
+      background_width = background_width * extra_expansion + 0.5f;
+      background_height = background_height * extra_expansion + 0.5f;
+    }
   } else {
     // Image is narrower than the display, scale image width to
     // match the width of the display, and the image height to
     // preserve the image ratio, and then expand them both to make
     // it wide enough for scrolling.
-    background_width = kBackgroundExpansionFactor * width;
-    background_height = kBackgroundExpansionFactor * width / image_aspect;
+    background_width = 0.5f + kBackgroundExpansionFactor * width;
+    background_height = 0.5f + kBackgroundExpansionFactor * width /
+                        image_aspect;
   }
+
+  DLOG(INFO) << "Configuring background image of size "
+             << background_->GetWidth() << "x" << background_->GetHeight()
+             << " as " << background_width << "x" << background_height
+             << " for " << width << "x" << height << " display";
+
   background_->SetSize(background_width, background_height);
 
   // Center the image vertically.

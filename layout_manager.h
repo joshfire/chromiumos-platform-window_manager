@@ -190,6 +190,11 @@ class LayoutManager : public EventConsumer,
     MODE_OVERVIEW,
   };
 
+  // What fraction of the manager's total width should be visible on the
+  // sides when the snapshots are panned all the way to one end or the
+  // other.
+  static const double kSideMarginRatio;
+
   // What fraction of the manager's total width should each window use
   // for peeking out underneath the window on top of it in overview
   // mode?
@@ -228,7 +233,16 @@ class LayoutManager : public EventConsumer,
 
   // Returns the current snapshot window.
   SnapshotWindow* current_snapshot() { return current_snapshot_; }
-  void SetCurrentSnapshot(SnapshotWindow* snapshot);
+  void SetCurrentSnapshot(SnapshotWindow* snapshot) {
+    SetCurrentSnapshotWithClick(snapshot, -1, -1);
+  }
+
+  // This sets the current snapshot window, and includes the
+  // information about the mouse click that was used to select the
+  // window.  The mouse coordinates should be relative to the origin
+  // of the layout manager.  Supply -1 for x if the mouse coordinates
+  // are not available.
+  void SetCurrentSnapshotWithClick(SnapshotWindow* snapshot, int x, int y);
 
   // Is the passed-in window type one that we should handle?
   static bool IsHandledWindowType(chromeos::WmIpcWindowType type);
@@ -293,6 +307,15 @@ class LayoutManager : public EventConsumer,
   // window exists at that position or if not already in overview
   // mode.
   void HandleSnapshotChangeRequest(int index);
+
+  // This calculates a new panning offset that will center the given
+  // snapshot window in the display.  LayoutWindows still needs to be
+  // called after this function to have the centering take effect.  x
+  // and y are the coordinates (relative to the layout manager origin)
+  // of the mouse click used to select the snapshot.  If either
+  // coordinate is negative, then the mouse click coordinates are
+  // ignored.
+  void CenterCurrentSnapshot(int x, int y);
 
   // Calculate the position and scaling of all snapshots for overview
   // mode and record it in 'snapshots_'.
@@ -401,6 +424,11 @@ class LayoutManager : public EventConsumer,
   // of" the background by panning the background slightly when the
   // selection changes.
   int overview_background_offset_;
+
+  // This is the overall width of the snapshots as they are laid out.
+  // This is set in CalculatePositionsForOverviewMode, so that must be
+  // called before this is current.
+  int overview_width_of_snapshots_;
 
   // Mouse pointer motion gets stored here during a drag on the background
   // window in overview mode so that it can be applied periodically in

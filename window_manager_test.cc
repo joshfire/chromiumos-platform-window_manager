@@ -540,31 +540,29 @@ TEST_F(WindowManagerTest, ResizeScreen) {
   EXPECT_EQ(new_width, background_info->width);
   EXPECT_EQ(new_height, background_info->height);
   EXPECT_EQ(
-      static_cast<int>(new_width * WindowManager::kBackgroundExpansionFactor),
+      static_cast<int>(
+          new_width * WindowManager::kBackgroundExpansionFactor + 0.5f),
       wm_->background_->GetWidth());
   EXPECT_EQ(
-      static_cast<int>(new_height * WindowManager::kBackgroundExpansionFactor),
+      static_cast<int>(
+          new_height * WindowManager::kBackgroundExpansionFactor + 0.5f),
       wm_->background_->GetHeight());
 
   // Now check that background config works with different aspects.
   background->SetSize(root_info->width * 2, root_info->height);
   wm_->ConfigureBackground(new_width, new_height);
-  EXPECT_EQ(
-      static_cast<int>(
-          new_width * WindowManager::kBackgroundExpansionFactor * 2),
-      wm_->background_->GetWidth());
-  EXPECT_EQ(
-      static_cast<int>(new_height * WindowManager::kBackgroundExpansionFactor),
-      wm_->background_->GetHeight());
+  EXPECT_EQ(new_width * 2, wm_->background_->GetWidth());
+  EXPECT_EQ(new_height, wm_->background_->GetHeight());
 
   background->SetSize(root_info->width, root_info->height * 2);
   wm_->ConfigureBackground(new_width, new_height);
   EXPECT_EQ(
-      static_cast<int>(new_width * WindowManager::kBackgroundExpansionFactor),
+      static_cast<int>(
+          new_width * WindowManager::kBackgroundExpansionFactor + 0.5f),
       wm_->background_->GetWidth());
   EXPECT_EQ(
       static_cast<int>(
-          new_height * WindowManager::kBackgroundExpansionFactor * 2),
+          new_height * WindowManager::kBackgroundExpansionFactor * 2 + 0.5f),
       wm_->background_->GetHeight());
 }
 
