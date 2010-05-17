@@ -762,6 +762,9 @@ void LayoutManager::LayoutWindows(bool animate) {
   if (wm_->background())
     wm_->background()->MoveX(overview_background_offset_,
                              animate ? kWindowAnimMs : 0);
+
+  if (wm_->client_window_debugging_enabled())
+    wm_->UpdateClientWindowDebugging();
 }
 
 void LayoutManager::SetMode(Mode mode) {

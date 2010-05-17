@@ -26,6 +26,8 @@ class Compositor {
   struct Color {
     Color() : red(0.f), green(0.f), blue(0.f) {}
     Color(float r, float g, float b) : red(r), green(g), blue(b) {}
+    void SetHsv(float hue, float saturation, float value);
+
     float red;
     float green;
     float blue;

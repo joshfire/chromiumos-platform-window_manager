@@ -1553,18 +1553,26 @@ void WindowManager::ToggleClientWindowDebugging() {
     client_window_debugging_actors_.clear();
     return;
   }
+  UpdateClientWindowDebugging();
+}
 
+void WindowManager::UpdateClientWindowDebugging() {
   DLOG(INFO) << "Compositing actors:\n" << stage_->GetDebugString(0);
+
+  ActorVector new_actors;
 
   vector<XWindow> xids;
   if (!xconn_->GetChildWindows(root_, &xids))
     return;
 
   static const int kDebugFadeMs = 100;
-  static const Compositor::Color kBgColor(1.f, 1.f, 1.f);
   static const Compositor::Color kFgColor(0.f, 0.f, 0.f);
 
+  int cnt = 0;
+  float step = 6.f/xids.size();
   for (vector<XWindow>::iterator it = xids.begin(); it != xids.end(); ++it) {
+    Compositor::Color bgColor(1.f, 1.f, 1.f);
+    bgColor.SetHsv(cnt++ * step, 1.f, 1.f);
     XConnection::WindowGeometry geometry;
     if (!xconn_->GetWindowGeometry(*it, &geometry))
       continue;
@@ -1580,13 +1588,13 @@ void WindowManager::ToggleClientWindowDebugging() {
     group->SetClip(0, 0, geometry.width, geometry.height);
 
     Compositor::Actor* rect =
-        compositor_->CreateRectangle(kBgColor, kFgColor, 1);
+        compositor_->CreateRectangle(bgColor, kFgColor, 1);
     group->AddActor(rect);
     rect->SetName("debug box");
     rect->Move(0, 0, 0);
     rect->SetSize(geometry.width, geometry.height);
     rect->SetOpacity(0, 0);
-    rect->SetOpacity(0.5, kDebugFadeMs);
+    rect->SetOpacity(0.3, kDebugFadeMs);
     rect->SetVisibility(true);
 
     Compositor::Actor* text =
@@ -1599,13 +1607,12 @@ void WindowManager::ToggleClientWindowDebugging() {
     text->SetVisibility(true);
     text->Raise(rect);
 
-    client_window_debugging_actors_.push_back(
-        shared_ptr<Compositor::Actor>(group));
-    client_window_debugging_actors_.push_back(
-        shared_ptr<Compositor::Actor>(rect));
-    client_window_debugging_actors_.push_back(
-        shared_ptr<Compositor::Actor>(text));
+    new_actors.push_back(shared_ptr<Compositor::Actor>(group));
+    new_actors.push_back(shared_ptr<Compositor::Actor>(rect));
+    new_actors.push_back(shared_ptr<Compositor::Actor>(text));
   }
+
+  client_window_debugging_actors_.swap(new_actors);
 }
 
 void WindowManager::ToggleHotkeyOverlay() {

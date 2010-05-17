@@ -165,6 +165,16 @@ class WindowManager : public PanelManagerAreaChangeListener {
   void UnregisterEventConsumerForChromeMessages(
       chromeos::WmIpcMessageType message_type, EventConsumer* event_consumer);
 
+  // Callback to show or hide debugging information about client windows.
+  void ToggleClientWindowDebugging();
+  bool client_window_debugging_enabled() const {
+    return !client_window_debugging_actors_.empty();
+  }
+
+  // Function to update client window debugging info.  Called from the
+  // layout manager.
+  void UpdateClientWindowDebugging();
+
  private:
   friend class BasicWindowManagerTest;
   friend class LayoutManagerTest;         // uses 'layout_manager_'
@@ -292,9 +302,6 @@ class WindowManager : public PanelManagerAreaChangeListener {
   // run it in the background.
   void RunCommand(std::string command);
 
-  // Callback to show or hide debugging information about client windows.
-  void ToggleClientWindowDebugging();
-
   // Callback to show or hide the hotkey overlay images.
   void ToggleHotkeyOverlay();
 
@@ -372,8 +379,8 @@ class WindowManager : public PanelManagerAreaChangeListener {
   ChromeMessageEventConsumerMap chrome_message_event_consumers_;
 
   // Actors that are currently being used to debug client windows.
-  std::vector<std::tr1::shared_ptr<Compositor::Actor> >
-      client_window_debugging_actors_;
+  typedef std::vector<std::tr1::shared_ptr<Compositor::Actor> > ActorVector;
+  ActorVector client_window_debugging_actors_;
 
   // The last window that was passed to SetActiveWindowProperty().
   XWindow active_window_xid_;
