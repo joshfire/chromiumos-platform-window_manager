@@ -320,8 +320,9 @@ bool LayoutManager::HandleWindowMapRequest(Window* win) {
 
     // Resize windows to their final size before mapping them to give them
     // more time to draw their contents.
-    if (win->type() == chromeos::WM_IPC_WINDOW_CHROME_TOPLEVEL ||
-        win->type() == chromeos::WM_IPC_WINDOW_UNKNOWN) {
+    if ((win->type() == chromeos::WM_IPC_WINDOW_CHROME_TOPLEVEL ||
+         win->type() == chromeos::WM_IPC_WINDOW_UNKNOWN) &&
+        !win->transient_for_xid()) {
       win->ResizeClient(width_, height_, GRAVITY_NORTHWEST);
     }
   }

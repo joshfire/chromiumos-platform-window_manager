@@ -1006,6 +1006,19 @@ TEST_F(LayoutManagerTest, ResizeWindowsBeforeMapping) {
   wm_->HandleEvent(&event);
   EXPECT_EQ(orig_width, snapshot_info->width);
   EXPECT_EQ(orig_height, snapshot_info->height);
+
+  // Transient windows should, too.
+  const XWindow transient_xid =
+      CreateBasicWindow(0, 0, orig_width, orig_height);
+  MockXConnection::WindowInfo* transient_info =
+      xconn_->GetWindowInfoOrDie(transient_xid);
+  transient_info->transient_for = toplevel_xid;
+  MockXConnection::InitCreateWindowEvent(&event, *transient_info);
+  wm_->HandleEvent(&event);
+  MockXConnection::InitMapRequestEvent(&event, *transient_info);
+  wm_->HandleEvent(&event);
+  EXPECT_EQ(orig_width, transient_info->width);
+  EXPECT_EQ(orig_height, transient_info->height);
 }
 
 }  // namespace window_manager
