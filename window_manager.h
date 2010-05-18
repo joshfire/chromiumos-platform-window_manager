@@ -415,7 +415,8 @@ class WindowManager : public PanelManagerAreaChangeListener {
   scoped_ptr<HotkeyOverlay> hotkey_overlay_;
 
   // Version of the IPC protocol that Chrome is currently using.  See
-  // WM_NOTIFY_IPC_VERSION in wm_ipc.h for details.
+  // WM_IPC_MESSAGE_WM_NOTIFY_IPC_VERSION in libcros's
+  // chromeos_wm_ipc_enums.h for details.
   int wm_ipc_version_;
 
   // Key bindings that should only be enabled when a user is logged in (e.g.

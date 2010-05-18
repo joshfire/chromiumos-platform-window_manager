@@ -176,7 +176,7 @@ WindowManager::WindowManager(EventLoop* event_loop,
       metrics_reporter_timeout_id_(-1),
       query_keyboard_state_timeout_id_(-1),
       showing_hotkey_overlay_(false),
-      wm_ipc_version_(0),
+      wm_ipc_version_(1),
       logged_in_(logged_in),
       chrome_window_has_been_mapped_(false) {
   CHECK(event_loop_);

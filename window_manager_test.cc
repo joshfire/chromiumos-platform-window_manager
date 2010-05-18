@@ -711,8 +711,8 @@ TEST_F(WindowManagerTest, WmIpcVersion) {
   // Create a new WindowManager object to work around this.
   CreateAndInitNewWm();
 
-  // We should assume version 0 if we haven't received a message from Chrome.
-  EXPECT_EQ(0, wm_->wm_ipc_version());
+  // We should assume version 1 if we haven't received a message from Chrome.
+  EXPECT_EQ(1, wm_->wm_ipc_version());
 
   // Now send the WM a message telling it that Chrome is using version 3.
   WmIpc::Message msg(chromeos::WM_IPC_MESSAGE_WM_NOTIFY_IPC_VERSION);
