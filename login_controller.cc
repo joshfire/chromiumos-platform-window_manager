@@ -4,6 +4,7 @@
 
 #include "window_manager/login_controller.h"
 
+#include <map>
 #include <string>
 
 #include "cros/chromeos_wm_ipc_enums.h"
@@ -16,6 +17,7 @@
 #include "window_manager/window.h"
 #include "window_manager/window_manager.h"
 
+using std::map;
 using std::set;
 using std::string;
 using std::vector;
@@ -310,8 +312,20 @@ void LoginController::HandleWindowUnmap(Window* win) {
   if (other_windows_it != other_windows_.end()) {
     other_windows_.erase(other_windows_it);
     registrar_.UnregisterForWindowEvents(win->xid());
-    if (win->IsFocused() && login_window_to_focus_)
-      wm_->FocusWindow(login_window_to_focus_, wm_->GetCurrentTimeFromServer());
+    if (win->IsFocused()) {
+      // If the window was transient, pass the focus to its owner (as long
+      // as it's not the background window, which we never want to receive
+      // the focus); otherwise just focus the previously-focused login
+      // window.
+      Window* owner_win = win->transient_for_xid() ?
+          wm_->GetWindow(win->transient_for_xid()) : NULL;
+      if (owner_win && owner_win->mapped() && owner_win != background_window_) {
+        wm_->FocusWindow(owner_win, wm_->GetCurrentTimeFromServer());
+      } else if (login_window_to_focus_) {
+        wm_->FocusWindow(login_window_to_focus_,
+                         wm_->GetCurrentTimeFromServer());
+      }
+    }
     return;
   }
 
@@ -390,6 +404,12 @@ void LoginController::HandleButtonPress(XWindow xid,
                                         int x_root, int y_root,
                                         int button,
                                         XTime timestamp) {
+  // Ignore clicks if a modal window has the focus.
+  if (wm_->focus_manager()->focused_win() &&
+      wm_->focus_manager()->focused_win()->wm_state_modal()) {
+    return;
+  }
+
   // If we saw a click in one of the other windows, focus and raise it.
   if (other_windows_.count(xid)) {
     Window* win = wm_->GetWindowOrDie(xid);
@@ -443,7 +463,11 @@ void LoginController::HandleClientMessage(XWindow xid,
   if (!win)
     return;
 
-  if (message_type == wm_->GetXAtom(ATOM_NET_ACTIVE_WINDOW)) {
+  if (message_type == wm_->GetXAtom(ATOM_NET_WM_STATE)) {
+    map<XAtom, bool> states;
+    win->ParseWmStateMessage(data, &states);
+    win->ChangeWmState(states);
+  } else if (message_type == wm_->GetXAtom(ATOM_NET_ACTIVE_WINDOW)) {
     if (other_windows_.count(xid)) {
       wm_->FocusWindow(win, data[1]);
       wm_->stacking_manager()->StackWindowAtTopOfLayer(

@@ -80,8 +80,10 @@ void FocusManager::HandleWindowUnmap(Window* win) {
 
 void FocusManager::HandleButtonPressInWindow(Window* win, XTime timestamp) {
   DCHECK(win);
-  if (click_to_focus_windows_.count(win))
-    wm_->xconn()->RemovePointerGrab(true, timestamp);  // replay_events=true
+  if (click_to_focus_windows_.count(win)) {
+    bool replay_events = !focused_win_ || !focused_win_->wm_state_modal();
+    wm_->xconn()->RemovePointerGrab(replay_events, timestamp);
+  }
 }
 
 void FocusManager::RegisterFocusChangeListener(

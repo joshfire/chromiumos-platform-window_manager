@@ -52,7 +52,8 @@ class FocusManager {
   // Handle a button press in a window.  Called by WindowManager.
   // If this was a window that was using click-to-focus, then its button
   // grab has been upgraded to a pointer grab.  We ungrab the pointer and
-  // replay the click so that the window will receive it.
+  // (if the currently-focused window isn't modal) replay the click so that
+  // 'win' will receive it.
   void HandleButtonPressInWindow(Window* win, XTime timestamp);
 
   // Register or unregister a listener that will be notified after a focus

@@ -41,7 +41,8 @@ MockXConnection::MockXConnection()
       num_keymap_refreshes_(0),
       pointer_x_(0),
       pointer_y_(0),
-      connection_pipe_has_data_(false) {
+      connection_pipe_has_data_(false),
+      num_pointer_ungrabs_with_replayed_events_(0) {
   PCHECK(HANDLE_EINTR(pipe(connection_pipe_fds_)) != -1);
   PCHECK(HANDLE_EINTR(
              fcntl(connection_pipe_fds_[0], F_SETFL, O_NONBLOCK)) != -1);
@@ -205,6 +206,8 @@ bool MockXConnection::AddPointerGrabForWindow(
 
 bool MockXConnection::RemovePointerGrab(bool replay_events, XTime timestamp) {
   pointer_grab_xid_ = None;
+  if (replay_events)
+    num_pointer_ungrabs_with_replayed_events_++;
   return true;
 }
 

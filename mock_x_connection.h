@@ -189,6 +189,9 @@ class MockXConnection : public XConnection {
   XTime last_focus_timestamp() const { return last_focus_timestamp_; }
   XWindow pointer_grab_xid() const { return pointer_grab_xid_; }
   int num_keymap_refreshes() const { return num_keymap_refreshes_; }
+  int num_pointer_ungrabs_with_replayed_events() const {
+    return num_pointer_ungrabs_with_replayed_events_;
+  }
 
   bool KeyIsGrabbed(KeyCode keycode, uint32 modifiers) {
     return grabbed_keys_.count(std::make_pair(keycode, modifiers)) > 0;
@@ -324,6 +327,10 @@ class MockXConnection : public XConnection {
 
   // Event queue used by IsEventPending() and GetNextEvent().
   std::queue<XEvent> queued_events_;
+
+  // The number of times that RemovePointerGrab() has been invoked with
+  // 'replay_events' set to true.
+  int num_pointer_ungrabs_with_replayed_events_;
 
   DISALLOW_COPY_AND_ASSIGN(MockXConnection);
 };

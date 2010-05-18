@@ -278,6 +278,97 @@ TEST_F(LoginControllerTest, FocusInitialGuestWindow) {
   EXPECT_EQ(guest_xid_, GetActiveWindowProperty());
 }
 
+TEST_F(LoginControllerTest, FocusTransientParent) {
+  CreateLoginWindows(2, true, false);
+
+  // When we open a transient dialog, it should get the focus.
+  const XWindow transient_xid = CreateSimpleWindow();
+  MockXConnection::WindowInfo* transient_info =
+      xconn_->GetWindowInfoOrDie(transient_xid);
+  transient_info->transient_for = entries_[0].controls_xid;
+  SendInitialEventsForWindow(transient_xid);
+  EXPECT_EQ(transient_xid, xconn_->focused_xid());
+  EXPECT_EQ(transient_xid, GetActiveWindowProperty());
+
+  // Now open another dialog that's transient for the first dialog.
+  const XWindow nested_transient_xid = CreateSimpleWindow();
+  MockXConnection::WindowInfo* nested_transient_info =
+      xconn_->GetWindowInfoOrDie(nested_transient_xid);
+  nested_transient_info->transient_for = transient_xid;
+  SendInitialEventsForWindow(nested_transient_xid);
+  EXPECT_EQ(nested_transient_xid, xconn_->focused_xid());
+  EXPECT_EQ(nested_transient_xid, GetActiveWindowProperty());
+
+  // If we unmap the nested dialog, the focus should go back to the first
+  // dialog.
+  XEvent event;
+  MockXConnection::InitUnmapEvent(&event, nested_transient_xid);
+  wm_->HandleEvent(&event);
+  EXPECT_EQ(transient_xid, xconn_->focused_xid());
+  EXPECT_EQ(transient_xid, GetActiveWindowProperty());
+
+  // Now unmap the first dialog and check that the focus goes back to the
+  // controls window.
+  MockXConnection::InitUnmapEvent(&event, transient_xid);
+  wm_->HandleEvent(&event);
+  EXPECT_EQ(entries_[0].controls_xid, xconn_->focused_xid());
+  EXPECT_EQ(entries_[0].controls_xid, GetActiveWindowProperty());
+
+  // Open a transient dialog, but make it owned by the background window.
+  const XWindow bg_transient_xid = CreateSimpleWindow();
+  MockXConnection::WindowInfo* bg_transient_info =
+      xconn_->GetWindowInfoOrDie(bg_transient_xid);
+  bg_transient_info->transient_for = background_xid_;
+  SendInitialEventsForWindow(bg_transient_xid);
+  EXPECT_EQ(bg_transient_xid, xconn_->focused_xid());
+  EXPECT_EQ(bg_transient_xid, GetActiveWindowProperty());
+
+  // We never want to focus the background.  When the dialog gets unmapped,
+  // we should focus the previously-focused controls window instead.
+  MockXConnection::InitUnmapEvent(&event, bg_transient_xid);
+  wm_->HandleEvent(&event);
+  EXPECT_EQ(entries_[0].controls_xid, xconn_->focused_xid());
+  EXPECT_EQ(entries_[0].controls_xid, GetActiveWindowProperty());
+}
+
+TEST_F(LoginControllerTest, Modality) {
+  CreateLoginWindows(2, true, false);
+  const XWindow controls_xid = entries_[0].controls_xid;
+  MockXConnection::WindowInfo* controls_info =
+      xconn_->GetWindowInfoOrDie(controls_xid);
+
+  // Map a transient window and check that it gets the focus.
+  const XWindow transient_xid = CreateSimpleWindow();
+  MockXConnection::WindowInfo* transient_info =
+      xconn_->GetWindowInfoOrDie(transient_xid);
+  transient_info->transient_for = entries_[0].controls_xid;
+  SendInitialEventsForWindow(transient_xid);
+  ASSERT_EQ(transient_xid, xconn_->focused_xid());
+  ASSERT_EQ(transient_xid, GetActiveWindowProperty());
+
+  // Now ask the WM to make the transient window modal.
+  XEvent event;
+  MockXConnection::InitClientMessageEvent(
+      &event, transient_xid, wm_->GetXAtom(ATOM_NET_WM_STATE),
+      1, wm_->GetXAtom(ATOM_NET_WM_STATE_MODAL), None, None, None);
+  wm_->HandleEvent(&event);
+  ASSERT_TRUE(wm_->GetWindowOrDie(transient_xid)->wm_state_modal());
+
+  // Click in the controls window and check that the transient window keeps
+  // the focus.  We also check that the click doesn't get replayed for the
+  // controls window.
+  int initial_num_replays = xconn_->num_pointer_ungrabs_with_replayed_events();
+  xconn_->set_pointer_grab_xid(controls_xid);
+  MockXConnection::InitButtonPressEvent(&event, *controls_info, 0, 0, 1);
+  wm_->HandleEvent(&event);
+  EXPECT_EQ(transient_xid, xconn_->focused_xid());
+  EXPECT_EQ(transient_xid, GetActiveWindowProperty());
+  EXPECT_TRUE(controls_info->button_is_grabbed(0));
+  EXPECT_FALSE(transient_info->button_is_grabbed(0));
+  EXPECT_EQ(initial_num_replays,
+            xconn_->num_pointer_ungrabs_with_replayed_events());
+}
+
 }  // namespace window_manager
 
 int main(int argc, char** argv) {

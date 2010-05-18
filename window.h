@@ -279,6 +279,8 @@ class Window {
   void CopyClientBoundsToRect(Rect* rect) const;
 
  private:
+  FRIEND_TEST(FocusManagerTest, Modality);  // sets 'wm_state_modal_'
+
   // Hide or show the window's shadow if necessary.
   void UpdateShadowIfNecessary();
 

@@ -153,6 +153,44 @@ TEST_F(FocusManagerTest, AdjustTimestamp) {
   EXPECT_EQ(timestamp, xconn_->last_focus_timestamp());
 }
 
+// Test that the focus manager handles modal windows correctly.
+// Specifically, when it sees a button press and the currently-focused
+// window is modal, the button press should be dropped instead of getting
+// replayed.
+TEST_F(FocusManagerTest, Modality) {
+  // Create a modal window and focus it.
+  XTime timestamp = 123;  // arbitrary
+  XWindow xid = CreateSimpleWindow();
+  Window win(wm_.get(), xid, false);
+  focus_manager_->UseClickToFocusForWindow(&win);
+  win.wm_state_modal_ = true;
+  focus_manager_->FocusWindow(&win, timestamp++);
+  ASSERT_EQ(xid, xconn_->focused_xid());
+
+  // Create a second window.
+  XWindow xid2 = CreateSimpleWindow();
+  Window win2(wm_.get(), xid2, false);
+  focus_manager_->UseClickToFocusForWindow(&win2);
+
+  // When the focus manager sees a button press in the second window, it
+  // should avoid replaying the event.
+  int initial_num_replays = xconn_->num_pointer_ungrabs_with_replayed_events();
+  xconn_->set_pointer_grab_xid(xid);
+  focus_manager_->HandleButtonPressInWindow(&win, timestamp++);
+  EXPECT_EQ(0, xconn_->pointer_grab_xid());
+  EXPECT_EQ(initial_num_replays,
+            xconn_->num_pointer_ungrabs_with_replayed_events());
+
+  // Now make the first window non-modal and check that clicks are replayed.
+  win.wm_state_modal_ = false;
+  initial_num_replays = xconn_->num_pointer_ungrabs_with_replayed_events();
+  xconn_->set_pointer_grab_xid(xid);
+  focus_manager_->HandleButtonPressInWindow(&win, timestamp++);
+  EXPECT_EQ(0, xconn_->pointer_grab_xid());
+  EXPECT_EQ(initial_num_replays + 1,
+            xconn_->num_pointer_ungrabs_with_replayed_events());
+}
+
 }  // namespace window_manager
 
 int main(int argc, char** argv) {
