@@ -165,11 +165,12 @@ class WindowManager : public PanelManagerAreaChangeListener {
   void UnregisterEventConsumerForChromeMessages(
       chromeos::WmIpcMessageType message_type, EventConsumer* event_consumer);
 
-  // Callback to show or hide debugging information about client windows.
-  void ToggleClientWindowDebugging();
   bool client_window_debugging_enabled() const {
     return !client_window_debugging_actors_.empty();
   }
+
+  // Callback to show or hide debugging information about client windows.
+  void ToggleClientWindowDebugging();
 
   // Function to update client window debugging info.  Called from the
   // layout manager.

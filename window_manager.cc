@@ -549,6 +549,73 @@ void WindowManager::UnregisterEventConsumerForChromeMessages(
   }
 }
 
+void WindowManager::ToggleClientWindowDebugging() {
+  if (client_window_debugging_enabled()) {
+    client_window_debugging_actors_.clear();
+    return;
+  }
+  UpdateClientWindowDebugging();
+}
+
+void WindowManager::UpdateClientWindowDebugging() {
+  DLOG(INFO) << "Compositing actors:\n" << stage_->GetDebugString(0);
+
+  ActorVector new_actors;
+
+  vector<XWindow> xids;
+  if (!xconn_->GetChildWindows(root_, &xids))
+    return;
+
+  static const int kDebugFadeMs = 100;
+  static const Compositor::Color kFgColor(0.f, 0.f, 0.f);
+
+  int cnt = 0;
+  float step = 6.f/xids.size();
+  for (vector<XWindow>::iterator it = xids.begin(); it != xids.end(); ++it) {
+    Compositor::Color bgColor(1.f, 1.f, 1.f);
+    bgColor.SetHsv(cnt++ * step, 1.f, 1.f);
+    XConnection::WindowGeometry geometry;
+    if (!xconn_->GetWindowGeometry(*it, &geometry))
+      continue;
+
+    Compositor::ContainerActor* group = compositor_->CreateGroup();
+    stage_->AddActor(group);
+    stacking_manager_->StackActorAtTopOfLayer(
+        group, StackingManager::LAYER_DEBUGGING);
+    group->SetName("debug group");
+    group->Move(geometry.x, geometry.y, 0);
+    group->SetSize(geometry.width, geometry.height);
+    group->SetVisibility(true);
+    group->SetClip(0, 0, geometry.width, geometry.height);
+
+    Compositor::Actor* rect =
+        compositor_->CreateRectangle(bgColor, kFgColor, 1);
+    group->AddActor(rect);
+    rect->SetName("debug box");
+    rect->Move(0, 0, 0);
+    rect->SetSize(geometry.width, geometry.height);
+    rect->SetOpacity(0, 0);
+    rect->SetOpacity(0.3, kDebugFadeMs);
+    rect->SetVisibility(true);
+
+    Compositor::Actor* text =
+        compositor_->CreateText("Sans 10pt", XidStr(*it), kFgColor);
+    group->AddActor(text);
+    text->SetName("debug label");
+    text->Move(3, 3, 0);
+    text->SetOpacity(0, 0);
+    text->SetOpacity(1, kDebugFadeMs);
+    text->SetVisibility(true);
+    text->Raise(rect);
+
+    new_actors.push_back(shared_ptr<Compositor::Actor>(group));
+    new_actors.push_back(shared_ptr<Compositor::Actor>(rect));
+    new_actors.push_back(shared_ptr<Compositor::Actor>(text));
+  }
+
+  client_window_debugging_actors_.swap(new_actors);
+}
+
 bool WindowManager::GetManagerSelection(
     XAtom atom, XWindow manager_win, XTime timestamp) {
   // Find the current owner of the selection and select events on it so
@@ -1562,73 +1629,6 @@ void WindowManager::SendNotifySyskeyMessage(chromeos::WmIpcSystemKey key) {
     LOG(WARNING) << "Not sending syskey notification: "
                  << "Chrome currently doesn't have any windows open.";
   }
-}
-
-void WindowManager::ToggleClientWindowDebugging() {
-  if (!client_window_debugging_actors_.empty()) {
-    client_window_debugging_actors_.clear();
-    return;
-  }
-  UpdateClientWindowDebugging();
-}
-
-void WindowManager::UpdateClientWindowDebugging() {
-  DLOG(INFO) << "Compositing actors:\n" << stage_->GetDebugString(0);
-
-  ActorVector new_actors;
-
-  vector<XWindow> xids;
-  if (!xconn_->GetChildWindows(root_, &xids))
-    return;
-
-  static const int kDebugFadeMs = 100;
-  static const Compositor::Color kFgColor(0.f, 0.f, 0.f);
-
-  int cnt = 0;
-  float step = 6.f/xids.size();
-  for (vector<XWindow>::iterator it = xids.begin(); it != xids.end(); ++it) {
-    Compositor::Color bgColor(1.f, 1.f, 1.f);
-    bgColor.SetHsv(cnt++ * step, 1.f, 1.f);
-    XConnection::WindowGeometry geometry;
-    if (!xconn_->GetWindowGeometry(*it, &geometry))
-      continue;
-
-    Compositor::ContainerActor* group = compositor_->CreateGroup();
-    stage_->AddActor(group);
-    stacking_manager_->StackActorAtTopOfLayer(
-        group, StackingManager::LAYER_DEBUGGING);
-    group->SetName("debug group");
-    group->Move(geometry.x, geometry.y, 0);
-    group->SetSize(geometry.width, geometry.height);
-    group->SetVisibility(true);
-    group->SetClip(0, 0, geometry.width, geometry.height);
-
-    Compositor::Actor* rect =
-        compositor_->CreateRectangle(bgColor, kFgColor, 1);
-    group->AddActor(rect);
-    rect->SetName("debug box");
-    rect->Move(0, 0, 0);
-    rect->SetSize(geometry.width, geometry.height);
-    rect->SetOpacity(0, 0);
-    rect->SetOpacity(0.3, kDebugFadeMs);
-    rect->SetVisibility(true);
-
-    Compositor::Actor* text =
-        compositor_->CreateText("Sans 10pt", XidStr(*it), kFgColor);
-    group->AddActor(text);
-    text->SetName("debug label");
-    text->Move(3, 3, 0);
-    text->SetOpacity(0, 0);
-    text->SetOpacity(1, kDebugFadeMs);
-    text->SetVisibility(true);
-    text->Raise(rect);
-
-    new_actors.push_back(shared_ptr<Compositor::Actor>(group));
-    new_actors.push_back(shared_ptr<Compositor::Actor>(rect));
-    new_actors.push_back(shared_ptr<Compositor::Actor>(text));
-  }
-
-  client_window_debugging_actors_.swap(new_actors);
 }
 
 void WindowManager::ToggleHotkeyOverlay() {
