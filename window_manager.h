@@ -302,6 +302,14 @@ class WindowManager : public PanelManagerAreaChangeListener {
   // run it in the background.
   void RunCommand(std::string command);
 
+  // Returns arbitrary chrome window. Used when sending a
+  // message to Chrome, when particular window does not matter.
+  // Returns 0 if there is no Chrome window currently.
+  XWindow GetArbitraryChromeWindow();
+
+  // Sends WM_IPC_MESSAGE_CHROME_NOTIFY_SYSKEY_PRESSED notification to Chrome.
+  void SendNotifySyskeyMessage(chromeos::WmIpcSystemKey key);
+
   // Callback to show or hide the hotkey overlay images.
   void ToggleHotkeyOverlay();
 
@@ -349,7 +357,8 @@ class WindowManager : public PanelManagerAreaChangeListener {
   scoped_ptr<FocusManager> focus_manager_;
 
   // Windows that are being tracked.
-  std::map<XWindow, std::tr1::shared_ptr<Window> > client_windows_;
+  typedef std::map<XWindow, std::tr1::shared_ptr<Window> > WindowMap;
+  WindowMap client_windows_;
 
   // This is a list of mapped, managed (i.e. not override-redirect) client
   // windows, in most-to-least-recently-mapped order.  Used to set EWMH's

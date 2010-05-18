@@ -53,15 +53,6 @@ DEFINE_string(wm_screenshot_binary,
               "Path to the screenshot binary");
 DEFINE_string(wm_screenshot_output_dir,
               ".", "Output directory for screenshots");
-DEFINE_string(wm_increase_volume_command,
-              "/usr/bin/amixer -- sset Master unmute 5%+",
-              "Command to increase audio volume");
-DEFINE_string(wm_decrease_volume_command,
-              "/usr/bin/amixer -- sset Master unmute 5%-",
-              "Command to decrease audio volume");
-DEFINE_string(wm_mute_audio_command,
-              "/usr/bin/amixer -- sset Master mute",
-              "Command to mute audio");
 DEFINE_string(wm_initial_chrome_window_mapped_file,
               "", "When we first see a toplevel Chrome window get mapped, "
               "we write its ID as an ASCII decimal number to this file.  "
@@ -757,7 +748,8 @@ void WindowManager::RegisterKeyBindings() {
   key_bindings_->AddAction(
       "increase-audio-volume",
       NewPermanentCallback(
-          this, &WindowManager::RunCommand, FLAGS_wm_increase_volume_command),
+          this, &WindowManager::SendNotifySyskeyMessage,
+          chromeos::WM_IPC_SYSTEM_KEY_VOLUME_UP),
       NULL, NULL);
   key_bindings_->AddBinding(
       KeyBindings::KeyCombo(XF86XK_AudioRaiseVolume), "increase-audio-volume");
@@ -765,7 +757,8 @@ void WindowManager::RegisterKeyBindings() {
   key_bindings_->AddAction(
       "decrease-audio-volume",
       NewPermanentCallback(
-          this, &WindowManager::RunCommand, FLAGS_wm_decrease_volume_command),
+          this, &WindowManager::SendNotifySyskeyMessage,
+          chromeos::WM_IPC_SYSTEM_KEY_VOLUME_DOWN),
       NULL, NULL);
   key_bindings_->AddBinding(
       KeyBindings::KeyCombo(XF86XK_AudioLowerVolume), "decrease-audio-volume");
@@ -773,7 +766,8 @@ void WindowManager::RegisterKeyBindings() {
   key_bindings_->AddAction(
       "mute-audio",
       NewPermanentCallback(
-          this, &WindowManager::RunCommand, FLAGS_wm_mute_audio_command),
+          this, &WindowManager::SendNotifySyskeyMessage,
+          chromeos::WM_IPC_SYSTEM_KEY_VOLUME_MUTE),
       NULL, NULL);
   key_bindings_->AddBinding(
       KeyBindings::KeyCombo(XF86XK_AudioMute), "mute-audio");
@@ -1546,6 +1540,28 @@ void WindowManager::RunCommand(string command) {
   DLOG(INFO) << "Running command \"" << command << "\"";
   if (system(command.c_str()) < 0)
     LOG(WARNING) << "Got error while running \"" << command << "\"";
+}
+
+XWindow WindowManager::GetArbitraryChromeWindow() {
+  for (WindowMap::const_iterator i = client_windows_.begin();
+       i != client_windows_.end(); ++i) {
+    if (WmIpcWindowTypeIsChrome(i->second->type()))
+      return i->first;
+  }
+  return 0;
+}
+
+void WindowManager::SendNotifySyskeyMessage(chromeos::WmIpcSystemKey key) {
+  WmIpc::Message msg(chromeos::WM_IPC_MESSAGE_CHROME_NOTIFY_SYSKEY_PRESSED);
+  msg.set_param(0, key);
+  const XWindow chrome_window = GetArbitraryChromeWindow();
+  if (chrome_window) {
+    wm_ipc()->SendMessage(chrome_window, msg);
+    LOG(INFO) << "Syskey notification sent, param(0)=" << key;
+  } else {
+    LOG(WARNING) << "Not sending syskey notification: "
+                 << "Chrome currently doesn't have any windows open.";
+  }
 }
 
 void WindowManager::ToggleClientWindowDebugging() {
