@@ -57,7 +57,8 @@ class LayoutManager::SnapshotWindow {
   int overview_height() const { return overview_height_; }
   int overview_tilted_width() const {
     return Compositor::Actor::GetTiltedWidth(
-        overview_width_, win_->actor()->GetTilt());
+        overview_width_,
+        (this == layout_manager_->current_snapshot()) ? 0 : kUnselectedTilt);
   }
   State state() const { return state_; }
 

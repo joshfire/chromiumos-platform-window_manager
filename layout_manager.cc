@@ -10,8 +10,8 @@
 
 #include <gflags/gflags.h>
 
-#include "base/string_util.h"
 #include "base/logging.h"
+#include "base/string_util.h"
 #include "cros/chromeos_wm_ipc_enums.h"
 #include "window_manager/atom_cache.h"
 #include "window_manager/callback.h"
@@ -19,6 +19,7 @@
 #include "window_manager/focus_manager.h"
 #include "window_manager/geometry.h"
 #include "window_manager/motion_event_coalescer.h"
+#include "window_manager/separator.h"
 #include "window_manager/snapshot_window.h"
 #include "window_manager/stacking_manager.h"
 #include "window_manager/system_metrics.pb.h"
@@ -57,6 +58,13 @@ static const double kOverviewGroupSpacing = 0.06;
 // Duration between panning updates while a drag is occurring on the
 // background window in overview mode.
 static const int kOverviewDragUpdateMs = 50;
+
+// What fraction of the snapshot window's total height should be used
+// for the height of the separator.
+static const double kSeparatorHeightRatio = 0.9;
+
+// The width of the separator in pixels.
+static const int kSeparatorWidth = 2;
 
 // What fraction of the manager's total width should be visible on the
 // sides when the snapshots are panned all the way to one end or the
@@ -450,6 +458,8 @@ void LayoutManager::HandleWindowMap(Window* win) {
       SendModeMessage(toplevel.get());
 
       SetCurrentToplevel(toplevel.get());
+
+      AddOrRemoveSeparatorsAsNeeded();
       break;
     }
     default:
@@ -503,6 +513,7 @@ void LayoutManager::HandleWindowUnmap(Window* win) {
             win->xid(), wm_->GetXAtom(ATOM_CHROME_WINDOW_TYPE));
 
       RemoveToplevel(toplevel);
+      AddOrRemoveSeparatorsAsNeeded();
       LayoutWindows(true);
     }
   }
@@ -759,7 +770,7 @@ void LayoutManager::LayoutWindows(bool animate) {
   // enter events as a result of stacking a window underneath the
   // pointer immediately before we stack the window to its right
   // directly on top of it.  Not a huge concern now that we're not
-  // listening ofr enter and leave events, but that might change again
+  // listening for enter and leave events, but that might change again
   // in the future.
   for (SnapshotWindows::reverse_iterator it = snapshots_.rbegin();
        it != snapshots_.rend(); ++it) {
@@ -767,6 +778,10 @@ void LayoutManager::LayoutWindows(bool animate) {
   }
   for (ToplevelWindows::iterator it = toplevels_.begin();
        it != toplevels_.end(); ++it) {
+    (*it)->UpdateLayout(animate);
+  }
+  for (Separators::iterator it = separators_.begin();
+       it != separators_.end(); ++it) {
     (*it)->UpdateLayout(animate);
   }
 
@@ -825,6 +840,10 @@ void LayoutManager::SetMode(Mode mode) {
            it != snapshots_.end(); ++it) {
         (*it)->SetState(SnapshotWindow::STATE_ACTIVE_MODE_INVISIBLE);
       }
+      for (Separators::iterator it = separators_.begin();
+           it != separators_.end(); ++it) {
+        (*it)->SetState(Separator::STATE_ACTIVE_MODE_INVISIBLE);
+      }
       break;
     case MODE_OVERVIEW: {
       UpdateCurrentSnapshot();
@@ -846,6 +865,10 @@ void LayoutManager::SetMode(Mode mode) {
         } else {
           (*it)->SetState(SnapshotWindow::STATE_OVERVIEW_MODE_NORMAL);
         }
+      }
+      for (Separators::iterator it = separators_.begin();
+           it != separators_.end(); ++it) {
+        (*it)->SetState(Separator::STATE_OVERVIEW_MODE_NORMAL);
       }
       break;
     }
@@ -1119,7 +1142,7 @@ void LayoutManager::CalculatePositionsForOverviewMode() {
     bool is_selected = (snapshot == current_snapshot_);
 
     if (snapshot->toplevel() != last_toplevel)
-      running_width += width_ * kOverviewGroupSpacing;
+      running_width += width_ * kOverviewGroupSpacing + 0.5f;
 
     if (is_selected) {
       selected_index = i;
@@ -1130,6 +1153,37 @@ void LayoutManager::CalculatePositionsForOverviewMode() {
     snapshot->SetSize(width_limit * scale, height_limit * scale);
     snapshot->SetPosition(running_width,
                           (height_ - snapshot->overview_height()) / 2);
+
+    // Here we see if we need a separator.
+    if (snapshot->toplevel() != last_toplevel) {
+      Separators::size_type separator_index = 0;
+      for (size_t j = 0; j < toplevels_.size(); ++j) {
+        if (toplevels_[j].get() == last_toplevel)
+          break;
+        // Only count the real toplevel windows in the toplevels_ list
+        // to find out which separator to use.
+        if (toplevels_[j]->win()->type() ==
+            chromeos::WM_IPC_WINDOW_CHROME_TOPLEVEL)
+          ++separator_index;
+      }
+
+      DCHECK(separators_.size() > separator_index);
+      DCHECK(i > 0);
+
+      // Now figure out where the separator goes.
+      if (separators_.size() > separator_index && i > 0) {
+        int previous_position = snapshots_[i - 1]->overview_x() +
+                                snapshots_[i - 1]->overview_tilted_width();
+        Separator* separator = separators_[separator_index].get();
+        separator->SetX((running_width + previous_position) / 2);
+        int new_height = kSeparatorHeightRatio *
+                         min(snapshots_[i-1]->overview_height(),
+                             snapshot->overview_height());
+        separator->Resize(kSeparatorWidth, new_height, 0);
+        separator->SetY((height_ - new_height) / 2);
+      }
+    }
+
     running_width += is_selected ?
                      snapshot->overview_width() + kOverviewSelectedPadding  :
                      (kOverviewExposedWindowRatio * width_limit /
@@ -1425,6 +1479,46 @@ bool LayoutManager::SortSnapshots() {
   std::sort(snapshots_.begin(), snapshots_.end(),
             SnapshotWindow::CompareTabIndex);
   return old_snapshots != snapshots_;
+}
+
+void LayoutManager::AddOrRemoveSeparatorsAsNeeded() {
+  // If there aren't at least two toplevels, then we don't need any
+  // separators.
+  if (toplevels_.size() < 2) {
+    separators_.clear();
+    return;
+  }
+
+  // Make sure there are n-1 separators available for placing
+  // between groups of snapshots.
+
+  // Count only "real" chrome toplevel windows, because other toplevel
+  // types don't produce snapshot groups.
+  ToplevelWindows::iterator iter = toplevels_.begin();
+  Separators::size_type num_separators_desired = 0;
+  while (iter != toplevels_.end()) {
+    if ((*iter)->win()->type() == chromeos::WM_IPC_WINDOW_CHROME_TOPLEVEL)
+      num_separators_desired++;
+    ++iter;
+  }
+
+  if (num_separators_desired > 1) {
+    // We want n-1 separators, so decrement by one, but make sure it's
+    // not negative.
+    --num_separators_desired;
+
+    // Add any that are needed.
+    while (separators_.size() < num_separators_desired) {
+      separators_.push_back(shared_ptr<Separator>(new Separator(this)));
+    }
+
+    // And also make sure there aren't too many.
+    while (separators_.size() > num_separators_desired) {
+      separators_.erase(separators_.begin());
+    }
+  } else {
+    separators_.clear();
+  }
 }
 
 int LayoutManager::GetPreceedingTabCount(const ToplevelWindow& toplevel) const {

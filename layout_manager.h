@@ -33,6 +33,7 @@ class EventConsumerRegistrar;
 class KeyBindingsGroup;
 class MotionEventCoalescer;
 class PanelManager;
+class Separator;
 class Window;
 class WindowManager;
 template<class T> class Stacker;  // from util.h
@@ -163,12 +164,16 @@ class LayoutManager : public EventConsumer,
   // Internal private class, declared in toplevel_window.h
   class ToplevelWindow;
 
+  // Internal private class, declared in separator.h
+  class Separator;
+
   // Internal private class, declared in snapshot_window.h
   class SnapshotWindow;
 
   // Typedefs for the containers used below.
   typedef std::deque<std::tr1::shared_ptr<ToplevelWindow> > ToplevelWindows;
   typedef std::deque<std::tr1::shared_ptr<SnapshotWindow> > SnapshotWindows;
+  typedef std::deque<std::tr1::shared_ptr<Separator> > Separators;
   typedef std::map<XWindow, SnapshotWindow*> XWindowToSnapshotMap;
   typedef std::map<XWindow, ToplevelWindow*> XWindowToToplevelMap;
 
@@ -366,6 +371,11 @@ class LayoutManager : public EventConsumer,
   // windows.  Returns true if something changed when we sorted it.
   bool SortSnapshots();
 
+  // Make sure there are n-1 separators available for placing between
+  // groups of snapshots, where n is the number of real chrome
+  // toplevel windows (which can be smaller than toplevels_.size()).
+  void AddOrRemoveSeparatorsAsNeeded();
+
   // Gets the number of tabs in the toplevel windows preceeding
   // |toplevel| in the list, but not including |toplevel|'s tabs.
   int GetPreceedingTabCount(const ToplevelWindow& toplevel) const;
@@ -460,6 +470,9 @@ class LayoutManager : public EventConsumer,
   // Groups of key bindings that are relevant to different modes.
   scoped_ptr<KeyBindingsGroup> active_mode_key_bindings_group_;
   scoped_ptr<KeyBindingsGroup> overview_mode_key_bindings_group_;
+
+  // Deque of separators for placing between groups of snapshots.
+  Separators separators_;
 
   DISALLOW_COPY_AND_ASSIGN(LayoutManager);
 };
