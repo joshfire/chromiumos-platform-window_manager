@@ -158,6 +158,7 @@ class LayoutManager : public EventConsumer,
   FRIEND_TEST(LayoutManagerTest, NoDimmingInActiveMode);
   FRIEND_TEST(LayoutManagerTest, AvoidMovingCurrentWindow);
   FRIEND_TEST(LayoutManagerTest, OverviewScrolling);
+  FRIEND_TEST(LayoutManagerTest, NestedTransients);
 
   // Internal private class, declared in toplevel_window.h
   class ToplevelWindow;

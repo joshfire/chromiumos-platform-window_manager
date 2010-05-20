@@ -1198,7 +1198,7 @@ void WindowManager::HandleConfigureNotify(const XConfigureEvent& e) {
     return;
   DLOG(INFO) << "Handling configure notify for " << XidStr(e.window)
              << " to pos (" << e.x << ", " << e.y << ") and size "
-             << e.width << "x" << e.height;
+             << e.width << "x" << e.height << ", above " << XidStr(e.above);
 
   // There are several cases to consider here:
   //
@@ -1242,6 +1242,8 @@ void WindowManager::HandleConfigureNotify(const XConfigureEvent& e) {
     while (above_xid) {
       Window* above_win = GetWindow(above_xid);
       if (above_win) {
+        DLOG(INFO) << "Stacking override-redirect window " << win->xid_str()
+                   << "'s above " << above_win->xid_str() << "'s actor";
         win->StackCompositedAbove(above_win->actor(), NULL, false);
         break;
       }

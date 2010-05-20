@@ -869,6 +869,9 @@ TEST_F(LayoutManagerTest, ActiveWindowHintOnTransientUnmap) {
 
   // Create a transient window, which should take the focus.
   XWindow transient_xid = CreateSimpleWindow();
+  MockXConnection::WindowInfo* transient_info =
+      xconn_->GetWindowInfoOrDie(transient_xid);
+  transient_info->transient_for = toplevel_xid;
   SendInitialEventsForWindow(transient_xid);
   EXPECT_EQ(transient_xid, xconn_->focused_xid());
   EXPECT_EQ(transient_xid, GetActiveWindowProperty());
@@ -1019,6 +1022,62 @@ TEST_F(LayoutManagerTest, ResizeWindowsBeforeMapping) {
   wm_->HandleEvent(&event);
   EXPECT_EQ(orig_width, transient_info->width);
   EXPECT_EQ(orig_height, transient_info->height);
+}
+
+// Test that the layout manager handles windows that claim to be transient
+// for already-transient windows reasonably -- see http://crosbug.com/3316.
+TEST_F(LayoutManagerTest, NestedTransients) {
+  // Create a toplevel window.
+  XWindow toplevel_xid = CreateSimpleWindow();
+  SendInitialEventsForWindow(toplevel_xid);
+  LayoutManager::ToplevelWindow* toplevel =
+      lm_->GetToplevelWindowByWindow(*(wm_->GetWindowOrDie(toplevel_xid)));
+  ASSERT_TRUE(toplevel != NULL);
+
+  // Create a transient window.
+  const int initial_width = 300, initial_height = 200;
+  XWindow transient_xid =
+      CreateBasicWindow(0, 0, initial_width, initial_height);
+  MockXConnection::WindowInfo* transient_info =
+      xconn_->GetWindowInfoOrDie(transient_xid);
+  transient_info->transient_for = toplevel_xid;
+  SendInitialEventsForWindow(transient_xid);
+
+  // Check that its initial size is preserved.
+  EXPECT_EQ(initial_width, transient_info->width);
+  EXPECT_EQ(initial_height, transient_info->height);
+  EXPECT_TRUE(lm_->GetToplevelWindowOwningTransientWindow(
+                  *(wm_->GetWindowOrDie(transient_xid))) == toplevel);;
+
+  // Now create a second transient window that says it's transient for the
+  // first transient window.
+  XWindow nested_transient_xid =
+      CreateBasicWindow(0, 0, initial_width, initial_height);
+  MockXConnection::WindowInfo* nested_transient_info =
+      xconn_->GetWindowInfoOrDie(nested_transient_xid);
+  nested_transient_info->transient_for = transient_xid;
+  SendInitialEventsForWindow(nested_transient_xid);
+
+  // The second transient window should be treated as a transient of the
+  // toplevel instead.  We check that it keeps its initial size rather than
+  // being maximized.
+  EXPECT_EQ(initial_width, nested_transient_info->width);
+  EXPECT_EQ(initial_height, nested_transient_info->height);
+  EXPECT_TRUE(lm_->GetToplevelWindowOwningTransientWindow(
+                  *(wm_->GetWindowOrDie(nested_transient_xid))) == toplevel);;
+
+  // For good measure, do it all again with another transient window nested
+  // one level deeper.
+  XWindow another_transient_xid =
+      CreateBasicWindow(0, 0, initial_width, initial_height);
+  MockXConnection::WindowInfo* another_transient_info =
+      xconn_->GetWindowInfoOrDie(another_transient_xid);
+  another_transient_info->transient_for = nested_transient_xid;
+  SendInitialEventsForWindow(another_transient_xid);
+  EXPECT_EQ(initial_width, another_transient_info->width);
+  EXPECT_EQ(initial_height, another_transient_info->height);
+  EXPECT_TRUE(lm_->GetToplevelWindowOwningTransientWindow(
+                  *(wm_->GetWindowOrDie(another_transient_xid))) == toplevel);;
 }
 
 }  // namespace window_manager

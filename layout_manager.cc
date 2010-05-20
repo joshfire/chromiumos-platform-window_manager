@@ -390,8 +390,19 @@ void LayoutManager::HandleWindowMap(Window* win) {
             win, StackingManager::LAYER_TOPLEVEL_WINDOW);
 
       if (win->transient_for_xid() != None) {
-        ToplevelWindow* toplevel_owner =
-            GetToplevelWindowByXid(win->transient_for_xid());
+        ToplevelWindow* toplevel_owner = NULL;
+        Window* owner_win = wm_->GetWindow(win->transient_for_xid());
+        if (owner_win) {
+          // Try to find the toplevel window representing the owner.  If
+          // the owner is itself a transient window, just give the new
+          // window to the owner's owner (this has the effect of us also
+          // later being able to handle transients for *this* transient in
+          // the same way).
+          toplevel_owner = GetToplevelWindowByWindow(*owner_win);
+          if (!toplevel_owner)
+            toplevel_owner = GetToplevelWindowOwningTransientWindow(*owner_win);
+        }
+
         if (toplevel_owner) {
           transient_to_toplevel_[win->xid()] = toplevel_owner;
           toplevel_owner->AddTransientWindow(win, mode_ == MODE_OVERVIEW);
