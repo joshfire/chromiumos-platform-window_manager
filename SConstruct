@@ -144,6 +144,7 @@ srcs = Split('''\
   panel_dock.cc
   panel_manager.cc
   pointer_position_watcher.cc
+  profiler.cc
   real_compositor.cc
   shadow.cc
   snapshot_window.cc
