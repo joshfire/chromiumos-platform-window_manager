@@ -69,6 +69,9 @@ using std::set;
 using std::string;
 using std::tr1::shared_ptr;
 using std::vector;
+using window_manager::util::FindWithDefault;
+using window_manager::util::GetTimeAsString;
+using window_manager::util::XidStr;
 
 namespace window_manager {
 

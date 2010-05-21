@@ -56,7 +56,6 @@ DEFINE_bool(logged_in, true, "Whether Chrome is logged in or not.");
 using std::string;
 using window_manager::Compositor;
 using window_manager::EventLoop;
-using window_manager::GetTimeAsString;
 using window_manager::MockCompositor;
 using window_manager::RealCompositor;
 #if defined(COMPOSITOR_OPENGL)
@@ -68,6 +67,7 @@ using window_manager::RealGles2Interface;
 #endif
 using window_manager::RealXConnection;
 using window_manager::WindowManager;
+using window_manager::util::GetTimeAsString;
 
 // This should be adjusted according to number of PROFILER_MARKER_*
 static const int kMaxNumProfilerSymbols = 100;

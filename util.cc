@@ -7,6 +7,8 @@
 #include <algorithm>
 #include <cstring>
 
+#include <sys/time.h>
+
 #include "base/string_util.h"
 
 using std::max;
@@ -55,6 +57,8 @@ void ByteMap::SetRectangle(int rect_x, int rect_y,
 }
 
 
+namespace util {
+
 string XidStr(unsigned long xid) {
   return StringPrintf("0x%lx", xid);
 }
@@ -66,5 +70,13 @@ string GetTimeAsString(time_t utime) {
   CHECK(strftime(str, sizeof(str), "%Y%m%d-%H%M%S", &tm) == 15);
   return string(str);
 }
+
+int64_t GetCurrentTimeMs() {
+  struct timeval tv;
+  gettimeofday(&tv, NULL);
+  return 1000ULL * tv.tv_sec + tv.tv_usec / 1000ULL;
+}
+
+}  // namespace util
 
 }  // namespace window_manager

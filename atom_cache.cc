@@ -13,6 +13,7 @@
 using std::map;
 using std::string;
 using std::vector;
+using window_manager::util::XidStr;
 
 namespace window_manager {
 

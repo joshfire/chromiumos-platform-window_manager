@@ -26,7 +26,8 @@ class XConnection {
   XConnection()
       : shape_event_base_(0),
         randr_event_base_(0),
-        server_grabbed_(false) {
+        server_grabbed_(false),
+        server_grab_time_ms_(-1) {
   }
   virtual ~XConnection() {}
 
@@ -441,7 +442,11 @@ class XConnection {
   virtual bool GrabServerImpl() = 0;
   virtual bool UngrabServerImpl() = 0;
 
+  // Is the server currently grabbed?
   bool server_grabbed_;
+
+  // Time at which the server grab started, as milliseconds since the epoch.
+  int64_t server_grab_time_ms_;
 
   DISALLOW_COPY_AND_ASSIGN(XConnection);
 };

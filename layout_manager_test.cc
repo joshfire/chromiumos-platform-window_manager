@@ -28,6 +28,7 @@ DEFINE_bool(logtostderr, false,
 
 using std::vector;
 using std::tr1::shared_ptr;
+using window_manager::util::FindWithDefault;
 
 namespace window_manager {
 

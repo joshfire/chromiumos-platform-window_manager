@@ -24,6 +24,7 @@ using std::find;
 using std::make_pair;
 using std::tr1::shared_ptr;
 using std::vector;
+using window_manager::util::FindWithDefault;
 
 namespace window_manager {
 

@@ -33,6 +33,7 @@ using std::max;
 using std::min;
 using std::string;
 using std::vector;
+using window_manager::util::XidStr;
 
 namespace window_manager {
 

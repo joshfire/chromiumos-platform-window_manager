@@ -177,6 +177,8 @@ class ByteMap {
 };
 
 
+namespace util {
+
 template<class K, class V>
 V FindWithDefault(const std::map<K, V>& the_map, const K& key, const V& def) {
   typename std::map<K, V>::const_iterator it = the_map.find(key);
@@ -216,6 +218,11 @@ inline uint32 NextPowerOfTwo(uint32 x) {
 // Convert the passed-in time (containing seconds since the epoch) to a
 // string of the form "YYYYMMDD-HHMMSS" in the local time zone.
 std::string GetTimeAsString(time_t utime);
+
+// Get the number of milliseconds since the epoch.
+int64_t GetCurrentTimeMs();
+
+}  // namespace util
 
 }  // namespace window_manager
 

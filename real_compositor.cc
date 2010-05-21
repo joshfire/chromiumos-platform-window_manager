@@ -35,6 +35,8 @@ using std::max;
 using std::min;
 using std::string;
 using std::tr1::shared_ptr;
+using window_manager::util::FindWithDefault;
+using window_manager::util::NextPowerOfTwo;
 
 // Turn this on if you want to debug the visitor traversal.
 #undef EXTRA_LOGGING
@@ -723,9 +725,7 @@ RealCompositor::AnimationTime RealCompositor::GetCurrentTimeMs() {
   if (current_time_ms_for_testing_ >= 0)
     return current_time_ms_for_testing_;
 
-  struct timeval tv;
-  gettimeofday(&tv, NULL);
-  return 1000ULL * tv.tv_sec + tv.tv_usec / 1000ULL;
+  return util::GetCurrentTimeMs();
 }
 
 void RealCompositor::SetDirty() {

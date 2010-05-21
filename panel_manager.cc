@@ -25,6 +25,8 @@ using std::pair;
 using std::set;
 using std::tr1::shared_ptr;
 using std::vector;
+using window_manager::util::FindWithDefault;
+using window_manager::util::XidStr;
 
 namespace window_manager {
 
@@ -321,7 +323,7 @@ void PanelManager::HandleChromeMessage(const WmIpc::Message& msg) {
       Panel* panel = GetPanelByXid(xid);
       if (!panel) {
         LOG(WARNING) << "Ignoring WM_SET_PANEL_STATE message for non-panel "
-                     << "window " << xid;
+                     << "window " << XidStr(xid);
         return;
       }
       PanelContainer* container = GetContainerForPanel(*panel);

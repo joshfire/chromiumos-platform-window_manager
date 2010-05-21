@@ -42,6 +42,8 @@ DECLARE_bool(compositor_display_debug_needle);
 #define CHECK_GL_ERROR(gl_interface_) void(0)
 #endif  // GL_ERROR_DEBUGGING
 
+using window_manager::util::XidStr;
+
 namespace window_manager {
 
 OpenGlQuadDrawingData::OpenGlQuadDrawingData(GLInterface* gl_interface)

@@ -24,6 +24,7 @@ using std::pair;
 using std::set;
 using std::string;
 using std::vector;
+using window_manager::util::FindWithDefault;
 
 namespace window_manager {
 

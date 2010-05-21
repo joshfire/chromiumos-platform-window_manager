@@ -24,6 +24,8 @@
 DEFINE_bool(logtostderr, false,
             "Print debugging messages to stderr (suppressed otherwise)");
 
+using window_manager::util::NextPowerOfTwo;
+
 namespace window_manager {
 
 class OpenGlVisitorTest : public ::testing::Test {

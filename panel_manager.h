@@ -164,9 +164,9 @@ class PanelManager : public EventConsumer, public FocusChangeListener {
   // Get the container for the passed-in panel.  Returns NULL if the panel
   // isn't currently held by a container.
   PanelContainer* GetContainerForPanel(const Panel& panel) {
-    return FindWithDefault(containers_by_panel_,
-                           static_cast<const Panel*>(&panel),
-                           static_cast<PanelContainer*>(NULL));
+    return util::FindWithDefault(containers_by_panel_,
+                                 static_cast<const Panel*>(&panel),
+                                 static_cast<PanelContainer*>(NULL));
   }
 
   // Register a container's input windows in 'container_input_xids_' and

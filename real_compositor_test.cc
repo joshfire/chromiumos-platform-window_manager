@@ -29,6 +29,7 @@ DEFINE_bool(logtostderr, false,
 using std::set;
 using std::string;
 using std::vector;
+using window_manager::util::NextPowerOfTwo;
 
 namespace window_manager {
 

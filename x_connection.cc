@@ -4,8 +4,11 @@
 
 #include "window_manager/x_connection.h"
 
+#include "window_manager/util.h"
+
 using std::string;
 using std::vector;
+using window_manager::util::GetCurrentTimeMs;
 
 namespace window_manager {
 
@@ -33,6 +36,7 @@ bool XConnection::GrabServer() {
   DCHECK(!server_grabbed_) << "Attempting to grab already-grabbed server";
   if (GrabServerImpl()) {
     server_grabbed_ = true;
+    server_grab_time_ms_ = GetCurrentTimeMs();
     return true;
   }
   return false;
@@ -42,6 +46,8 @@ bool XConnection::UngrabServer() {
   DCHECK(server_grabbed_) << "Attempting to ungrab not-grabbed server";
   if (UngrabServerImpl()) {
     server_grabbed_ = false;
+    int64_t elapsed_ms = GetCurrentTimeMs() - server_grab_time_ms_;
+    DLOG(INFO) << "Server ungrabbed; duration was " << elapsed_ms << " ms";
     return true;
   }
   return false;
