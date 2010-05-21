@@ -29,11 +29,13 @@ class Window;
 // - The window tries to map itself.  WindowManager starts invoking
 //   consumers' HandleWindowMapRequest() methods until one of them maps the
 //   window and returns true.
-// - WindowManager receives notification from the X server that the window
-//   has been mapped and invokes all consumers' HandleWindowMap() methods.
-//   The consumer that will be handling the window (typically the one that
-//   handled the map request) registers interest in the window's events by
-//   calling RegisterEventConsumerForWindowEvents() with the window's ID.
+// - After the map request has been sent (and typically before the map
+//   notify has actually been received -- override-redirect windows are an
+//   exception), WindowManager invokes all consumers' HandleWindowMap()
+//   methods.  The consumer that will be handling the window (typically the
+//   one that handled the map request) registers interest in the window's
+//   events by calling RegisterEventConsumerForWindowEvents() with the
+//   window's ID.
 // - Stuff happens and the interested consumer is notified about the window's
 //   events.
 // - The window unmaps itself.  WindowManager invokes all consumers'

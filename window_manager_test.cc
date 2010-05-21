@@ -40,11 +40,22 @@ class TestEventConsumer : public EventConsumer {
  public:
   TestEventConsumer()
       : EventConsumer(),
-        num_mapped_windows_(0),
-        num_unmapped_windows_(0),
-        num_button_presses_(0) {
+        should_return_true_for_map_requests_(false) {
+    reset_stats();
   }
 
+  void reset_stats() {
+    num_map_requests_ = 0;
+    num_mapped_windows_ = 0;
+    num_unmapped_windows_ = 0;
+    num_button_presses_ = 0;
+  }
+
+  void set_should_return_true_for_map_requests(bool return_true) {
+    should_return_true_for_map_requests_ = return_true;
+  }
+
+  int num_map_requests() const { return num_map_requests_; }
   int num_mapped_windows() const { return num_mapped_windows_; }
   int num_unmapped_windows() const { return num_unmapped_windows_; }
   int num_button_presses() const { return num_button_presses_; }
@@ -55,7 +66,10 @@ class TestEventConsumer : public EventConsumer {
   // Begin overridden EventConsumer virtual methods.
   bool IsInputWindow(XWindow xid) { return false; }
   void HandleScreenResize() {}
-  bool HandleWindowMapRequest(Window* win) { return false; }
+  bool HandleWindowMapRequest(Window* win) {
+    num_map_requests_++;
+    return should_return_true_for_map_requests_;
+  }
   void HandleWindowMap(Window* win) { num_mapped_windows_++; }
   void HandleWindowUnmap(Window* win) { num_unmapped_windows_++; }
   void HandleWindowConfigureRequest(Window* win,
@@ -96,6 +110,10 @@ class TestEventConsumer : public EventConsumer {
   // End overridden EventConsumer virtual methods.
 
  private:
+  // Should we return true when HandleWindowMapRequest() is invoked?
+  bool should_return_true_for_map_requests_;
+
+  int num_map_requests_;
   int num_mapped_windows_;
   int num_unmapped_windows_;
   int num_button_presses_;
@@ -217,11 +235,10 @@ TEST_F(WindowManagerTest, ExistingWindows) {
   MockXConnection::InitMapRequestEvent(&event, *info);
   wm_->HandleEvent(&event);
   EXPECT_TRUE(info->mapped);
-  EXPECT_FALSE(win->mapped());
+  EXPECT_TRUE(win->mapped());
 
   MockXConnection::InitMapEvent(&event, xid);
   wm_->HandleEvent(&event);
-  EXPECT_TRUE(win->mapped());
   EXPECT_TRUE(dynamic_cast<const MockCompositor::Actor*>(
                   win->actor())->visible());
 }
@@ -304,12 +321,8 @@ TEST_F(WindowManagerTest, EventConsumer) {
   TestEventConsumer ec;
   wm_->event_consumers_.insert(&ec);
 
-  // This window needs to have override redirect set; otherwise the
-  // LayoutManager will claim ownership of the button press in the mistaken
-  // belief that it's the result of a button grab on an unfocused window.
   XWindow xid = CreateSimpleWindow();
   MockXConnection::WindowInfo* info = xconn_->GetWindowInfoOrDie(xid);
-  info->override_redirect = true;
   wm_->RegisterEventConsumerForWindowEvents(xid, &ec);
 
   XEvent event;
@@ -318,31 +331,31 @@ TEST_F(WindowManagerTest, EventConsumer) {
 
   // Send various events to the WindowManager object and check that they
   // get forwarded to our EventConsumer.
+  MockXConnection::InitMapRequestEvent(&event, *info);
+  wm_->HandleEvent(&event);
+  EXPECT_TRUE(info->mapped);
   MockXConnection::InitMapEvent(&event, xid);
   wm_->HandleEvent(&event);
-
   MockXConnection::InitButtonPressEvent(&event, *info, 5, 5, 1);
   wm_->HandleEvent(&event);
-
   MockXConnection::InitUnmapEvent(&event, xid);
   wm_->HandleEvent(&event);
+
   wm_->UnregisterEventConsumerForWindowEvents(xid, &ec);
 
+  // We don't know whether we'll get the MapRequest event for this window;
+  // the LayoutManager might've handled it before us.
   EXPECT_EQ(1, ec.num_mapped_windows());
   EXPECT_EQ(1, ec.num_button_presses());
   EXPECT_EQ(1, ec.num_unmapped_windows());
 
-  // It's a bit of a stretch to include this in this test, but check that the
-  // window manager didn't do anything to the window (since it's an
-  // override-redirect window).
-  EXPECT_FALSE(info->changed);
-
   // Create a second window.
+  ec.reset_stats();
   XWindow xid2 = CreateSimpleWindow();
   MockXConnection::WindowInfo* info2 = xconn_->GetWindowInfoOrDie(xid2);
   info2->override_redirect = true;
 
-  // Send events similar to the first window's.
+  // Send events appropriate for an override-redirect window.
   MockXConnection::InitCreateWindowEvent(&event, *info2);
   wm_->HandleEvent(&event);
   MockXConnection::InitMapEvent(&event, xid2);
@@ -355,9 +368,41 @@ TEST_F(WindowManagerTest, EventConsumer) {
   // The event consumer should've heard about the second window being
   // mapped and unmapped, but not about the button press (since it never
   // registered interest in the window).
-  EXPECT_EQ(2, ec.num_mapped_windows());
-  EXPECT_EQ(1, ec.num_button_presses());
-  EXPECT_EQ(2, ec.num_unmapped_windows());
+  EXPECT_EQ(1, ec.num_mapped_windows());
+  EXPECT_EQ(0, ec.num_button_presses());
+  EXPECT_EQ(1, ec.num_unmapped_windows());
+
+  // It's a bit of a stretch to include this in this test, but check that the
+  // window manager didn't do anything to the window (since it's an
+  // override-redirect window).
+  EXPECT_FALSE(info2->changed);
+
+  // Create a third window.  Set a big, bogus window type on it so that
+  // none of the standard event consumers try to do anything with it.
+  ec.reset_stats();
+  ec.set_should_return_true_for_map_requests(true);
+  XWindow xid3 = CreateSimpleWindow();
+  MockXConnection::WindowInfo* info3 = xconn_->GetWindowInfoOrDie(xid3);
+  wm_->wm_ipc()->SetWindowType(
+      xid3, static_cast<chromeos::WmIpcWindowType>(4243289), NULL);
+
+  MockXConnection::InitCreateWindowEvent(&event, *info3);
+  wm_->HandleEvent(&event);
+  MockXConnection::InitMapRequestEvent(&event, *info3);
+  wm_->HandleEvent(&event);
+
+  // We should get a map request for this window, and we should immediately
+  // get notified that it was mapped (since we returned true in response to
+  // the request).
+  EXPECT_EQ(1, ec.num_map_requests());
+  EXPECT_EQ(1, ec.num_mapped_windows());
+  EXPECT_TRUE(wm_->GetWindowOrDie(xid3)->mapped());
+
+  // Check that we don't get notified again when the window manager
+  // receives notification that the window was mapped.
+  MockXConnection::InitMapEvent(&event, xid3);
+  wm_->HandleEvent(&event);
+  EXPECT_EQ(1, ec.num_mapped_windows());
 }
 
 // Check that windows that get reparented away from the root (like Flash

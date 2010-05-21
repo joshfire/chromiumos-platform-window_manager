@@ -846,13 +846,13 @@ bool WindowManager::ManageExistingWindows() {
     return false;
   }
 
-  // Panel content windows that are already mapped.  We defer calling
-  // HandleMappedWindow() on these until we've handled all other
-  // windows to make sure that we handle the corresponding panel
-  // titlebar windows and Chrome toplevel windows first -- the panel
-  // code requires that the titlebars be mapped before the content
-  // windows, and the snapshot code requires that the toplevel windows
-  // exist before the snapshots are mapped.
+  // Snapshot and panel content windows that are already mapped.  We defer
+  // calling HandleMappedWindow() on these until we've handled all other
+  // windows to make sure that we handle the corresponding panel titlebar
+  // windows and Chrome toplevel windows first -- the panel code requires
+  // that the titlebars be mapped before the content windows, and the
+  // snapshot code requires that the toplevel windows are mapped before
+  // their snapshots.
   vector<Window*> deferred_mapped_windows;
 
   LOG(INFO) << "Taking ownership of " << windows.size() << " window"
@@ -918,7 +918,7 @@ Window* WindowManager::TrackWindow(XWindow xid, bool override_redirect) {
 void WindowManager::HandleMappedWindow(Window* win) {
   if (!win->override_redirect()) {
     if (mapped_xids_->Contains(win->xid())) {
-      LOG(WARNING) << "Got map notify for " << win->xid_str() << ", which is "
+      LOG(WARNING) << "Handling " << win->xid_str() << ", which is "
                    << "already listed in 'mapped_xids_'";
     } else {
       mapped_xids_->AddOnTop(win->xid());
@@ -1416,17 +1416,17 @@ void WindowManager::HandleLeaveNotify(const XLeaveWindowEvent& e) {
 }
 
 void WindowManager::HandleMapNotify(const XMapEvent& e) {
+  DLOG(INFO) << "Handling map notify for " << XidStr(e.window);
   Window* win = GetWindow(e.window);
   if (!win)
     return;
 
   if (win->mapped()) {
-    LOG(WARNING) << "Ignoring map notify for already-handled window "
-                 << XidStr(e.window);
+    DLOG(INFO) << "Ignoring map notify for already-handled window "
+               << XidStr(e.window);
     return;
   }
 
-  DLOG(INFO) << "Handling map notify for " << XidStr(e.window);
   win->set_mapped(true);
   HandleMappedWindow(win);
 }
@@ -1447,11 +1447,23 @@ void WindowManager::HandleMapRequest(const XMapRequestEvent& e) {
     LOG(WARNING) << "Huh?  Got a MapRequest event for override-redirect "
                  << "window " << XidStr(e.window);
   }
+
   for (set<EventConsumer*>::iterator it = event_consumers_.begin();
        it != event_consumers_.end(); ++it) {
-    if ((*it)->HandleWindowMapRequest(win))
+    if ((*it)->HandleWindowMapRequest(win)) {
+      // If one of the event consumers tells us that it's sent a request to
+      // map the window, we act as if the window is already mapped.  This
+      // is safe (it'll be mapped by the time that any subsequent requests
+      // make it to the X server) and avoids races where we can get
+      // messages from Chrome about windows before we've received MapNotify
+      // events about them.
+      win->set_mapped(true);
+      HandleMappedWindow(win);
       return;
+    }
   }
+
+  // Nobody was interested in the window.
   LOG(WARNING) << "Not mapping window " << win->xid_str() << " with type "
                << win->type();
 }
