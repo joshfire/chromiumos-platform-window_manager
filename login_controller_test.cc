@@ -165,7 +165,7 @@ TEST_F(LoginControllerTest, OtherWindows) {
   ASSERT_FALSE(info->mapped);
 
   XEvent event;
-  MockXConnection::InitCreateWindowEvent(&event, *info);
+  xconn_->InitCreateWindowEvent(&event, xid);
   wm_->HandleEvent(&event);
   Window* win = wm_->GetWindowOrDie(xid);
   MockCompositor::Actor* actor =
@@ -174,7 +174,7 @@ TEST_F(LoginControllerTest, OtherWindows) {
 
   // If LoginManager sees a MapRequest event before Chrome is logged in,
   // check that it maps the window in the requested location.
-  MockXConnection::InitMapRequestEvent(&event, *info);
+  xconn_->InitMapRequestEvent(&event, xid);
   wm_->HandleEvent(&event);
   EXPECT_TRUE(info->mapped);
   EXPECT_EQ(initial_x, info->x);
@@ -184,7 +184,7 @@ TEST_F(LoginControllerTest, OtherWindows) {
 
   // The window should still be in the same spot after it's mapped, and it
   // should be visible too.
-  MockXConnection::InitMapEvent(&event, xid);
+  xconn_->InitMapEvent(&event, xid);
   wm_->HandleEvent(&event);
   EXPECT_EQ(initial_x, info->x);
   EXPECT_EQ(initial_y, info->y);
@@ -202,7 +202,7 @@ TEST_F(LoginControllerTest, OtherWindows) {
   const int new_y = 50;
   const int new_width = 500;
   const int new_height = 400;
-  MockXConnection::InitConfigureRequestEvent(
+  xconn_->InitConfigureRequestEvent(
       &event, xid, new_x, new_y, new_width, new_height);
   wm_->HandleEvent(&event);
   EXPECT_EQ(new_x, info->x);
@@ -210,14 +210,14 @@ TEST_F(LoginControllerTest, OtherWindows) {
   EXPECT_EQ(new_width, info->width);
   EXPECT_EQ(new_height, info->height);
 
-  MockXConnection::InitConfigureNotifyEvent(&event, *info);
+  xconn_->InitConfigureNotifyEvent(&event, xid);
   wm_->HandleEvent(&event);
   EXPECT_EQ(new_x, actor->x());
   EXPECT_EQ(new_y, actor->y());
   EXPECT_EQ(new_width, actor->GetWidth());
   EXPECT_EQ(new_height, actor->GetHeight());
 
-  MockXConnection::InitUnmapEvent(&event, xid);
+  xconn_->InitUnmapEvent(&event, xid);
   wm_->HandleEvent(&event);
 }
 
@@ -233,8 +233,7 @@ TEST_F(LoginControllerTest, Focus) {
   ASSERT_GE(static_cast<int>(login_controller_->entries_.size()), 2);
   XWindow input_xid = login_controller_->entries_[1].input_window_xid;
   XEvent event;
-  MockXConnection::InitButtonPressEvent(
-      &event, *(xconn_->GetWindowInfoOrDie(input_xid)), 0, 0, 1);
+  xconn_->InitButtonPressEvent(&event, input_xid, 0, 0, 1);
   wm_->HandleEvent(&event);
 
   // The second entry should be focused now.
@@ -262,7 +261,7 @@ TEST_F(LoginControllerTest, Focus) {
   // should be refocused and a button grab should be installed on the
   // non-login window.
   xconn_->set_pointer_grab_xid(background_xid_);
-  MockXConnection::InitButtonPressEvent(&event, *background_info, 0, 0, 1);
+  xconn_->InitButtonPressEvent(&event, background_xid_, 0, 0, 1);
   wm_->HandleEvent(&event);
   EXPECT_EQ(entries_[1].controls_xid, xconn_->focused_xid());
   EXPECT_EQ(entries_[1].controls_xid, GetActiveWindowProperty());
@@ -302,14 +301,14 @@ TEST_F(LoginControllerTest, FocusTransientParent) {
   // If we unmap the nested dialog, the focus should go back to the first
   // dialog.
   XEvent event;
-  MockXConnection::InitUnmapEvent(&event, nested_transient_xid);
+  xconn_->InitUnmapEvent(&event, nested_transient_xid);
   wm_->HandleEvent(&event);
   EXPECT_EQ(transient_xid, xconn_->focused_xid());
   EXPECT_EQ(transient_xid, GetActiveWindowProperty());
 
   // Now unmap the first dialog and check that the focus goes back to the
   // controls window.
-  MockXConnection::InitUnmapEvent(&event, transient_xid);
+  xconn_->InitUnmapEvent(&event, transient_xid);
   wm_->HandleEvent(&event);
   EXPECT_EQ(entries_[0].controls_xid, xconn_->focused_xid());
   EXPECT_EQ(entries_[0].controls_xid, GetActiveWindowProperty());
@@ -325,7 +324,7 @@ TEST_F(LoginControllerTest, FocusTransientParent) {
 
   // We never want to focus the background.  When the dialog gets unmapped,
   // we should focus the previously-focused controls window instead.
-  MockXConnection::InitUnmapEvent(&event, bg_transient_xid);
+  xconn_->InitUnmapEvent(&event, bg_transient_xid);
   wm_->HandleEvent(&event);
   EXPECT_EQ(entries_[0].controls_xid, xconn_->focused_xid());
   EXPECT_EQ(entries_[0].controls_xid, GetActiveWindowProperty());
@@ -348,7 +347,7 @@ TEST_F(LoginControllerTest, Modality) {
 
   // Now ask the WM to make the transient window modal.
   XEvent event;
-  MockXConnection::InitClientMessageEvent(
+  xconn_->InitClientMessageEvent(
       &event, transient_xid, wm_->GetXAtom(ATOM_NET_WM_STATE),
       1, wm_->GetXAtom(ATOM_NET_WM_STATE_MODAL), None, None, None);
   wm_->HandleEvent(&event);
@@ -359,7 +358,7 @@ TEST_F(LoginControllerTest, Modality) {
   // controls window.
   int initial_num_replays = xconn_->num_pointer_ungrabs_with_replayed_events();
   xconn_->set_pointer_grab_xid(controls_xid);
-  MockXConnection::InitButtonPressEvent(&event, *controls_info, 0, 0, 1);
+  xconn_->InitButtonPressEvent(&event, controls_xid, 0, 0, 1);
   wm_->HandleEvent(&event);
   EXPECT_EQ(transient_xid, xconn_->focused_xid());
   EXPECT_EQ(transient_xid, GetActiveWindowProperty());

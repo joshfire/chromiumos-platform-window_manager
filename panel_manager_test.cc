@@ -149,15 +149,15 @@ TEST_F(PanelManagerTest, DragFocusedPanel) {
   // Destroy the second panel.
   XEvent event;
   ASSERT_TRUE(xconn_->DestroyWindow(content_xid));
-  MockXConnection::InitUnmapEvent(&event, content_xid);
+  xconn_->InitUnmapEvent(&event, content_xid);
   wm_->HandleEvent(&event);
-  MockXConnection::InitDestroyWindowEvent(&event, content_xid);
+  xconn_->InitDestroyWindowEvent(&event, content_xid);
   wm_->HandleEvent(&event);
 
   ASSERT_TRUE(xconn_->DestroyWindow(titlebar_xid));
-  MockXConnection::InitUnmapEvent(&event, titlebar_xid);
+  xconn_->InitUnmapEvent(&event, titlebar_xid);
   wm_->HandleEvent(&event);
-  MockXConnection::InitDestroyWindowEvent(&event, titlebar_xid);
+  xconn_->InitDestroyWindowEvent(&event, titlebar_xid);
   wm_->HandleEvent(&event);
 
   // The first panel should be focused now.
@@ -176,7 +176,7 @@ TEST_F(PanelManagerTest, ChromeInitiatedPanelResize) {
 
   // We should ignore requests to resize the titlebar.
   XEvent event;
-  MockXConnection::InitConfigureRequestEvent(
+  xconn_->InitConfigureRequestEvent(
       &event, panel->titlebar_xid(), 0, 0, 300, 30);
   wm_->HandleEvent(&event);
   EXPECT_EQ(200, panel->width());
@@ -186,7 +186,7 @@ TEST_F(PanelManagerTest, ChromeInitiatedPanelResize) {
   EXPECT_EQ(initial_titlebar_y, panel->titlebar_y());
 
   // A request to resize the content to 300x500 should be honored, though.
-  MockXConnection::InitConfigureRequestEvent(
+  xconn_->InitConfigureRequestEvent(
       &event, panel->content_xid(), 0, 0, 300, 500);
   wm_->HandleEvent(&event);
   EXPECT_EQ(300, panel->width());
@@ -197,7 +197,7 @@ TEST_F(PanelManagerTest, ChromeInitiatedPanelResize) {
   EXPECT_EQ(initial_titlebar_y - 100, panel->titlebar_y());
 
   // Test that shrinking the content works too.
-  MockXConnection::InitConfigureRequestEvent(
+  xconn_->InitConfigureRequestEvent(
       &event, panel->content_xid(), 0, 0, 100, 300);
   wm_->HandleEvent(&event);
   EXPECT_EQ(100, panel->width());
@@ -208,15 +208,13 @@ TEST_F(PanelManagerTest, ChromeInitiatedPanelResize) {
 
   // We should ignore requests if the user is already resizing the panel.
   XWindow input_xid = panel->top_left_input_xid_;
-  MockXConnection::WindowInfo* input_info =
-      xconn_->GetWindowInfoOrDie(input_xid);
-  MockXConnection::InitButtonPressEvent(&event, *input_info, 0, 0, 1);
+  xconn_->InitButtonPressEvent(&event, input_xid, 0, 0, 1);
   wm_->HandleEvent(&event);
-  MockXConnection::InitMotionNotifyEvent(&event, *input_info, -200, -200);
+  xconn_->InitMotionNotifyEvent(&event, input_xid, -200, -200);
   wm_->HandleEvent(&event);
 
   // We should have the same values as before.
-  MockXConnection::InitConfigureRequestEvent(
+  xconn_->InitConfigureRequestEvent(
       &event, panel->content_xid(), 0, 0, 200, 400);
   wm_->HandleEvent(&event);
   EXPECT_EQ(100, panel->width());
@@ -226,7 +224,7 @@ TEST_F(PanelManagerTest, ChromeInitiatedPanelResize) {
   EXPECT_EQ(initial_titlebar_y + 100, panel->titlebar_y());
 
   // Finish the user-initiated resize and check that it's applied.
-  MockXConnection::InitButtonReleaseEvent(&event, *input_info, -200, -200, 1);
+  xconn_->InitButtonReleaseEvent(&event, input_xid, -200, -200, 1);
   wm_->HandleEvent(&event);
   EXPECT_EQ(300, panel->width());
   EXPECT_EQ(20, panel->titlebar_height());
@@ -275,7 +273,7 @@ TEST_F(PanelManagerTest, Fullscreen) {
 
   // Ask the window manager to make the second (middle) panel fullscreen.
   XEvent fullscreen_event;
-  MockXConnection::InitClientMessageEvent(
+  xconn_->InitClientMessageEvent(
       &fullscreen_event,
       panel2->content_xid(),
       wm_state_atom,
@@ -323,7 +321,7 @@ TEST_F(PanelManagerTest, Fullscreen) {
   // updated in response to the panel closure -- it should move to the
   // middle position.
   XEvent event;
-  MockXConnection::InitUnmapEvent(&event, panel1->content_xid());
+  xconn_->InitUnmapEvent(&event, panel1->content_xid());
   wm_->HandleEvent(&event);
   EXPECT_TRUE(panel3->is_fullscreen());
   TestPanelContentBounds(panel3, 0, 0, wm_->width(), wm_->height());
@@ -356,7 +354,7 @@ TEST_F(PanelManagerTest, Fullscreen) {
   EXPECT_TRUE(panel2->is_fullscreen());
   EXPECT_EQ(panel2->content_xid(), xconn_->focused_xid());
 
-  MockXConnection::InitUnmapEvent(&event, panel2->content_xid());
+  xconn_->InitUnmapEvent(&event, panel2->content_xid());
   wm_->HandleEvent(&event);
   EXPECT_TRUE(panel_manager_->fullscreen_panel_ == NULL);
   EXPECT_EQ(panel3->content_xid(), xconn_->focused_xid());
@@ -389,7 +387,7 @@ TEST_F(PanelManagerTest, FocusPanelInDock) {
   // Now unmap the panel in the bar and check that the docked panel gets
   // the focus.
   XEvent event;
-  MockXConnection::InitUnmapEvent(&event, panel_in_bar->content_xid());
+  xconn_->InitUnmapEvent(&event, panel_in_bar->content_xid());
   wm_->HandleEvent(&event);
   EXPECT_EQ(panel_in_dock->content_xid(), xconn_->focused_xid());
 }
@@ -452,7 +450,7 @@ TEST_F(PanelManagerTest, DockVisibilityAndResizing) {
   root_info->width -= 40;
   root_info->height -= 30;
   XEvent event;
-  MockXConnection::InitConfigureNotifyEvent(&event, *root_info);
+  xconn_->InitConfigureNotifyEvent(&event, root_xid);
   wm_->HandleEvent(&event);
 
   // The left dock should still be in the same place.  The right one should

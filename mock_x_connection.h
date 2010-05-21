@@ -177,9 +177,9 @@ class MockXConnection : public XConnection {
     DISALLOW_COPY_AND_ASSIGN(WindowInfo);
   };
 
-  WindowInfo* GetWindowInfo(XWindow xid);
+  WindowInfo* GetWindowInfo(XWindow xid) const;
 
-  WindowInfo* GetWindowInfoOrDie(XWindow xid) {
+  WindowInfo* GetWindowInfoOrDie(XWindow xid) const {
     WindowInfo* info = GetWindowInfo(xid);
     CHECK(info);
     return info;
@@ -232,42 +232,41 @@ class MockXConnection : public XConnection {
 
   // Helper methods tests can use to initialize events.
   // 'x' and 'y' are relative to the window.
-  static void InitButtonEvent(XEvent* event, const WindowInfo& info,
-                              int x, int y, int button, bool press);
-  static void InitButtonPressEvent(XEvent* event, const WindowInfo& info,
-                                   int x, int y, int button) {
-    InitButtonEvent(event, info, x, y, button, true);
+  void InitButtonEvent(XEvent* event, XWindow xid,
+                       int x, int y, int button, bool press) const;
+  void InitButtonPressEvent(XEvent* event, XWindow xid,
+                            int x, int y, int button) const {
+    InitButtonEvent(event, xid, x, y, button, true);
   }
-  static void InitButtonReleaseEvent(XEvent* event, const WindowInfo& info,
-                                     int x, int y, int button) {
-    InitButtonEvent(event, info, x, y, button, false);
+  void InitButtonReleaseEvent(XEvent* event, XWindow xid,
+                              int x, int y, int button) const {
+    InitButtonEvent(event, xid, x, y, button, false);
   }
   // This just creates a message with 32-bit values.
-  static void InitClientMessageEvent(
+  void InitClientMessageEvent(
       XEvent* event, XWindow xid, XAtom type,
-      long arg1, long arg2, long arg3, long arg4, long arg5);
-  static void InitConfigureNotifyEvent(XEvent* event, const WindowInfo& info);
-  static void InitConfigureRequestEvent(
-      XEvent* event, XWindow xid, int x, int y, int width, int height);
-  static void InitCreateWindowEvent(XEvent* event, const WindowInfo& info);
-  static void InitDestroyWindowEvent(XEvent* event, XWindow xid);
+      long arg1, long arg2, long arg3, long arg4, long arg5) const;
+  void InitConfigureNotifyEvent(XEvent* event, XWindow xid) const;
+  void InitConfigureRequestEvent(
+      XEvent* event, XWindow xid, int x, int y, int width, int height) const;
+  void InitCreateWindowEvent(XEvent* event, XWindow xid) const;
+  void InitDestroyWindowEvent(XEvent* event, XWindow xid) const;
   // 'x' and 'y' are relative to the window.
-  static void InitEnterOrLeaveWindowEvent(XEvent* event, const WindowInfo& info,
-                                          int x, int y, bool enter);
-  static void InitEnterWindowEvent(XEvent* event, const WindowInfo& info,
-                                   int x, int y) {
-    InitEnterOrLeaveWindowEvent(event, info, x, y, true);
+  void InitEnterOrLeaveWindowEvent(XEvent* event, XWindow xid,
+                                   int x, int y, bool enter) const;
+  void InitEnterWindowEvent(XEvent* event, XWindow xid,
+                            int x, int y) const {
+    InitEnterOrLeaveWindowEvent(event, xid, x, y, true);
   }
-  static void InitLeaveWindowEvent(XEvent* event, const WindowInfo& info,
-                                   int x, int y) {
-    InitEnterOrLeaveWindowEvent(event, info, x, y, false);
+  void InitLeaveWindowEvent(XEvent* event, XWindow xid,
+                            int x, int y) const {
+    InitEnterOrLeaveWindowEvent(event, xid, x, y, false);
   }
-  static void InitMapEvent(XEvent* event, XWindow xid);
-  static void InitMapRequestEvent(XEvent* event, const WindowInfo& info);
-  static void InitMotionNotifyEvent(XEvent* event, const WindowInfo& info,
-                                    int x, int y);
-  static void InitPropertyNotifyEvent(XEvent* event, XWindow xid, XAtom xatom);
-  static void InitUnmapEvent(XEvent* event, XWindow xid);
+  void InitMapEvent(XEvent* event, XWindow xid) const;
+  void InitMapRequestEvent(XEvent* event, XWindow xid) const;
+  void InitMotionNotifyEvent(XEvent* event, XWindow xid, int x, int y) const;
+  void InitPropertyNotifyEvent(XEvent* event, XWindow xid, XAtom xatom) const;
+  void InitUnmapEvent(XEvent* event, XWindow xid) const;
 
  private:
   bool GrabServerImpl() { return true; }

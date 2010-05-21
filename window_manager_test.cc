@@ -200,11 +200,11 @@ TEST_F(WindowManagerTest, ExistingWindows) {
                    win->actor())->visible());
 
   XEvent event;
-  MockXConnection::InitMapRequestEvent(&event, *info);
+  xconn_->InitMapRequestEvent(&event, xid);
   wm_->HandleEvent(&event);
   EXPECT_TRUE(info->mapped);
 
-  MockXConnection::InitMapEvent(&event, xid);
+  xconn_->InitMapEvent(&event, xid);
   wm_->HandleEvent(&event);
   EXPECT_TRUE(win->mapped());
   EXPECT_TRUE(dynamic_cast<const MockCompositor::Actor*>(
@@ -224,7 +224,7 @@ TEST_F(WindowManagerTest, ExistingWindows) {
   xid = CreateSimpleWindow();
   info = xconn_->GetWindowInfoOrDie(xid);
 
-  MockXConnection::InitCreateWindowEvent(&event, *info);
+  xconn_->InitCreateWindowEvent(&event, xid);
   wm_->HandleEvent(&event);
   EXPECT_FALSE(info->mapped);
   win = wm_->GetWindowOrDie(xid);
@@ -232,12 +232,12 @@ TEST_F(WindowManagerTest, ExistingWindows) {
   EXPECT_FALSE(dynamic_cast<const MockCompositor::Actor*>(
                    win->actor())->visible());
 
-  MockXConnection::InitMapRequestEvent(&event, *info);
+  xconn_->InitMapRequestEvent(&event, xid);
   wm_->HandleEvent(&event);
   EXPECT_TRUE(info->mapped);
   EXPECT_TRUE(win->mapped());
 
-  MockXConnection::InitMapEvent(&event, xid);
+  xconn_->InitMapEvent(&event, xid);
   wm_->HandleEvent(&event);
   EXPECT_TRUE(dynamic_cast<const MockCompositor::Actor*>(
                   win->actor())->visible());
@@ -262,9 +262,9 @@ TEST_F(WindowManagerTest, OverrideRedirectMapping) {
   ASSERT_TRUE(info->mapped);
 
   XEvent event;
-  MockXConnection::InitCreateWindowEvent(&event, *info);
+  xconn_->InitCreateWindowEvent(&event, xid);
   wm_->HandleEvent(&event);
-  MockXConnection::InitMapEvent(&event, xid);
+  xconn_->InitMapEvent(&event, xid);
   wm_->HandleEvent(&event);
 
   // Now test the other possibility, where the window isn't mapped on the X
@@ -282,11 +282,11 @@ TEST_F(WindowManagerTest, OverrideRedirectMapping) {
         0);      // event mask
   MockXConnection::WindowInfo* info2 = xconn_->GetWindowInfoOrDie(xid2);
 
-  MockXConnection::InitCreateWindowEvent(&event, *info2);
+  xconn_->InitCreateWindowEvent(&event, xid2);
   wm_->HandleEvent(&event);
   xconn_->MapWindow(xid2);
   ASSERT_TRUE(info2->mapped);
-  MockXConnection::InitMapEvent(&event, xid2);
+  xconn_->InitMapEvent(&event, xid2);
   wm_->HandleEvent(&event);
 
   Window* win2 = wm_->GetWindowOrDie(xid2);
@@ -326,19 +326,19 @@ TEST_F(WindowManagerTest, EventConsumer) {
   wm_->RegisterEventConsumerForWindowEvents(xid, &ec);
 
   XEvent event;
-  MockXConnection::InitCreateWindowEvent(&event, *info);
+  xconn_->InitCreateWindowEvent(&event, xid);
   wm_->HandleEvent(&event);
 
   // Send various events to the WindowManager object and check that they
   // get forwarded to our EventConsumer.
-  MockXConnection::InitMapRequestEvent(&event, *info);
+  xconn_->InitMapRequestEvent(&event, xid);
   wm_->HandleEvent(&event);
   EXPECT_TRUE(info->mapped);
-  MockXConnection::InitMapEvent(&event, xid);
+  xconn_->InitMapEvent(&event, xid);
   wm_->HandleEvent(&event);
-  MockXConnection::InitButtonPressEvent(&event, *info, 5, 5, 1);
+  xconn_->InitButtonPressEvent(&event, xid, 5, 5, 1);
   wm_->HandleEvent(&event);
-  MockXConnection::InitUnmapEvent(&event, xid);
+  xconn_->InitUnmapEvent(&event, xid);
   wm_->HandleEvent(&event);
 
   wm_->UnregisterEventConsumerForWindowEvents(xid, &ec);
@@ -356,13 +356,13 @@ TEST_F(WindowManagerTest, EventConsumer) {
   info2->override_redirect = true;
 
   // Send events appropriate for an override-redirect window.
-  MockXConnection::InitCreateWindowEvent(&event, *info2);
+  xconn_->InitCreateWindowEvent(&event, xid2);
   wm_->HandleEvent(&event);
-  MockXConnection::InitMapEvent(&event, xid2);
+  xconn_->InitMapEvent(&event, xid2);
   wm_->HandleEvent(&event);
-  MockXConnection::InitButtonPressEvent(&event, *info2, 5, 5, 1);
+  xconn_->InitButtonPressEvent(&event, xid2, 5, 5, 1);
   wm_->HandleEvent(&event);
-  MockXConnection::InitUnmapEvent(&event, xid2);
+  xconn_->InitUnmapEvent(&event, xid2);
   wm_->HandleEvent(&event);
 
   // The event consumer should've heard about the second window being
@@ -382,13 +382,12 @@ TEST_F(WindowManagerTest, EventConsumer) {
   ec.reset_stats();
   ec.set_should_return_true_for_map_requests(true);
   XWindow xid3 = CreateSimpleWindow();
-  MockXConnection::WindowInfo* info3 = xconn_->GetWindowInfoOrDie(xid3);
   wm_->wm_ipc()->SetWindowType(
       xid3, static_cast<chromeos::WmIpcWindowType>(4243289), NULL);
 
-  MockXConnection::InitCreateWindowEvent(&event, *info3);
+  xconn_->InitCreateWindowEvent(&event, xid3);
   wm_->HandleEvent(&event);
-  MockXConnection::InitMapRequestEvent(&event, *info3);
+  xconn_->InitMapRequestEvent(&event, xid3);
   wm_->HandleEvent(&event);
 
   // We should get a map request for this window, and we should immediately
@@ -400,7 +399,7 @@ TEST_F(WindowManagerTest, EventConsumer) {
 
   // Check that we don't get notified again when the window manager
   // receives notification that the window was mapped.
-  MockXConnection::InitMapEvent(&event, xid3);
+  xconn_->InitMapEvent(&event, xid3);
   wm_->HandleEvent(&event);
   EXPECT_EQ(1, ec.num_mapped_windows());
 }
@@ -413,12 +412,12 @@ TEST_F(WindowManagerTest, Reparent) {
   ASSERT_TRUE(info->redirected);
 
   XEvent event;
-  MockXConnection::InitCreateWindowEvent(&event, *info);
+  xconn_->InitCreateWindowEvent(&event, xid);
   wm_->HandleEvent(&event);
-  MockXConnection::InitMapRequestEvent(&event, *info);
+  xconn_->InitMapRequestEvent(&event, xid);
   wm_->HandleEvent(&event);
   EXPECT_TRUE(info->mapped);
-  MockXConnection::InitMapEvent(&event, xid);
+  xconn_->InitMapEvent(&event, xid);
   wm_->HandleEvent(&event);
 
   XReparentEvent* reparent_event = &(event.xreparent);
@@ -445,11 +444,10 @@ TEST_F(WindowManagerTest, RestackOverrideRedirectWindows) {
       true,    // override redirect
       false,   // input only
       0);      // event mask
-  MockXConnection::WindowInfo* info = xconn_->GetWindowInfoOrDie(xid);
-  MockXConnection::InitCreateWindowEvent(&event, *info);
+  xconn_->InitCreateWindowEvent(&event, xid);
   wm_->HandleEvent(&event);
   xconn_->MapWindow(xid);
-  MockXConnection::InitMapEvent(&event, xid);
+  xconn_->InitMapEvent(&event, xid);
   wm_->HandleEvent(&event);
   Window* win = wm_->GetWindowOrDie(xid);
 
@@ -460,18 +458,17 @@ TEST_F(WindowManagerTest, RestackOverrideRedirectWindows) {
       true,    // override redirect
       false,   // input only
       0);      // event mask
-  MockXConnection::WindowInfo* info2 = xconn_->GetWindowInfoOrDie(xid2);
-  MockXConnection::InitCreateWindowEvent(&event, *info2);
+  xconn_->InitCreateWindowEvent(&event, xid2);
   wm_->HandleEvent(&event);
   xconn_->MapWindow(xid2);
-  MockXConnection::InitMapEvent(&event, xid2);
+  xconn_->InitMapEvent(&event, xid2);
   wm_->HandleEvent(&event);
   Window* win2 = wm_->GetWindowOrDie(xid2);
 
   // Send a ConfigureNotify saying that the second window has been stacked
   // on top of the first and then make sure that the compositing actors are
   // stacked in the same manner.
-  MockXConnection::InitConfigureNotifyEvent(&event, *info2);
+  xconn_->InitConfigureNotifyEvent(&event, xid2);
   event.xconfigure.above = xid;
   wm_->HandleEvent(&event);
   MockCompositor::StageActor* stage = compositor_->GetDefaultStage();
@@ -479,7 +476,7 @@ TEST_F(WindowManagerTest, RestackOverrideRedirectWindows) {
             stage->GetStackingIndex(win->actor()));
 
   // Now send a message saying that the first window is on top of the second.
-  MockXConnection::InitConfigureNotifyEvent(&event, *info);
+  xconn_->InitConfigureNotifyEvent(&event, xid);
   event.xconfigure.above = xid2;
   wm_->HandleEvent(&event);
   EXPECT_LT(stage->GetStackingIndex(win->actor()),
@@ -496,14 +493,14 @@ TEST_F(WindowManagerTest, ConfigureRequestResize) {
   const int orig_height = info->height;
 
   XEvent event;
-  MockXConnection::InitCreateWindowEvent(&event, *info);
+  xconn_->InitCreateWindowEvent(&event, xid);
   wm_->HandleEvent(&event);
 
   // Send a ConfigureRequest event with its width and height fields masked
   // out, and check that the new width and height values are ignored.
   const int new_width = orig_width * 2;
   const int new_height = orig_height * 2;
-  MockXConnection::InitConfigureRequestEvent(
+  xconn_->InitConfigureRequestEvent(
       &event, xid, info->x, info->y, new_width, new_height);
   event.xconfigurerequest.value_mask &= ~(CWWidth | CWHeight);
   wm_->HandleEvent(&event);
@@ -559,7 +556,7 @@ TEST_F(WindowManagerTest, ResizeScreen) {
 
   // Send the WM an event saying that the screen has been resized.
   XEvent event;
-  MockXConnection::InitConfigureNotifyEvent(&event, *root_info);
+  xconn_->InitConfigureNotifyEvent(&event, root_xid);
   wm_->HandleEvent(&event);
 
   EXPECT_EQ(new_width, wm_->width());
@@ -647,7 +644,7 @@ TEST_F(WindowManagerTest, SubtractPanelDocksFromNetWorkareaProperty) {
   root_info->width += 20;
   root_info->height += 10;
   XEvent event;
-  MockXConnection::InitConfigureNotifyEvent(&event, *root_info);
+  xconn_->InitConfigureNotifyEvent(&event, root_xid);
   wm_->HandleEvent(&event);
   TestIntArrayProperty(root_xid, workarea_atom, 4,
                        0, 0,
@@ -669,7 +666,6 @@ TEST_F(WindowManagerTest, ClientListProperties) {
 
   // Create and map a regular window.
   XWindow xid = CreateSimpleWindow();
-  MockXConnection::WindowInfo* info = xconn_->GetWindowInfoOrDie(xid);
   SendInitialEventsForWindow(xid);
 
   // Both properties should contain just this window.
@@ -685,8 +681,6 @@ TEST_F(WindowManagerTest, ClientListProperties) {
           true,      // override_redirect
           false,     // input_only
           0);        // event_mask
-  MockXConnection::WindowInfo* override_redirect_info =
-      xconn_->GetWindowInfoOrDie(override_redirect_xid);
   SendInitialEventsForWindow(override_redirect_xid);
 
   // The override-redirect window shouldn't be included.
@@ -707,7 +701,7 @@ TEST_F(WindowManagerTest, ClientListProperties) {
   // Raise the override-redirect window above the others.
   ASSERT_TRUE(xconn_->RaiseWindow(override_redirect_xid));
   XEvent event;
-  MockXConnection::InitConfigureNotifyEvent(&event, *override_redirect_info);
+  xconn_->InitConfigureNotifyEvent(&event, override_redirect_xid);
   event.xconfigure.above = xid2;
   wm_->HandleEvent(&event);
 
@@ -717,7 +711,7 @@ TEST_F(WindowManagerTest, ClientListProperties) {
 
   // Raise the first window on top of the second window.
   ASSERT_TRUE(xconn_->StackWindow(xid, xid2, true));
-  MockXConnection::InitConfigureNotifyEvent(&event, *info);
+  xconn_->InitConfigureNotifyEvent(&event, xid);
   event.xconfigure.above = xid2;
   wm_->HandleEvent(&event);
 
@@ -728,9 +722,9 @@ TEST_F(WindowManagerTest, ClientListProperties) {
 
   // Destroy the first window.
   ASSERT_TRUE(xconn_->DestroyWindow(xid));
-  MockXConnection::InitUnmapEvent(&event, xid);
+  xconn_->InitUnmapEvent(&event, xid);
   wm_->HandleEvent(&event);
-  MockXConnection::InitDestroyWindowEvent(&event, xid);
+  xconn_->InitDestroyWindowEvent(&event, xid);
   wm_->HandleEvent(&event);
 
   // Both properties should just contain the second window now.
@@ -797,7 +791,7 @@ TEST_F(WindowManagerTest, RedirectWindows) {
   EXPECT_TRUE(info->redirected);
 
   XEvent event;
-  MockXConnection::InitCreateWindowEvent(&event, *info);
+  xconn_->InitCreateWindowEvent(&event, xid);
   wm_->HandleEvent(&event);
   Window* win = wm_->GetWindowOrDie(xid);
   MockCompositor::TexturePixmapActor* mock_actor =
@@ -821,7 +815,7 @@ TEST_F(WindowManagerTest, RedirectWindows) {
   ASSERT_TRUE(override_redirect_info->mapped);
 
   // Send a CreateNotify event to the window manager.
-  MockXConnection::InitCreateWindowEvent(&event, *override_redirect_info);
+  xconn_->InitCreateWindowEvent(&event, override_redirect_xid);
   wm_->HandleEvent(&event);
   Window* override_redirect_win = wm_->GetWindowOrDie(override_redirect_xid);
   MockCompositor::TexturePixmapActor* override_redirect_mock_actor =
@@ -937,12 +931,12 @@ TEST_F(WindowManagerTest, DiscardPixmapOnUnmap) {
   // Check that the pixmap gets discarded when the window gets resized.
   XEvent event;
   info->width += 10;
-  MockXConnection::InitConfigureNotifyEvent(&event, *info);
+  xconn_->InitConfigureNotifyEvent(&event, xid);
   wm_->HandleEvent(&event);
   EXPECT_EQ(initial_pixmap_discards + 1, actor->num_pixmap_discards());
 
   // We should try to discard it when the window is unmapped, too.
-  MockXConnection::InitUnmapEvent(&event, xid);
+  xconn_->InitUnmapEvent(&event, xid);
   wm_->HandleEvent(&event);
   EXPECT_EQ(initial_pixmap_discards + 2, actor->num_pixmap_discards());
 }

@@ -589,8 +589,8 @@ MockXConnection::WindowInfo::WindowInfo(XWindow xid, XWindow parent)
 
 MockXConnection::WindowInfo::~WindowInfo() {}
 
-MockXConnection::WindowInfo* MockXConnection::GetWindowInfo(XWindow xid) {
-  map<XWindow, shared_ptr<WindowInfo> >::iterator it = windows_.find(xid);
+MockXConnection::WindowInfo* MockXConnection::GetWindowInfo(XWindow xid) const {
+  map<XWindow, shared_ptr<WindowInfo> >::const_iterator it = windows_.find(xid);
   return (it != windows_.end()) ? it->second.get() : NULL;
 }
 
@@ -638,24 +638,21 @@ void MockXConnection::RegisterPropertyCallback(
             make_pair(make_pair(xid, xatom), shared_ptr<Closure>(cb))).second);
 }
 
-// static
-void MockXConnection::InitButtonEvent(XEvent* event,
-                                      const WindowInfo& info,
-                                      int x, int y, int button,
-                                      bool press) {
+void MockXConnection::InitButtonEvent(
+    XEvent* event, XWindow xid, int x, int y, int button, bool press) const {
   CHECK(event);
+  const WindowInfo* info = GetWindowInfoOrDie(xid);
   XButtonEvent* button_event = &(event->xbutton);
   memset(button_event, 0, sizeof(*button_event));
   button_event->type = press ? ButtonPress : ButtonRelease;
-  button_event->window = info.xid;
+  button_event->window = info->xid;
   button_event->x = x;
   button_event->y = y;
-  button_event->x_root = info.x + x;
-  button_event->y_root = info.y + y;
+  button_event->x_root = info->x + x;
+  button_event->y_root = info->y + y;
   button_event->button = button;
 }
 
-// static
 void MockXConnection::InitClientMessageEvent(XEvent* event,
                                              XWindow xid,
                                              XAtom type,
@@ -663,7 +660,7 @@ void MockXConnection::InitClientMessageEvent(XEvent* event,
                                              long arg2,
                                              long arg3,
                                              long arg4,
-                                             long arg5) {
+                                             long arg5) const {
   CHECK(event);
   XClientMessageEvent* client_event = &(event->xclient);
   memset(client_event, 0, sizeof(*client_event));
@@ -678,25 +675,24 @@ void MockXConnection::InitClientMessageEvent(XEvent* event,
   client_event->data.l[4] = arg5;
 }
 
-// static
-void MockXConnection::InitConfigureNotifyEvent(
-    XEvent* event, const WindowInfo& info) {
+void MockXConnection::InitConfigureNotifyEvent(XEvent* event,
+                                               XWindow xid) const {
   CHECK(event);
+  const WindowInfo* info = GetWindowInfoOrDie(xid);
   XConfigureEvent* conf_event = &(event->xconfigure);
   memset(conf_event, 0, sizeof(*conf_event));
   conf_event->type = ConfigureNotify;
-  conf_event->window = info.xid;
+  conf_event->window = info->xid;
   conf_event->above = None;  // TODO: Handle stacking.
-  conf_event->override_redirect = info.override_redirect;
-  conf_event->x = info.x;
-  conf_event->y = info.y;
-  conf_event->width = info.width;
-  conf_event->height = info.height;
+  conf_event->override_redirect = info->override_redirect;
+  conf_event->x = info->x;
+  conf_event->y = info->y;
+  conf_event->width = info->width;
+  conf_event->height = info->height;
 }
 
-// static
 void MockXConnection::InitConfigureRequestEvent(
-    XEvent* event, XWindow xid, int x, int y, int width, int height) {
+    XEvent* event, XWindow xid, int x, int y, int width, int height) const {
   CHECK(event);
   XConfigureRequestEvent* conf_event = &(event->xconfigurerequest);
   memset(conf_event, 0, sizeof(*conf_event));
@@ -709,25 +705,23 @@ void MockXConnection::InitConfigureRequestEvent(
   conf_event->value_mask = CWX | CWY | CWWidth | CWHeight;
 }
 
-// static
-void MockXConnection::InitCreateWindowEvent(XEvent* event,
-                                            const WindowInfo& info) {
+void MockXConnection::InitCreateWindowEvent(XEvent* event, XWindow xid) const {
   CHECK(event);
+  const WindowInfo* info = GetWindowInfoOrDie(xid);
   XCreateWindowEvent* create_event = &(event->xcreatewindow);
   memset(create_event, 0, sizeof(*create_event));
   create_event->type = CreateNotify;
-  create_event->parent = info.parent;
-  create_event->window = info.xid;
-  create_event->x = info.x;
-  create_event->y = info.y;
-  create_event->width = info.width;
-  create_event->height = info.height;
-  create_event->border_width = info.border_width;
-  create_event->override_redirect = info.override_redirect ? True : False;
+  create_event->parent = info->parent;
+  create_event->window = info->xid;
+  create_event->x = info->x;
+  create_event->y = info->y;
+  create_event->width = info->width;
+  create_event->height = info->height;
+  create_event->border_width = info->border_width;
+  create_event->override_redirect = info->override_redirect ? True : False;
 }
 
-// static
-void MockXConnection::InitDestroyWindowEvent(XEvent* event, XWindow xid) {
+void MockXConnection::InitDestroyWindowEvent(XEvent* event, XWindow xid) const {
   CHECK(event);
   XDestroyWindowEvent* destroy_event = &(event->xdestroywindow);
   memset(destroy_event, 0, sizeof(*destroy_event));
@@ -735,24 +729,22 @@ void MockXConnection::InitDestroyWindowEvent(XEvent* event, XWindow xid) {
   destroy_event->window = xid;
 }
 
-// static
-void MockXConnection::InitEnterOrLeaveWindowEvent(XEvent* event,
-                                                  const WindowInfo& info,
-                                                  int x, int y, bool enter) {
+void MockXConnection::InitEnterOrLeaveWindowEvent(
+    XEvent* event, XWindow xid, int x, int y, bool enter) const {
   CHECK(event);
+  const WindowInfo* info = GetWindowInfoOrDie(xid);
   XEnterWindowEvent* enter_event = &(event->xcrossing);
   memset(enter_event, 0, sizeof(*enter_event));
   enter_event->type = enter ? EnterNotify : LeaveNotify;
-  enter_event->window = info.xid;
+  enter_event->window = info->xid;
   enter_event->x = x;
   enter_event->y = y;
-  enter_event->x_root = info.x + x;
-  enter_event->y_root = info.y + y;
+  enter_event->x_root = info->x + x;
+  enter_event->y_root = info->y + y;
   // Leave everything else blank for now; we don't use it.
 }
 
-// static
-void MockXConnection::InitMapEvent(XEvent* event, XWindow xid) {
+void MockXConnection::InitMapEvent(XEvent* event, XWindow xid) const {
   CHECK(event);
   XMapEvent* map_event = &(event->xmap);
   memset(map_event, 0, sizeof(*map_event));
@@ -760,37 +752,34 @@ void MockXConnection::InitMapEvent(XEvent* event, XWindow xid) {
   map_event->window = xid;
 }
 
-// static
-void MockXConnection::InitMapRequestEvent(XEvent* event,
-                                          const WindowInfo& info) {
+void MockXConnection::InitMapRequestEvent(XEvent* event, XWindow xid) const {
   CHECK(event);
+  const WindowInfo* info = GetWindowInfoOrDie(xid);
   XMapRequestEvent* req_event = &(event->xmaprequest);
   memset(req_event, 0, sizeof(*req_event));
   req_event->type = MapRequest;
-  req_event->window = info.xid;
-  req_event->parent = info.parent;
+  req_event->window = info->xid;
+  req_event->parent = info->parent;
 }
 
-// static
-void MockXConnection::InitMotionNotifyEvent(XEvent* event,
-                                            const WindowInfo& info,
-                                            int x, int y) {
+void MockXConnection::InitMotionNotifyEvent(XEvent* event, XWindow xid,
+                                            int x, int y) const {
   CHECK(event);
+  const WindowInfo* info = GetWindowInfoOrDie(xid);
   XMotionEvent* motion_event = &(event->xmotion);
   memset(motion_event, 0, sizeof(*motion_event));
   motion_event->type = MotionNotify;
-  motion_event->window = info.xid;
+  motion_event->window = info->xid;
   motion_event->x = x;
   motion_event->y = y;
-  motion_event->x_root = info.x + x;
-  motion_event->y_root = info.y + y;
+  motion_event->x_root = info->x + x;
+  motion_event->y_root = info->y + y;
   // Leave everything else blank for now; we don't use it.
 }
 
-// static
 void MockXConnection::InitPropertyNotifyEvent(XEvent* event,
                                               XWindow xid,
-                                              XAtom xatom) {
+                                              XAtom xatom) const {
   CHECK(event);
   XPropertyEvent* property_event = &(event->xproperty);
   memset(property_event, 0, sizeof(*property_event));
@@ -800,8 +789,7 @@ void MockXConnection::InitPropertyNotifyEvent(XEvent* event,
   property_event->state = PropertyNewValue;
 }
 
-// static
-void MockXConnection::InitUnmapEvent(XEvent* event, XWindow xid) {
+void MockXConnection::InitUnmapEvent(XEvent* event, XWindow xid) const {
   CHECK(event);
   XUnmapEvent* unmap_event = &(event->xunmap);
   memset(unmap_event, 0, sizeof(*unmap_event));

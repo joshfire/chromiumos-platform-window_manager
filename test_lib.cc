@@ -208,22 +208,22 @@ Panel* BasicWindowManagerTest::CreatePanel(int width,
 void BasicWindowManagerTest::SendInitialEventsForWindow(XWindow xid) {
   MockXConnection::WindowInfo* info = xconn_->GetWindowInfoOrDie(xid);
   XEvent event;
-  MockXConnection::InitCreateWindowEvent(&event, *info);
+  xconn_->InitCreateWindowEvent(&event, xid);
   wm_->HandleEvent(&event);
   if (!info->override_redirect) {
-    MockXConnection::InitMapRequestEvent(&event, *info);
+    xconn_->InitMapRequestEvent(&event, xid);
     wm_->HandleEvent(&event);
     EXPECT_TRUE(info->mapped);
   }
   if (info->mapped) {
-    MockXConnection::InitMapEvent(&event, xid);
+    xconn_->InitMapEvent(&event, xid);
     wm_->HandleEvent(&event);
   }
 }
 
 void BasicWindowManagerTest::SendWindowTypeEvent(XWindow xid) {
   XEvent event;
-  MockXConnection::InitPropertyNotifyEvent(
+  xconn_->InitPropertyNotifyEvent(
       &event, xid, wm_->GetXAtom(ATOM_CHROME_WINDOW_TYPE));
   wm_->HandleEvent(&event);
 }
@@ -270,7 +270,7 @@ void BasicWindowManagerTest::SendPanelDragCompleteMessage(Panel* panel) {
 
 void BasicWindowManagerTest::SendActiveWindowMessage(XWindow xid) {
   XEvent event;
-  MockXConnection::InitClientMessageEvent(
+  xconn_->InitClientMessageEvent(
       &event, xid, wm_->GetXAtom(ATOM_NET_ACTIVE_WINDOW),
       1,      // source indication (1 is from application)
       0,      // timestamp

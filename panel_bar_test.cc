@@ -39,8 +39,6 @@ class PanelBarTest : public BasicWindowManagerTest {
 TEST_F(PanelBarTest, Basic) {
   // First, create a toplevel window.
   XWindow toplevel_xid = CreateSimpleWindow();
-  MockXConnection::WindowInfo* toplevel_info =
-      xconn_->GetWindowInfoOrDie(toplevel_xid);
   SendInitialEventsForWindow(toplevel_xid);
 
   // It should be initially focused.
@@ -72,8 +70,7 @@ TEST_F(PanelBarTest, Basic) {
   // grab should be installed on the panel's content window.
   xconn_->set_pointer_grab_xid(toplevel_xid);
   XEvent event;
-  MockXConnection::InitButtonPressEvent(
-      &event, *toplevel_info, 0, 0, 1);  // x, y, button
+  xconn_->InitButtonPressEvent(&event, toplevel_xid, 0, 0, 1);  // x, y, button
   wm_->HandleEvent(&event);
   EXPECT_EQ(None, xconn_->pointer_grab_xid());
   EXPECT_EQ(toplevel_xid, xconn_->focused_xid());
@@ -120,8 +117,7 @@ TEST_F(PanelBarTest, Basic) {
   // After a button press on the content window, its active and passive grabs
   // should be removed and it should be focused.
   xconn_->set_pointer_grab_xid(content_xid);
-  MockXConnection::InitButtonPressEvent(
-      &event, *content_info, 0, 0, 1);  // x, y, button
+  xconn_->InitButtonPressEvent(&event, content_xid, 0, 0, 1);  // x, y, button
   wm_->HandleEvent(&event);
   EXPECT_EQ(None, xconn_->pointer_grab_xid());
   EXPECT_EQ(content_xid, xconn_->focused_xid());
@@ -175,7 +171,7 @@ TEST_F(PanelBarTest, ActiveWindowMessage) {
   // to focus the panel, it should be expanded and get the focus, and the
   // _NET_ACTIVE_WINDOW property should contain its ID.
   XEvent event;
-  MockXConnection::InitClientMessageEvent(
+  xconn_->InitClientMessageEvent(
       &event,
       panel->content_xid(),  // window to focus
       wm_->GetXAtom(ATOM_NET_ACTIVE_WINDOW),
@@ -213,7 +209,7 @@ TEST_F(PanelBarTest, FocusNewPanel) {
   // should be destroyed, and 'desired_panel_to_focus_' shouldn't refer to
   // it anymore.
   XEvent event;
-  MockXConnection::InitUnmapEvent(&event, content_xid);
+  xconn_->InitUnmapEvent(&event, content_xid);
   wm_->HandleEvent(&event);
   EXPECT_TRUE(panel_bar_->panels_.empty());
   EXPECT_EQ(NULL, panel_bar_->desired_panel_to_focus_);
@@ -225,8 +221,6 @@ TEST_F(PanelBarTest, HideCollapsedPanels) {
   // Move the pointer to the top of the screen and create a collapsed panel.
   xconn_->SetPointerPosition(0, 0);
   Panel* panel = CreatePanel(200, 20, 400, false);
-  MockXConnection::WindowInfo* titlebar_info =
-      xconn_->GetWindowInfoOrDie(panel->titlebar_xid());
 
   // Check that some constants make sense in light of our titlebar's height.
   ASSERT_LT(PanelBar::kHiddenCollapsedPanelHeightPixels,
@@ -251,6 +245,7 @@ TEST_F(PanelBarTest, HideCollapsedPanels) {
 
   // Check that the show-collapsed-panels input window covers the bottom
   // row of pixels.
+  XWindow input_xid = panel_bar_->show_collapsed_panels_input_xid_;
   MockXConnection::WindowInfo* input_info = xconn_->GetWindowInfoOrDie(
       panel_bar_->show_collapsed_panels_input_xid_);
   const int input_x = 0;
@@ -267,7 +262,7 @@ TEST_F(PanelBarTest, HideCollapsedPanels) {
   // that it's entered the input window.
   xconn_->SetPointerPosition(0, wm_->height() - 1);
   XEvent event;
-  MockXConnection::InitEnterWindowEvent(&event, *input_info, 0, 0);
+  xconn_->InitEnterWindowEvent(&event, input_xid, 0, 0);
   wm_->HandleEvent(&event);
 
   // The panel should still be hidden, but we should be waiting to show it.
@@ -290,7 +285,7 @@ TEST_F(PanelBarTest, HideCollapsedPanels) {
   // Move the pointer back up immediately and send a leave notify event.
   xconn_->SetPointerPosition(
       0, wm_->height() - PanelBar::kShowCollapsedPanelsDistancePixels - 1);
-  MockXConnection::InitLeaveWindowEvent(&event, *input_info, 0, 0);
+  xconn_->InitLeaveWindowEvent(&event, input_xid, 0, 0);
   wm_->HandleEvent(&event);
 
   // The timer should be cancelled.
@@ -310,7 +305,7 @@ TEST_F(PanelBarTest, HideCollapsedPanels) {
 
   // Now move the pointer into the panel's titlebar.
   xconn_->SetPointerPosition(panel->titlebar_x(), panel->titlebar_y());
-  MockXConnection::InitEnterWindowEvent(&event, *titlebar_info, 0, 0);
+  xconn_->InitEnterWindowEvent(&event, panel->titlebar_xid(), 0, 0);
   wm_->HandleEvent(&event);
 
   // The panel should be shown immediately, and we should now be monitoring
@@ -367,8 +362,7 @@ TEST_F(PanelBarTest, HideCollapsedPanels) {
   // panel's titlebar again, but this time make it end up in the region
   // underneath the titlebar.
   xconn_->SetPointerPosition(input_x + input_width - 4, wm_->height() - 1);
-  MockXConnection::InitEnterWindowEvent(
-      &event, *input_info, input_width - 4, 0);
+  xconn_->InitEnterWindowEvent(&event, input_xid, input_width - 4, 0);
   wm_->HandleEvent(&event);
 
   // We should show the panel immediately in this case instead of using a timer.
@@ -384,8 +378,6 @@ TEST_F(PanelBarTest, HideCollapsedPanels) {
 // drag.
 TEST_F(PanelBarTest, DeferHidingDraggedCollapsedPanel) {
   Panel* panel = CreatePanel(200, 20, 400, false);
-  MockXConnection::WindowInfo* titlebar_info =
-      xconn_->GetWindowInfoOrDie(panel->titlebar_xid());
 
   const int hidden_panel_y =
       wm_->height() - PanelBar::kHiddenCollapsedPanelHeightPixels;
@@ -394,7 +386,7 @@ TEST_F(PanelBarTest, DeferHidingDraggedCollapsedPanel) {
   // Show the panel.
   xconn_->SetPointerPosition(panel->titlebar_x(), panel->titlebar_y());
   XEvent event;
-  MockXConnection::InitEnterWindowEvent(&event, *titlebar_info, 0, 0);
+  xconn_->InitEnterWindowEvent(&event, panel->titlebar_xid(), 0, 0);
   wm_->HandleEvent(&event);
   EXPECT_EQ(PanelBar::COLLAPSED_PANEL_STATE_SHOWN,
             panel_bar_->collapsed_panel_state_);
@@ -446,7 +438,7 @@ TEST_F(PanelBarTest, DeferHidingDraggedCollapsedPanel) {
 
   // Show the panel again.
   xconn_->SetPointerPosition(panel->titlebar_x(), panel->titlebar_y());
-  MockXConnection::InitEnterWindowEvent(&event, *titlebar_info, 0, 0);
+  xconn_->InitEnterWindowEvent(&event, panel->titlebar_xid(), 0, 0);
   wm_->HandleEvent(&event);
   EXPECT_EQ(PanelBar::COLLAPSED_PANEL_STATE_SHOWN,
             panel_bar_->collapsed_panel_state_);
@@ -633,14 +625,12 @@ TEST_F(PanelBarTest, PackPanelsAfterPanelResize) {
   // Drag the middle window's upper-left resize handle to resize it to
   // (400, 600).
   XWindow input_xid = panel2->top_left_input_xid_;
-  MockXConnection::WindowInfo* input_info =
-      xconn_->GetWindowInfoOrDie(input_xid);
   XEvent event;
-  MockXConnection::InitButtonPressEvent(&event, *input_info, 0, 0, 1);
+  xconn_->InitButtonPressEvent(&event, input_xid, 0, 0, 1);
   wm_->HandleEvent(&event);
-  MockXConnection::InitMotionNotifyEvent(&event, *input_info, -200, -200);
+  xconn_->InitMotionNotifyEvent(&event, input_xid, -200, -200);
   wm_->HandleEvent(&event);
-  MockXConnection::InitButtonReleaseEvent(&event, *input_info, -200, -200, 1);
+  xconn_->InitButtonReleaseEvent(&event, input_xid, -200, -200, 1);
   wm_->HandleEvent(&event);
   EXPECT_EQ(400, panel2->width());
   EXPECT_EQ(600, panel2->content_height());
@@ -677,7 +667,7 @@ TEST_F(PanelBarTest, UrgentPanel) {
                          wm_hints_atom,  // type
                          urgency_hint);
   XEvent notify_event;
-  MockXConnection::InitPropertyNotifyEvent(
+  xconn_->InitPropertyNotifyEvent(
       &notify_event, panel->content_xid(), wm_hints_atom);
   wm_->HandleEvent(&notify_event);
   EXPECT_EQ(shown_panel_y, panel->titlebar_y());
