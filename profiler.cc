@@ -158,12 +158,12 @@ void ProfilerWriter::Update(const Profiler& profiler) {
   result = fwrite(&profiler.max_num_symbols_,
                   sizeof(profiler.max_num_symbols_), 1, fp);
 
-  DCHECK_EQ(result, 1);
+  DCHECK_EQ(result, static_cast<size_t>(1));
   result = fwrite(&profiler.num_symbols_,
                   sizeof(profiler.num_symbols_), 1, fp);
-  DCHECK_EQ(result, 1);
+  DCHECK_EQ(result, static_cast<size_t>(1));
   result = fwrite(&num_written_samples_, sizeof(num_written_samples_), 1, fp);
-  DCHECK_EQ(result, 1);
+  DCHECK_EQ(result, static_cast<size_t>(1));
 
   if (num_written_symbols_ != profiler.num_symbols_) {
     // overwrite symbols
