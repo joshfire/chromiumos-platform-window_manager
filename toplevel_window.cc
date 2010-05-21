@@ -22,6 +22,7 @@
 #include "window_manager/motion_event_coalescer.h"
 #include "window_manager/stacking_manager.h"
 #include "window_manager/system_metrics.pb.h"
+#include "window_manager/transient_window_collection.h"
 #include "window_manager/util.h"
 #include "window_manager/window.h"
 #include "window_manager/window_manager.h"
@@ -57,8 +58,7 @@ LayoutManager::ToplevelWindow::ToplevelWindow(Window* win,
       layout_manager_(layout_manager),
       state_(STATE_NEW),
       last_state_(STATE_NEW),
-      stacked_transients_(new Stacker<TransientWindow*>),
-      transient_to_focus_(NULL),
+      transients_(new TransientWindowCollection(win, layout_manager)),
       selected_tab_(-1),
       tab_count_(0),
       event_consumer_registrar_(
@@ -97,11 +97,9 @@ LayoutManager::ToplevelWindow::~ToplevelWindow() {
 #if defined(EXTRA_LOGGING)
   DLOG(INFO) << "Deleting toplevel window " << win_->xid_str();
 #endif
-  while (!transients_.empty())
-    RemoveTransientWindow(transients_.begin()->second->win);
+  transients_.reset(NULL);
   win_ = NULL;
   layout_manager_ = NULL;
-  transient_to_focus_ = NULL;
 }
 
 const char* LayoutManager::ToplevelWindow::GetStateName(State state) {
@@ -246,7 +244,7 @@ void LayoutManager::ToplevelWindow::ConfigureForActiveMode(bool animate) {
       break;
   }
 
-  ApplyStackingForAllTransientWindows(false);  // stack in upper layer
+  transients_->ApplyStackingForAllWindows(false);  // stack in upper layer
 
   // Now set in motion the animations by targeting their destination.
   switch (state_) {
@@ -298,12 +296,12 @@ void LayoutManager::ToplevelWindow::ConfigureForActiveMode(bool animate) {
 
   if (state_ == STATE_ACTIVE_MODE_ONSCREEN) {
     win_->MoveClient(win_x, win_y);
-    ConfigureAllTransientWindows(anim_ms);
+    transients_->ConfigureAllWindows(anim_ms);
     win_->SetShadowOpacity(1.0, anim_ms);
   } else {
     win_->MoveClientOffscreen();
     win_->SetShadowOpacity(0, anim_ms);
-    ConfigureAllTransientWindows(
+    transients_->ConfigureAllWindows(
          last_state_ == STATE_ACTIVE_MODE_ONSCREEN ? anim_ms : 0);
   }
 }
@@ -323,257 +321,47 @@ void LayoutManager::ToplevelWindow::ConfigureForOverviewMode(bool animate) {
   } else {
     win_->SetCompositedOpacity(0.0, 0);
   }
-  ApplyStackingForAllTransientWindows(true);  // stack above toplevel
+  transients_->ApplyStackingForAllWindows(true);  // stack above toplevel
   win_->MoveClientOffscreen();
 }
 
 void LayoutManager::ToplevelWindow::TakeFocus(XTime timestamp) {
-  if (transient_to_focus_) {
-    RestackTransientWindowOnTop(transient_to_focus_);
-    wm()->FocusWindow(transient_to_focus_->win, timestamp);
-  } else {
+  if (!transients_->TakeFocus(timestamp))
     wm()->FocusWindow(win_, timestamp);
-  }
 }
 
 void LayoutManager::ToplevelWindow::SetPreferredTransientWindowToFocus(
     Window* transient_win) {
-  if (!transient_win) {
-    if (transient_to_focus_ && !transient_to_focus_->win->wm_state_modal())
-      transient_to_focus_ = NULL;
-    return;
-  }
-
-  TransientWindow* transient = GetTransientWindow(*transient_win);
-  if (!transient) {
-    LOG(ERROR) << "Got request to prefer focusing " << transient_win->xid_str()
-               << ", which isn't transient for " << win_->xid_str();
-    return;
-  }
-
-  if (transient == transient_to_focus_)
-    return;
-
-  if (!transient_to_focus_ ||
-      !transient_to_focus_->win->wm_state_modal() ||
-      transient_win->wm_state_modal())
-    transient_to_focus_ = transient;
+  transients_->SetPreferredWindowToFocus(transient_win);
 }
 
 bool LayoutManager::ToplevelWindow::IsWindowOrTransientFocused() const {
-  if (win_->IsFocused())
-    return true;
-
-  for (map<XWindow, shared_ptr<TransientWindow> >::const_iterator it =
-           transients_.begin();
-       it != transients_.end(); ++it) {
-    if (it->second->win->IsFocused())
-      return true;
-  }
-  return false;
+  return win_->IsFocused() || transients_->HasFocusedWindow();
 }
 
-void LayoutManager::ToplevelWindow::AddTransientWindow(
-    Window* transient_win, bool stack_directly_above_toplevel) {
-  CHECK(transient_win);
-  if (transients_.find(transient_win->xid()) != transients_.end()) {
-    LOG(ERROR) << "Got request to add already-present transient window "
-               << transient_win->xid_str() << " to " << win_->xid_str();
-    return;
-  }
-
-  wm()->RegisterEventConsumerForWindowEvents(transient_win->xid(),
-                                             layout_manager_);
-  shared_ptr<TransientWindow> transient(new TransientWindow(transient_win));
-  transients_[transient_win->xid()] = transient;
-
-  // All transient windows other than info bubbles get centered over their
-  // owner.
-  if (transient_win->type() == chromeos::WM_IPC_WINDOW_CHROME_INFO_BUBBLE) {
-    transient->SaveOffsetsRelativeToOwnerWindow(win_);
-    transient->centered = false;
-  } else {
-    transient->UpdateOffsetsToCenterOverOwnerWindow(win_);
-    transient->centered = true;
-  }
-
-  // If the new transient is non-modal, stack it above the top non-modal
-  // transient that we have.  If it's modal, just put it on top of all
-  // other transients.
-  TransientWindow* transient_to_stack_above = NULL;
-  for (list<TransientWindow*>::const_iterator it =
-           stacked_transients_->items().begin();
-       it != stacked_transients_->items().end(); ++it) {
-    if (transient_win->wm_state_modal() || !(*it)->win->wm_state_modal()) {
-      transient_to_stack_above = (*it);
-      break;
-    }
-  }
-  if (transient_to_stack_above)
-    stacked_transients_->AddAbove(transient.get(), transient_to_stack_above);
-  else
-    stacked_transients_->AddOnBottom(transient.get());
-
-  SetPreferredTransientWindowToFocus(transient_win);
-
-  ConfigureTransientWindow(transient.get(), 0);
-  ApplyStackingForTransientWindow(
-      transient.get(),
-      transient_to_stack_above ?
-      transient_to_stack_above->win :
-      (stack_directly_above_toplevel ? win_ : NULL));
-
-  transient_win->ShowComposited();
-  wm()->focus_manager()->UseClickToFocusForWindow(transient_win);
+void LayoutManager::ToplevelWindow::HandleTransientWindowMap(
+    Window* transient_win, bool in_overview_mode) {
+  bool stack_directly_above_toplevel = in_overview_mode;
+  transients_->AddWindow(transient_win, stack_directly_above_toplevel);
 }
 
-void LayoutManager::ToplevelWindow::RemoveTransientWindow(
+void LayoutManager::ToplevelWindow::HandleTransientWindowUnmap(
     Window* transient_win) {
-  CHECK(transient_win);
-  TransientWindow* transient = GetTransientWindow(*transient_win);
-  if (!transient) {
-    LOG(ERROR) << "Got request to remove not-present transient window "
-               << transient_win->xid_str() << " from " << win_->xid_str();
-    return;
-  }
-
-  wm()->UnregisterEventConsumerForWindowEvents(transient_win->xid(),
-                                               layout_manager_);
-  stacked_transients_->Remove(transient);
-  CHECK(transients_.erase(transient_win->xid()) == 1);
-
-  if (transient_to_focus_ == transient) {
-    transient_to_focus_ = NULL;
-    TransientWindow* new_transient = FindTransientWindowToFocus();
-    SetPreferredTransientWindowToFocus(
-        new_transient ? new_transient->win : NULL);
-  }
+  transients_->RemoveWindow(transient_win);
 }
 
 void LayoutManager::ToplevelWindow::HandleTransientWindowConfigureRequest(
     Window* transient_win,
     int req_x, int req_y, int req_width, int req_height) {
-  CHECK(transient_win);
-  TransientWindow* transient = GetTransientWindow(*transient_win);
-  CHECK(transient);
-
-  // Move and resize the transient window as requested.
-  bool moved = false;
-  if (req_x != transient_win->client_x() ||
-      req_y != transient_win->client_y()) {
-    transient_win->MoveClient(req_x, req_y);
-    transient->SaveOffsetsRelativeToOwnerWindow(win_);
-    transient->centered = false;
-    moved = true;
-  }
-
-  if (req_width != transient_win->client_width() ||
-      req_height != transient_win->client_height()) {
-    transient_win->ResizeClient(req_width, req_height, GRAVITY_NORTHWEST);
-    if (transient->centered) {
-      transient->UpdateOffsetsToCenterOverOwnerWindow(win_);
-      moved = true;
-    }
-  }
-
-  if (moved)
-    ConfigureTransientWindow(transient, 0);
+  transients_->HandleConfigureRequest(transient_win, req_x, req_y,
+                                      req_width, req_height);
 }
 
 void LayoutManager::ToplevelWindow::HandleButtonPress(
     Window* button_win, XTime timestamp) {
-  SetPreferredTransientWindowToFocus(
-      GetTransientWindow(*button_win) ? button_win : NULL);
+  transients_->SetPreferredWindowToFocus(
+      transients_->ContainsWindow(*button_win) ? button_win : NULL);
   TakeFocus(timestamp);
-}
-
-LayoutManager::ToplevelWindow::TransientWindow*
-LayoutManager::ToplevelWindow::GetTransientWindow(const Window& win) {
-  map<XWindow, shared_ptr<TransientWindow> >::iterator it =
-      transients_.find(win.xid());
-  if (it == transients_.end())
-    return NULL;
-  return it->second.get();
-}
-
-void LayoutManager::ToplevelWindow::ConfigureTransientWindow(
-    TransientWindow* transient, int anim_ms) {
-  // TODO: Check if 'win_' is offscreen, and make sure that the transient
-  // window is offscreen as well if so.
-  transient->win->MoveClient(
-      win_->client_x() + transient->x_offset,
-      win_->client_y() + transient->y_offset);
-
-  transient->win->MoveComposited(
-      win_->composited_x() + win_->composited_scale_x() * transient->x_offset,
-      win_->composited_y() + win_->composited_scale_y() * transient->y_offset,
-      anim_ms);
-  transient->win->ScaleComposited(
-      win_->composited_scale_x(), win_->composited_scale_y(), anim_ms);
-  transient->win->SetCompositedOpacity(win_->composited_opacity(), anim_ms);
-}
-
-void LayoutManager::ToplevelWindow::ConfigureAllTransientWindows(
-    int anim_ms) {
-  for (map<XWindow, shared_ptr<TransientWindow> >::iterator it =
-           transients_.begin();
-       it != transients_.end(); ++it) {
-    ConfigureTransientWindow(it->second.get(), anim_ms);
-  }
-}
-
-void LayoutManager::ToplevelWindow::ApplyStackingForTransientWindow(
-    TransientWindow* transient, Window* other_win) {
-  DCHECK(transient);
-  if (other_win) {
-    transient->win->StackClientAbove(other_win->xid());
-    transient->win->StackCompositedAbove(other_win->actor(), NULL, false);
-  } else {
-    wm()->stacking_manager()->StackWindowAtTopOfLayer(
-        transient->win, StackingManager::LAYER_ACTIVE_TRANSIENT_WINDOW);
-  }
-}
-
-void LayoutManager::ToplevelWindow::ApplyStackingForAllTransientWindows(
-    bool stack_directly_above_toplevel) {
-  Window* prev_win = stack_directly_above_toplevel ? win_ : NULL;
-  for (list<TransientWindow*>::const_reverse_iterator it =
-           stacked_transients_->items().rbegin();
-       it != stacked_transients_->items().rend();
-       ++it) {
-    TransientWindow* transient = *it;
-    ApplyStackingForTransientWindow(transient, prev_win);
-    prev_win = transient->win;
-  }
-}
-
-LayoutManager::ToplevelWindow::TransientWindow*
-LayoutManager::ToplevelWindow::FindTransientWindowToFocus() const {
-  if (stacked_transients_->items().empty())
-    return NULL;
-
-  for (list<TransientWindow*>::const_iterator it =
-           stacked_transients_->items().begin();
-       it != stacked_transients_->items().end();
-       ++it) {
-    if ((*it)->win->wm_state_modal())
-      return *it;
-  }
-  return stacked_transients_->items().front();
-}
-
-void LayoutManager::ToplevelWindow::RestackTransientWindowOnTop(
-    TransientWindow* transient) {
-  if (transient == stacked_transients_->items().front())
-    return;
-
-  DCHECK(stacked_transients_->Contains(transient));
-  DCHECK_GT(stacked_transients_->items().size(), 1U);
-  TransientWindow* transient_to_stack_above =
-      stacked_transients_->items().front();
-  stacked_transients_->Remove(transient);
-  stacked_transients_->AddOnTop(transient);
-  ApplyStackingForTransientWindow(transient, transient_to_stack_above->win);
 }
 
 }  // namespace window_manager

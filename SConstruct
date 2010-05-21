@@ -151,6 +151,7 @@ srcs = Split('''\
   snapshot_window.cc
   stacking_manager.cc
   toplevel_window.cc
+  transient_window_collection.cc
   window.cc
   window_manager.cc
 ''')

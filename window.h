@@ -64,6 +64,7 @@ class Window {
 
   XWindow xid() const { return xid_; }
   const std::string& xid_str() const { return xid_str_; }
+  WindowManager* wm() { return wm_; }
   Compositor::TexturePixmapActor* actor() { return actor_.get(); }
   const Shadow* shadow() const { return shadow_.get(); }
   bool using_shadow() const { return using_shadow_; }

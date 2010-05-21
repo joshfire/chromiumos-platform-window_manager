@@ -413,7 +413,7 @@ void LayoutManager::HandleWindowMap(Window* win) {
 
         if (toplevel_owner) {
           transient_to_toplevel_[win->xid()] = toplevel_owner;
-          toplevel_owner->AddTransientWindow(win, mode_ == MODE_OVERVIEW);
+          toplevel_owner->HandleTransientWindowMap(win, mode_ == MODE_OVERVIEW);
 
           if (mode_ == MODE_ACTIVE &&
               current_toplevel_ != NULL &&
@@ -498,7 +498,7 @@ void LayoutManager::HandleWindowUnmap(Window* win) {
 
     if (toplevel_owner) {
       bool transient_had_focus = win->IsFocused();
-      toplevel_owner->RemoveTransientWindow(win);
+      toplevel_owner->HandleTransientWindowUnmap(win);
       if (transient_to_toplevel_.erase(win->xid()) != 1)
         LOG(WARNING) << "No transient-to-toplevel mapping for "
                      << win->xid_str();
