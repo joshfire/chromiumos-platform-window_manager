@@ -194,7 +194,7 @@ class MockCompositor : public Compositor {
     }
 
     // Begin Compositor::Actor methods
-    void SetName(const std::string& name) {}
+    void SetName(const std::string& name) { name_ = name; }
     int GetWidth() { return width_; }
     int GetHeight() { return height_; }
     int GetX() { return x_; }
@@ -228,13 +228,14 @@ class MockCompositor : public Compositor {
     void Lower(Compositor::Actor* other);
     void RaiseToTop();
     void LowerToBottom();
-    virtual std::string GetDebugString(int debug_level) { return ""; }
+    virtual std::string GetDebugString(int indent_level);
     void ShowDimmed(bool dimmed, int anim_ms) { is_dimmed_ = dimmed; }
     // End Compositor::Actor methods
 
     virtual void SetSizeImpl(int width, int height) {}
 
    protected:
+    std::string name_;
     int x_, y_;
     int width_, height_;
     double scale_x_, scale_y_;
@@ -257,6 +258,7 @@ class MockCompositor : public Compositor {
     ContainerActor();
     virtual ~ContainerActor();
     void AddActor(Compositor::Actor* actor);
+    virtual std::string GetDebugString(int indent_level);
 
     Stacker<Actor*>* stacked_children() { return stacked_children_.get(); }
 

@@ -6,7 +6,6 @@
 #define WINDOW_MANAGER_STACKING_MANAGER_H_
 
 #include <map>
-#include <set>
 #include <tr1/memory>
 
 #include <gtest/gtest_prod.h>  // for FRIEND_TEST() macro
@@ -84,7 +83,7 @@ class StackingManager {
 
   // Is the passed-in X window one of our internal windows?
   bool IsInternalWindow(XWindow xid) {
-    return (xids_.find(xid) != xids_.end());
+    return (xid_to_layer_.find(xid) != xid_to_layer_.end());
   }
 
   // Stack a window (both its X window and its compositor actor) at the top
@@ -108,9 +107,14 @@ class StackingManager {
   bool StackWindowRelativeToOtherWindow(
       Window* win, Window* sibling, bool above, Layer layer);
 
+  // If 'xid' is being used as a layer's stacking reference point, return
+  // the actor corresponding to the layer.  Returns NULL otherwise.
+  Compositor::Actor* GetActorIfLayerXid(XWindow xid);
+
  private:
   friend class BasicWindowManagerTest;  // uses Get*ForLayer()
   FRIEND_TEST(LayoutManagerTest, InitialWindowStacking);  // uses 'layer_to_*'
+  FRIEND_TEST(WindowManagerTest, StackOverrideRedirectWindowsAboveLayers);
 
   // Get a layer's name.
   static const char* LayerToName(Layer layer);
@@ -131,8 +135,9 @@ class StackingManager {
   std::map<Layer, std::tr1::shared_ptr<Compositor::Actor> >
       layer_to_actor_;
 
-  // Set we can use for quick lookup of whether an X window belongs to us.
-  std::set<XWindow> xids_;
+  // Map we can use for quick lookup of whether an X window belongs to us,
+  // and to find the layer corresponding to an X window.
+  std::map<XWindow, Layer> xid_to_layer_;
 };
 
 }  // namespace window_manager

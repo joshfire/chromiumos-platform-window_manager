@@ -1218,36 +1218,25 @@ void WindowManager::HandleConfigureNotify(const XConfigureEvent& e) {
   //   composited position (or at least started the animation) then.
 
   if (win->override_redirect()) {
-    // TODO: This possibly isn't really correct.  We'll get this
-    // notification if we were the ones who moved this window (which I
-    // guess we shouldn't be doing, since it's override-redirect), so this
-    // will effectively cancel out whatever animation we previously
-    // started.
     win->MoveComposited(e.x, e.y, 0);
-
     win->SaveClientPosition(e.x, e.y);
     win->SaveClientSize(e.width, e.height);
 
     // When we see a stacking change for an override-redirect window, we
     // attempt to restack its actor correspondingly.  If we don't have an
     // actor for the X window directly under it, we walk down the stack
-    // until we find one.  This is primarily needed for things like
-    // xscreensaver in don't-use-the-MIT-screensaver-extension mode -- when
-    // it activates and raises its screensaver window, we need to make sure
-    // that it ends up on top of all other override-redirect windows.
-    // TODO: We should do something similar for non-override-redirect
-    // windows as well, but it's a) less critical there, since we already
-    // restack their composited windows ourselves when we restack the
-    // client windows, and b) tricky, because we also need to stack
-    // compositing actors that aren't tied to X windows (e.g. the panel
-    // bar, shadows, etc.).
+    // until we find one.
     XWindow above_xid = e.above;
     while (above_xid) {
       Window* above_win = GetWindow(above_xid);
-      if (above_win) {
+      Compositor::Actor* above_actor =
+          above_win ? above_win->actor() :
+          stacking_manager_->GetActorIfLayerXid(above_xid);
+
+      if (above_actor) {
         DLOG(INFO) << "Stacking override-redirect window " << win->xid_str()
-                   << "'s above " << above_win->xid_str() << "'s actor";
-        win->StackCompositedAbove(above_win->actor(), NULL, false);
+                   << "'s actor above window " << XidStr(above_xid) << "'s";
+        win->StackCompositedAbove(above_actor, NULL, false);
         break;
       }
       const XWindow* above_ptr = stacked_xids_->GetUnder(above_xid);
@@ -1640,8 +1629,8 @@ void WindowManager::SendNotifySyskeyMessage(chromeos::WmIpcSystemKey key) {
   msg.set_param(0, key);
   const XWindow chrome_window = GetArbitraryChromeWindow();
   if (chrome_window) {
+    DLOG(INFO) << "Sending syskey notification with param " << key;
     wm_ipc()->SendMessage(chrome_window, msg);
-    LOG(INFO) << "Syskey notification sent, param(0)=" << key;
   } else {
     LOG(WARNING) << "Not sending syskey notification: "
                  << "Chrome currently doesn't have any windows open.";

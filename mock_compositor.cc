@@ -9,6 +9,7 @@
 #include "window_manager/x_connection.h"
 
 using std::list;
+using std::string;
 
 namespace window_manager {
 
@@ -57,6 +58,13 @@ void MockCompositor::Actor::LowerToBottom() {
   parent_->stacked_children()->AddOnBottom(this);
 }
 
+string MockCompositor::Actor::GetDebugString(int indent_level) {
+  string out;
+  out.assign(indent_level * 2, ' ');
+  out += (!name_.empty() ? name_ : "unnamed actor") + "\n";
+  return out;
+}
+
 
 MockCompositor::ContainerActor::ContainerActor()
     : stacked_children_(new Stacker<Actor*>) {
@@ -69,6 +77,15 @@ MockCompositor::ContainerActor::~ContainerActor() {
        it != stacked_children_->items().end(); ++it) {
     (*it)->set_parent(NULL);
   }
+}
+
+string MockCompositor::ContainerActor::GetDebugString(int indent_level) {
+  string out = Actor::GetDebugString(indent_level);
+  for (list<Actor*>::const_iterator it = stacked_children_->items().begin();
+       it != stacked_children_->items().end(); ++it) {
+    out += (*it)->GetDebugString(indent_level + 1);
+  }
+  return out;
 }
 
 void MockCompositor::ContainerActor::AddActor(Compositor::Actor* actor) {

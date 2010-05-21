@@ -227,31 +227,40 @@ void RealCompositor::Actor::SetTilt(double tilt, int duration_ms) {
 }
 
 void RealCompositor::Actor::Raise(Compositor::Actor* other) {
-  CHECK(parent_) << "Tried to raise an actor that has no parent.";
+  CHECK(parent_) << "Raising actor " << this << ", which has no parent";
+  if (other == this) {
+    LOG(DFATAL) << "Got request to raise actor " << this << " above itself";
+    return;
+  }
   RealCompositor::Actor* other_nc =
       dynamic_cast<RealCompositor::Actor*>(other);
-  CHECK(other_nc) << "Failed to cast to an Actor in Raise";
+  CHECK(other_nc) << "Failed to cast " << other << " to an Actor in Raise()";
   parent_->RaiseChild(this, other_nc);
   SetDirty();
 }
 
 void RealCompositor::Actor::Lower(Compositor::Actor* other) {
-  CHECK(parent_) << "Tried to lower an actor that has no parent.";
+  CHECK(parent_) << "Lowering actor " << this << ", which has no parent";
+  if (other == this) {
+    LOG(DFATAL) << "Got request to lower actor " << this << " below itself";
+    return;
+  }
   RealCompositor::Actor* other_nc =
       dynamic_cast<RealCompositor::Actor*>(other);
-  CHECK(other_nc) << "Failed to cast to an Actor in Lower";
+  CHECK(other_nc) << "Failed to cast " << other << " to an Actor in Lower()";
   parent_->LowerChild(this, other_nc);
   SetDirty();
 }
 
 void RealCompositor::Actor::RaiseToTop() {
-  CHECK(parent_) << "Tried to raise an actor to top that has no parent.";
+  CHECK(parent_) << "Raising actor " << this << ", which has no parent, to top";
   parent_->RaiseChild(this, NULL);
   SetDirty();
 }
 
 void RealCompositor::Actor::LowerToBottom() {
-  CHECK(parent_) << "Tried to lower an actor to bottom that has no parent.";
+  CHECK(parent_) << "Lowering actor " << this << ", which has no parent, "
+                 << "to bottom";
   parent_->LowerChild(this, NULL);
   SetDirty();
 }
@@ -259,9 +268,7 @@ void RealCompositor::Actor::LowerToBottom() {
 string RealCompositor::Actor::GetDebugStringInternal(const string& type_name,
                                                     int indent_level) {
   string out;
-  for (int i = 0; i < indent_level; ++i)
-    out += "  ";
-
+  out.assign(indent_level * 2, ' ');
   out += StringPrintf("\"%s\" %p (%s%s) (%d, %d) %dx%d "
                         "scale=(%.2f, %.2f) %.2f%% tilt=%0.2f\n",
                       !name_.empty() ? name_.c_str() : "",

@@ -434,6 +434,7 @@ TEST_F(WindowManagerTest, Reparent) {
 }
 
 TEST_F(WindowManagerTest, RestackOverrideRedirectWindows) {
+  MockCompositor::StageActor* stage = compositor_->GetDefaultStage();
   XEvent event;
 
   // Create two override-redirect windows and map them both.
@@ -444,11 +445,8 @@ TEST_F(WindowManagerTest, RestackOverrideRedirectWindows) {
       true,    // override redirect
       false,   // input only
       0);      // event mask
-  xconn_->InitCreateWindowEvent(&event, xid);
-  wm_->HandleEvent(&event);
   xconn_->MapWindow(xid);
-  xconn_->InitMapEvent(&event, xid);
-  wm_->HandleEvent(&event);
+  SendInitialEventsForWindow(xid);
   Window* win = wm_->GetWindowOrDie(xid);
 
   XWindow xid2 = xconn_->CreateWindow(
@@ -458,29 +456,76 @@ TEST_F(WindowManagerTest, RestackOverrideRedirectWindows) {
       true,    // override redirect
       false,   // input only
       0);      // event mask
-  xconn_->InitCreateWindowEvent(&event, xid2);
-  wm_->HandleEvent(&event);
   xconn_->MapWindow(xid2);
-  xconn_->InitMapEvent(&event, xid2);
-  wm_->HandleEvent(&event);
+  SendInitialEventsForWindow(xid2);
   Window* win2 = wm_->GetWindowOrDie(xid2);
 
-  // Send a ConfigureNotify saying that the second window has been stacked
-  // on top of the first and then make sure that the compositing actors are
-  // stacked in the same manner.
-  xconn_->InitConfigureNotifyEvent(&event, xid2);
-  event.xconfigure.above = xid;
-  wm_->HandleEvent(&event);
-  MockCompositor::StageActor* stage = compositor_->GetDefaultStage();
+  // The second window should initially be stacked above the first.
   EXPECT_LT(stage->GetStackingIndex(win2->actor()),
             stage->GetStackingIndex(win->actor()));
 
-  // Now send a message saying that the first window is on top of the second.
+  // Send a message saying that the first window is on top of the second.
+  xconn_->StackWindow(xid, xid2, true);
   xconn_->InitConfigureNotifyEvent(&event, xid);
   event.xconfigure.above = xid2;
   wm_->HandleEvent(&event);
   EXPECT_LT(stage->GetStackingIndex(win->actor()),
             stage->GetStackingIndex(win2->actor()));
+}
+
+TEST_F(WindowManagerTest, StackOverrideRedirectWindowsAboveLayers) {
+  MockCompositor::StageActor* stage = compositor_->GetDefaultStage();
+  XEvent event;
+
+  // Create a normal, non-override-redirect window.
+  XWindow normal_xid = CreateSimpleWindow();
+  SendInitialEventsForWindow(normal_xid);
+  Window* normal_win = wm_->GetWindowOrDie(normal_xid);
+
+  // Create an override-redirect window and map it.
+  XWindow xid = xconn_->CreateWindow(
+      xconn_->GetRootWindow(),
+      10, 20,  // x, y
+      30, 40,  // width, height
+      true,    // override redirect
+      false,   // input only
+      0);      // event mask
+  xconn_->MapWindow(xid);
+  SendInitialEventsForWindow(xid);
+  Window* win = wm_->GetWindowOrDie(xid);
+
+  // The override-redirect window's actor should initially be stacked above
+  // the actor for the top stacking layer (and the normal window's actor,
+  // of course).
+  Compositor::Actor* debugging_layer_actor =
+      wm_->stacking_manager()->layer_to_actor_[
+          StackingManager::LAYER_DEBUGGING].get();
+  ASSERT_TRUE(debugging_layer_actor != NULL);
+  EXPECT_LT(stage->GetStackingIndex(win->actor()),
+            stage->GetStackingIndex(debugging_layer_actor));
+  EXPECT_LT(stage->GetStackingIndex(win->actor()),
+            stage->GetStackingIndex(normal_win->actor()));
+
+  // Stack the override-redirect window slightly lower, but still above the
+  // normal window.
+  XWindow fullscreen_layer_xid =
+      wm_->stacking_manager()->layer_to_xid_[
+          StackingManager::LAYER_FULLSCREEN_PANEL];
+  xconn_->StackWindow(xid, fullscreen_layer_xid, true);
+  xconn_->InitConfigureNotifyEvent(&event, xid);
+  event.xconfigure.above = fullscreen_layer_xid;
+  wm_->HandleEvent(&event);
+
+  // Create a second normal window and check that the override-redirect
+  // window is above it.  This protects against a regression of the issue
+  // described at http://crosbug.com/3451.
+  XWindow normal_xid2 = CreateSimpleWindow();
+  SendInitialEventsForWindow(normal_xid2);
+  Window* normal_win2 = wm_->GetWindowOrDie(normal_xid2);
+  EXPECT_LT(stage->GetStackingIndex(win->actor()),
+            stage->GetStackingIndex(normal_win->actor()));
+  EXPECT_LT(stage->GetStackingIndex(win->actor()),
+            stage->GetStackingIndex(normal_win2->actor()));
 }
 
 // Test that we honor ConfigureRequest events that change an unmapped

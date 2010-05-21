@@ -12,10 +12,11 @@
 #include "window_manager/window.h"
 #include "window_manager/x_connection.h"
 
-using std::set;
+using std::map;
 using std::string;
 using std::tr1::shared_ptr;
 using window_manager::util::FindWithDefault;
+using window_manager::util::XidStr;
 
 namespace window_manager {
 
@@ -34,10 +35,10 @@ StackingManager::StackingManager(XConnection* xconn,
     xconn_->SetStringProperty(
         xid, atom_cache->GetXAtom(ATOM_NET_WM_NAME), name);
     layer_to_xid_[layer] = xid;
-    xids_.insert(xid);
+    xid_to_layer_[xid] = layer;
 
     shared_ptr<Compositor::Actor> actor(compositor->CreateGroup());
-    actor->SetName(name);
+    actor->SetName(StringPrintf("%s %s", name.c_str(), XidStr(xid).c_str()));
     actor->SetVisibility(false);
     compositor->GetDefaultStage()->AddActor(actor.get());
     actor->RaiseToTop();
@@ -46,8 +47,9 @@ StackingManager::StackingManager(XConnection* xconn,
 }
 
 StackingManager::~StackingManager() {
-  for (set<XWindow>::const_iterator it = xids_.begin(); it != xids_.end(); ++it)
-    xconn_->DestroyWindow(*it);
+  for (map<XWindow, Layer>::const_iterator it = xid_to_layer_.begin();
+       it != xid_to_layer_.end(); ++it)
+    xconn_->DestroyWindow(it->first);
 }
 
 bool StackingManager::StackWindowAtTopOfLayer(Window* win, Layer layer) {
@@ -94,6 +96,13 @@ bool StackingManager::StackWindowRelativeToOtherWindow(
   return above ?
          win->StackClientAbove(sibling->xid()) :
          win->StackClientBelow(sibling->xid());
+}
+
+Compositor::Actor* StackingManager::GetActorIfLayerXid(XWindow xid) {
+  map<XWindow, Layer>::const_iterator it = xid_to_layer_.find(xid);
+  if (it == xid_to_layer_.end())
+    return NULL;
+  return GetActorForLayer(it->second);
 }
 
 // static
