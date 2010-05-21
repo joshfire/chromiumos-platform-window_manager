@@ -10,6 +10,11 @@
 #include "base/singleton.h"
 
 //
+// IMPORTANT NOTE:
+// An instance of the Profiler object is managed by base::Singleton.  For
+// Singleton to work properly, an instance of base::AtExitManager must be
+// created.  Check base/at_exit.h or base/singleton.h for more details.
+//
 // PROFILE_BUILD needs to be defined for the profile code to be included.
 //
 // PROFILER_START and PROFILER_STOP are used to signal start and stop of the
@@ -54,6 +59,9 @@
 #define PROFILER_STOP() \
   Singleton<window_manager::Profiler>()->Stop()
 
+#define PROFILER_FLUSH() \
+  Singleton<window_manager::Profiler>()->Flush()
+
 #define PROFILER_MARKER_TAP(name) \
   do { \
     static window_manager::Marker _marker_##name( \
@@ -77,6 +85,8 @@
 #define PROFILER_START(filename, max_num_symbols, max_num_samples) \
   do {} while (false)
 #define PROFILER_STOP() \
+  do {} while (false)
+#define PROFILER_FLUSH() \
   do {} while (false)
 #define PROFILER_MARKER_TAP(name) \
   do {} while (false)
@@ -125,12 +135,11 @@ class Profiler {
     int64 time;
   };
 
-  Profiler();
-
   void Start(ProfilerWriter* profiler_writer, unsigned int max_num_symbols,
              unsigned int max_num_samples);
 
   void Stop();
+  void Flush();
   unsigned int AddSymbol(const char* name);
   void AddSample(unsigned int symbol_id, int64 time, MarkFlag flag);
 
@@ -139,7 +148,11 @@ class Profiler {
   }
 
  private:
+  friend struct DefaultSingletonTraits<Profiler>;
   friend class ProfilerWriter;
+
+  Profiler();
+  ~Profiler();
 
   ProfilerWriter* profiler_writer_;
   unsigned int max_num_symbols_;
@@ -164,4 +177,3 @@ class ProfilerWriter {
 }  // namespace window_manager
 
 #endif  // WINDOW_MANAGER_PROFILER_H_
-

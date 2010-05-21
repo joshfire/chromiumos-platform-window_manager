@@ -14,6 +14,7 @@ extern "C" {
 
 #include <gflags/gflags.h>
 
+#include "base/at_exit.h"
 #include "base/command_line.h"
 #include "base/file_path.h"
 #include "base/file_util.h"
@@ -26,6 +27,7 @@ extern "C" {
 #include "window_manager/callback.h"
 #include "window_manager/compositor.h"
 #include "window_manager/event_loop.h"
+#include "window_manager/profiler.h"
 #include "window_manager/real_compositor.h"
 #if defined(COMPOSITOR_OPENGL)
 #include "window_manager/real_gl_interface.h"
@@ -48,6 +50,11 @@ DEFINE_bool(logtostderr, false,
 DEFINE_string(minidump_dir, ".",
               "Directory where crash minidumps should be written; created if "
               "it doesn't exist.");
+DEFINE_string(profile_dir, "./profile",
+              "Directory where profiles should be written; created if it "
+              "doesn't exist.");
+DEFINE_int32(profile_max_samples, 200,
+             "Maximum number of samples (buffer size) for profiler.");
 DEFINE_int32(pause_at_start, 0,
              "Specify this to pause for N seconds at startup.");
 DEFINE_bool(logged_in, true, "Whether Chrome is logged in or not.");
@@ -67,6 +74,9 @@ using window_manager::RealGles2Interface;
 #endif
 using window_manager::RealXConnection;
 using window_manager::WindowManager;
+
+// This should be adjusted according to number of PROFILER_MARKER_*
+static const int kMaxNumProfilerSymbols = 100;
 
 // Handler called by Chrome logging code on failed asserts.
 static void HandleLogAssert(const string& str) {
@@ -134,6 +144,27 @@ int main(int argc, char** argv) {
   // asserts, but Breakpad only installs signal handlers for SEGV, ABRT,
   // FPE, ILL, and BUS.  Use our own function to send ABRT instead.
   logging::SetLogAssertHandler(HandleLogAssert);
+
+#if defined(PROFILE_BUILD)
+  base::AtExitManager exit_manager;  // this is required to use Singleton
+  const string profile_basename = StringPrintf(
+      "prof_%s.%s", WindowManager::GetWmName(),
+      GetTimeAsString(::time(NULL)).c_str());
+
+  if (!file_util::CreateDirectory(FilePath(FLAGS_profile_dir))) {
+    LOG(ERROR) << "Unable to create profiling directory " << FLAGS_profile_dir;
+  } else {
+    SetUpLogSymlink(StringPrintf("%s/prof_%s.LATEST",
+                                 FLAGS_profile_dir.c_str(),
+                                 WindowManager::GetWmName()),
+                    profile_basename);
+  }
+
+  const string profile_path = FLAGS_profile_dir + "/" + profile_basename;
+  PROFILER_START(profile_path,
+                 kMaxNumProfilerSymbols,
+                 FLAGS_profile_max_samples);
+#endif
 
   const char* display_name = getenv("DISPLAY");
   Display* display = XOpenDisplay(display_name);

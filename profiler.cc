@@ -62,6 +62,10 @@ Profiler::Profiler()
       samples_(NULL) {
 }
 
+Profiler::~Profiler() {
+  Stop();
+}
+
 void Profiler::Start(ProfilerWriter* profiler_writer,
                      unsigned int max_num_symbols,
                      unsigned int max_num_samples) {
@@ -89,11 +93,16 @@ void Profiler::Stop() {
     LOG(WARNING) << "the profiler was not started";
     return;
   }
-  profiler_writer_->Update(*this);
+  Flush();
   max_num_symbols_ = 0;
   max_num_samples_ = 0;
   symbols_.reset(NULL);
   samples_.reset(NULL);
+}
+
+void Profiler::Flush() {
+  profiler_writer_->Update(*this);
+  num_samples_ = 0;
 }
 
 unsigned int Profiler::AddSymbol(const char* name) {
@@ -116,8 +125,7 @@ void Profiler::AddSample(unsigned int symbol_id, int64 time,
   samples_[num_samples_].flag = flag;
   samples_[num_samples_].time = time;
   if (++num_samples_ == max_num_samples_) {
-    profiler_writer_->Update(*this);
-    num_samples_ = 0;
+    Flush();
   }
 }
 
@@ -159,7 +167,7 @@ void ProfilerWriter::Update(const Profiler& profiler) {
 
   if (num_written_symbols_ != profiler.num_symbols_) {
     // overwrite symbols
-    result = fwrite(profiler.symbols_.get(), sizeof(profiler.symbols_),
+    result = fwrite(profiler.symbols_.get(), sizeof(profiler.symbols_[0]),
                     profiler.max_num_symbols_, fp);
     DCHECK_EQ(result, profiler.max_num_symbols_);
     num_written_symbols_ = profiler.num_symbols_;
@@ -167,7 +175,7 @@ void ProfilerWriter::Update(const Profiler& profiler) {
 
   // append samples
   fseek(fp, 0, SEEK_END);
-  result = fwrite(profiler.samples_.get(), sizeof(profiler.samples_),
+  result = fwrite(profiler.samples_.get(), sizeof(profiler.samples_[0]),
                   profiler.num_samples_, fp);
   DCHECK_EQ(result, profiler.num_samples_);
 
