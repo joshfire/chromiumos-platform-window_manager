@@ -208,16 +208,40 @@ Panel* BasicWindowManagerTest::CreatePanel(int width,
 void BasicWindowManagerTest::SendInitialEventsForWindow(XWindow xid) {
   MockXConnection::WindowInfo* info = xconn_->GetWindowInfoOrDie(xid);
   XEvent event;
+
+  // Send a CreateWindowEvent, a MapRequest event (if this is a
+  // non-override-redirect window), and a MapNotify event (if the window
+  // got mapped).  After each event, send a ConfigureNotify if the window
+  // was configured by the window manager.
   xconn_->InitCreateWindowEvent(&event, xid);
+  int initial_num_configures = info->num_configures;
   wm_->HandleEvent(&event);
+  if (info->num_configures != initial_num_configures) {
+    xconn_->InitConfigureNotifyEvent(&event, xid);
+    wm_->HandleEvent(&event);
+    initial_num_configures = info->num_configures;
+  }
+
   if (!info->override_redirect) {
     xconn_->InitMapRequestEvent(&event, xid);
     wm_->HandleEvent(&event);
     EXPECT_TRUE(info->mapped);
+
+    if (info->num_configures != initial_num_configures) {
+      xconn_->InitConfigureNotifyEvent(&event, xid);
+      wm_->HandleEvent(&event);
+      initial_num_configures = info->num_configures;
+    }
   }
+
   if (info->mapped) {
     xconn_->InitMapEvent(&event, xid);
     wm_->HandleEvent(&event);
+    if (info->num_configures != initial_num_configures) {
+      xconn_->InitConfigureNotifyEvent(&event, xid);
+      wm_->HandleEvent(&event);
+      initial_num_configures = info->num_configures;
+    }
   }
 }
 

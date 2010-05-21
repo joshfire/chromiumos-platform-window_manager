@@ -166,6 +166,11 @@ class MockXConnection : public XConnection {
     // windows.
     bool changed;
 
+    // Number of times that the window has been modified using a
+    // ConfigureWindow request (that is: move, resize, restack, or border
+    // width change).
+    int num_configures;
+
     // Information about button grabs installed on this window, keyed by
     // button.
     std::map<int, ButtonGrabInfo> button_grabs;
@@ -213,6 +218,9 @@ class MockXConnection : public XConnection {
     pointer_x_ = x;
     pointer_y_ = y;
   }
+
+  // Get the window beneath 'xid', or 0 if 'xid' is at the bottom.
+  XWindow GetWindowBelowWindow(XWindow xid) const;
 
   // Set a window as having an active pointer grab.  This is handy when
   // simulating a passive button grab being upgraded due to a button press.

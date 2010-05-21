@@ -78,7 +78,7 @@ void MockCompositor::ContainerActor::AddActor(Compositor::Actor* actor) {
   CHECK(cast_actor->parent() == static_cast<ContainerActor*>(NULL));
   cast_actor->set_parent(this);
   CHECK(!stacked_children_->Contains(cast_actor));
-  stacked_children_->AddOnBottom(cast_actor);
+  stacked_children_->AddOnTop(cast_actor);
 }
 
 int MockCompositor::ContainerActor::GetStackingIndex(Compositor::Actor* actor) {

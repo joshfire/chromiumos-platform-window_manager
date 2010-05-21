@@ -102,6 +102,7 @@ bool MockXConnection::MoveWindow(XWindow xid, int x, int y) {
   info->x = x;
   info->y = y;
   info->changed = true;
+  info->num_configures++;
   return true;
 }
 
@@ -112,14 +113,19 @@ bool MockXConnection::ResizeWindow(XWindow xid, int width, int height) {
   info->width = width;
   info->height = height;
   info->changed = true;
+  info->num_configures++;
   return true;
 }
 
 bool MockXConnection::RaiseWindow(XWindow xid) {
   if (!stacked_xids_->Contains(xid))
     return false;
+  WindowInfo* info = GetWindowInfo(xid);
+  if (!info)
+    return false;
   stacked_xids_->Remove(xid);
   stacked_xids_->AddOnTop(xid);
+  info->num_configures++;
   return true;
 }
 
@@ -140,11 +146,15 @@ bool MockXConnection::FocusWindow(XWindow xid, XTime event_time) {
 bool MockXConnection::StackWindow(XWindow xid, XWindow other, bool above) {
   if (!stacked_xids_->Contains(xid) || !stacked_xids_->Contains(other))
     return false;
+  WindowInfo* info = GetWindowInfo(xid);
+  if (!info)
+    return false;
   stacked_xids_->Remove(xid);
   if (above)
     stacked_xids_->AddAbove(xid, other);
   else
     stacked_xids_->AddBelow(xid, other);
+  info->num_configures++;
   return true;
 }
 
@@ -163,6 +173,7 @@ bool MockXConnection::SetWindowBorderWidth(XWindow xid, int width) {
   if (!info)
     return false;
   info->border_width = width;
+  info->num_configures++;
   return true;
 }
 
@@ -586,6 +597,7 @@ MockXConnection::WindowInfo::WindowInfo(XWindow xid, XWindow parent)
       shape_events_selected(false),
       randr_events_selected(false),
       changed(false),
+      num_configures(0),
       compositing_pixmap(None) {
 }
 
@@ -621,6 +633,11 @@ void MockXConnection::RemoveKeyMapping(KeyCode keycode, KeySym keysym) {
       << "Keysym " << keysym << " is mapped to keycode " << keysym_it->second
       << " rather than " << keycode;
   keysyms_to_keycodes_.erase(keysym_it);
+}
+
+XWindow MockXConnection::GetWindowBelowWindow(XWindow xid) const {
+  const XWindow* other_xid = stacked_xids_->GetUnder(xid);
+  return other_xid ? *other_xid : 0;
 }
 
 void MockXConnection::AppendEventToQueue(const XEvent& event,
@@ -685,7 +702,7 @@ void MockXConnection::InitConfigureNotifyEvent(XEvent* event,
   memset(conf_event, 0, sizeof(*conf_event));
   conf_event->type = ConfigureNotify;
   conf_event->window = info->xid;
-  conf_event->above = None;  // TODO: Handle stacking.
+  conf_event->above = GetWindowBelowWindow(xid);
   conf_event->override_redirect = info->override_redirect;
   conf_event->x = info->x;
   conf_event->y = info->y;

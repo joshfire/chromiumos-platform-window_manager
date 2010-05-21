@@ -199,8 +199,6 @@ TEST_F(LayoutManagerTest, ConfigureTransient) {
   MockXConnection::WindowInfo* owner_info =
       xconn_->GetWindowInfoOrDie(owner_xid);
   SendInitialEventsForWindow(owner_xid);
-  xconn_->InitConfigureNotifyEvent(&event, owner_xid);
-  wm_->HandleEvent(&event);
 
   EXPECT_EQ(0, owner_info->x);
   EXPECT_EQ(0, owner_info->y);
@@ -225,8 +223,6 @@ TEST_F(LayoutManagerTest, ConfigureTransient) {
             transient_info->x);
   EXPECT_EQ(owner_info->y + 0.5 * (owner_info->height - transient_info->height),
             transient_info->y);
-  xconn_->InitConfigureNotifyEvent(&event, owner_xid);
-  wm_->HandleEvent(&event);
 
   // Now resize the transient window and make sure that it gets re-centered.
   xconn_->InitConfigureRequestEvent(&event, transient_xid, 0, 0, 400, 300);
@@ -238,6 +234,8 @@ TEST_F(LayoutManagerTest, ConfigureTransient) {
             transient_info->x);
   EXPECT_EQ(owner_info->y + 0.5 * (owner_info->height - transient_info->height),
             transient_info->y);
+  xconn_->InitConfigureNotifyEvent(&event, owner_xid);
+  wm_->HandleEvent(&event);
 
   // Send a ConfigureRequest event to move and resize the transient window
   // and make sure that it gets applied.
@@ -248,6 +246,8 @@ TEST_F(LayoutManagerTest, ConfigureTransient) {
   EXPECT_EQ(owner_info->y + 10, transient_info->y);
   EXPECT_EQ(200, transient_info->width);
   EXPECT_EQ(150, transient_info->height);
+  xconn_->InitConfigureNotifyEvent(&event, owner_xid);
+  wm_->HandleEvent(&event);
 
   // If we resize the transient window again now, it shouldn't get
   // re-centered (since we explicitly moved it previously).
@@ -258,6 +258,8 @@ TEST_F(LayoutManagerTest, ConfigureTransient) {
   EXPECT_EQ(owner_info->y + 10, transient_info->y);
   EXPECT_EQ(40, transient_info->width);
   EXPECT_EQ(30, transient_info->height);
+  xconn_->InitConfigureNotifyEvent(&event, owner_xid);
+  wm_->HandleEvent(&event);
 
   // Create and map an info bubble window.
   int bubble_x = owner_info->x + 40;
@@ -281,8 +283,6 @@ TEST_F(LayoutManagerTest, ConfigureTransient) {
   // The bubble's initial position should be preserved.
   EXPECT_EQ(bubble_x, bubble_info->x);
   EXPECT_EQ(bubble_y, bubble_info->y);
-  xconn_->InitConfigureNotifyEvent(&event, owner_xid);
-  wm_->HandleEvent(&event);
 }
 
 TEST_F(LayoutManagerTest, FocusTransient) {

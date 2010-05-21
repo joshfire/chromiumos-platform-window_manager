@@ -94,10 +94,12 @@ class BasicWindowManagerTest : public ::testing::Test {
 
   // Make the window manager handle a CreateNotify event and, if the window
   // isn't override-redirect, a MapRequest.  If it's mapped after this
-  // (expected if we sent a MapRequest), send a MapNotify event.
+  // (expected if we sent a MapRequest), send a MapNotify event.  After
+  // each event, we send a ConfigureNotify if the window manager changed
+  // something about the window using a ConfigureWindow request.
   void SendInitialEventsForWindow(XWindow xid);
 
-  // Send a property change notification for the chrome window type.
+  // Send a property change notification for the Chrome window type.
   void SendWindowTypeEvent(XWindow xid);
 
   // Send a WmIpc message.
