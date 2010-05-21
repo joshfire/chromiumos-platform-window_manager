@@ -177,16 +177,17 @@ srcs = Split('''\
 libtest = wm_env.Library('test', Split(srcs))
 
 wm_env.Prepend(LIBS=[libwm_core, libwm_ipc])
-if 'USE_BREAKPAD' in ARGUMENTS:
-  wm_env.Append(CPPDEFINES=['USE_BREAKPAD'], LIBS=['libbreakpad'])
 
 backend_defines = {'opengl': ['COMPOSITOR_OPENGL'],
                    'opengles': ['COMPOSITOR_OPENGLES']}
 wm_env.Append(CPPDEFINES=backend_defines[backend])
 
+# Do not include crash dumper in the unit test environment
+test_env = wm_env.Clone()
+wm_env.Append(LIBS=['libcrash'])
+
 wm_env.Program('wm', 'main.cc')
 
-test_env = wm_env.Clone()
 test_env.Append(LIBS=['gtest'])
 # libtest needs to be listed first since it depends on wm_core and wm_ipc.
 test_env.Prepend(LIBS=[libtest])

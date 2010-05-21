@@ -21,9 +21,6 @@ extern "C" {
 #include "base/logging.h"
 #include "base/scoped_ptr.h"
 #include "base/string_util.h"
-#ifdef USE_BREAKPAD
-#include "handler/exception_handler.h"
-#endif
 #include "window_manager/callback.h"
 #include "window_manager/compositor.h"
 #include "window_manager/event_loop.h"
@@ -47,9 +44,6 @@ DEFINE_string(display, "",
               "X Display to connect to (overrides DISPLAY env var).");
 DEFINE_bool(logtostderr, false,
             "Write logs to stderr instead of to a file in log_dir.");
-DEFINE_string(minidump_dir, ".",
-              "Directory where crash minidumps should be written; created if "
-              "it doesn't exist.");
 DEFINE_string(profile_dir, "./profile",
               "Directory where profiles should be written; created if it "
               "doesn't exist.");
@@ -110,13 +104,6 @@ int main(int argc, char** argv) {
   CommandLine::Init(argc, argv);
   if (FLAGS_pause_at_start > 0)
     sleep(FLAGS_pause_at_start);
-
-#ifdef USE_BREAKPAD
-  if (!file_util::CreateDirectory(FilePath(FLAGS_minidump_dir)))
-    LOG(ERROR) << "Unable to create minidump directory " << FLAGS_minidump_dir;
-  google_breakpad::ExceptionHandler exception_handler(
-      FLAGS_minidump_dir, NULL, NULL, NULL, true);
-#endif
 
   const string log_basename = StringPrintf(
       "%s.%s", WindowManager::GetWmName(),
