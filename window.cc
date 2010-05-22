@@ -132,7 +132,6 @@ Window::~Window() {
 }
 
 void Window::SetTitle(const string& title) {
-  DLOG(INFO) << "Setting " << xid_str() << "'s title to \"" << title << "\"";
   title_ = title;
   if (actor_.get() != NULL) {
     if (title_.empty()) {
