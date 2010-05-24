@@ -36,6 +36,7 @@ extern "C" {
 #include "window_manager/login_controller.h"
 #include "window_manager/metrics_reporter.h"
 #include "window_manager/panel_manager.h"
+#include "window_manager/profiler.h"
 #include "window_manager/stacking_manager.h"
 #include "window_manager/util.h"
 #include "window_manager/window.h"
@@ -560,6 +561,10 @@ void WindowManager::ToggleClientWindowDebugging() {
   UpdateClientWindowDebugging();
 }
 
+void WindowManager::StopProfiler() {
+  PROFILER_STOP();
+}
+
 void WindowManager::UpdateClientWindowDebugging() {
   DLOG(INFO) << "Compositing actors:\n" << stage_->GetDebugString(0);
 
@@ -772,6 +777,13 @@ void WindowManager::RegisterKeyBindings() {
       NULL, NULL);
   key_bindings_->AddBinding(
       KeyBindings::KeyCombo(XK_F9), "toggle-client-window-debugging");
+
+  key_bindings_->AddAction(
+      "stop-profiler",
+      NewPermanentCallback(this, &WindowManager::StopProfiler),
+      NULL, NULL);
+  key_bindings_->AddBinding(
+      KeyBindings::KeyCombo(XK_F10), "stop-profiler");
 
   key_bindings_->AddAction(
       "lock-screen",

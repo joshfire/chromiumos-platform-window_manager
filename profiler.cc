@@ -101,6 +101,9 @@ void Profiler::Stop() {
 }
 
 void Profiler::Flush() {
+  if (!IsStarted()) {
+    return;
+  }
   profiler_writer_->Update(*this);
   num_samples_ = 0;
 }
@@ -117,6 +120,9 @@ unsigned int Profiler::AddSymbol(const char* name) {
 
 void Profiler::AddSample(unsigned int symbol_id, int64 time,
                          Profiler::MarkFlag flag) {
+  if (!IsStarted()) {
+    return;
+  }
   if (symbol_id >= num_symbols_) {
     LOG(WARNING) << "symbol id provided exceeds number of symbols";
     return;

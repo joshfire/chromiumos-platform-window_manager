@@ -20,6 +20,7 @@
 #include "base/logging.h"
 #include "window_manager/gl_interface.h"
 #include "window_manager/image_container.h"
+#include "window_manager/profiler.h"
 #include "window_manager/util.h"
 
 DECLARE_bool(compositor_display_debug_needle);
@@ -556,6 +557,7 @@ void OpenGlDrawVisitor::DrawNeedle() {
 void OpenGlDrawVisitor::VisitStage(RealCompositor::StageActor* actor) {
   if (!actor->IsVisible()) return;
 
+  PROFILER_MARKER_BEGIN(_Visit_Stage_);
   stage_ = actor;
   OpenGlQuadDrawingData* drawing_data =
       dynamic_cast<OpenGlQuadDrawingData*>(quad_drawing_data_.get());
@@ -596,7 +598,9 @@ void OpenGlDrawVisitor::VisitStage(RealCompositor::StageActor* actor) {
   // For the first pass, we want to collect only opaque actors, in
   // front to back order.
   visit_opaque_ = true;
+  PROFILER_MARKER_BEGIN(_Opaque_Pass_);
   VisitContainer(actor);
+  PROFILER_MARKER_END(_Opaque_Pass_);
 
 #ifdef EXTRA_LOGGING
   DLOG(INFO) << "Ending OPAQUE pass.";
@@ -607,7 +611,9 @@ void OpenGlDrawVisitor::VisitStage(RealCompositor::StageActor* actor) {
   gl_interface_->DepthMask(GL_FALSE);
   gl_interface_->Enable(GL_BLEND);
   visit_opaque_ = false;
+  PROFILER_MARKER_BEGIN(_Transparent_Pass_);
   VisitContainer(actor);
+  PROFILER_MARKER_END(_Transparent_Pass_);
 
   // Turn the depth mask back on now.
   gl_interface_->DepthMask(GL_TRUE);
@@ -616,11 +622,19 @@ void OpenGlDrawVisitor::VisitStage(RealCompositor::StageActor* actor) {
   if (FLAGS_compositor_display_debug_needle) {
     DrawNeedle();
   }
+  PROFILER_MARKER_BEGIN(_Swap_Buffer_);
   gl_interface_->SwapGlxBuffers(actor->GetStageXWindow());
+  PROFILER_MARKER_END(_Swap_Buffer_);
   ++num_frames_drawn_;
 #ifdef EXTRA_LOGGING
   DLOG(INFO) << "Ending TRANSPARENT pass.";
 #endif
+  PROFILER_MARKER_END(_Visit_Stage_);
+  // The profiler is flushed explicitly every 100 frames, or flushed
+  // implicitly when the internal buffer is full.
+  if (num_frames_drawn_ % 100 == 0) {
+    PROFILER_FLUSH();
+  }
   stage_ = NULL;
 }
 
