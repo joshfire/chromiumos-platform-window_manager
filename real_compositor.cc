@@ -581,8 +581,9 @@ RealCompositor::StageActor::StageActor(RealCompositor* the_compositor,
                                        int width, int height)
     : RealCompositor::ContainerActor(the_compositor),
       window_(0),
+      stage_color_changed_(true),
       was_resized_(true),
-      stage_color_(1.f, 1.f, 1.f) {
+      stage_color_(0.f, 0.f, 0.f) {
   window_ = compositor()->x_conn()->CreateSimpleWindow(
       compositor()->x_conn()->GetRootWindow(),
       0, 0, width, height);
@@ -596,6 +597,7 @@ RealCompositor::StageActor::~StageActor() {
 
 void RealCompositor::StageActor::SetStageColor(const Compositor::Color& color) {
   stage_color_ = color;
+  stage_color_changed_ = true;
 }
 
 void RealCompositor::StageActor::SetSizeImpl(int* width, int* height) {

@@ -49,6 +49,12 @@ class MockGLInterface : public GLInterface {
   void BufferData(GLenum target, GLsizeiptr size, const GLvoid* data,
                   GLenum usage) {}
   void Clear(GLbitfield mask) {}
+  void ClearColor(GLfloat red, GLfloat green, GLfloat blue, GLfloat alpha) {
+    clear_red_ = red;
+    clear_green_ = green;
+    clear_blue_ = blue;
+    clear_alpha_ = alpha;
+  }
   void Color4f(GLfloat red, GLfloat green, GLfloat blue, GLfloat alpha) {}
   void DeleteBuffers(GLsizei n, const GLuint* buffers) {}
   void DeleteTextures(GLsizei n, const GLuint* textures) {}
@@ -93,6 +99,10 @@ class MockGLInterface : public GLInterface {
 
   // Begin test-only methods.
   Rect viewport() const { return viewport_; }
+  GLfloat clear_red() const { return clear_red_; }
+  GLfloat clear_green() const { return clear_green_; }
+  GLfloat clear_blue() const { return clear_blue_; }
+  GLfloat clear_alpha() const { return clear_alpha_; }
   // End test-only methods.
 
  private:
@@ -102,6 +112,9 @@ class MockGLInterface : public GLInterface {
 
   // Most recent dimensions set using Viewport().
   Rect viewport_;
+
+  // Most recent color set using ClearColor().
+  GLfloat clear_red_, clear_green_, clear_blue_, clear_alpha_;
 
   // Next ID to hand out in CreateGlxPixmap().
   GLXPixmap next_glx_pixmap_id_;

@@ -46,6 +46,7 @@ class RealGLInterface : public GLInterface {
   void BufferData(GLenum target, GLsizeiptr size, const GLvoid* data,
                   GLenum usage);
   void Clear(GLbitfield mask);
+  void ClearColor(GLfloat red, GLfloat green, GLfloat blue, GLfloat alpha);
   void Color4f(GLfloat red, GLfloat green, GLfloat blue, GLfloat alpha);
   void DeleteBuffers(GLsizei n, const GLuint* buffers);
   void DeleteTextures(GLsizei n, const GLuint* textures);

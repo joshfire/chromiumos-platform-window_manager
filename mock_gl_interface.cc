@@ -89,6 +89,10 @@ namespace window_manager {
 
 MockGLInterface::MockGLInterface()
     : mock_context_(&kContextRec),
+      clear_red_(0.f),
+      clear_green_(0.f),
+      clear_blue_(0.f),
+      clear_alpha_(0.f),
       next_glx_pixmap_id_(1) {
   mock_configs_.reset(new GLXFBConfig[2]);
   kConfigRec24.depthBits = 24;

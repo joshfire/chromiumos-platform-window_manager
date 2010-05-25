@@ -563,6 +563,12 @@ void OpenGlDrawVisitor::VisitStage(RealCompositor::StageActor* actor) {
       dynamic_cast<OpenGlQuadDrawingData*>(quad_drawing_data_.get());
   CHECK(drawing_data);
 
+  if (actor->stage_color_changed()) {
+    const Compositor::Color& color = actor->stage_color();
+    gl_interface_->ClearColor(color.red, color.green, color.blue, 1.f);
+    actor->unset_stage_color_changed();
+  }
+
   if (actor->was_resized()) {
     gl_interface_->Viewport(0, 0, actor->width(), actor->height());
     actor->unset_was_resized();

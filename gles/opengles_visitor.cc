@@ -141,6 +141,12 @@ void OpenGlesDrawVisitor::VisitStage(RealCompositor::StageActor* actor) {
   if (!actor->IsVisible())
     return;
 
+  if (actor->stage_color_changed()) {
+    const Compositor::Color& color = actor->stage_color();
+    gl_->ClearColor(color.red, color.green, color.blue, 1.f);
+    actor->unset_stage_color_changed();
+  }
+
   if (actor->was_resized()) {
     // TODO: Expose glViewport() and invoke it here with
     // (0, 0, actor->width(), actor->height()).
@@ -148,9 +154,6 @@ void OpenGlesDrawVisitor::VisitStage(RealCompositor::StageActor* actor) {
     actor->unset_was_resized();
   }
 
-  // TODO: We don't need to clear color, remove this when background
-  // images work correctly.
-  gl_->ClearColor(.86f, .2f, .44f, 1.f);
   gl_->Clear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
   perspective_ = Matrix4::orthographic(

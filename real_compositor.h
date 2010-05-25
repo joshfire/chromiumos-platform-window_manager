@@ -557,6 +557,9 @@ class RealCompositor : public Compositor {
     // End RealCompositor::StageActor implementation.
 
     const Compositor::Color& stage_color() const { return stage_color_; }
+    bool stage_color_changed() const { return stage_color_changed_; }
+    void unset_stage_color_changed() { stage_color_changed_ = false; }
+
     bool was_resized() const { return was_resized_; }
     void unset_was_resized() { was_resized_ = false; }
 
@@ -566,6 +569,10 @@ class RealCompositor : public Compositor {
    private:
     // This is the XWindow associated with the stage.  Owned by this class.
     XWindow window_;
+
+    // Has the stage's color been changed?  This gets set by
+    // SetStageColor() and checked and reset by the visitor.
+    bool stage_color_changed_;
 
     // Has the stage been resized?  This gets set by SetSizeImpl() and
     // then checked and reset by the visitor after it resizes the viewport.

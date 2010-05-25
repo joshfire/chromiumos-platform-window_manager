@@ -243,8 +243,13 @@ void RealGLInterface::Clear(GLbitfield mask) {
   glClear(mask);
 }
 
+void RealGLInterface::ClearColor(GLfloat red, GLfloat green, GLfloat blue,
+                                 GLfloat alpha) {
+  glClearColor(red, green, blue, alpha);
+}
+
 void RealGLInterface::Color4f(GLfloat red, GLfloat green, GLfloat blue,
-                              GLfloat alpha ) {
+                              GLfloat alpha) {
   glColor4f(red, green, blue, alpha);
 }
 

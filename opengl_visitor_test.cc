@@ -196,6 +196,27 @@ TEST_F(OpenGlVisitorTest, ResizeViewport) {
   EXPECT_EQ(new_height, gl_interface()->viewport().height);
 }
 
+// Check that the stage background color is used.
+TEST_F(OpenGlVisitorTest, StageColor) {
+  RealCompositor::StageActor* stage = compositor()->GetDefaultStage();
+
+  stage->SetStageColor(Compositor::Color(0.f, 0.f, 0.f));
+  OpenGlDrawVisitor visitor(gl_interface(), compositor(), stage);
+  stage->Accept(&visitor);
+  EXPECT_FLOAT_EQ(0.f, gl_interface()->clear_red());
+  EXPECT_FLOAT_EQ(0.f, gl_interface()->clear_green());
+  EXPECT_FLOAT_EQ(0.f, gl_interface()->clear_blue());
+  EXPECT_FLOAT_EQ(1.f, gl_interface()->clear_alpha());
+
+  const float new_red = 0.86f, new_green = 0.24f, new_blue = 0.51f;
+  stage->SetStageColor(Compositor::Color(new_red, new_green, new_blue));
+  stage->Accept(&visitor);
+  EXPECT_FLOAT_EQ(new_red, gl_interface()->clear_red());
+  EXPECT_FLOAT_EQ(new_green, gl_interface()->clear_green());
+  EXPECT_FLOAT_EQ(new_blue, gl_interface()->clear_blue());
+  EXPECT_FLOAT_EQ(1.f, gl_interface()->clear_alpha());
+}
+
 }  // end namespace window_manager
 
 int main(int argc, char** argv) {

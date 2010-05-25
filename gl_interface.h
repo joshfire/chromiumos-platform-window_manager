@@ -61,6 +61,8 @@ class GLInterface : virtual public GLInterfaceBase {
   virtual void BufferData(GLenum target, GLsizeiptr size, const GLvoid* data,
                           GLenum usage) = 0;
   virtual void Clear(GLbitfield mask) = 0;
+  virtual void ClearColor(GLfloat red, GLfloat green, GLfloat blue,
+                          GLfloat alpha) = 0;
   virtual void Color4f(GLfloat red, GLfloat green, GLfloat blue,
                        GLfloat alpha) = 0;
   virtual void DeleteBuffers(GLsizei n, const GLuint* buffers) = 0;
