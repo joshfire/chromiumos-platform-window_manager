@@ -54,6 +54,7 @@ void Marker::End() {
 //
 Profiler::Profiler()
     : profiler_writer_(NULL),
+      status_(STATUS_STOP),
       max_num_symbols_(0),
       max_num_samples_(0),
       num_symbols_(0),
@@ -69,7 +70,7 @@ Profiler::~Profiler() {
 void Profiler::Start(ProfilerWriter* profiler_writer,
                      unsigned int max_num_symbols,
                      unsigned int max_num_samples) {
-  if (IsStarted()) {
+  if (status_ != STATUS_STOP) {
     LOG(WARNING) << "the profiler has already started";
   } else if (profiler_writer == NULL) {
     LOG(WARNING) << "profiler writer cannot be NULL";
@@ -79,6 +80,7 @@ void Profiler::Start(ProfilerWriter* profiler_writer,
     profiler_writer_ = profiler_writer;
     max_num_symbols_ = max_num_symbols;
     max_num_samples_ = max_num_samples;
+    status_ = STATUS_RUN;
 
     symbols_.reset(new Symbol[max_num_symbols_]);
     samples_.reset(new Sample[max_num_samples_]);
@@ -88,8 +90,20 @@ void Profiler::Start(ProfilerWriter* profiler_writer,
   }
 }
 
+void Profiler::Pause() {
+  if (status_ == STATUS_RUN) {
+    status_ = STATUS_SUSPEND;
+  }
+}
+
+void Profiler::Resume() {
+  if (status_ == STATUS_SUSPEND) {
+    status_ = STATUS_RUN;
+  }
+}
+
 void Profiler::Stop() {
-  if (!IsStarted()) {
+  if (status_ == STATUS_STOP) {
     LOG(WARNING) << "the profiler was not started";
     return;
   }
@@ -98,18 +112,18 @@ void Profiler::Stop() {
   max_num_samples_ = 0;
   symbols_.reset(NULL);
   samples_.reset(NULL);
+  status_ = STATUS_STOP;
 }
 
 void Profiler::Flush() {
-  if (!IsStarted()) {
-    return;
+  if (status_ != STATUS_STOP && num_samples_ != 0) {
+    profiler_writer_->Update(*this);
+    num_samples_ = 0;
   }
-  profiler_writer_->Update(*this);
-  num_samples_ = 0;
 }
 
 unsigned int Profiler::AddSymbol(const char* name) {
-  if (!IsStarted() || num_symbols_ == max_num_symbols_) {
+  if (status_ != STATUS_RUN || num_symbols_ == max_num_symbols_) {
     return max_num_symbols_;
   }
   strncpy(symbols_[num_symbols_].name, name,
@@ -120,7 +134,7 @@ unsigned int Profiler::AddSymbol(const char* name) {
 
 void Profiler::AddSample(unsigned int symbol_id, int64 time,
                          Profiler::MarkFlag flag) {
-  if (!IsStarted()) {
+  if (status_ != STATUS_RUN) {
     return;
   }
   if (symbol_id >= num_symbols_) {
@@ -189,4 +203,3 @@ void ProfilerWriter::Update(const Profiler& profiler) {
 }
 
 }  // namespace window_manager
-

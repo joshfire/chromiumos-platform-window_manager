@@ -172,8 +172,8 @@ class WindowManager : public PanelManagerAreaChangeListener {
   // Callback to show or hide debugging information about client windows.
   void ToggleClientWindowDebugging();
 
-  // Callback to stop profiler.
-  void StopProfiler();
+  // Callback to toggle profiler states.
+  void ToggleProfiler();
 
   // Function to update client window debugging info.  Called from the
   // layout manager.

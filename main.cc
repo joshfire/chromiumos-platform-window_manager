@@ -148,9 +148,9 @@ int main(int argc, char** argv) {
   }
 
   const string profile_path = FLAGS_profile_dir + "/" + profile_basename;
-  PROFILER_START(profile_path,
-                 kMaxNumProfilerSymbols,
-                 FLAGS_profile_max_samples);
+  Singleton<window_manager::Profiler>()->Start(
+      new window_manager::ProfilerWriter(FilePath(profile_path)),
+      kMaxNumProfilerSymbols, FLAGS_profile_max_samples);
 #endif
 
   const char* display_name = getenv("DISPLAY");

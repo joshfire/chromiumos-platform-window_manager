@@ -17,10 +17,12 @@
 //
 // PROFILE_BUILD needs to be defined for the profile code to be included.
 //
-// PROFILER_START and PROFILER_STOP are used to signal start and stop of the
+// Profiler::Start and Profiler::Stop are used to signal start and stop of the
 // profiler, both should be called only once throughout the program.
-// PROFILER_START should be called before any of the other PROFILER_* macros
-// are used.  PROFILER_STOP is called at the very end.
+// Profiler::Start should be called before any of the other PROFILER_* macros
+// are used.  Profiler::Stop is called at the very end, but it is optional since
+// the destructor will call it again.  PROFILER_PAUSE / PROFILER_RESUME can be
+// used to pause/resume the profiler once it is started.
 //
 // PROFILER_MARKER_BEGIN and PROFILER_MARKER_END are used in conjunction to
 // mark a region for timing.  PROFILER_MARKER_END must match with a
@@ -51,13 +53,11 @@
 
 #if defined(PROFILE_BUILD)
 
-#define PROFILER_START(file_path, max_num_symbols, max_num_samples)  \
-  Singleton<window_manager::Profiler>()->Start( \
-      new window_manager::ProfilerWriter(FilePath(file_path)), \
-      max_num_symbols, max_num_samples)
+#define PROFILER_PAUSE() \
+  Singleton<window_manager::Profiler>()->Pause()
 
-#define PROFILER_STOP() \
-  Singleton<window_manager::Profiler>()->Stop()
+#define PROFILER_RESUME() \
+  Singleton<window_manager::Profiler>()->Resume()
 
 #define PROFILER_FLUSH() \
   Singleton<window_manager::Profiler>()->Flush()
@@ -82,9 +82,9 @@
 
 #else
 
-#define PROFILER_START(filename, max_num_symbols, max_num_samples) \
+#define PROFILER_PAUSE() \
   do {} while (false)
-#define PROFILER_STOP() \
+#define PROFILER_RESUME() \
   do {} while (false)
 #define PROFILER_FLUSH() \
   do {} while (false)
@@ -119,6 +119,12 @@ class Marker {
 
 class Profiler {
  public:
+  enum ProfilerStatus {
+    STATUS_STOP = 0,
+    STATUS_SUSPEND,
+    STATUS_RUN
+  };
+
   enum MarkFlag {
     MARK_FLAG_TAP = 0,
     MARK_FLAG_BEGIN,
@@ -137,14 +143,16 @@ class Profiler {
 
   void Start(ProfilerWriter* profiler_writer, unsigned int max_num_symbols,
              unsigned int max_num_samples);
-
+  void Pause();
+  void Resume();
   void Stop();
+
   void Flush();
   unsigned int AddSymbol(const char* name);
   void AddSample(unsigned int symbol_id, int64 time, MarkFlag flag);
 
-  bool IsStarted() const {
-    return max_num_symbols_ > 0;
+  ProfilerStatus status() const {
+    return status_;
   }
 
  private:
@@ -155,6 +163,7 @@ class Profiler {
   ~Profiler();
 
   ProfilerWriter* profiler_writer_;
+  ProfilerStatus status_;
   unsigned int max_num_symbols_;
   unsigned int max_num_samples_;
   unsigned int num_symbols_;

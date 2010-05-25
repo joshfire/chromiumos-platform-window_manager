@@ -561,8 +561,15 @@ void WindowManager::ToggleClientWindowDebugging() {
   UpdateClientWindowDebugging();
 }
 
-void WindowManager::StopProfiler() {
-  PROFILER_STOP();
+void WindowManager::ToggleProfiler() {
+#if defined(PROFILE_BUILD)
+  Profiler* profiler = Singleton<Profiler>::get();
+  if (profiler->status() == Profiler::STATUS_RUN) {
+    profiler->Pause();
+  } else if (profiler->status() == Profiler::STATUS_SUSPEND) {
+    profiler->Resume();
+  }
+#endif
 }
 
 void WindowManager::UpdateClientWindowDebugging() {
@@ -779,11 +786,11 @@ void WindowManager::RegisterKeyBindings() {
       KeyBindings::KeyCombo(XK_F9), "toggle-client-window-debugging");
 
   key_bindings_->AddAction(
-      "stop-profiler",
-      NewPermanentCallback(this, &WindowManager::StopProfiler),
+      "toggle-profiler",
+      NewPermanentCallback(this, &WindowManager::ToggleProfiler),
       NULL, NULL);
   key_bindings_->AddBinding(
-      KeyBindings::KeyCombo(XK_F10), "stop-profiler");
+      KeyBindings::KeyCombo(XK_F10), "toggle-profiler");
 
   key_bindings_->AddAction(
       "lock-screen",
