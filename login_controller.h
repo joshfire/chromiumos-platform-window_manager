@@ -11,6 +11,7 @@
 #include <gtest/gtest_prod.h>  // for FRIEND_TEST() macro
 
 #include "base/logging.h"
+#include "base/scoped_ptr.h"
 #include "window_manager/event_consumer.h"
 #include "window_manager/event_consumer_registrar.h"
 
@@ -18,6 +19,7 @@ namespace window_manager {
 
 struct Point;
 struct Rect;
+class KeyBindingsGroup;
 class WindowManager;
 
 // LoginController is an EventConsumer responsible for positioning the windows
@@ -231,6 +233,12 @@ class LoginController : public EventConsumer {
   // Focus a window and save it to login_window_to_focus_.
   void FocusLoginWindow(Window* win, XTime timestamp);
 
+  // Registers key bindings for navigation through users.
+  void RegisterNavigationKeyBindings();
+
+  // Navigate through users (left/right). Doesn't wrap around the edge.
+  void CycleSelectedEntry(bool to_right);
+
   WindowManager* wm_;
 
   EventConsumerRegistrar registrar_;
@@ -302,6 +310,14 @@ class LoginController : public EventConsumer {
   // track this so that if a transient window takes the focus and then gets
   // closed, we can re-focus the window that had the focus before.
   Window* login_window_to_focus_;
+
+  // Key bindings that should only be enabled at the login screen
+  // (when user is not logged in).
+  scoped_ptr<KeyBindingsGroup> login_screen_key_bindings_group_;
+
+  // True when key bindings has been enabled for login for the first time.
+  // It's set to true once first login window is mapped.
+  bool login_keys_enabled_;
 
   DISALLOW_COPY_AND_ASSIGN(LoginController);
 };

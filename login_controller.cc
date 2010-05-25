@@ -12,6 +12,7 @@
 #include "window_manager/event_loop.h"
 #include "window_manager/focus_manager.h"
 #include "window_manager/geometry.h"
+#include "window_manager/key_bindings.h"
 #include "window_manager/stacking_manager.h"
 #include "window_manager/util.h"
 #include "window_manager/window.h"
@@ -38,6 +39,10 @@ static const int kInitialShowDelayMs = 50;
 static const size_t kNoSelection = -1;
 
 static const int kNoTimer = -1;
+
+// Action names for navigating across user windows.
+static const char kSelectLeftAction[] = "login-select-left";
+static const char kSelectRightAction[] = "login-select-right";
 
 // Returns the index of the user the window belongs to or -1 if the window does
 // not have a parameter specifying the index.
@@ -118,11 +123,16 @@ LoginController::LoginController(WindowManager* wm)
       guest_window_(NULL),
       background_window_(NULL),
       initial_show_timeout_id_(kNoTimer),
-      login_window_to_focus_(NULL) {
+      login_window_to_focus_(NULL),
+      login_keys_enabled_(false) {
   registrar_.RegisterForChromeMessages(
       chromeos::WM_IPC_MESSAGE_WM_HIDE_LOGIN);
   registrar_.RegisterForChromeMessages(
       chromeos::WM_IPC_MESSAGE_WM_SET_LOGIN_STATE);
+  login_screen_key_bindings_group_.reset(
+      new KeyBindingsGroup(wm_->key_bindings()));
+  login_screen_key_bindings_group_->Disable();
+  RegisterNavigationKeyBindings();
 }
 
 LoginController::~LoginController() {
@@ -643,6 +653,7 @@ void LoginController::SelectEntryAt(size_t index) {
     if (!guest_window_) {
       waiting_for_guest_ = true;
       // We haven't got the guest window yet, tell chrome to create it.
+      login_screen_key_bindings_group_->Disable();
       wm_->wm_ipc()->SendMessage(
           entries_[0].border_window->xid(),  // Doesn't matter which window we
                                              // use.
@@ -779,6 +790,7 @@ void LoginController::Hide() {
 
 void LoginController::ToggleLoginEnabled(bool enable) {
   if (enable) {
+    login_screen_key_bindings_group_->Enable();
     for (size_t i = 0; i < entries_.size(); ++i) {
       if (i != selected_entry_index_) {
         wm_->ConfigureInputWindow(entries_[i].input_window_xid,
@@ -791,6 +803,7 @@ void LoginController::ToggleLoginEnabled(bool enable) {
       }
     }
   } else {
+    login_screen_key_bindings_group_->Disable();
     for (size_t i = 0; i < entries_.size(); ++i)
       wm_->ConfigureInputWindow(entries_[i].input_window_xid, -1, -1, 1, 1);
   }
@@ -798,6 +811,8 @@ void LoginController::ToggleLoginEnabled(bool enable) {
 
 void LoginController::SelectGuest() {
   DCHECK(guest_window_);
+
+  login_screen_key_bindings_group_->Disable();
 
   waiting_for_guest_ = false;
 
@@ -1061,6 +1076,11 @@ void LoginController::OnGotNewWindowOrPropertyChange() {
 
     DCHECK(!entries_.empty() && entries_[0].border_window);
     has_all_windows_ = true;
+    if (!login_keys_enabled_) {
+      // TODO(nkostylev): Pass IPC message from Chrome instead.
+      login_keys_enabled_ = true;
+      login_screen_key_bindings_group_->Enable();
+    }
 
     StackWindows();
 
@@ -1099,6 +1119,33 @@ void LoginController::FocusLoginWindow(Window* win, XTime timestamp) {
   DCHECK(win);
   wm_->FocusWindow(win, timestamp);
   login_window_to_focus_ = win;
+}
+
+void LoginController::RegisterNavigationKeyBindings() {
+  KeyBindings* kb = wm_->key_bindings();
+  kb->AddAction(
+      kSelectLeftAction,
+      NewPermanentCallback(this, &LoginController::CycleSelectedEntry, false),
+      NULL, NULL);
+  login_screen_key_bindings_group_->AddBinding(
+      KeyBindings::KeyCombo(XK_Left), kSelectLeftAction);
+  login_screen_key_bindings_group_->AddBinding(
+      KeyBindings::KeyCombo(XK_Tab, KeyBindings::kShiftMask),
+      kSelectLeftAction);
+  kb->AddAction(
+      kSelectRightAction,
+      NewPermanentCallback(this, &LoginController::CycleSelectedEntry, true),
+      NULL, NULL);
+  login_screen_key_bindings_group_->AddBinding(
+      KeyBindings::KeyCombo(XK_Right), kSelectRightAction);
+  login_screen_key_bindings_group_->AddBinding(
+      KeyBindings::KeyCombo(XK_Tab), kSelectRightAction);
+}
+
+void LoginController::CycleSelectedEntry(bool to_right) {
+  int index = static_cast<int>(selected_entry_index_) + (to_right ? 1 : -1);
+  if (index >= 0 && index < static_cast<int>(entries_.size()))
+    SelectEntryAt(static_cast<size_t>(index));
 }
 
 }  // namespace window_manager
