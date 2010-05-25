@@ -284,7 +284,6 @@ void LayoutManager::ToplevelWindow::ConfigureForActiveMode(bool animate) {
     case STATE_ACTIVE_MODE_ONSCREEN:
     case STATE_NEW:  {
       win_->MoveComposited(win_x, win_y, anim_ms);
-      win_->MoveClientToComposited();
       win_->SetCompositedOpacity(1.f, anim_ms / 4);
       win_->ScaleComposited(1.f, 1.f, anim_ms);
       SetState(STATE_ACTIVE_MODE_ONSCREEN);

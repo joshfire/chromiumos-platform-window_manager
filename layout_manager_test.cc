@@ -1074,6 +1074,43 @@ TEST_F(LayoutManagerTest, NestedTransients) {
                   *(wm_->GetWindowOrDie(another_transient_xid))) == toplevel);;
 }
 
+// Check that the initial Chrome window appears onscreen immediately
+// instead of sliding in from the side.
+TEST_F(LayoutManagerTest, NoSlideForInitialWindow) {
+  // Create a window and check that it's in the expected location.
+  XWindow xid = CreateSimpleWindow();
+  wm_->wm_ipc()->SetWindowType(
+      xid, chromeos::WM_IPC_WINDOW_CHROME_TOPLEVEL, NULL);
+  SendInitialEventsForWindow(xid);
+  Window* win = wm_->GetWindowOrDie(xid);
+  EXPECT_EQ(0, win->client_x());
+  EXPECT_EQ(0, win->client_y());
+  EXPECT_EQ(0, win->composited_x());
+  EXPECT_EQ(0, win->composited_y());
+
+  // The actor should've been moved immediately to its current location
+  // instead of getting animated.
+  MockCompositor::Actor* actor =
+      dynamic_cast<MockCompositor::Actor*>(win->actor());
+  CHECK(actor);
+  EXPECT_FALSE(actor->position_was_animated());
+
+  // Now create a second window and check that it *does* get animated.
+  XWindow xid2 = CreateSimpleWindow();
+  wm_->wm_ipc()->SetWindowType(
+      xid2, chromeos::WM_IPC_WINDOW_CHROME_TOPLEVEL, NULL);
+  SendInitialEventsForWindow(xid2);
+  Window* win2 = wm_->GetWindowOrDie(xid2);
+  EXPECT_EQ(0, win2->client_x());
+  EXPECT_EQ(0, win2->client_y());
+  EXPECT_EQ(0, win2->composited_x());
+  EXPECT_EQ(0, win2->composited_y());
+  MockCompositor::Actor* actor2 =
+      dynamic_cast<MockCompositor::Actor*>(win2->actor());
+  CHECK(actor2);
+  EXPECT_TRUE(actor2->position_was_animated());
+}
+
 }  // namespace window_manager
 
 int main(int argc, char** argv) {

@@ -358,6 +358,8 @@ void LayoutManager::HandleWindowMap(Window* win) {
   DLOG(INFO) << "Handling window map for " << win->title()
              << " (" << win->xid_str() << ") of type " << win->type();
 
+  const size_t initial_num_toplevels = toplevels_.size();
+
   switch (win->type()) {
     case chromeos::WM_IPC_WINDOW_CHROME_TAB_SNAPSHOT: {
       // Register to get property changes for snapshot windows.
@@ -469,7 +471,10 @@ void LayoutManager::HandleWindowMap(Window* win) {
       break;
   }
 
-  LayoutWindows(true);
+  // Don't animate the first window that gets shown.
+  bool should_animate = !(initial_num_toplevels == 0 &&
+                          toplevels_.size() == 1);
+  LayoutWindows(should_animate);
 }
 
 void LayoutManager::HandleWindowUnmap(Window* win) {

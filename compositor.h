@@ -175,6 +175,7 @@ class MockCompositor : public Compositor {
           visible_(true),
           is_dimmed_(false),
           num_moves_(0),
+          position_was_animated_(false),
           parent_(NULL) {
     }
     virtual ~Actor();
@@ -187,6 +188,7 @@ class MockCompositor : public Compositor {
     bool visible() const { return visible_; }
     bool is_dimmed() const { return is_dimmed_; }
     int num_moves() const { return num_moves_; }
+    bool position_was_animated() const { return position_was_animated_; }
 
     MockCompositor::ContainerActor* parent() { return parent_; }
     void set_parent(MockCompositor::ContainerActor* new_parent) {
@@ -211,6 +213,7 @@ class MockCompositor : public Compositor {
       x_ = x;
       y_ = y;
       num_moves_++;
+      position_was_animated_ = (anim_ms > 0);
     }
     void MoveX(int x, int anim_ms) { Move(x, y_, anim_ms); }
     void MoveY(int y, int anim_ms) { Move(x_, y, anim_ms); }
@@ -246,6 +249,9 @@ class MockCompositor : public Compositor {
 
     // Number of times that the actor has been moved.
     int num_moves_;
+
+    // Did the last call to Move() contain a non-zero duration?
+    bool position_was_animated_;
 
     MockCompositor::ContainerActor* parent_;  // not owned
 
