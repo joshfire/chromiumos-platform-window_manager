@@ -5,15 +5,19 @@
 #ifndef WINDOW_MANAGER_PROFILER_H_
 #define WINDOW_MANAGER_PROFILER_H_
 
+#include <string>
+#include <stack>
 #include "base/file_path.h"
+#include "base/hash_tables.h"
 #include "base/scoped_ptr.h"
 #include "base/singleton.h"
 
 //
 // IMPORTANT NOTE:
-// An instance of the Profiler object is managed by base::Singleton.  For
-// Singleton to work properly, an instance of base::AtExitManager must be
-// created.  Check base/at_exit.h or base/singleton.h for more details.
+// Single instances of the Profiler and DynamicMarker objects are managed by
+// base::Singleton.  For Singleton to work properly, an instance of
+// base::AtExitManager must be created.  Check base/at_exit.h or
+// base/singleton.h for more details.
 //
 // PROFILE_BUILD needs to be defined for the profile code to be included.
 //
@@ -50,6 +54,12 @@
 //   ...
 // }
 //
+// PROFILER_DYNAMIC_MARKER_* macros are used to create dynamic markers.  They
+// are not statically compiled into the program, and can be created while the
+// program is running.  Use static markers whenever possible, they are
+// generally faster.  Call set_profiler on the DynamicMarker instance before
+// using the PROFILER_DYNAMIC_MARKER_* macros.
+//
 
 #if defined(PROFILE_BUILD)
 
@@ -80,6 +90,15 @@
 #define PROFILER_MARKER_END(name) \
   _marker_##name.End()
 
+#define PROFILER_DYNAMIC_MARKER_TAP(name) \
+  Singleton<window_manager::DynamicMarker>()->Tap(name)
+
+#define PROFILER_DYNAMIC_MARKER_BEGIN(name) \
+  Singleton<window_manager::DynamicMarker>()->Begin(name)
+
+#define PROFILER_DYNAMIC_MARKER_END() \
+  Singleton<window_manager::DynamicMarker>()->End()
+
 #else
 
 #define PROFILER_PAUSE() \
@@ -96,12 +115,18 @@
   do {} while (false)
 #define PROFILER_MARKER_END(name) \
   do {} while (false)
-
+#define PROFILER_DYNAMIC_MARKER_TAP(name) \
+  do {} while (false)
+#define PROFILER_DYNAMIC_MARKER_BEGIN(name) \
+  do {} while (false)
+#define PROFILER_DYNAMIC_MARKER_END() \
+  do {} while (false)
 #endif
 
 namespace window_manager {
 
 class Marker;
+class DynamicMarker;
 class Profiler;
 class ProfilerWriter;
 
@@ -116,6 +141,27 @@ class Marker {
   Profiler* profiler_;
   unsigned int symbol_id_;
 };  // Marker
+
+class DynamicMarker {
+ public:
+  void Tap(const char* name);
+  void Begin(const char* name);
+  void End();
+
+  void set_profiler(Profiler* profiler) {
+    profiler_ = profiler;
+  }
+
+ private:
+  friend struct DefaultSingletonTraits<DynamicMarker>;
+
+  DynamicMarker();
+  unsigned int GetSymbolId(const char* name);
+
+  Profiler* profiler_;
+  std::stack<unsigned int> recent_symbol_ids_;
+  base::hash_map<std::string, unsigned int> symbol_table_;
+};  // DynamicMarker
 
 class Profiler {
  public:
@@ -132,7 +178,7 @@ class Profiler {
   };
 
   struct Symbol {
-    char name[30];
+    char name[50];
   };
 
   struct Sample {

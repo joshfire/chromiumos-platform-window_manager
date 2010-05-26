@@ -4,13 +4,15 @@
 
 #include "window_manager/profiler.h"
 
+#include <cstring>
+#include <stack>
+
 #include <sys/time.h>
 #include <stdio.h>
 
-#include <cstring>
-
 #include "base/file_path.h"
 #include "base/file_util.h"
+#include "base/hash_tables.h"
 #include "base/logging.h"
 #include "base/scoped_ptr.h"
 #include "base/time.h"
@@ -47,6 +49,39 @@ void Marker::Begin() {
 
 void Marker::End() {
   profiler_->AddSample(symbol_id_, Now(), Profiler::MARK_FLAG_END);
+}
+
+//
+// DynamicMarker definition
+//
+DynamicMarker::DynamicMarker()
+    : profiler_(NULL) {
+}
+
+unsigned int DynamicMarker::GetSymbolId(const char* name) {
+  if (symbol_table_.find(name) == symbol_table_.end()) {
+    unsigned int symbol_id =  profiler_->AddSymbol(name);
+    symbol_table_[name] = symbol_id;
+    return symbol_id;
+  } else {
+    return symbol_table_[name];
+  }
+}
+
+void DynamicMarker::Tap(const char* name) {
+  profiler_->AddSample(GetSymbolId(name), Now(), Profiler::MARK_FLAG_TAP);
+}
+
+void DynamicMarker::Begin(const char* name) {
+  unsigned int symbol_id = GetSymbolId(name);
+  recent_symbol_ids_.push(symbol_id);
+  profiler_->AddSample(symbol_id, Now(), Profiler::MARK_FLAG_BEGIN);
+}
+
+void DynamicMarker::End() {
+  unsigned int symbol_id = recent_symbol_ids_.top();
+  profiler_->AddSample(symbol_id, Now(), Profiler::MARK_FLAG_END);
+  recent_symbol_ids_.pop();
 }
 
 //
@@ -93,6 +128,7 @@ void Profiler::Start(ProfilerWriter* profiler_writer,
 void Profiler::Pause() {
   if (status_ == STATUS_RUN) {
     status_ = STATUS_SUSPEND;
+    Flush();
   }
 }
 
@@ -123,7 +159,7 @@ void Profiler::Flush() {
 }
 
 unsigned int Profiler::AddSymbol(const char* name) {
-  if (status_ != STATUS_RUN || num_symbols_ == max_num_symbols_) {
+  if (status_ == STATUS_STOP || num_symbols_ == max_num_symbols_) {
     return max_num_symbols_;
   }
   strncpy(symbols_[num_symbols_].name, name,

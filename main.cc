@@ -49,6 +49,8 @@ DEFINE_string(profile_dir, "./profile",
               "doesn't exist.");
 DEFINE_int32(profile_max_samples, 200,
              "Maximum number of samples (buffer size) for profiler.");
+DEFINE_bool(start_profiler, false,
+            "Start profiler at window manager startup.");
 DEFINE_int32(pause_at_start, 0,
              "Specify this to pause for N seconds at startup.");
 DEFINE_bool(logged_in, true, "Whether Chrome is logged in or not.");
@@ -151,6 +153,13 @@ int main(int argc, char** argv) {
   Singleton<window_manager::Profiler>()->Start(
       new window_manager::ProfilerWriter(FilePath(profile_path)),
       kMaxNumProfilerSymbols, FLAGS_profile_max_samples);
+
+  Singleton<window_manager::DynamicMarker>()->set_profiler(
+      Singleton<window_manager::Profiler>::get());
+
+  if (!FLAGS_start_profiler) {
+    Singleton<window_manager::Profiler>()->Pause();
+  }
 #endif
 
   const char* display_name = getenv("DISPLAY");
