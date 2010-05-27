@@ -21,6 +21,7 @@
 #elif defined(COMPOSITOR_OPENGLES)
 #include "window_manager/gles/opengles_visitor.h"
 #endif
+#include "window_manager/profiler.h"
 #include "window_manager/util.h"
 #include "window_manager/x_connection.h"
 
@@ -755,18 +756,24 @@ void RealCompositor::DecrementNumAnimations() {
 }
 
 void RealCompositor::Draw() {
+  PROFILER_MARKER_BEGIN(RealCompositor_Draw);
   int64_t now = GetCurrentTimeMs();
   if (num_animations_ > 0 || dirty_) {
     actor_count_ = 0;
+    PROFILER_MARKER_BEGIN(RealCompositor_Draw_Update);
     default_stage_->Update(&actor_count_, now);
+    PROFILER_MARKER_END(RealCompositor_Draw_Update);
   }
   if (dirty_) {
     last_draw_time_ms_ = now;
+    PROFILER_MARKER_BEGIN(RealCompositor_Draw_Render);
     default_stage_->Accept(draw_visitor_);
+    PROFILER_MARKER_END(RealCompositor_Draw_Render);
     dirty_ = false;
   }
   if (num_animations_ == 0)
     DisableDrawTimeout();
+  PROFILER_MARKER_END(RealCompositor_Draw);
 }
 
 void RealCompositor::EnableDrawTimeout() {

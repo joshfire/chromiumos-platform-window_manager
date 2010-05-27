@@ -268,6 +268,7 @@ OpenGlDrawVisitor::OpenGlDrawVisitor(GLInterface* gl_interface,
 }
 
 void OpenGlDrawVisitor::FindFramebufferConfigurations() {
+  PROFILER_MARKER_BEGIN(FindFramebufferConfigurations);
   int num_fb_configs;
   GLXFBConfig config_32 = 0;
   GLXFBConfig config_24 = 0;
@@ -335,6 +336,7 @@ void OpenGlDrawVisitor::FindFramebufferConfigurations() {
 
   framebuffer_config_rgba_ = config_32;
   framebuffer_config_rgb_ = config_24;
+  PROFILER_MARKER_END(FindFramebufferConfigurations);
 }
 
 OpenGlDrawVisitor::~OpenGlDrawVisitor() {
@@ -350,6 +352,7 @@ OpenGlDrawVisitor::~OpenGlDrawVisitor() {
 
 void OpenGlDrawVisitor::BindImage(const ImageContainer* container,
                                   RealCompositor::QuadActor* actor) {
+  PROFILER_MARKER_BEGIN(BindImage);
   // Create an OpenGL texture with the loaded image data.
   GLuint new_texture;
   gl_interface_->Enable(GL_TEXTURE_2D);
@@ -383,6 +386,7 @@ void OpenGlDrawVisitor::BindImage(const ImageContainer* container,
                         RealCompositor::DrawingDataPtr(data));
   DLOG(INFO) << "Binding image " << container->filename()
              << " to texture " << new_texture;
+  PROFILER_MARKER_END(BindImage);
 }
 
 void OpenGlDrawVisitor::VisitActor(RealCompositor::Actor* actor) {
@@ -392,6 +396,7 @@ void OpenGlDrawVisitor::VisitActor(RealCompositor::Actor* actor) {
 void OpenGlDrawVisitor::VisitTexturePixmap(
     RealCompositor::TexturePixmapActor* actor) {
   if (!actor->IsVisible()) return;
+  PROFILER_MARKER_BEGIN(VisitTexturePixmap);
   // Make sure there's a bound texture.
   if (!actor->GetDrawingData(PIXMAP_DATA).get() ||
       actor->is_pixmap_invalid()) {
@@ -405,6 +410,7 @@ void OpenGlDrawVisitor::VisitTexturePixmap(
   // All texture pixmaps are also QuadActors, and so we let the
   // QuadActor do all the actual drawing.
   VisitQuad(actor);
+  PROFILER_MARKER_END(VisitTexturePixmap);
 }
 
 void OpenGlDrawVisitor::VisitQuad(RealCompositor::QuadActor* actor) {
@@ -412,6 +418,7 @@ void OpenGlDrawVisitor::VisitQuad(RealCompositor::QuadActor* actor) {
 #ifdef EXTRA_LOGGING
   DLOG(INFO) << "Drawing quad " << actor->name() << ".";
 #endif
+  PROFILER_DYNAMIC_MARKER_BEGIN(actor->name().c_str());
 
   RealCompositor::DrawingData* generic_drawing_data =
       actor->GetDrawingData(DRAWING_DATA).get();
@@ -531,9 +538,11 @@ void OpenGlDrawVisitor::VisitQuad(RealCompositor::QuadActor* actor) {
   gl_interface_->DisableClientState(GL_COLOR_ARRAY);
   gl_interface_->PopMatrix();
   CHECK_GL_ERROR(gl_interface_);
+  PROFILER_DYNAMIC_MARKER_END();
 }
 
 void OpenGlDrawVisitor::DrawNeedle() {
+  PROFILER_MARKER_BEGIN(DrawNeedle);
   OpenGlQuadDrawingData* drawing_data =
       dynamic_cast<OpenGlQuadDrawingData*>(quad_drawing_data_.get());
   CHECK(drawing_data);
@@ -552,12 +561,13 @@ void OpenGlDrawVisitor::DrawNeedle() {
   gl_interface_->DrawArrays(GL_TRIANGLE_STRIP, 0, 4);
   gl_interface_->Enable(GL_DEPTH_TEST);
   gl_interface_->PopMatrix();
+  PROFILER_MARKER_END(DrawNeedle);
 }
 
 void OpenGlDrawVisitor::VisitStage(RealCompositor::StageActor* actor) {
   if (!actor->IsVisible()) return;
 
-  PROFILER_MARKER_BEGIN(_Visit_Stage_);
+  PROFILER_MARKER_BEGIN(VisitStage);
   stage_ = actor;
   OpenGlQuadDrawingData* drawing_data =
       dynamic_cast<OpenGlQuadDrawingData*>(quad_drawing_data_.get());
@@ -604,9 +614,9 @@ void OpenGlDrawVisitor::VisitStage(RealCompositor::StageActor* actor) {
   // For the first pass, we want to collect only opaque actors, in
   // front to back order.
   visit_opaque_ = true;
-  PROFILER_MARKER_BEGIN(_Opaque_Pass_);
+  PROFILER_MARKER_BEGIN(Opaque_Pass);
   VisitContainer(actor);
-  PROFILER_MARKER_END(_Opaque_Pass_);
+  PROFILER_MARKER_END(Opaque_Pass);
 
 #ifdef EXTRA_LOGGING
   DLOG(INFO) << "Ending OPAQUE pass.";
@@ -617,9 +627,9 @@ void OpenGlDrawVisitor::VisitStage(RealCompositor::StageActor* actor) {
   gl_interface_->DepthMask(GL_FALSE);
   gl_interface_->Enable(GL_BLEND);
   visit_opaque_ = false;
-  PROFILER_MARKER_BEGIN(_Transparent_Pass_);
+  PROFILER_MARKER_BEGIN(Transparent_Pass);
   VisitContainer(actor);
-  PROFILER_MARKER_END(_Transparent_Pass_);
+  PROFILER_MARKER_END(Transparent_Pass);
 
   // Turn the depth mask back on now.
   gl_interface_->DepthMask(GL_TRUE);
@@ -628,14 +638,14 @@ void OpenGlDrawVisitor::VisitStage(RealCompositor::StageActor* actor) {
   if (FLAGS_compositor_display_debug_needle) {
     DrawNeedle();
   }
-  PROFILER_MARKER_BEGIN(_Swap_Buffer_);
+  PROFILER_MARKER_BEGIN(Swap_Buffer);
   gl_interface_->SwapGlxBuffers(actor->GetStageXWindow());
-  PROFILER_MARKER_END(_Swap_Buffer_);
+  PROFILER_MARKER_END(Swap_Buffer);
   ++num_frames_drawn_;
 #ifdef EXTRA_LOGGING
   DLOG(INFO) << "Ending TRANSPARENT pass.";
 #endif
-  PROFILER_MARKER_END(_Visit_Stage_);
+  PROFILER_MARKER_END(VisitStage);
   // The profiler is flushed explicitly every 100 frames, or flushed
   // implicitly when the internal buffer is full.
   if (num_frames_drawn_ % 100 == 0) {
