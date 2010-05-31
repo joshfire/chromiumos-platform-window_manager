@@ -154,6 +154,8 @@ void OpenGlesDrawVisitor::VisitStage(RealCompositor::StageActor* actor) {
     actor->unset_was_resized();
   }
 
+  // TODO: Optimize this by avoiding clearing the color buffer when there's
+  // an actor (e.g. a background image) covering the whole stage.
   gl_->Clear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
   perspective_ = Matrix4::orthographic(
