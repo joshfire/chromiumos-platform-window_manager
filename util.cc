@@ -8,6 +8,7 @@
 #include <cstring>
 
 #include <sys/time.h>
+#include <unistd.h>
 
 #include "base/string_util.h"
 
@@ -75,6 +76,21 @@ int64_t GetCurrentTimeMs() {
   struct timeval tv;
   gettimeofday(&tv, NULL);
   return 1000ULL * tv.tv_sec + tv.tv_usec / 1000ULL;
+}
+
+bool SetUpLogSymlink(const std::string& symlink_path,
+                     const std::string& log_basename) {
+  if (access(symlink_path.c_str(), F_OK) == 0 &&
+      unlink(symlink_path.c_str()) == -1) {
+    PLOG(ERROR) << "Unable to unlink " << symlink_path;
+    return false;
+  }
+  if (symlink(log_basename.c_str(), symlink_path.c_str()) == -1) {
+    PLOG(ERROR) << "Unable to create symlink " << symlink_path
+                << " pointing at " << log_basename;
+    return false;
+  }
+  return true;
 }
 
 }  // namespace util

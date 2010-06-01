@@ -55,6 +55,10 @@ class EventConsumer {
   // This method is invoked for all consumers.
   virtual void HandleScreenResize() = 0;
 
+  // Handle Chrome notifying us that the user is either logged in or
+  // logged out.  This method is invoked for all consumers.
+  virtual void HandleLoggedInStateChange() = 0;
+
   // Handle a window's request to be mapped.  This is invoked to give
   // consumers a chance to change a window's position, size, or stacking
   // before it gets mapped (note that the consumer is ultimately

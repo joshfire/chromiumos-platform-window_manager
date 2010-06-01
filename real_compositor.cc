@@ -705,15 +705,6 @@ RealCompositor::Actor* RealCompositor::CloneActor(Compositor::Actor* orig) {
   return actor->Clone();
 }
 
-void RealCompositor::HandleWindowDamaged(XWindow xid) {
-  TexturePixmapActor* actor =
-      FindWithDefault(texture_pixmaps_,
-                      xid,
-                      static_cast<TexturePixmapActor*>(NULL));
-  if (actor)
-    actor->RefreshPixmap();
-}
-
 void RealCompositor::RemoveActor(Actor* actor) {
   ActorVector::iterator iterator = find(actors_.begin(), actors_.end(), actor);
   if (iterator != actors_.end()) {

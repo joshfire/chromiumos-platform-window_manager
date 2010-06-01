@@ -12,7 +12,7 @@
 #include "window_manager/stacking_manager.h"
 #include "window_manager/window_manager.h"
 
-DEFINE_string(wm_separator_image, "../assets/images/separator.png",
+DEFINE_string(separator_image, "../assets/images/separator.png",
               "Path to the image file containing the separator image.");
 
 using std::string;
@@ -100,7 +100,7 @@ void LayoutManager::Separator::UpdateLayout(bool animate) {
 
 void LayoutManager::Separator::Init() {
   CHECK(!texture_) << "Was Init() already called?";
-  string filename = FLAGS_wm_separator_image;
+  string filename = FLAGS_separator_image;
   texture_ = compositor_->CreateImage(filename);
   texture_->SetName(filename);
 

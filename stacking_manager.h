@@ -69,11 +69,15 @@ class StackingManager {
     // Toplevel windows, along with their transient windows.
     LAYER_TOPLEVEL_WINDOW,
 
-    // Chrome windows used by LoginController.
-    LAYER_LOGIN_WINDOW,
-
     // Snapshot windows, along with their input windows.
     LAYER_SNAPSHOT_WINDOW,
+
+    // "Other" non-login windows (e.g. transient dialogs) managed by
+    // LoginController.
+    LAYER_LOGIN_OTHER_WINDOW,
+
+    // Chrome login windows used by LoginController.
+    LAYER_LOGIN_WINDOW,
 
     // The background image.
     LAYER_BACKGROUND,

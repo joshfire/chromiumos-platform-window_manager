@@ -153,6 +153,10 @@ class Compositor {
   // with Compositor -- the caller should not delete it.
   virtual StageActor* GetDefaultStage() = 0;
 
+  // Draw the scene.  This happens automatically as needed but can also be
+  // triggered manually.
+  virtual void Draw() = 0;
+
  private:
   DISALLOW_COPY_AND_ASSIGN(Compositor);
 };
@@ -351,6 +355,7 @@ class MockCompositor : public Compositor {
   }
   Actor* CloneActor(Compositor::Actor* orig) { return new Actor; }
   StageActor* GetDefaultStage() { return &default_stage_; }
+  virtual void Draw() {}
   // End Compositor methods
 
  private:

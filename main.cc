@@ -2,8 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include <unistd.h>
-
 #include <cmath>
 #include <cstdlib>
 #include <ctime>
@@ -35,15 +33,10 @@ extern "C" {
 #include "window_manager/util.h"
 #include "window_manager/window_manager.h"
 
-DECLARE_bool(wm_use_compositing);  // from window_manager.cc
+DECLARE_bool(use_compositing);  // from window_manager.cc
 
-DEFINE_string(log_dir, ".",
-              "Directory where logs should be written; created if it doesn't "
-              "exist.");
 DEFINE_string(display, "",
               "X Display to connect to (overrides DISPLAY env var).");
-DEFINE_bool(logtostderr, false,
-            "Write logs to stderr instead of to a file in log_dir.");
 DEFINE_string(profile_dir, "./profile",
               "Directory where profiles should be written; created if it "
               "doesn't exist.");
@@ -53,7 +46,6 @@ DEFINE_bool(start_profiler, false,
             "Start profiler at window manager startup.");
 DEFINE_int32(pause_at_start, 0,
              "Specify this to pause for N seconds at startup.");
-DEFINE_bool(logged_in, true, "Whether Chrome is logged in or not.");
 
 using std::string;
 using window_manager::Compositor;
@@ -70,6 +62,7 @@ using window_manager::RealGles2Interface;
 using window_manager::RealXConnection;
 using window_manager::WindowManager;
 using window_manager::util::GetTimeAsString;
+using window_manager::util::SetUpLogSymlink;
 
 // This should be adjusted according to number of PROFILER_MARKER_*
 static const int kMaxNumProfilerSymbols = 100;
@@ -77,25 +70,6 @@ static const int kMaxNumProfilerSymbols = 100;
 // Handler called by Chrome logging code on failed asserts.
 static void HandleLogAssert(const string& str) {
   abort();
-}
-
-// Helper function to create a symlink pointing from 'symlink_path' (a full
-// path) to 'log_basename' (the name of a file that should be in the same
-// directory as the symlink).  Removes 'symlink_path' if it already exists.
-// Returns true on success.
-static bool SetUpLogSymlink(const string& symlink_path,
-                            const string& log_basename) {
-  if (access(symlink_path.c_str(), F_OK) == 0 &&
-      unlink(symlink_path.c_str()) == -1) {
-    PLOG(ERROR) << "Unable to unlink " << symlink_path;
-    return false;
-  }
-  if (symlink(log_basename.c_str(), symlink_path.c_str()) == -1) {
-    PLOG(ERROR) << "Unable to create symlink " << symlink_path
-                << " pointing at " << log_basename;
-    return false;
-  }
-  return true;
 }
 
 int main(int argc, char** argv) {
@@ -107,25 +81,10 @@ int main(int argc, char** argv) {
   if (FLAGS_pause_at_start > 0)
     sleep(FLAGS_pause_at_start);
 
-  const string log_basename = StringPrintf(
-      "%s.%s", WindowManager::GetWmName(),
-      GetTimeAsString(::time(NULL)).c_str());
-  if (!FLAGS_logtostderr) {
-    if (!file_util::CreateDirectory(FilePath(FLAGS_log_dir))) {
-      LOG(ERROR) << "Unable to create logging directory " << FLAGS_log_dir;
-    } else {
-      SetUpLogSymlink(StringPrintf("%s/%s.LATEST",
-                                   FLAGS_log_dir.c_str(),
-                                   WindowManager::GetWmName()),
-                      log_basename);
-    }
-  }
-
-  const string log_path = FLAGS_log_dir + "/" + log_basename;
-  logging::InitLogging(log_path.c_str(),
-                       FLAGS_logtostderr ?
-                         logging::LOG_ONLY_TO_SYSTEM_DEBUG_LOG :
-                         logging::LOG_ONLY_TO_FILE,
+  // Just log to stderr initially; WindowManager will re-initialize to
+  // switch to a file once we know whether we're logged in or not.
+  logging::InitLogging(NULL,
+                       logging::LOG_ONLY_TO_SYSTEM_DEBUG_LOG,
                        logging::DONT_LOCK_LOG_FILE,
                        logging::APPEND_TO_OLD_LOG_FILE);
 
@@ -168,13 +127,6 @@ int main(int argc, char** argv) {
                  << (display_name ? display_name : "default display");
   RealXConnection xconn(display);
 
-  // Create the overlay window as soon as possible, to reduce the chances that
-  // Chrome will be able to map a window before we've taken over.
-  if (FLAGS_wm_use_compositing) {
-    XWindow root = xconn.GetRootWindow();
-    xconn.GetCompositingOverlayWindow(root);
-  }
-
   EventLoop event_loop;
 
   scoped_ptr<Compositor> compositor;
@@ -184,7 +136,7 @@ int main(int argc, char** argv) {
   scoped_ptr<RealGles2Interface> gl_interface;
 #endif
 
-  if (FLAGS_wm_use_compositing) {
+  if (FLAGS_use_compositing) {
 #if defined(COMPOSITOR_OPENGL)
     gl_interface.reset(new RealGLInterface(&xconn));
 #elif defined(COMPOSITOR_OPENGLES)
@@ -196,7 +148,8 @@ int main(int argc, char** argv) {
     compositor.reset(new MockCompositor(&xconn));
   }
 
-  WindowManager wm(&event_loop, &xconn, compositor.get(), FLAGS_logged_in);
+  WindowManager wm(&event_loop, &xconn, compositor.get());
+  wm.set_initialize_logging(true);
   wm.Init();
 
   // TODO: Need to also use XAddConnectionWatch()?

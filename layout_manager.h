@@ -81,7 +81,6 @@ class LayoutManager : public EventConsumer,
   int width() const { return width_; }
   int height() const { return height_; }
   int overview_panning_offset() const { return overview_panning_offset_; }
-  bool key_bindings_enabled() const { return key_bindings_enabled_; }
 
   // Returns a pointer to the struct in which LayoutManager tracks
   // relevant user metrics.
@@ -90,6 +89,7 @@ class LayoutManager : public EventConsumer,
   // Begin EventConsumer implementation.
   virtual bool IsInputWindow(XWindow xid);
   virtual void HandleScreenResize();
+  virtual void HandleLoggedInStateChange();
 
   // Handle a window's map request.  In most cases, we just restack the
   // window, move it offscreen, and map it (info bubbles don't get moved,
@@ -146,10 +146,6 @@ class LayoutManager : public EventConsumer,
   // active mode but refuse to in overview mode).
   bool TakeFocus(XTime timestamp);
 
-  // Enable or disable key bindings.
-  void EnableKeyBindings();
-  void DisableKeyBindings();
-
  private:
   FRIEND_TEST(LayoutManagerTest, Basic);  // uses SetMode()
   FRIEND_TEST(LayoutManagerTest, Focus);
@@ -160,6 +156,7 @@ class LayoutManager : public EventConsumer,
   FRIEND_TEST(LayoutManagerTest, AvoidMovingCurrentWindow);
   FRIEND_TEST(LayoutManagerTest, OverviewScrolling);
   FRIEND_TEST(LayoutManagerTest, NestedTransients);
+  FRIEND_TEST(LayoutManagerTest, KeyBindings);
 
   // Internal private class, declared in toplevel_window.h
   class ToplevelWindow;
@@ -348,10 +345,9 @@ class LayoutManager : public EventConsumer,
   // 'overview_background_event_coalescer_'.  Invoked by a timer.
   void UpdateOverviewPanningForMotion();
 
-  // Helper method that enables or disables the key bindings group for the
-  // passed-in mode (irrespective of 'key_bindings_enabled_').
-  void EnableKeyBindingsForModeInternal(Mode mode);
-  void DisableKeyBindingsForModeInternal(Mode mode);
+  // Enable or disable the key bindings group for the passed-in mode.
+  void EnableKeyBindingsForMode(Mode mode);
+  void DisableKeyBindingsForMode(Mode mode);
 
   // If the snapshot corresponding to the current tab in the toplevel
   // windows exists, then make that the selected snapshot.
@@ -463,9 +459,6 @@ class LayoutManager : public EventConsumer,
 
   // Event registrations for the layout manager itself.
   scoped_ptr<EventConsumerRegistrar> event_consumer_registrar_;
-
-  // Are key bindings currently enabled?
-  bool key_bindings_enabled_;
 
   // Groups of key bindings that are relevant to different modes.
   scoped_ptr<KeyBindingsGroup> active_mode_key_bindings_group_;

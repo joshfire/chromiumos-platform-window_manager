@@ -758,6 +758,7 @@ TEST_F(LayoutManagerTest, InitialWindowStacking) {
 
   // Now create a new WindowManager object that will see the toplevel
   // window as already existing.
+  SetLoggedInState(true);  // MockXConnection was reset
   CreateAndInitNewWm();
 
   // Get the stacking reference points for toplevel windows and for the
@@ -1109,6 +1110,26 @@ TEST_F(LayoutManagerTest, NoSlideForInitialWindow) {
       dynamic_cast<MockCompositor::Actor*>(win2->actor());
   CHECK(actor2);
   EXPECT_TRUE(actor2->position_was_animated());
+}
+
+// Check that key bindings get enabled and disabled appropriately.
+TEST_F(LayoutManagerTest, KeyBindings) {
+  // We should start out in active mode.
+  XWindow xid = CreateSimpleWindow();
+  SendInitialEventsForWindow(xid);
+  EXPECT_TRUE(lm_->active_mode_key_bindings_group_->enabled());
+  EXPECT_FALSE(lm_->overview_mode_key_bindings_group_->enabled());
+
+  // After switching to overview mode, we should switch key binding groups.
+  lm_->SetMode(LayoutManager::MODE_OVERVIEW);
+  EXPECT_FALSE(lm_->active_mode_key_bindings_group_->enabled());
+  EXPECT_TRUE(lm_->overview_mode_key_bindings_group_->enabled());
+
+  // Both groups should be disabled when we're not logged in.
+  SetLoggedInState(false);
+  CreateAndInitNewWm();
+  EXPECT_FALSE(lm_->active_mode_key_bindings_group_->enabled());
+  EXPECT_FALSE(lm_->overview_mode_key_bindings_group_->enabled());
 }
 
 }  // namespace window_manager

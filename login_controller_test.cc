@@ -12,6 +12,7 @@
 #include "cros/chromeos_wm_ipc_enums.h"
 #include "window_manager/compositor.h"
 #include "window_manager/event_loop.h"
+#include "window_manager/key_bindings.h"
 #include "window_manager/login_controller.h"
 #include "window_manager/mock_x_connection.h"
 #include "window_manager/stacking_manager.h"
@@ -35,13 +36,11 @@ class LoginControllerTest : public BasicWindowManagerTest {
 
   virtual void SetUp() {
     BasicWindowManagerTest::SetUp();
+    wm_.reset(NULL);
     // Use a WindowManager object that thinks that Chrome isn't logged in
     // yet so that LoginController will manage non-login windows as well.
-    wm_.reset(new WindowManager(event_loop_.get(),
-                                xconn_.get(),
-                                compositor_.get(),
-                                false));  // logged_in=false
-    CHECK(wm_->Init());
+    SetLoggedInState(false);
+    CreateAndInitNewWm();
 
     login_controller_ = wm_->login_controller_.get();
 
@@ -53,14 +52,17 @@ class LoginControllerTest : public BasicWindowManagerTest {
   void CreateLoginWindows(int num_entries,
                           bool background_is_ready,
                           bool create_guest_window) {
-    CHECK(background_xid_ == 0);
-    background_xid_ = CreateBasicWindow(0, 0, wm_->width(), wm_->height());
-    vector<int> background_params;
-    background_params.push_back(background_is_ready ? 1 : 0);
-    wm_->wm_ipc()->SetWindowType(background_xid_,
-                                 chromeos::WM_IPC_WINDOW_LOGIN_BACKGROUND,
-                                 &background_params);
-    SendInitialEventsForWindow(background_xid_);
+    CHECK(num_entries == 0 || num_entries >= 2);
+
+    if (!background_xid_) {
+      background_xid_ = CreateBasicWindow(0, 0, wm_->width(), wm_->height());
+      vector<int> background_params;
+      background_params.push_back(background_is_ready ? 1 : 0);
+      wm_->wm_ipc()->SetWindowType(background_xid_,
+                                   chromeos::WM_IPC_WINDOW_LOGIN_BACKGROUND,
+                                   &background_params);
+      SendInitialEventsForWindow(background_xid_);
+    }
 
     if (create_guest_window) {
       guest_xid_ = CreateBasicWindow(0, 0, wm_->width() / 2, wm_->height() / 2);
@@ -366,6 +368,69 @@ TEST_F(LoginControllerTest, Modality) {
   EXPECT_FALSE(transient_info->button_is_grabbed(0));
   EXPECT_EQ(initial_num_replays,
             xconn_->num_pointer_ungrabs_with_replayed_events());
+}
+
+TEST_F(LoginControllerTest, HideAfterLogin) {
+  // We should show the windows after they're mapped.
+  CreateLoginWindows(2, true, false);
+  EXPECT_FALSE(WindowIsOffscreen(background_xid_));
+
+  // They should still be shown even after the user logs in.
+  SetLoggedInState(true);
+  EXPECT_FALSE(WindowIsOffscreen(background_xid_));
+
+  // But we should hide them after the first Chrome window is created.
+  XWindow xid = CreateSimpleWindow();
+  wm_->wm_ipc()->SetWindowType(
+      xid, chromeos::WM_IPC_WINDOW_CHROME_TOPLEVEL, NULL);
+  SendInitialEventsForWindow(xid);
+  EXPECT_TRUE(WindowIsOffscreen(background_xid_));
+}
+
+// Test that we enable and disable key bindings appropriately.
+TEST_F(LoginControllerTest, KeyBindingsDuringStateChange) {
+  // The key bindings should be initially disabled when we don't have any
+  // login entry windows.
+  EXPECT_FALSE(login_controller_->entry_key_bindings_group_->enabled());
+
+  // Create some entries and check that the bindings are enabled.
+  CreateLoginWindows(2, true, false);
+  EXPECT_TRUE(login_controller_->entry_key_bindings_group_->enabled());
+
+  // Tell the WM to make the login entries non-selectable (as if the user
+  // attempted to log in).
+  SendSetLoginStateMessage(false);
+  EXPECT_FALSE(login_controller_->entry_key_bindings_group_->enabled());
+
+  // Now make them selectable again.
+  SendSetLoginStateMessage(true);
+  EXPECT_TRUE(login_controller_->entry_key_bindings_group_->enabled());
+
+  // They should be disabled after login.
+  SetLoggedInState(true);
+  EXPECT_FALSE(login_controller_->entry_key_bindings_group_->enabled());
+}
+
+TEST_F(LoginControllerTest, SelectGuestWindow) {
+  // Create two entries and a guest window.
+  CreateLoginWindows(2, true, true);  // create_guest_window=true
+
+  // The first entry should initially be focused and the key bindings
+  // should be enabled.
+  EXPECT_EQ(entries_[0].controls_xid, xconn_->focused_xid());
+  EXPECT_EQ(entries_[0].controls_xid, GetActiveWindowProperty());
+  EXPECT_TRUE(login_controller_->entry_key_bindings_group_->enabled());
+
+  // Click on the entry for the guest window.
+  XWindow input_xid = login_controller_->entries_[1].input_window_xid;
+  XEvent event;
+  xconn_->InitButtonPressEvent(&event, input_xid, 0, 0, 1);
+  wm_->HandleEvent(&event);
+
+  // The guest window should be focused and the key bindings disabled.
+  EXPECT_EQ(guest_xid_, xconn_->focused_xid());
+  EXPECT_EQ(guest_xid_, GetActiveWindowProperty());
+  EXPECT_FALSE(login_controller_->entry_key_bindings_group_->enabled());
 }
 
 }  // namespace window_manager

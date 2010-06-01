@@ -5,8 +5,11 @@
 #ifndef WINDOW_MANAGER_TEST_LIB_H_
 #define WINDOW_MANAGER_TEST_LIB_H_
 
+#include <string>
+
 #include <gtest/gtest.h>
 
+#include "base/file_path.h"
 #include "base/scoped_ptr.h"
 #include "base/logging.h"
 #include "window_manager/stacking_manager.h"
@@ -46,6 +49,17 @@ int InitAndRunTests(int* argc, char** argv, bool* log_to_stderr);
 // for convenience.
 class BasicWindowManagerTest : public ::testing::Test {
  protected:
+  // Simple RAII class for creating and deleting a temporary directory.
+  class ScopedTempDirectory {
+   public:
+    ScopedTempDirectory();
+    ~ScopedTempDirectory();
+    const FilePath& path() const { return path_; }
+
+   private:
+    FilePath path_;
+  };
+
   virtual void SetUp();
 
   // Create a new WindowManager object with a logged-in state and store it
@@ -117,6 +131,10 @@ class BasicWindowManagerTest : public ::testing::Test {
   // Send a WM_NOTIFY_PANEL_DRAG_COMPLETE message.
   void SendPanelDragCompleteMessage(Panel* panel);
 
+  // Send a WM_IPC_MESSAGE_WM_SET_LOGIN_STATE message telling the window
+  // manager that the login entries should be selectable or not.
+  void SendSetLoginStateMessage(bool entries_selectable);
+
   // Send a _NET_ACTIVE_WINDOW message asking the window manager to focus a
   // window.
   void SendActiveWindowMessage(XWindow xid);
@@ -127,6 +145,11 @@ class BasicWindowManagerTest : public ::testing::Test {
   // size matches the current client size.
   void NotifyWindowAboutSize(Window* win);
 
+  // Set the _CHROME_LOGGED_IN property on the root window to describe
+  // whether Chrome is logged in or not, and send a PropertyNotify event to
+  // the window manager (if it's non-NULL).
+  void SetLoggedInState(bool logged_in);
+
   // Get the current value of the _NET_ACTIVE_WINDOW property on the root
   // window.
   XWindow GetActiveWindowProperty();
@@ -134,6 +157,9 @@ class BasicWindowManagerTest : public ::testing::Test {
   // Are the passed-in window's composited and client windows stacked
   // between the passed-in layer and the layer underneath it?
   bool WindowIsInLayer(Window* win, StackingManager::Layer layer);
+
+  // Is the passed-in client window entirely offscreen?
+  bool WindowIsOffscreen(XWindow xid);
 
   // Fetch an int array property on a window and check that it contains the
   // expected values.  'num_values' is the number of expected values passed

@@ -21,8 +21,6 @@
 
 DEFINE_bool(window_drop_shadows, true, "Display drop shadows under windows");
 
-DECLARE_bool(wm_use_compositing);  // from window_manager.cc
-
 using std::map;
 using std::max;
 using std::min;

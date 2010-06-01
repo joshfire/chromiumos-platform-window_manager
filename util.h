@@ -222,6 +222,13 @@ std::string GetTimeAsString(time_t utime);
 // Get the number of milliseconds since the epoch.
 int64_t GetCurrentTimeMs();
 
+// Helper function to create a symlink pointing from 'symlink_path' (a full
+// path) to 'log_basename' (the name of a file that should be in the same
+// directory as the symlink).  Removes 'symlink_path' if it already exists.
+// Returns true on success.
+bool SetUpLogSymlink(const std::string& symlink_path,
+                     const std::string& log_basename);
+
 }  // namespace util
 
 }  // namespace window_manager

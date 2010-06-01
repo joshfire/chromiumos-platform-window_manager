@@ -4,12 +4,13 @@
 
 #include "window_manager/test_lib.h"
 
-#include <string>
 #include <vector>
 
 #include <gflags/gflags.h>
 
 #include "base/command_line.h"
+#include "base/file_util.h"
+#include "base/file_path.h"
 #include "base/string_util.h"
 #include "cros/chromeos_wm_ipc_enums.h"
 #include "window_manager/compositor.h"
@@ -73,6 +74,16 @@ int InitAndRunTests(int* argc, char** argv, bool* log_to_stderr) {
 }
 
 
+BasicWindowManagerTest::ScopedTempDirectory::ScopedTempDirectory() {
+  CHECK(file_util::CreateNewTempDirectory(string(), &path_));
+}
+
+BasicWindowManagerTest::ScopedTempDirectory::~ScopedTempDirectory() {
+  if (!file_util::Delete(path_, true))  // recursive=true
+    LOG(ERROR) << "Failed to delete path " << path_.value();
+}
+
+
 void BasicWindowManagerTest::SetUp() {
   event_loop_.reset(new EventLoop);
   xconn_.reset(new MockXConnection);
@@ -91,11 +102,11 @@ void BasicWindowManagerTest::SetUp() {
   xconn_->AddKeyMapping(next_keycode++, XK_Print);
   xconn_->AddKeyMapping(next_keycode++, XK_Tab);
 
+  SetLoggedInState(true);
   compositor_.reset(new MockCompositor(xconn_.get()));
   wm_.reset(new WindowManager(event_loop_.get(),
                               xconn_.get(),
-                              compositor_.get(),
-                              true));  // logged_in
+                              compositor_.get()));
   CHECK(wm_->Init());
 
   // Tell the WM that we implement a recent-enough version of the IPC
@@ -113,8 +124,7 @@ void BasicWindowManagerTest::SetUp() {
 void BasicWindowManagerTest::CreateAndInitNewWm() {
   wm_.reset(new WindowManager(event_loop_.get(),
                               xconn_.get(),
-                              compositor_.get(),
-                              true));  // logged_in
+                              compositor_.get()));
   ASSERT_TRUE(wm_->Init());
 }
 
@@ -292,6 +302,12 @@ void BasicWindowManagerTest::SendPanelDragCompleteMessage(Panel* panel) {
   SendWmIpcMessage(msg);
 }
 
+void BasicWindowManagerTest::SendSetLoginStateMessage(bool entries_selectable) {
+  WmIpc::Message msg(chromeos::WM_IPC_MESSAGE_WM_SET_LOGIN_STATE);
+  msg.set_param(0, entries_selectable);
+  SendWmIpcMessage(msg);
+}
+
 void BasicWindowManagerTest::SendActiveWindowMessage(XWindow xid) {
   XEvent event;
   xconn_->InitClientMessageEvent(
@@ -305,6 +321,23 @@ void BasicWindowManagerTest::SendActiveWindowMessage(XWindow xid) {
 
 void BasicWindowManagerTest::NotifyWindowAboutSize(Window* win) {
   win->HandleConfigureNotify(win->client_width(), win->client_height());
+}
+
+void BasicWindowManagerTest::SetLoggedInState(bool logged_in) {
+  XAtom logged_in_xatom = 0;
+  CHECK(xconn_->GetAtom("_CHROME_LOGGED_IN", &logged_in_xatom));
+  xconn_->SetIntProperty(xconn_->GetRootWindow(),
+                         logged_in_xatom,
+                         logged_in_xatom,  // type; arbitrary
+                         logged_in ? 1 : 0);
+
+  if (wm_.get()) {
+    XEvent event;
+    xconn_->InitPropertyNotifyEvent(&event,
+                                    xconn_->GetRootWindow(),
+                                    logged_in_xatom);
+    wm_->HandleEvent(&event);
+  }
 }
 
 XWindow BasicWindowManagerTest::GetActiveWindowProperty() {
@@ -340,6 +373,16 @@ bool BasicWindowManagerTest::WindowIsInLayer(Window* win,
     return false;
 
   return true;
+}
+
+bool BasicWindowManagerTest::WindowIsOffscreen(XWindow xid) {
+  const MockXConnection::WindowInfo* info = xconn_->GetWindowInfoOrDie(xid);
+  const MockXConnection::WindowInfo* root_info =
+      xconn_->GetWindowInfoOrDie(xconn_->GetRootWindow());
+  return (info->x + info->width <= 0 ||
+          info->y + info->height <= 0 ||
+          info->x >= root_info->width ||
+          info->y >= root_info->height);
 }
 
 void BasicWindowManagerTest::TestIntArrayProperty(

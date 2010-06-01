@@ -118,8 +118,9 @@ const char* StackingManager::LayerToName(Layer layer) {
     case LAYER_STATIONARY_PANEL_IN_DOCK: return "stationary panel in dock";
     case LAYER_PANEL_DOCK:               return "panel dock";
     case LAYER_TOPLEVEL_WINDOW:          return "toplevel window";
-    case LAYER_LOGIN_WINDOW:             return "login window";
     case LAYER_SNAPSHOT_WINDOW:          return "snapshot window";
+    case LAYER_LOGIN_OTHER_WINDOW:       return "login other window";
+    case LAYER_LOGIN_WINDOW:             return "login window";
     case LAYER_BACKGROUND:               return "background";
     default:                             return "unknown";
   }

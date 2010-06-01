@@ -52,9 +52,12 @@ class WindowManager : public PanelManagerAreaChangeListener {
  public:
   WindowManager(EventLoop* event_loop,
                 XConnection* xconn,
-                Compositor* compositor,
-                bool logged_in);
+                Compositor* compositor);
   ~WindowManager();
+
+  void set_initialize_logging(bool should_init) {
+    initialize_logging_ = should_init;
+  }
 
   EventLoop* event_loop() { return event_loop_; }
   XConnection* xconn() { return xconn_; }
@@ -91,6 +94,11 @@ class WindowManager : public PanelManagerAreaChangeListener {
   // Perform initial setup.  This must be called immediately after the
   // WindowManager object is created.
   bool Init();
+
+  // Handle notification from Chrome that the logged-in state has changed.
+  // 'initial' is true when this method is invoked by Init() and false when
+  // it is invoked later in response to a property change.
+  void SetLoggedInState(bool logged_in, bool initial);
 
   // Process all pending events from 'x_conn_', invoking HandleEvent() for each.
   void ProcessPendingEvents();
@@ -428,13 +436,21 @@ class WindowManager : public PanelManagerAreaChangeListener {
   scoped_ptr<KeyBindingsGroup> logged_in_key_bindings_group_;
 
   // Has the user logged in yet?  This affects whether some key bindings
-  // are enabled or not and determines how new windows are handled.
+  // are enabled or not and determines how new windows are handled.  This
+  // tracks the _CHROME_LOGGED_IN property that Chrome sets on the root
+  // window.
   bool logged_in_;
 
   // Has a toplevel Chrome window been mapped?  Depending on
   // --wm_initial_chrome_window_mapped_file, we may create a file when this
   // happens to help in testing.
   bool chrome_window_has_been_mapped_;
+
+  // Should we initialize the logging code when we switch between logged-in
+  // and logged-out mode?  This defaults to off, since we typically don't
+  // want to write log files when called by tests, but main.cc sets it to
+  // true.
+  bool initialize_logging_;
 
   DISALLOW_COPY_AND_ASSIGN(WindowManager);
 };

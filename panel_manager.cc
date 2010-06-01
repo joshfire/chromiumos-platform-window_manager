@@ -485,8 +485,8 @@ void PanelManager::RegisterContainer(PanelContainer* container) {
   container->GetInputWindows(&input_xids);
   for (vector<XWindow>::const_iterator it = input_xids.begin();
        it != input_xids.end(); ++it) {
-    DLOG(INFO) << "Registering input window " << *it << " for container "
-               << container;
+    DLOG(INFO) << "Registering input window " << XidStr(*it)
+               << " for container " << container;
     CHECK(container_input_xids_.insert(make_pair(*it, container)).second);
   }
   containers_.push_back(container);

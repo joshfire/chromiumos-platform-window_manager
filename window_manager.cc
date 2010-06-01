@@ -42,25 +42,31 @@ extern "C" {
 #include "window_manager/window.h"
 #include "window_manager/x_connection.h"
 
-DEFINE_string(wm_xterm_command, "xterm", "Command for hotkey xterm spawn.");
-DEFINE_string(wm_background_image, "", "Background image to display");
-DEFINE_string(wm_lock_screen_command, "xscreensaver-command -l",
+DEFINE_string(xterm_command, "xterm", "Command for hotkey xterm spawn.");
+DEFINE_string(background_image, "", "Background image to display");
+DEFINE_string(lock_screen_command, "xscreensaver-command -l",
               "Command to lock the screen");
-DEFINE_string(wm_configure_monitor_command,
+DEFINE_string(configure_monitor_command,
               "/usr/sbin/monitor_reconfigure",
               "Command to configure an external monitor");
-DEFINE_string(wm_screenshot_binary,
+DEFINE_string(screenshot_binary,
               "/usr/bin/screenshot",
               "Path to the screenshot binary");
-DEFINE_string(wm_screenshot_output_dir,
-              ".", "Output directory for screenshots");
-DEFINE_string(wm_initial_chrome_window_mapped_file,
+DEFINE_string(logged_in_screenshot_output_dir,
+              ".", "Output directory for screenshots when logged in");
+DEFINE_string(logged_out_screenshot_output_dir,
+              ".", "Output directory for screenshots when not logged in");
+DEFINE_string(initial_chrome_window_mapped_file,
               "", "When we first see a toplevel Chrome window get mapped, "
               "we write its ID as an ASCII decimal number to this file.  "
               "Tests can watch for the file to know when the user is fully "
               "logged in.  Leave empty to disable.");
+DEFINE_string(logged_in_log_dir,
+              ".", "Directory to write logs to when logged in.");
+DEFINE_string(logged_out_log_dir,
+              ".", "Directory to write logs to when not logged in.");
 
-DEFINE_bool(wm_use_compositing, true, "Use compositing");
+DEFINE_bool(use_compositing, true, "Use compositing");
 
 using chromeos::WmIpcMessageType;
 using std::list;
@@ -72,6 +78,7 @@ using std::tr1::shared_ptr;
 using std::vector;
 using window_manager::util::FindWithDefault;
 using window_manager::util::GetTimeAsString;
+using window_manager::util::SetUpLogSymlink;
 using window_manager::util::XidStr;
 
 namespace window_manager {
@@ -160,8 +167,7 @@ static const char* XEventTypeToName(int type) {
 
 WindowManager::WindowManager(EventLoop* event_loop,
                              XConnection* xconn,
-                             Compositor* compositor,
-                             bool logged_in)
+                             Compositor* compositor)
     : event_loop_(event_loop),
       xconn_(xconn),
       compositor_(compositor),
@@ -181,8 +187,9 @@ WindowManager::WindowManager(EventLoop* event_loop,
       query_keyboard_state_timeout_id_(-1),
       showing_hotkey_overlay_(false),
       wm_ipc_version_(1),
-      logged_in_(logged_in),
-      chrome_window_has_been_mapped_(false) {
+      logged_in_(false),
+      chrome_window_has_been_mapped_(false),
+      initialize_logging_(false) {
   CHECK(event_loop_);
   CHECK(xconn_);
   CHECK(compositor_);
@@ -217,11 +224,18 @@ bool WindowManager::Init() {
   // Create the atom cache first; RegisterExistence() needs it.
   atom_cache_.reset(new AtomCache(xconn_));
 
-  wm_ipc_.reset(new WmIpc(xconn_, atom_cache_.get()));
-
   CHECK(RegisterExistence());
   SetEwmhGeneralProperties();
   SetEwmhSizeProperties();
+
+  // First make sure that we'll get notified if the login state changes
+  // and then query its current value.
+  CHECK(xconn_->SelectInputOnWindow(root_, PropertyChangeMask, true));
+  int logged_in_value = 0;
+  SetLoggedInState(xconn_->GetIntProperty(root_,
+                                          GetXAtom(ATOM_CHROME_LOGGED_IN),
+                                          &logged_in_value) && logged_in_value,
+                   true);  // initial=true
 
   // Set root window's cursor to left pointer.
   xconn_->SetWindowCursor(root_, XC_left_ptr);
@@ -230,18 +244,26 @@ bool WindowManager::Init() {
   stage_xid_ = stage_->GetStageXWindow();
   stage_->SetName("stage");
   stage_->SetSize(width_, height_);
-  // Color equivalent to "#222"
-  stage_->SetStageColor(Compositor::Color(0.12549f, 0.12549f, 0.12549f));
+  // Color equivalent to "#4279d6"
+  stage_->SetStageColor(Compositor::Color(0.25882f, 0.47451f, 0.83922f));
   stage_->SetVisibility(true);
+
+  wm_ipc_.reset(new WmIpc(xconn_, atom_cache_.get()));
 
   stacking_manager_.reset(
       new StackingManager(xconn_, compositor_, atom_cache_.get()));
   focus_manager_.reset(new FocusManager(this));
 
-  if (!FLAGS_wm_background_image.empty())
-    SetBackgroundActor(compositor_->CreateImage(FLAGS_wm_background_image));
+  if (!FLAGS_background_image.empty()) {
+    Compositor::Actor* background =
+        compositor_->CreateImage(FLAGS_background_image);
+    background->SetVisibility(logged_in_);
+    SetBackgroundActor(background);
+  }
 
-  if (FLAGS_wm_use_compositing) {
+  if (FLAGS_use_compositing) {
+    // Draw the scene first to make sure that it's ready.
+    compositor_->Draw();
     CHECK(xconn_->RedirectSubwindowsForCompositing(root_));
     // Create the compositing overlay, put the stage's window inside of it,
     // and make events fall through both to the client windows underneath.
@@ -273,8 +295,6 @@ bool WindowManager::Init() {
 
   layout_manager_.reset(new LayoutManager(this, panel_manager_.get()));
   event_consumers_.insert(layout_manager_.get());
-  if (!logged_in_)
-    layout_manager_->DisableKeyBindings();
 
   login_controller_.reset(new LoginController(this));
   event_consumers_.insert(login_controller_.get());
@@ -306,6 +326,51 @@ bool WindowManager::Init() {
       MetricsReporter::kMetricsReportingIntervalMs);
 
   return true;
+}
+
+void WindowManager::SetLoggedInState(bool logged_in, bool initial) {
+  DLOG(INFO) << "User " << (logged_in ? "is" : "isn't") << " logged in";
+  if (!initial && logged_in == logged_in_)
+    return;
+
+  logged_in_ = logged_in;
+
+  if (initialize_logging_) {
+    const string& log_dir = logged_in ?
+        FLAGS_logged_in_log_dir :
+        FLAGS_logged_out_log_dir;
+
+    const string log_basename = StringPrintf(
+        "%s.%s", WindowManager::GetWmName(),
+        GetTimeAsString(::time(NULL)).c_str());
+    if (!file_util::CreateDirectory(FilePath(log_dir))) {
+      LOG(ERROR) << "Unable to create logging directory " << log_dir;
+    } else {
+      SetUpLogSymlink(StringPrintf("%s/%s.LATEST",
+                                   log_dir.c_str(),
+                                   WindowManager::GetWmName()),
+                      log_basename);
+    }
+
+    const string log_path = log_dir + "/" + log_basename;
+    LOG(INFO) << "Switching to log " << log_path;
+    logging::InitLogging(log_path.c_str(),
+                         logging::LOG_ONLY_TO_FILE,
+                         logging::DONT_LOCK_LOG_FILE,
+                         logging::APPEND_TO_OLD_LOG_FILE);
+  }
+
+  if (logged_in_key_bindings_group_.get()) {
+    if (logged_in_)
+      logged_in_key_bindings_group_->Enable();
+    else
+      logged_in_key_bindings_group_->Disable();
+  }
+
+  if (background_.get() && !logged_in_)
+    background_->SetVisibility(false);
+
+  FOR_EACH_EVENT_CONSUMER(event_consumers_, HandleLoggedInStateChange());
 }
 
 void WindowManager::ProcessPendingEvents() {
@@ -390,7 +455,7 @@ XWindow WindowManager::CreateInputWindow(
       event_mask);
   CHECK(xid);
 
-  if (FLAGS_wm_use_compositing) {
+  if (FLAGS_use_compositing) {
     // If the stage has been reparented into the overlay window, we need to
     // stack the input window under the overlay instead of under the stage
     // (because the stage isn't a sibling of the input window).
@@ -771,7 +836,7 @@ void WindowManager::RegisterKeyBindings() {
   key_bindings_->AddAction(
       "launch-terminal",
       NewPermanentCallback(
-          this, &WindowManager::RunCommand, FLAGS_wm_xterm_command),
+          this, &WindowManager::RunCommand, FLAGS_xterm_command),
       NULL, NULL);
   logged_in_key_bindings_group_->AddBinding(
       KeyBindings::KeyCombo(
@@ -795,7 +860,7 @@ void WindowManager::RegisterKeyBindings() {
   key_bindings_->AddAction(
       "lock-screen",
       NewPermanentCallback(
-          this, &WindowManager::RunCommand, FLAGS_wm_lock_screen_command),
+          this, &WindowManager::RunCommand, FLAGS_lock_screen_command),
       NULL, NULL);
   logged_in_key_bindings_group_->AddBinding(
       KeyBindings::KeyCombo(
@@ -805,7 +870,7 @@ void WindowManager::RegisterKeyBindings() {
   key_bindings_->AddAction(
       "configure-monitor",
       NewPermanentCallback(this, &WindowManager::RunCommand,
-                           FLAGS_wm_configure_monitor_command),
+                           FLAGS_configure_monitor_command),
       NULL, NULL);
   key_bindings_->AddBinding(
       KeyBindings::KeyCombo(
@@ -956,14 +1021,22 @@ void WindowManager::HandleMappedWindow(Window* win) {
   if (win->type() == chromeos::WM_IPC_WINDOW_CHROME_TOPLEVEL &&
       !chrome_window_has_been_mapped_) {
     chrome_window_has_been_mapped_ = true;
-    if (!FLAGS_wm_initial_chrome_window_mapped_file.empty()) {
+
+    if (!logged_in_) {
+      LOG(WARNING) << "Toplevel Chrome window " << win->xid_str()
+                   << " got mapped while not logged in";
+    }
+
+    if (background_.get())
+      background_->SetVisibility(true);
+
+    if (!FLAGS_initial_chrome_window_mapped_file.empty()) {
       DLOG(INFO) << "Writing initial Chrome window's ID to file "
-                 << FLAGS_wm_initial_chrome_window_mapped_file;
-      FILE* file = fopen(
-          FLAGS_wm_initial_chrome_window_mapped_file.c_str(), "w+");
+                 << FLAGS_initial_chrome_window_mapped_file;
+      FILE* file = fopen(FLAGS_initial_chrome_window_mapped_file.c_str(), "w+");
       if (!file) {
         PLOG(ERROR) << "Unable to open file "
-                    << FLAGS_wm_initial_chrome_window_mapped_file;
+                    << FLAGS_initial_chrome_window_mapped_file;
       } else {
         fprintf(file, "%lu", win->xid());
         fclose(file);
@@ -1053,7 +1126,6 @@ void WindowManager::ConfigureBackground(int width, int height) {
 
   // Center the image vertically.
   background_->Move(0, (height - background_height) / 2, 0);
-  background_->SetVisibility(true);
 }
 
 bool WindowManager::UpdateClientListProperty() {
@@ -1494,6 +1566,13 @@ void WindowManager::HandleMotionNotify(const XMotionEvent& e) {
 }
 
 void WindowManager::HandlePropertyNotify(const XPropertyEvent& e) {
+  if (e.window == root_ && e.atom == GetXAtom(ATOM_CHROME_LOGGED_IN)) {
+    int value = 0;
+    bool logged_in = xconn_->GetIntProperty(root_, e.atom, &value) && value;
+    SetLoggedInState(logged_in, false);  // initial=false
+    return;
+  }
+
   Window* win = GetWindow(e.window);
   if (win) {
     bool deleted = (e.state == PropertyDelete);
@@ -1568,7 +1647,7 @@ void WindowManager::HandleReparentNotify(const XReparentEvent& e) {
 
       // We're not going to be compositing the window anymore, so
       // unredirect it so it'll get drawn using the usual path.
-      if (FLAGS_wm_use_compositing)
+      if (FLAGS_use_compositing)
         xconn_->UnredirectWindowForCompositing(e.window);
     }
   }
@@ -1678,14 +1757,17 @@ void WindowManager::ToggleHotkeyOverlay() {
 }
 
 void WindowManager::TakeScreenshot(bool use_active_window) {
-  if (access(FLAGS_wm_screenshot_output_dir.c_str(), F_OK) != 0 &&
-      !file_util::CreateDirectory(FilePath(FLAGS_wm_screenshot_output_dir))) {
-    LOG(ERROR) << "Unable to create screenshot directory "
-               << FLAGS_wm_screenshot_output_dir;
+  const string& dir = logged_in_ ?
+      FLAGS_logged_in_screenshot_output_dir :
+      FLAGS_logged_out_screenshot_output_dir;
+
+  if (access(dir.c_str(), F_OK) != 0 &&
+      !file_util::CreateDirectory(FilePath(dir))) {
+    LOG(ERROR) << "Unable to create screenshot directory " << dir;
     return;
   }
 
-  string command = FLAGS_wm_screenshot_binary;
+  string command = FLAGS_screenshot_binary;
 
   if (use_active_window) {
     if (!active_window_xid_) {
@@ -1695,8 +1777,7 @@ void WindowManager::TakeScreenshot(bool use_active_window) {
     command += StringPrintf(" --window=0x%lx", active_window_xid_);
   }
 
-  string filename = StringPrintf("%s/screenshot-%s.png",
-                                 FLAGS_wm_screenshot_output_dir.c_str(),
+  string filename = StringPrintf("%s/screenshot-%s.png", dir.c_str(),
                                  GetTimeAsString(::time(NULL)).c_str());
   command += " " + filename;
 

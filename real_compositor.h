@@ -604,7 +604,10 @@ class RealCompositor : public Compositor {
                     const Compositor::Color& color);
   Actor* CloneActor(Compositor::Actor* orig);
   StageActor* GetDefaultStage() { return default_stage_.get(); }
-  void HandleWindowDamaged(XWindow xid);
+
+  // Run in-progress animations and redraw the scene if needed.  Disables
+  // the draw timeout if there are no in-progress animations.
+  virtual void Draw();
   // End Compositor methods
 
   XConnection* x_conn() { return x_conn_; }
@@ -633,10 +636,6 @@ class RealCompositor : public Compositor {
   // enables the draw timeout if needed.
   void IncrementNumAnimations();
   void DecrementNumAnimations();
-
-  // Run in-progress animations and redraw the scene if needed.  Disables
-  // the draw timeout if there are no in-progress animations.
-  void Draw();
 
  private:
   FRIEND_TEST(OpenGlVisitorTestTree, LayerDepth);  // sets actor count

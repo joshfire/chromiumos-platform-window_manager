@@ -60,6 +60,7 @@ class PanelManager : public EventConsumer, public FocusChangeListener {
   virtual bool IsInputWindow(XWindow xid);
 
   virtual void HandleScreenResize();
+  virtual void HandleLoggedInStateChange() {}
 
   // Handle a window's map request.  If it's a panel content or titlebar
   // window, move it offscreen, map it, and return true.

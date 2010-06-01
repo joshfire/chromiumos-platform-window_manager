@@ -6,9 +6,14 @@
 #include <cstdarg>
 #include <vector>
 
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <unistd.h>
+
 #include <gflags/gflags.h>
 #include <gtest/gtest.h>
 
+#include "base/file_util.h"
 #include "base/scoped_ptr.h"
 #include "base/logging.h"
 #include "cros/chromeos_wm_ipc_enums.h"
@@ -28,13 +33,35 @@
 DEFINE_bool(logtostderr, false,
             "Print debugging messages to stderr (suppressed otherwise)");
 
+// From window_manager.cc.
+DECLARE_string(logged_in_log_dir);
+DECLARE_string(logged_out_log_dir);
+
+using file_util::FileEnumerator;
 using std::find;
 using std::string;
 using std::vector;
 
 namespace window_manager {
 
-class WindowManagerTest : public BasicWindowManagerTest {};
+class WindowManagerTest : public BasicWindowManagerTest {
+ protected:
+  // Recursively walk a directory and return the total size of all files
+  // within it.
+  off_t GetTotalFileSizeInDirectory(const FilePath& dir_path) {
+    off_t total_size = 0;
+    FileEnumerator enumerator(dir_path, true, FileEnumerator::FILES);
+    while (true) {
+      FilePath file_path = enumerator.Next();
+      if (file_path.value().empty())
+        break;
+      FileEnumerator::FindInfo info;
+      enumerator.GetFindInfo(&info);
+      total_size += info.stat.st_size;
+    }
+    return total_size;
+  }
+};
 
 class TestEventConsumer : public EventConsumer {
  public:
@@ -45,6 +72,7 @@ class TestEventConsumer : public EventConsumer {
   }
 
   void reset_stats() {
+    num_logged_in_state_changes_ = 0;
     num_map_requests_ = 0;
     num_mapped_windows_ = 0;
     num_unmapped_windows_ = 0;
@@ -55,6 +83,9 @@ class TestEventConsumer : public EventConsumer {
     should_return_true_for_map_requests_ = return_true;
   }
 
+  int num_logged_in_state_changes() const {
+    return num_logged_in_state_changes_;
+  }
   int num_map_requests() const { return num_map_requests_; }
   int num_mapped_windows() const { return num_mapped_windows_; }
   int num_unmapped_windows() const { return num_unmapped_windows_; }
@@ -66,6 +97,7 @@ class TestEventConsumer : public EventConsumer {
   // Begin overridden EventConsumer virtual methods.
   bool IsInputWindow(XWindow xid) { return false; }
   void HandleScreenResize() {}
+  void HandleLoggedInStateChange() { num_logged_in_state_changes_++; }
   bool HandleWindowMapRequest(Window* win) {
     num_map_requests_++;
     return should_return_true_for_map_requests_;
@@ -113,6 +145,7 @@ class TestEventConsumer : public EventConsumer {
   // Should we return true when HandleWindowMapRequest() is invoked?
   bool should_return_true_for_map_requests_;
 
+  int num_logged_in_state_changes_;
   int num_map_requests_;
   int num_mapped_windows_;
   int num_unmapped_windows_;
@@ -909,22 +942,44 @@ TEST_F(WindowManagerTest, KeepPanelsAfterRestart) {
   ASSERT_TRUE(wm_->panel_manager_->panel_bar_->GetPanelByWindow(*win) != NULL);
 }
 
-// Makes sure the user is logged in by default, and that constructing a
-// WindowManager object with 'logged_in' set to false disables some key
-// bindings.
+// Makes sure the _CHROME_LOGGED_IN property is interpreted correctly.
 TEST_F(WindowManagerTest, LoggedIn) {
   EXPECT_TRUE(wm_->logged_in());
   EXPECT_TRUE(wm_->logged_in_key_bindings_group_->enabled());
-  EXPECT_TRUE(wm_->layout_manager_->key_bindings_enabled());
 
+  // When the _CHROME_LOGGED_IN property doesn't exist, the window manager
+  // should assume that we're not logged in.
+  XAtom logged_in_xatom = wm_->GetXAtom(ATOM_CHROME_LOGGED_IN);
+  xconn_->DeletePropertyIfExists(xconn_->GetRootWindow(), logged_in_xatom);
   wm_.reset(new WindowManager(event_loop_.get(),
                               xconn_.get(),
-                              compositor_.get(),
-                              false));  // logged_in=false
+                              compositor_.get()));
   CHECK(wm_->Init());
   EXPECT_FALSE(wm_->logged_in());
   EXPECT_FALSE(wm_->logged_in_key_bindings_group_->enabled());
-  EXPECT_FALSE(wm_->layout_manager_->key_bindings_enabled());
+
+  // Ditto for when it exists but is set to 0.
+  SetLoggedInState(false);
+  wm_.reset(new WindowManager(event_loop_.get(),
+                              xconn_.get(),
+                              compositor_.get()));
+  CHECK(wm_->Init());
+  EXPECT_FALSE(wm_->logged_in());
+  EXPECT_FALSE(wm_->logged_in_key_bindings_group_->enabled());
+
+  // Check that we handle property changes too.
+  TestEventConsumer ec;
+  wm_->event_consumers_.insert(&ec);
+  SetLoggedInState(true);
+  EXPECT_TRUE(wm_->logged_in());
+  EXPECT_TRUE(wm_->logged_in_key_bindings_group_->enabled());
+  EXPECT_EQ(1, ec.num_logged_in_state_changes());
+
+  ec.reset_stats();
+  SetLoggedInState(false);
+  EXPECT_FALSE(wm_->logged_in());
+  EXPECT_FALSE(wm_->logged_in_key_bindings_group_->enabled());
+  EXPECT_EQ(1, ec.num_logged_in_state_changes());
 }
 
 // Test that the window manager refreshes the keyboard map when it gets a
@@ -984,6 +1039,51 @@ TEST_F(WindowManagerTest, DiscardPixmapOnUnmap) {
   xconn_->InitUnmapEvent(&event, xid);
   wm_->HandleEvent(&event);
   EXPECT_EQ(initial_pixmap_discards + 2, actor->num_pixmap_discards());
+}
+
+// Test that we switch log files after the user logs in.
+TEST_F(WindowManagerTest, StartNewLogAfterLogin) {
+  wm_.reset(NULL);
+
+  ScopedTempDirectory logged_in_dir;
+  FLAGS_logged_in_log_dir = logged_in_dir.path().value();
+  ScopedTempDirectory logged_out_dir;
+  FLAGS_logged_out_log_dir = logged_out_dir.path().value();
+
+  // Make sure that logging is turned on, and pretend like we just started
+  // while not logged in.
+  SetLoggedInState(false);
+  wm_.reset(new WindowManager(event_loop_.get(),
+                              xconn_.get(),
+                              compositor_.get()));
+  wm_->set_initialize_logging(true);
+  CHECK(wm_->Init());
+  ASSERT_FALSE(wm_->logged_in());
+
+  // The logged-in directory should be empty, but the logged-out directory
+  // should contain data.
+  EXPECT_EQ(static_cast<off_t>(0),
+            GetTotalFileSizeInDirectory(logged_in_dir.path()));
+  EXPECT_GT(GetTotalFileSizeInDirectory(logged_out_dir.path()),
+            static_cast<off_t>(0));
+
+  // After we log in and send some events, both directories should have data.
+  SetLoggedInState(true);
+  ASSERT_TRUE(wm_->logged_in());
+  XWindow xid = CreateSimpleWindow();
+  SendInitialEventsForWindow(xid);
+  off_t logged_in_size = GetTotalFileSizeInDirectory(logged_in_dir.path());
+  off_t logged_out_size = GetTotalFileSizeInDirectory(logged_out_dir.path());
+  EXPECT_GT(logged_in_size, static_cast<off_t>(0));
+
+  // Send some more events to give the window manager more information to
+  // log, and check that the logged-in directory increased in size but the
+  // logged-out one remained the same.
+  XWindow xid2 = CreateSimpleWindow();
+  SendInitialEventsForWindow(xid2);
+  EXPECT_GT(GetTotalFileSizeInDirectory(logged_in_dir.path()), logged_in_size);
+  EXPECT_EQ(logged_out_size,
+            GetTotalFileSizeInDirectory(logged_out_dir.path()));
 }
 
 }  // namespace window_manager

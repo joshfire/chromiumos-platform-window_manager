@@ -32,8 +32,9 @@ class LoginController : public EventConsumer {
   ~LoginController();
 
   // Begin EventConsumer implementation.
-  virtual void HandleScreenResize() { NOTIMPLEMENTED(); }
   virtual bool IsInputWindow(XWindow xid);
+  virtual void HandleScreenResize();
+  virtual void HandleLoggedInStateChange();
   virtual bool HandleWindowMapRequest(Window* win);
   virtual void HandleWindowMap(Window* win);
   virtual void HandleWindowUnmap(Window* win);
@@ -72,6 +73,8 @@ class LoginController : public EventConsumer {
  private:
   friend class LoginControllerTest;  // runs InitialShow() manually
   FRIEND_TEST(LoginControllerTest, Focus);
+  FRIEND_TEST(LoginControllerTest, KeyBindingsDuringStateChange);
+  FRIEND_TEST(LoginControllerTest, SelectGuestWindow);
 
   // SelectionChangedManager is used to cleanup after the selection changes.
   // When the selection changes |Schedule| is invoked on the
@@ -150,6 +153,14 @@ class LoginController : public EventConsumer {
 
   typedef std::vector<Entry> Entries;
 
+  // Copies login_xids_ and non_login_xids_ into the passed-in set.
+  void get_all_xids(std::set<XWindow>* xids_out) {
+    DCHECK(xids_out);
+    xids_out->clear();
+    xids_out->insert(login_xids_.begin(), login_xids_.end());
+    xids_out->insert(non_login_xids_.begin(), non_login_xids_.end());
+  }
+
   // Caches size information. This is invoked when all the windows have been
   // created but not shown.
   void InitSizes(int unselected_image_size, int padding);
@@ -172,8 +183,9 @@ class LoginController : public EventConsumer {
   // Hides all the windows (except for the guest).
   void Hide();
 
-  // Toggles whether the user can select the other entries.
-  void ToggleLoginEnabled(bool enable);
+  // Sets whether the user can select other entries.
+  // Moves input windows offscreen if |enable| is false.
+  void SetEntrySelectionEnabled(bool enable);
 
   // Returns the origin for |view_count| entries with the entry at
   // |selected_index| selected.
@@ -196,8 +208,8 @@ class LoginController : public EventConsumer {
                             const Rect& label_bounds,
                             bool initial);
 
-  // Returns true if we're managing the specified window.
-  bool IsManaging(Window* window) const;
+  // Returns true if |window| is a a login window.
+  bool IsLoginWindow(Window* window) const;
 
   // Returns the entry for the specified win. This returns an entry based on the
   // index stored in the window's parameters.
@@ -233,6 +245,10 @@ class LoginController : public EventConsumer {
   // Focus a window and save it to login_window_to_focus_.
   void FocusLoginWindow(Window* win, XTime timestamp);
 
+  // Hide all of our windows and give up the focus if we have it.
+  // Invoked after we see the initial non-login Chrome window get mapped.
+  void HideWindowsAfterLogin();
+
   // Registers key bindings for navigation through users.
   void RegisterNavigationKeyBindings();
 
@@ -243,13 +259,13 @@ class LoginController : public EventConsumer {
 
   EventConsumerRegistrar registrar_;
 
-  // The set of windows we know about. This is all the windows in entries_ along
-  // with the guest_window_.
-  std::set<XWindow> known_windows_;
+  // The set of login windows we know about. This is all the windows in
+  // |entries_| along with the guest window and background window.
+  std::set<XWindow> login_xids_;
 
-  // Other windows that we're managing when Chrome is in a not-logged-in
-  // state.
-  std::set<XWindow> other_windows_;
+  // Other, non-login-specific windows that we're managing when Chrome is
+  // in a not-logged-in state.
+  std::set<XWindow> non_login_xids_;
 
   Entries entries_;
 
@@ -311,13 +327,14 @@ class LoginController : public EventConsumer {
   // closed, we can re-focus the window that had the focus before.
   Window* login_window_to_focus_;
 
-  // Key bindings that should only be enabled at the login screen
-  // (when user is not logged in).
-  scoped_ptr<KeyBindingsGroup> login_screen_key_bindings_group_;
+  // Are we waiting for the initial post-login Chrome window to get mapped
+  // so we can hide the login windows?
+  bool waiting_to_hide_windows_;
 
-  // True when key bindings has been enabled for login for the first time.
-  // It's set to true once first login window is mapped.
-  bool login_keys_enabled_;
+  // Key bindings that should only be enabled when the user is not logged
+  // in, and when a login entry (as opposed to the guest window) is being
+  // displayed.
+  scoped_ptr<KeyBindingsGroup> entry_key_bindings_group_;
 
   DISALLOW_COPY_AND_ASSIGN(LoginController);
 };

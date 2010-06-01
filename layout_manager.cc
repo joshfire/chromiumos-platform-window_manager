@@ -111,7 +111,6 @@ LayoutManager::LayoutManager(WindowManager* wm, PanelManager* panel_manager)
       overview_drag_last_x_(-1),
       saw_map_request_(false),
       event_consumer_registrar_(new EventConsumerRegistrar(wm, this)),
-      key_bindings_enabled_(true),
       active_mode_key_bindings_group_(new KeyBindingsGroup(wm->key_bindings())),
       overview_mode_key_bindings_group_(
           new KeyBindingsGroup(wm->key_bindings())) {
@@ -120,7 +119,10 @@ LayoutManager::LayoutManager(WindowManager* wm, PanelManager* panel_manager)
                           &panel_manager_right_width_);
 
   // Disable the overview key bindings, since we start in active mode.
+  // Disable the active bindings as well if we're not logged in yet.
   overview_mode_key_bindings_group_->Disable();
+  if (!wm_->logged_in())
+    active_mode_key_bindings_group_->Disable();
 
   MoveAndResizeForAvailableArea();
 
@@ -310,6 +312,13 @@ bool LayoutManager::IsInputWindow(XWindow xid) {
 
 void LayoutManager::HandleScreenResize() {
   MoveAndResizeForAvailableArea();
+}
+
+void LayoutManager::HandleLoggedInStateChange() {
+  if (wm_->logged_in())
+    EnableKeyBindingsForMode(mode_);
+  else
+    DisableKeyBindingsForMode(mode_);
 }
 
 bool LayoutManager::HandleWindowMapRequest(Window* win) {
@@ -804,8 +813,8 @@ void LayoutManager::SetMode(Mode mode) {
   if (mode == mode_)
     return;
 
-  if (key_bindings_enabled_)
-    DisableKeyBindingsForModeInternal(mode_);
+  if (wm_->logged_in())
+    DisableKeyBindingsForMode(mode_);
 
   mode_ = mode;
   DLOG(INFO) << "Switching to " << GetModeName(mode_) << " mode.";
@@ -894,22 +903,8 @@ void LayoutManager::SetMode(Mode mode) {
   if (mode_ == MODE_ACTIVE_CANCELLED)
     mode_ = MODE_ACTIVE;
 
-  if (key_bindings_enabled_)
-    EnableKeyBindingsForModeInternal(mode_);
-}
-
-void LayoutManager::EnableKeyBindings() {
-  if (key_bindings_enabled_)
-    return;
-  EnableKeyBindingsForModeInternal(mode_);
-  key_bindings_enabled_ = true;
-}
-
-void LayoutManager::DisableKeyBindings() {
-  if (!key_bindings_enabled_)
-    return;
-  DisableKeyBindingsForModeInternal(mode_);
-  key_bindings_enabled_ = false;
+  if (wm_->logged_in())
+    EnableKeyBindingsForMode(mode_);
 }
 
 // static
@@ -1539,7 +1534,7 @@ int LayoutManager::GetPreceedingTabCount(const ToplevelWindow& toplevel) const {
   return count;
 }
 
-void LayoutManager::EnableKeyBindingsForModeInternal(Mode mode) {
+void LayoutManager::EnableKeyBindingsForMode(Mode mode) {
   switch (mode) {
     case MODE_NEW:
     case MODE_ACTIVE:
@@ -1553,7 +1548,7 @@ void LayoutManager::EnableKeyBindingsForModeInternal(Mode mode) {
   }
 }
 
-void LayoutManager::DisableKeyBindingsForModeInternal(Mode mode) {
+void LayoutManager::DisableKeyBindingsForMode(Mode mode) {
   switch (mode) {
     case MODE_NEW:
     case MODE_ACTIVE:
