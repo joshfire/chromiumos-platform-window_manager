@@ -151,6 +151,7 @@ class LayoutManager : public EventConsumer,
   FRIEND_TEST(LayoutManagerTest, Focus);
   FRIEND_TEST(LayoutManagerTest, FocusTransient);
   FRIEND_TEST(LayoutManagerTest, OverviewFocus);
+  FRIEND_TEST(LayoutManagerTest, ChangeCurrentSnapshot);
   FRIEND_TEST(LayoutManagerTest, StackTransientsAbovePanels);
   FRIEND_TEST(LayoutManagerTest, NoDimmingInActiveMode);
   FRIEND_TEST(LayoutManagerTest, AvoidMovingCurrentWindow);
@@ -236,16 +237,16 @@ class LayoutManager : public EventConsumer,
 
   // Returns the current snapshot window.
   SnapshotWindow* current_snapshot() { return current_snapshot_; }
-  void SetCurrentSnapshot(SnapshotWindow* snapshot) {
-    SetCurrentSnapshotWithClick(snapshot, -1, -1);
-  }
+  void SetCurrentSnapshot(SnapshotWindow* snapshot);
 
   // This sets the current snapshot window, and includes the
   // information about the mouse click that was used to select the
   // window.  The mouse coordinates should be relative to the origin
   // of the layout manager.  Supply -1 for x if the mouse coordinates
-  // are not available.
-  void SetCurrentSnapshotWithClick(SnapshotWindow* snapshot, int x, int y);
+  // are not available, but the timestamp should always be supplied.
+  void SetCurrentSnapshotWithClick(SnapshotWindow* snapshot,
+                                   XTime timestamp,
+                                   int x, int y);
 
   // Is the passed-in window type one that we should handle?
   static bool IsHandledWindowType(chromeos::WmIpcWindowType type);

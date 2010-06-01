@@ -28,11 +28,13 @@ using std::vector;
 namespace window_manager {
 
 struct TestAction {
-  explicit TestAction(const string& name_param)
+  TestAction(const string& name_param, KeyBindings* bindings_arg)
       : name(name_param),
         begin_call_count(0),
         repeat_call_count(0),
-        end_call_count(0) {
+        end_call_count(0),
+        last_event_time(0),
+        bindings(bindings_arg) {
   }
   ~TestAction() {
   }
@@ -43,14 +45,25 @@ struct TestAction {
     end_call_count = 0;
   }
 
-  void inc_begin_call_count() { ++begin_call_count; }
-  void inc_repeat_call_count() { ++repeat_call_count; }
-  void inc_end_call_count() { ++end_call_count; }
+  void inc_begin_call_count() {
+    ++begin_call_count;
+    last_event_time = bindings->current_event_time();
+  }
+  void inc_repeat_call_count() {
+    ++repeat_call_count;
+    last_event_time = bindings->current_event_time();
+  }
+  void inc_end_call_count() {
+    ++end_call_count;
+    last_event_time = bindings->current_event_time();
+  }
 
   string name;
   int begin_call_count;
   int repeat_call_count;
   int end_call_count;
+  XTime last_event_time;
+  KeyBindings* bindings;
 };
 
 class KeyBindingsTest : public ::testing::Test {
@@ -59,7 +72,8 @@ class KeyBindingsTest : public ::testing::Test {
     xconn_.reset(new MockXConnection());
     bindings_.reset(new KeyBindings(xconn_.get()));
     for (int i = 0; i < kNumActions; ++i) {
-      actions_.push_back(new TestAction(StringPrintf("action_%d", i)));
+      actions_.push_back(new TestAction(StringPrintf("action_%d", i),
+                                        bindings_.get()));
     }
   }
   virtual void TearDown() {
@@ -102,37 +116,48 @@ TEST_F(KeyBindingsTest, Basic) {
   // Action 0: Requests begin, end, and repeat callbacks.
   AddAction(0, true, true, true);
   bindings_->AddBinding(KeyBindings::KeyCombo(XK_e, KeyBindings::kControlMask),
-                       actions_[0]->name);
+                        actions_[0]->name);
 
   // -- Combo press for action 0
-  EXPECT_TRUE(bindings_->HandleKeyPress(XK_e, KeyBindings::kControlMask));
+  XTime event_time = 10;
+  EXPECT_EQ(0, bindings_->current_event_time());
+  EXPECT_TRUE(bindings_->HandleKeyPress(XK_e, KeyBindings::kControlMask,
+                                        event_time++));
+  EXPECT_EQ(0, bindings_->current_event_time());
+  EXPECT_EQ(10, actions_[0]->last_event_time);
   EXPECT_EQ(1, actions_[0]->begin_call_count);
   EXPECT_EQ(0, actions_[0]->repeat_call_count);
   EXPECT_EQ(0, actions_[0]->end_call_count);
 
   // -- Combo repeats for action 0
-  EXPECT_TRUE(bindings_->HandleKeyPress(XK_e, KeyBindings::kControlMask));
+  EXPECT_TRUE(bindings_->HandleKeyPress(XK_e, KeyBindings::kControlMask,
+                                        event_time++));
   EXPECT_EQ(1, actions_[0]->begin_call_count);
   EXPECT_EQ(1, actions_[0]->repeat_call_count);
   EXPECT_EQ(0, actions_[0]->end_call_count);
-  EXPECT_TRUE(bindings_->HandleKeyPress(XK_e, KeyBindings::kControlMask));
+  EXPECT_TRUE(bindings_->HandleKeyPress(XK_e, KeyBindings::kControlMask,
+                                        event_time++));
   EXPECT_EQ(1, actions_[0]->begin_call_count);
   EXPECT_EQ(2, actions_[0]->repeat_call_count);
   EXPECT_EQ(0, actions_[0]->end_call_count);
 
   // -- Combo release for action 0
-  bindings_->HandleKeyRelease(XK_e, KeyBindings::kControlMask);
+  bindings_->HandleKeyRelease(XK_e, KeyBindings::kControlMask, event_time++);
   EXPECT_EQ(1, actions_[0]->begin_call_count);
   EXPECT_EQ(2, actions_[0]->repeat_call_count);
   EXPECT_EQ(1, actions_[0]->end_call_count);
 
   // -- Unregistered combo presses.
-  EXPECT_FALSE(bindings_->HandleKeyPress(XK_t, KeyBindings::kControlMask));
-  EXPECT_FALSE(bindings_->HandleKeyRelease(XK_t, KeyBindings::kControlMask));
-  EXPECT_FALSE(bindings_->HandleKeyPress(XK_e, KeyBindings::kShiftMask));
-  EXPECT_FALSE(bindings_->HandleKeyRelease(XK_e, KeyBindings::kShiftMask));
-  EXPECT_FALSE(bindings_->HandleKeyPress(XK_e, 0));
-  EXPECT_FALSE(bindings_->HandleKeyRelease(XK_e, 0));
+  EXPECT_FALSE(bindings_->HandleKeyPress(XK_t, KeyBindings::kControlMask,
+                                         event_time++));
+  EXPECT_FALSE(bindings_->HandleKeyRelease(XK_t, KeyBindings::kControlMask,
+                                           event_time++));
+  EXPECT_FALSE(bindings_->HandleKeyPress(XK_e, KeyBindings::kShiftMask,
+                                         event_time++));
+  EXPECT_FALSE(bindings_->HandleKeyRelease(XK_e, KeyBindings::kShiftMask,
+                                           event_time++));
+  EXPECT_FALSE(bindings_->HandleKeyPress(XK_e, 0, event_time++));
+  EXPECT_FALSE(bindings_->HandleKeyRelease(XK_e, 0, event_time++));
   EXPECT_EQ(1, actions_[0]->begin_call_count);
   EXPECT_EQ(2, actions_[0]->repeat_call_count);
   EXPECT_EQ(1, actions_[0]->end_call_count);
@@ -150,14 +175,17 @@ TEST_F(KeyBindingsTest, ModifierKey) {
   bindings_->AddBinding(combo, actions_[0]->name);
 
   // -- Combo press for action 0
-  EXPECT_TRUE(bindings_->HandleKeyPress(XK_Super_L, KeyBindings::kControlMask));
+  XTime event_time = 10;
+  EXPECT_TRUE(bindings_->HandleKeyPress(XK_Super_L, KeyBindings::kControlMask,
+                                        event_time++));
   EXPECT_EQ(1, actions_[0]->begin_call_count);
   EXPECT_EQ(0, actions_[0]->end_call_count);
 
   // -- Combo release for action 0
   // NOTE: We add in the modifier mask for the key itself.
   bindings_->HandleKeyRelease(
-      XK_Super_L, KeyBindings::kControlMask | KeyBindings::kSuperMask);
+      XK_Super_L, KeyBindings::kControlMask | KeyBindings::kSuperMask,
+      event_time++);
   EXPECT_EQ(1, actions_[0]->begin_call_count);
   EXPECT_EQ(1, actions_[0]->end_call_count);
 }
@@ -170,68 +198,78 @@ TEST_F(KeyBindingsTest, NullCallbacks) {
   // Action 0: Requests end callback only.
   AddAction(0, false, false, true);
   bindings_->AddBinding(KeyBindings::KeyCombo(XK_e, KeyBindings::kControlMask),
-                       actions_[0]->name);
+                        actions_[0]->name);
 
   // Action 1: Requests begin callback only.
   AddAction(1, true, false, false);
   bindings_->AddBinding(KeyBindings::KeyCombo(XK_b, KeyBindings::kControlMask),
-                       actions_[1]->name);
+                        actions_[1]->name);
 
   // Action 2: Requests repeat callback only.
   AddAction(2, false, true, false);
   bindings_->AddBinding(KeyBindings::KeyCombo(XK_r, KeyBindings::kControlMask),
-                       actions_[2]->name);
+                        actions_[2]->name);
 
   // -- Combo press for action 0
-  EXPECT_FALSE(bindings_->HandleKeyPress(XK_e, KeyBindings::kControlMask));
+  XTime event_time = 10;
+  EXPECT_FALSE(bindings_->HandleKeyPress(XK_e, KeyBindings::kControlMask,
+                                         event_time++));
   EXPECT_EQ(0, actions_[0]->begin_call_count);
   EXPECT_EQ(0, actions_[0]->repeat_call_count);
   EXPECT_EQ(0, actions_[0]->end_call_count);
 
   // -- Combo repeat for action 0
-  EXPECT_FALSE(bindings_->HandleKeyPress(XK_e, KeyBindings::kControlMask));
+  EXPECT_FALSE(bindings_->HandleKeyPress(XK_e, KeyBindings::kControlMask,
+                                         event_time++));
   EXPECT_EQ(0, actions_[0]->begin_call_count);
   EXPECT_EQ(0, actions_[0]->repeat_call_count);
   EXPECT_EQ(0, actions_[0]->end_call_count);
 
   // -- Combo release for action 0
-  EXPECT_TRUE(bindings_->HandleKeyRelease(XK_e, KeyBindings::kControlMask));
+  EXPECT_TRUE(bindings_->HandleKeyRelease(XK_e, KeyBindings::kControlMask,
+                                          event_time++));
   EXPECT_EQ(0, actions_[0]->begin_call_count);
   EXPECT_EQ(0, actions_[0]->repeat_call_count);
   EXPECT_EQ(1, actions_[0]->end_call_count);
 
   // -- Combo press for action 1
-  EXPECT_TRUE(bindings_->HandleKeyPress(XK_b, KeyBindings::kControlMask));
+  EXPECT_TRUE(bindings_->HandleKeyPress(XK_b, KeyBindings::kControlMask,
+                                        event_time++));
   EXPECT_EQ(1, actions_[1]->begin_call_count);
   EXPECT_EQ(0, actions_[1]->repeat_call_count);
   EXPECT_EQ(0, actions_[1]->end_call_count);
 
   // -- Combo repeat for action 1
-  EXPECT_FALSE(bindings_->HandleKeyPress(XK_b, KeyBindings::kControlMask));
+  EXPECT_FALSE(bindings_->HandleKeyPress(XK_b, KeyBindings::kControlMask,
+                                         event_time++));
   EXPECT_EQ(1, actions_[1]->begin_call_count);
   EXPECT_EQ(0, actions_[1]->repeat_call_count);
   EXPECT_EQ(0, actions_[1]->end_call_count);
 
   // -- Combo release for action 1
-  EXPECT_FALSE(bindings_->HandleKeyRelease(XK_b, KeyBindings::kControlMask));
+  EXPECT_FALSE(bindings_->HandleKeyRelease(XK_b, KeyBindings::kControlMask,
+                                           event_time++));
   EXPECT_EQ(1, actions_[1]->begin_call_count);
   EXPECT_EQ(0, actions_[1]->repeat_call_count);
   EXPECT_EQ(0, actions_[1]->end_call_count);
 
   // -- Combo press for action 2
-  EXPECT_FALSE(bindings_->HandleKeyPress(XK_r, KeyBindings::kControlMask));
+  EXPECT_FALSE(bindings_->HandleKeyPress(XK_r, KeyBindings::kControlMask,
+                                         event_time++));
   EXPECT_EQ(0, actions_[2]->begin_call_count);
   EXPECT_EQ(0, actions_[2]->repeat_call_count);
   EXPECT_EQ(0, actions_[2]->end_call_count);
 
   // -- Combo repeat for action 2
-  EXPECT_TRUE(bindings_->HandleKeyPress(XK_r, KeyBindings::kControlMask));
+  EXPECT_TRUE(bindings_->HandleKeyPress(XK_r, KeyBindings::kControlMask,
+                                        event_time++));
   EXPECT_EQ(0, actions_[2]->begin_call_count);
   EXPECT_EQ(1, actions_[2]->repeat_call_count);
   EXPECT_EQ(0, actions_[2]->end_call_count);
 
   // -- Combo release for action 2
-  EXPECT_FALSE(bindings_->HandleKeyRelease(XK_r, KeyBindings::kControlMask));
+  EXPECT_FALSE(bindings_->HandleKeyRelease(XK_r, KeyBindings::kControlMask,
+                                           event_time++));
   EXPECT_EQ(0, actions_[2]->begin_call_count);
   EXPECT_EQ(1, actions_[2]->repeat_call_count);
   EXPECT_EQ(0, actions_[2]->end_call_count);
@@ -270,20 +308,24 @@ TEST_F(KeyBindingsTest, ManyActionsAndBindings) {
 
   // Test key combos across all bindings.
   const int kNumActivates = 2;
+  XTime event_time;
   for (int i = 0; i < kBindingsPerAction; ++i) {
     for (int j = 0; j < kNumActions; ++j) {
       KeySym keysym = XK_a + (i * kNumActions) + j;
       for (int k = 0; k < kNumActivates; ++k) {
         const int count = i * kNumActivates + k;
-        EXPECT_TRUE(bindings_->HandleKeyPress(keysym, 0));    // Press
+        EXPECT_TRUE(bindings_->HandleKeyPress(keysym, 0,
+                                              event_time++));    // Press
         EXPECT_EQ(count + 1, actions_[j]->begin_call_count);
         EXPECT_EQ(count, actions_[j]->repeat_call_count);
         EXPECT_EQ(count, actions_[j]->end_call_count);
-        EXPECT_TRUE(bindings_->HandleKeyPress(keysym, 0));    // Repeat
+        EXPECT_TRUE(bindings_->HandleKeyPress(keysym, 0,
+                                              event_time++));    // Repeat
         EXPECT_EQ(count + 1, actions_[j]->begin_call_count);
         EXPECT_EQ(count + 1, actions_[j]->repeat_call_count);
         EXPECT_EQ(count, actions_[j]->end_call_count);
-        EXPECT_TRUE(bindings_->HandleKeyRelease(keysym, 0));  // Release
+        EXPECT_TRUE(bindings_->HandleKeyRelease(keysym, 0,
+                                                event_time++));  // Release
         EXPECT_EQ(count + 1, actions_[j]->begin_call_count);
         EXPECT_EQ(count + 1, actions_[j]->repeat_call_count);
         EXPECT_EQ(count + 1, actions_[j]->end_call_count);
@@ -307,8 +349,10 @@ TEST_F(KeyBindingsTest, ManyActionsAndBindings) {
     for (int j = 0; j < kNumActions; ++j) {
       KeySym keysym = XK_a + (i * kNumActions) + j;
       const bool has_binding = (i >= (kBindingsPerAction / 2));
-      EXPECT_EQ(has_binding, bindings_->HandleKeyPress(keysym, 0));
-      EXPECT_EQ(has_binding, bindings_->HandleKeyRelease(keysym, 0));
+      EXPECT_EQ(has_binding, bindings_->HandleKeyPress(keysym, 0,
+                                                       event_time++));
+      EXPECT_EQ(has_binding, bindings_->HandleKeyRelease(keysym, 0,
+                                                         event_time++));
       if (has_binding) {
         EXPECT_GT(actions_[j]->begin_call_count, 0);
         EXPECT_GT(actions_[j]->end_call_count, 0);
@@ -328,8 +372,8 @@ TEST_F(KeyBindingsTest, ManyActionsAndBindings) {
   for (int i = 0; i < kBindingsPerAction; ++i) {
     for (int j = 0; j < kNumActions; ++j) {
       KeySym keysym = XK_a + (i * kNumActions) + j;
-      EXPECT_FALSE(bindings_->HandleKeyPress(keysym, 0));
-      EXPECT_FALSE(bindings_->HandleKeyRelease(keysym, 0));
+      EXPECT_FALSE(bindings_->HandleKeyPress(keysym, 0, event_time++));
+      EXPECT_FALSE(bindings_->HandleKeyRelease(keysym, 0, event_time++));
       EXPECT_EQ(0, actions_[j]->begin_call_count);
       EXPECT_EQ(0, actions_[j]->end_call_count);
     }
@@ -362,14 +406,19 @@ TEST_F(KeyBindingsTest, Lowercase) {
 
   // Add a Ctrl+E (uppercase 'e') binding and check that it's activated by
   // both uppercase and lowercase keysyms.
+  XTime event_time = 10;
   AddAction(0, true, false, true);
   ASSERT_TRUE(bindings_->AddBinding(
-                  KeyBindings::KeyCombo(XK_E, KeyBindings::kControlMask),
-                  actions_[0]->name));
-  EXPECT_TRUE(bindings_->HandleKeyPress(XK_e, KeyBindings::kControlMask));
-  EXPECT_TRUE(bindings_->HandleKeyRelease(XK_e, KeyBindings::kControlMask));
-  EXPECT_TRUE(bindings_->HandleKeyPress(XK_E, KeyBindings::kControlMask));
-  EXPECT_TRUE(bindings_->HandleKeyRelease(XK_E, KeyBindings::kControlMask));
+      KeyBindings::KeyCombo(XK_E, KeyBindings::kControlMask),
+      actions_[0]->name));
+  EXPECT_TRUE(bindings_->HandleKeyPress(XK_e, KeyBindings::kControlMask,
+                                        event_time++));
+  EXPECT_TRUE(bindings_->HandleKeyRelease(XK_e, KeyBindings::kControlMask,
+                                          event_time++));
+  EXPECT_TRUE(bindings_->HandleKeyPress(XK_E, KeyBindings::kControlMask,
+                                        event_time++));
+  EXPECT_TRUE(bindings_->HandleKeyRelease(XK_E, KeyBindings::kControlMask,
+                                          event_time++));
   EXPECT_EQ(2, actions_[0]->begin_call_count);
   EXPECT_EQ(2, actions_[0]->end_call_count);
 
@@ -377,12 +426,16 @@ TEST_F(KeyBindingsTest, Lowercase) {
   // by both too.
   AddAction(1, true, false, true);
   ASSERT_TRUE(bindings_->AddBinding(
-                  KeyBindings::KeyCombo(XK_j, KeyBindings::kControlMask),
-                  actions_[1]->name));
-  EXPECT_TRUE(bindings_->HandleKeyPress(XK_j, KeyBindings::kControlMask));
-  EXPECT_TRUE(bindings_->HandleKeyRelease(XK_j, KeyBindings::kControlMask));
-  EXPECT_TRUE(bindings_->HandleKeyPress(XK_J, KeyBindings::kControlMask));
-  EXPECT_TRUE(bindings_->HandleKeyRelease(XK_J, KeyBindings::kControlMask));
+      KeyBindings::KeyCombo(XK_j, KeyBindings::kControlMask),
+      actions_[1]->name));
+  EXPECT_TRUE(bindings_->HandleKeyPress(XK_j, KeyBindings::kControlMask,
+                                        event_time++));
+  EXPECT_TRUE(bindings_->HandleKeyRelease(XK_j, KeyBindings::kControlMask,
+                                          event_time++));
+  EXPECT_TRUE(bindings_->HandleKeyPress(XK_J, KeyBindings::kControlMask,
+                                        event_time++));
+  EXPECT_TRUE(bindings_->HandleKeyRelease(XK_J, KeyBindings::kControlMask,
+                                          event_time++));
   EXPECT_EQ(2, actions_[1]->begin_call_count);
   EXPECT_EQ(2, actions_[1]->end_call_count);
 
@@ -391,10 +444,12 @@ TEST_F(KeyBindingsTest, Lowercase) {
   // uppercase since shift is down).
   AddAction(2, true, false, true);
   ASSERT_TRUE(bindings_->AddBinding(
-                  KeyBindings::KeyCombo(XK_r, KeyBindings::kShiftMask),
-                  actions_[2]->name));
-  EXPECT_TRUE(bindings_->HandleKeyPress(XK_R, KeyBindings::kShiftMask));
-  EXPECT_TRUE(bindings_->HandleKeyRelease(XK_R, KeyBindings::kShiftMask));
+      KeyBindings::KeyCombo(XK_r, KeyBindings::kShiftMask),
+      actions_[2]->name));
+  EXPECT_TRUE(bindings_->HandleKeyPress(XK_R, KeyBindings::kShiftMask,
+                                        event_time++));
+  EXPECT_TRUE(bindings_->HandleKeyRelease(XK_R, KeyBindings::kShiftMask,
+                                          event_time++));
   EXPECT_EQ(1, actions_[2]->begin_call_count);
   EXPECT_EQ(1, actions_[2]->end_call_count);
 }
@@ -405,20 +460,21 @@ TEST_F(KeyBindingsTest, RemoveCapsLock) {
   xconn_->AddKeyMapping(1, XK_e);
   AddAction(0, true, false, true);
   ASSERT_TRUE(bindings_->AddBinding(
-                  KeyBindings::KeyCombo(XK_e, KeyBindings::kControlMask),
-                  actions_[0]->name));
+      KeyBindings::KeyCombo(XK_e, KeyBindings::kControlMask),
+      actions_[0]->name));
 
   // We need to grab both Ctrl+e and Ctrl+CapsLock+e; we wouldn't get
   // triggered when Caps Lock is on otherwise.
+  XTime event_time = 10;
   KeyCode keycode = xconn_->GetKeyCodeFromKeySym(XK_e);
   EXPECT_TRUE(xconn_->KeyIsGrabbed(keycode, KeyBindings::kControlMask));
   EXPECT_TRUE(
       xconn_->KeyIsGrabbed(keycode, KeyBindings::kControlMask | LockMask));
 
   EXPECT_TRUE(bindings_->HandleKeyPress(
-                  XK_E, KeyBindings::kControlMask | LockMask));
+      XK_E, KeyBindings::kControlMask | LockMask, event_time++));
   EXPECT_TRUE(bindings_->HandleKeyRelease(
-                  XK_E, KeyBindings::kControlMask | LockMask));
+      XK_E, KeyBindings::kControlMask | LockMask, event_time++));
   EXPECT_EQ(1, actions_[0]->begin_call_count);
   EXPECT_EQ(0, actions_[0]->repeat_call_count);
   EXPECT_EQ(1, actions_[0]->end_call_count);
@@ -427,17 +483,20 @@ TEST_F(KeyBindingsTest, RemoveCapsLock) {
 // Test that we terminate in-progress actions correctly when their modifier
 // keys get released before the non-modifier key.
 TEST_F(KeyBindingsTest, ModifierReleasedFirst) {
+  XTime event_time = 10;
   xconn_->AddKeyMapping(1, XK_k);
   AddAction(0, true, false, true);
   ASSERT_TRUE(bindings_->AddBinding(
-                  KeyBindings::KeyCombo(XK_k, KeyBindings::kControlMask),
-                  actions_[0]->name));
+      KeyBindings::KeyCombo(XK_k, KeyBindings::kControlMask),
+      actions_[0]->name));
 
-  EXPECT_FALSE(bindings_->HandleKeyPress(XK_Control_L, 0));
-  EXPECT_TRUE(bindings_->HandleKeyPress(XK_k, KeyBindings::kControlMask));
+  EXPECT_FALSE(bindings_->HandleKeyPress(XK_Control_L, 0, event_time++));
+  EXPECT_TRUE(bindings_->HandleKeyPress(XK_k, KeyBindings::kControlMask,
+                                        event_time++));
   EXPECT_FALSE(bindings_->HandleKeyRelease(XK_Control_L,
-                                           KeyBindings::kControlMask));
-  EXPECT_TRUE(bindings_->HandleKeyRelease(XK_k, 0));
+                                           KeyBindings::kControlMask,
+                                           event_time++));
+  EXPECT_TRUE(bindings_->HandleKeyRelease(XK_k, 0, event_time++));
 
   EXPECT_EQ(1, actions_[0]->begin_call_count);
   EXPECT_EQ(1, actions_[0]->end_call_count);

@@ -319,7 +319,7 @@ void LayoutManager::SnapshotWindow::HandleButtonRelease(XTime timestamp,
     // If we're already the current snapshot, then switch modes to ACTIVE mode.
     layout_manager_->SetMode(LayoutManager::MODE_ACTIVE);
   } else {
-    layout_manager_->SetCurrentSnapshotWithClick(this, x, y);
+    layout_manager_->SetCurrentSnapshotWithClick(this, timestamp, x, y);
     layout_manager_->LayoutWindows(true);
   }
 }

@@ -105,6 +105,13 @@ class LayoutManager::ToplevelWindow {
   // type parameters of the toplevel window.
   int tab_count() const { return tab_count_; }
 
+  // This tells Chrome via IPC to change the currently selected tab to
+  // the given tab.  Keeps a timestamp to avoid a race when handling
+  // property changes.  Note that |selected_tab_| will not change to
+  // match until we receive the associated property change message
+  // from Chrome.
+  void SendTabSelectedMessage(int tab_index, XTime timestamp);
+
  private:
   WindowManager* wm() { return layout_manager_->wm_; }
 
@@ -140,6 +147,13 @@ class LayoutManager::ToplevelWindow {
 
   // This is the number of tabs in this toplevel window.
   int tab_count_;
+
+  // The last time a tab was selected.  Only increases, and is set
+  // when we either send a message to Chrome, or when we receive a
+  // newer property change message than this from Chrome.  Used to
+  // prevent race conditions between Chrome and the window manager
+  // when changing tabs.
+  XTime last_tab_selected_time_;
 
   // LayoutManager event registrations for this toplevel window.
   scoped_ptr<EventConsumerRegistrar> event_consumer_registrar_;

@@ -92,8 +92,13 @@ class KeyBindings {
   void RefreshKeyMappings();
 
   // These should be called by the window manager in order to process bindings.
-  bool HandleKeyPress(KeySym keysym, uint32 modifiers);
-  bool HandleKeyRelease(KeySym keysym, uint32 modifiers);
+  bool HandleKeyPress(KeySym keysym, uint32 modifiers, XTime event_time);
+  bool HandleKeyRelease(KeySym keysym, uint32 modifiers, XTime event_time);
+
+  // The current event time is non-zero when we are within a call to
+  // HandleKeyPress or HandleKeyRelease.  This allows the action
+  // closures to access the event time if they need it.
+  XTime current_event_time() const { return current_event_time_; }
 
  private:
   // Returns the modifier mask value that is equivalent to the given keysym
@@ -101,6 +106,8 @@ class KeyBindings {
   uint32 KeySymToModifier(uint32 keysym);
 
   XConnection* xconn_;  // Weak reference
+
+  XTime current_event_time_;
 
   typedef std::map<std::string, Action*> ActionMap;
   ActionMap actions_;

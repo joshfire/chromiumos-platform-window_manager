@@ -13,6 +13,7 @@
 #include "base/scoped_ptr.h"
 #include "base/logging.h"
 #include "window_manager/stacking_manager.h"
+#include "window_manager/key_bindings.h"
 #include "window_manager/wm_ipc.h"
 #include "window_manager/x_types.h"
 
@@ -86,6 +87,8 @@ class BasicWindowManagerTest : public ::testing::Test {
 
   // Creates a snapshot client window with an arbitrary size.
   // |toplevel_xid| is the id of the associated toplevel window.
+  // |index| is the index of the snapshot within the given toplevel
+  // window.
   XWindow CreateSimpleSnapshotWindow(XWindow toplevel_xid, int index);
 
   // Create a panel titlebar or content window.
@@ -104,7 +107,8 @@ class BasicWindowManagerTest : public ::testing::Test {
   // toplevel window.
   void ChangeTabInfo(XWindow toplevel_xid,
                      int tab_count,
-                     int selected_tab);
+                     int selected_tab,
+                     uint32 timestamp);
 
   // Make the window manager handle a CreateNotify event and, if the window
   // isn't override-redirect, a MapRequest.  If it's mapped after this
@@ -134,6 +138,12 @@ class BasicWindowManagerTest : public ::testing::Test {
   // Send a WM_IPC_MESSAGE_WM_SET_LOGIN_STATE message telling the window
   // manager that the login entries should be selectable or not.
   void SendSetLoginStateMessage(bool entries_selectable);
+
+  // Send a key press and release to the given xid.
+  void SendKey(XWindow xid,
+               KeyBindings::KeyCombo key,
+               XTime press_timestamp,
+               XTime release_timestamp);
 
   // Send a _NET_ACTIVE_WINDOW message asking the window manager to focus a
   // window.

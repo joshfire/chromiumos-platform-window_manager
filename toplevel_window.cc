@@ -62,6 +62,7 @@ LayoutManager::ToplevelWindow::ToplevelWindow(Window* win,
       transients_(new TransientWindowCollection(win, layout_manager)),
       selected_tab_(-1),
       tab_count_(0),
+      last_tab_selected_time_(0),
       event_consumer_registrar_(
           new EventConsumerRegistrar(wm(), layout_manager_)) {
 #if defined(EXTRA_LOGGING)
@@ -154,29 +155,63 @@ void LayoutManager::ToplevelWindow::UpdateLayout(bool animate) {
 }
 
 bool LayoutManager::ToplevelWindow::PropertiesChanged() {
-  if (win_->type() == chromeos::WM_IPC_WINDOW_CHROME_TOPLEVEL) {
-    if (win_->type_params().size() > 1) {
-      // Notice if the number of tabs or the selected tab changed.
-      int old_tab_count = tab_count_;
-      int old_selected_tab = selected_tab_;
-      selected_tab_ = win_->type_params()[1];
-      tab_count_ = win_->type_params()[0];
+  if (win_->type() != chromeos::WM_IPC_WINDOW_CHROME_TOPLEVEL)
+    return false;
 
-      bool changed = tab_count_ != old_tab_count ||
-                     selected_tab_ != old_selected_tab;
-#if defined(EXTRA_LOGGING)
-      if (changed) {
-        DLOG(INFO) << "Properties of toplevel " << win_->xid_str()
-                  << " changed count from " << old_tab_count << " to "
-                  << tab_count_
-                  << " and selected from " << old_selected_tab << " to "
-                  << selected_tab_;
-      }
-#endif
-      return changed;
-    }
+  if (win_->type_params().size() < 1) {
+    LOG(ERROR) << "Chrome isn't sending enough type parameters for "
+               << "TOPLEVEL windows";
+    return false;
   }
-  return false;
+
+  // Try and be a little backward compatible here.  If Chrome isn't
+  // sending the timestamp, then just assume they're all current
+  // (the old behavior).  This will ease the transition while the
+  // ChromeOS version of Chrome lags the TOT version.
+  // TODO(gspencer): Remove this once Chrome rolls to the new
+  // version.
+  XTime event_time = last_tab_selected_time_;
+  if (win_->type_params().size() > 2) {
+    event_time = static_cast<XTime>(win_->type_params()[2]);
+  }
+
+  // Only do something if the timestamp on the change was newer or
+  // equal than our last request, to avoid a race with Chrome
+  // where we get reset back to something that occurred earlier in
+  // time.
+  if (event_time < last_tab_selected_time_)
+    return false;
+
+  last_tab_selected_time_ = event_time;
+  // Notice if the number of tabs or the selected tab changed.
+  int old_tab_count = tab_count_;
+  int old_selected_tab = selected_tab_;
+  selected_tab_ = win_->type_params()[1];
+  tab_count_ = win_->type_params()[0];
+
+  bool changed = tab_count_ != old_tab_count ||
+                 selected_tab_ != old_selected_tab;
+#if defined(EXTRA_LOGGING)
+  if (changed) {
+    DLOG(INFO) << "Properties of toplevel " << win_->xid_str()
+               << " changed count from " << old_tab_count << " to "
+               << tab_count_
+               << " and selected from " << old_selected_tab << " to "
+               << selected_tab_
+               << " at time " << last_tab_selected_time_;
+  }
+#endif
+
+  return changed;
+}
+
+void LayoutManager::ToplevelWindow::SendTabSelectedMessage(int tab_index,
+                                                           XTime timestamp) {
+  last_tab_selected_time_ = timestamp;
+  WmIpc::Message msg(chromeos::WM_IPC_MESSAGE_CHROME_NOTIFY_TAB_SELECT);
+  msg.set_param(0, tab_index);
+  msg.set_param(1, timestamp);
+  wm()->wm_ipc()->SendMessage(win_->xid(), msg);
 }
 
 void LayoutManager::ToplevelWindow::ConfigureForActiveMode(bool animate) {

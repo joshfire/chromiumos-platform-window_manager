@@ -39,6 +39,7 @@ MockXConnection::MockXConnection()
       next_atom_(1000),
       focused_xid_(None),
       last_focus_timestamp_(0),
+      current_time_(0),
       pointer_grab_xid_(None),
       num_keymap_refreshes_(0),
       pointer_x_(0),
@@ -463,6 +464,14 @@ bool MockXConnection::IsEventPending() {
   return !queued_events_.empty();
 }
 
+bool MockXConnection::WaitForPropertyChange(XWindow xid, XTime* timestamp_out) {
+  if (timestamp_out) {
+    current_time_ += 10;
+    *timestamp_out = current_time_;
+  }
+  return true;
+}
+
 void MockXConnection::GetNextEvent(void* event) {
   CHECK(event);
   CHECK(!queued_events_.empty())
@@ -670,6 +679,22 @@ void MockXConnection::InitButtonEvent(
   button_event->x_root = info->x + x;
   button_event->y_root = info->y + y;
   button_event->button = button;
+}
+
+void MockXConnection::InitKeyEvent(XEvent* event, XWindow xid,
+                                   unsigned int keycode,
+                                   unsigned int key_mask,
+                                   XTime time,
+                                   bool press) const {
+  CHECK(event);
+  const WindowInfo* info = GetWindowInfoOrDie(xid);
+  XKeyEvent* key_event = &(event->xkey);
+  memset(key_event, 0, sizeof(*key_event));
+  key_event->type = press ? KeyPress : KeyRelease;
+  key_event->window = info->xid;
+  key_event->state = key_mask;
+  key_event->keycode = keycode;
+  key_event->time = time;
 }
 
 void MockXConnection::InitClientMessageEvent(XEvent* event,

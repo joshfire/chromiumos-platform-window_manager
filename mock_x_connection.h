@@ -88,7 +88,7 @@ class MockXConnection : public XConnection {
                               long data[5],
                               int event_mask);
   bool WaitForWindowToBeDestroyed(XWindow xid) { return true; }
-  bool WaitForPropertyChange(XWindow xid, XTime* timestamp_out) { return true; }
+  bool WaitForPropertyChange(XWindow xid, XTime* timestamp_out);
   XWindow GetSelectionOwner(XAtom atom);
   bool SetSelectionOwner(XAtom atom, XWindow xid, XTime timestamp);
   bool SetWindowCursor(XWindow xid, uint32 shape);
@@ -250,6 +250,27 @@ class MockXConnection : public XConnection {
                               int x, int y, int button) const {
     InitButtonEvent(event, xid, x, y, button, false);
   }
+  // |press| is true if this is a key press instead of a key release.
+  // |key_mask| can be any combination of: ShiftMask, LockMask,
+  // ControlMask, Mod1Mask, Mod2Mask, Mod3Mask, Mod4Mask, and Mod5Mask
+  // (where Mod1Mask is the Alt key mask).
+  void InitKeyEvent(XEvent* event, XWindow xid,
+                    unsigned int keycode,
+                    unsigned int key_mask,
+                    XTime time,
+                    bool press) const;
+  void InitKeyPressEvent(XEvent* event, XWindow xid,
+                         unsigned int keycode,
+                         unsigned int key_mask,
+                         XTime time) const {
+    InitKeyEvent(event, xid, keycode, key_mask, time, true);
+  }
+  void InitKeyReleaseEvent(XEvent* event, XWindow xid,
+                           unsigned int keycode,
+                           unsigned int key_mask,
+                           XTime time) const {
+    InitKeyEvent(event, xid, keycode, key_mask, time, false);
+  }
   // This just creates a message with 32-bit values.
   void InitClientMessageEvent(
       XEvent* event, XWindow xid, XAtom type,
@@ -298,6 +319,10 @@ class MockXConnection : public XConnection {
 
   // Timestamp from the last FocusWindow() invocation.
   XTime last_focus_timestamp_;
+
+  // The "current time" according to this mock server.  This is just
+  // incremented by 10 each time WaitForPropertyChange() is called.
+  XTime current_time_;
 
   // Window that has currently grabbed the pointer, or None.
   XWindow pointer_grab_xid_;

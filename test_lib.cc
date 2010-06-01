@@ -148,16 +148,18 @@ XWindow BasicWindowManagerTest::CreateToplevelWindow(int tab_count,
                                                      int x, int y,
                                                      int width, int height) {
   XWindow xid = CreateBasicWindow(x, y, width, height);
-  ChangeTabInfo(xid, tab_count, selected_tab);
+  ChangeTabInfo(xid, tab_count, selected_tab, wm_->GetCurrentTimeFromServer());
   return xid;
 }
 
 void BasicWindowManagerTest::ChangeTabInfo(XWindow toplevel_xid,
                                            int tab_count,
-                                           int selected_tab) {
+                                           int selected_tab,
+                                           uint32 timestamp) {
   std::vector<int> params;
   params.push_back(tab_count);
   params.push_back(selected_tab);
+  params.push_back(timestamp);
   wm_->wm_ipc()->SetWindowType(
       toplevel_xid, chromeos::WM_IPC_WINDOW_CHROME_TOPLEVEL, &params);
 }
@@ -306,6 +308,21 @@ void BasicWindowManagerTest::SendSetLoginStateMessage(bool entries_selectable) {
   WmIpc::Message msg(chromeos::WM_IPC_MESSAGE_WM_SET_LOGIN_STATE);
   msg.set_param(0, entries_selectable);
   SendWmIpcMessage(msg);
+}
+
+void BasicWindowManagerTest::SendKey(XWindow xid,
+                                     KeyBindings::KeyCombo key,
+                                     XTime press_timestamp,
+                                     XTime release_timestamp) {
+  XEvent key_event;
+  unsigned int keycode = xconn_->GetKeyCodeFromKeySym(key.keysym);
+  unsigned int keymask = key.modifiers;
+  xconn_->InitKeyPressEvent(&key_event, xid, keycode, keymask, press_timestamp);
+  wm_->HandleEvent(&key_event);
+
+  xconn_->InitKeyReleaseEvent(&key_event, xid, keycode, keymask,
+                              release_timestamp);
+  wm_->HandleEvent(&key_event);
 }
 
 void BasicWindowManagerTest::SendActiveWindowMessage(XWindow xid) {

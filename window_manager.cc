@@ -1482,12 +1482,12 @@ void WindowManager::HandleEnterNotify(const XEnterWindowEvent& e) {
 
 void WindowManager::HandleKeyPress(const XKeyEvent& e) {
   KeySym keysym = xconn_->GetKeySymFromKeyCode(e.keycode);
-  key_bindings_->HandleKeyPress(keysym, e.state);
+  key_bindings_->HandleKeyPress(keysym, e.state, e.time);
 }
 
 void WindowManager::HandleKeyRelease(const XKeyEvent& e) {
   KeySym keysym = xconn_->GetKeySymFromKeyCode(e.keycode);
-  key_bindings_->HandleKeyRelease(keysym, e.state);
+  key_bindings_->HandleKeyRelease(keysym, e.state, e.time);
 }
 
 void WindowManager::HandleLeaveNotify(const XLeaveWindowEvent& e) {

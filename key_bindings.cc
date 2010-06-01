@@ -36,6 +36,25 @@ const uint32 KeyBindings::kNumLockMask = Mod3Mask;  // TODO: Verify
 const uint32 KeyBindings::kSuperMask   = Mod4Mask;
 const uint32 KeyBindings::kHyperMask   = Mod5Mask;  // TODO: Verify
 
+// TODO(gspencer): Make this use AutoReset in base/auto_reset.h when
+// it has been converted to be a template.
+class AutoResetXTime {
+ public:
+  AutoResetXTime(XTime* scoped_variable, XTime new_value)
+      : scoped_variable_(scoped_variable),
+        original_value_(*scoped_variable) {
+    *scoped_variable_ = new_value;
+  }
+
+  ~AutoResetXTime() { *scoped_variable_ = original_value_; }
+
+ private:
+  XTime* scoped_variable_;
+  XTime original_value_;
+
+  DISALLOW_COPY_AND_ASSIGN(AutoResetXTime);
+};
+
 KeyBindings::KeyCombo::KeyCombo(KeySym key_param, uint32 modifiers_param) {
   KeySym upper_keysym = None, lower_keysym = None;
   XConvertCase(key_param, &lower_keysym, &upper_keysym);
@@ -81,7 +100,9 @@ struct Action {
   DISALLOW_COPY_AND_ASSIGN(Action);
 };
 
-KeyBindings::KeyBindings(XConnection* xconn) : xconn_(xconn) {
+KeyBindings::KeyBindings(XConnection* xconn)
+  : xconn_(xconn),
+    current_event_time_(0) {
   CHECK(xconn_);
   if (!xconn_->SetDetectableKeyboardAutoRepeat(true)) {
     LOG(WARNING) << "Unable to enable detectable keyboard autorepeat";
@@ -249,7 +270,10 @@ void KeyBindings::RefreshKeyMappings() {
   keysyms_to_grabbed_keycodes_.swap(new_keysyms_to_grabbed_keycodes_);
 }
 
-bool KeyBindings::HandleKeyPress(KeySym keysym, uint32 modifiers) {
+bool KeyBindings::HandleKeyPress(KeySym keysym,
+                                 uint32 modifiers,
+                                 XTime event_time) {
+  AutoResetXTime reset(&current_event_time_, event_time);
   KeyCombo combo(keysym, modifiers);
   BindingsMap::const_iterator bindings_iter = bindings_.find(combo);
   if (bindings_iter == bindings_.end()) {
@@ -274,7 +298,10 @@ bool KeyBindings::HandleKeyPress(KeySym keysym, uint32 modifiers) {
   return false;
 }
 
-bool KeyBindings::HandleKeyRelease(KeySym keysym, uint32 modifiers) {
+bool KeyBindings::HandleKeyRelease(KeySym keysym,
+                                   uint32 modifiers,
+                                   XTime event_time) {
+  AutoResetXTime reset(&current_event_time_, event_time);
   KeyCombo combo(keysym, modifiers);
 
   // It's possible that a combo's modifier key(s) will get released before

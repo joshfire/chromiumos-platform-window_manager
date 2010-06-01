@@ -822,25 +822,9 @@ void LayoutManager::SetMode(Mode mode) {
   switch (mode_) {
     case MODE_NEW:
     case MODE_ACTIVE:
-      if (current_snapshot_ && current_snapshot_->toplevel()) {
-        // Make sure they don't get out of sync -- if the snapshot is selected,
-        // then the toplevel should have changed too.
-        DCHECK_EQ(current_snapshot_->toplevel(), current_toplevel_);
-
-        // Because we were told to change snapshots, this indicates that
-        // the user wants this snapshot to now be current, so we tell
-        // Chrome.
-        // TODO: do some handshaking here to make sure that chrome
-        // switches tabs before we start our animation.
-        WmIpc::Message msg(chromeos::WM_IPC_MESSAGE_CHROME_NOTIFY_TAB_SELECT);
-        msg.set_param(0, current_snapshot_->tab_index());
-        wm_->wm_ipc()->SendMessage(current_snapshot_->toplevel()->win()->xid(),
-                                   msg);
-      }
       // Cancelling actually happens on the chrome side, since it
       // knows what tabs used to be selected.  It knows to cancel
       // because it's a different layout mode.
-      // FALL THROUGH...
     case MODE_ACTIVE_CANCELLED:
       if (current_toplevel_)
         current_toplevel_->TakeFocus(wm_->GetCurrentTimeFromServer());
@@ -1047,6 +1031,8 @@ void LayoutManager::SetCurrentToplevel(ToplevelWindow* toplevel) {
     return;
   }
 
+  DLOG(INFO) << "Setting current toplevel to " << toplevel->win()->xid_str();
+
   // Determine which way we should slide.
   ToplevelWindow::State state_for_new_win;
   ToplevelWindow::State state_for_old_win;
@@ -1169,7 +1155,10 @@ void LayoutManager::CalculatePositionsForOverviewMode() {
           ++separator_index;
       }
 
-      DCHECK(separators_.size() > separator_index);
+      DCHECK(separators_.size() > separator_index)
+          << "Not enough separators: (size " << separators_.size()
+          << " <= index " << separator_index << "), when there are "
+          << toplevels_.size() << " toplevels.";
       DCHECK(i > 0);
 
       // Now figure out where the separator goes.
@@ -1264,13 +1253,28 @@ void LayoutManager::CycleCurrentSnapshotWindow(bool forward) {
     int old_index = GetIndexForSnapshotWindow(*current_snapshot_);
     int new_index = (snapshots_.size() + old_index + (forward ? 1 : -1))
                     % snapshots_.size();
-    SetCurrentSnapshot(snapshots_[new_index].get());
+    XTime event_time = wm_->key_bindings()->current_event_time();
+    // If this is the result of a key press, then we want to
+    // use the event time from that key press.
+    if (event_time) {
+      SetCurrentSnapshotWithClick(snapshots_[new_index].get(),
+                                  event_time, -1, -1);
+    } else {
+      SetCurrentSnapshot(snapshots_[new_index].get());
+    }
   }
   if (mode_ == MODE_OVERVIEW)
     LayoutWindows(true);
 }
 
+void LayoutManager::SetCurrentSnapshot(SnapshotWindow* snapshot) {
+  SetCurrentSnapshotWithClick(snapshot,
+                              wm_->GetCurrentTimeFromServer(),
+                              -1, -1);
+}
+
 void LayoutManager::SetCurrentSnapshotWithClick(SnapshotWindow* snapshot,
+                                                XTime timestamp,
                                                 int x, int y) {
   CHECK(snapshot);
 
@@ -1285,6 +1289,8 @@ void LayoutManager::SetCurrentSnapshotWithClick(SnapshotWindow* snapshot,
       current_snapshot_->SetState(SnapshotWindow::STATE_OVERVIEW_MODE_NORMAL);
 
     current_snapshot_ = snapshot;
+    DLOG(INFO) << "Set current snapshot to "
+               << current_snapshot_->win()->xid_str();
 
     // Tell the snapshot that it's been selected.
     if (current_snapshot_->state() !=
@@ -1297,6 +1303,17 @@ void LayoutManager::SetCurrentSnapshotWithClick(SnapshotWindow* snapshot,
     // toplevel windows.
     if (current_snapshot_->toplevel())
       SetCurrentToplevel(current_snapshot_->toplevel());
+
+    // Detect a change in the current snapshot and report it to
+    // Chrome, but only in overview mode.  We keep a timestamp of when
+    // we sent this to Chrome, and then we ignore any events that
+    // happened earlier than this timestamp.
+    if (current_snapshot_ && current_toplevel_ &&
+        current_snapshot_->toplevel() == current_toplevel_ &&
+        current_toplevel_->selected_tab() != current_snapshot_->tab_index()) {
+      current_toplevel_->SendTabSelectedMessage(current_snapshot_->tab_index(),
+                                                timestamp);
+    }
 
     CalculatePositionsForOverviewMode();
     CenterCurrentSnapshot(x, y);
@@ -1352,27 +1369,29 @@ void LayoutManager::UpdateOverviewPanningForMotion() {
 void LayoutManager::UpdateCurrentSnapshot() {
   if (snapshots_.empty()) {
     current_snapshot_ = NULL;
+    LOG(WARNING) << "Set current snapshot to NULL.";
     return;
   }
 
   if (current_toplevel_) {
-    int selected_index = current_toplevel_->selected_tab();
+    int selected_tab = current_toplevel_->selected_tab();
     // Go through the snapshots and find the one that corresponds to
     // the selected tab in the current toplevel window.
     for (SnapshotWindows::iterator it = snapshots_.begin();
          it != snapshots_.end(); ++it) {
-      if ((*it)->tab_index() == selected_index &&
+      if ((*it)->tab_index() == selected_tab &&
           (*it)->toplevel() == current_toplevel_) {
         SetCurrentSnapshot((*it).get());
         return;
       }
     }
-  } else {
-    // If we don't have an active toplevel window, then just take the
-    // first snapshot.  If no snapshots, then we have to set the
-    // current snapshot to NULL.
-    SetCurrentSnapshot(snapshots_[0].get());
+    LOG(WARNING) << "Unable to find snapshot in current toplevel "
+                 << "for selected tab " << selected_tab;
   }
+
+  // If we don't have an active toplevel window, then just take the
+  // first snapshot.
+  SetCurrentSnapshot(snapshots_[0].get());
 }
 
 void LayoutManager::RemoveSnapshot(SnapshotWindow* snapshot) {

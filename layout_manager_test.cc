@@ -9,6 +9,7 @@
 
 #include "base/logging.h"
 #include "base/scoped_ptr.h"
+#include "cros/chromeos_wm_ipc_enums.h"
 #include "window_manager/compositor.h"
 #include "window_manager/event_loop.h"
 #include "window_manager/layout_manager.h"
@@ -586,6 +587,164 @@ TEST_F(LayoutManagerTest, ConfigureToplevel) {
   EXPECT_EQ(new_height, info->height);
 }
 
+TEST_F(LayoutManagerTest, ChangeCurrentSnapshot) {
+  XWindow toplevel1_xid = CreateToplevelWindow(2, 0, 0, 0, 640, 480);
+  SendInitialEventsForWindow(toplevel1_xid);
+  MockXConnection::WindowInfo* info1 =
+      xconn_->GetWindowInfoOrDie(toplevel1_xid);
+  XWindow toplevel2_xid = CreateToplevelWindow(2, 0, 0, 0, 640, 480);
+  SendInitialEventsForWindow(toplevel2_xid);
+  MockXConnection::WindowInfo* info2 =
+      xconn_->GetWindowInfoOrDie(toplevel2_xid);
+
+  // Create some snapshot windows for the first toplevel.
+  XWindow xid11 = CreateSimpleSnapshotWindow(toplevel1_xid, 0);
+  SendInitialEventsForWindow(xid11);
+  XWindow xid12 = CreateSimpleSnapshotWindow(toplevel1_xid, 1);
+  SendInitialEventsForWindow(xid12);
+  ChangeTabInfo(toplevel1_xid, 2, 1, wm_->GetCurrentTimeFromServer());
+  SendWindowTypeEvent(toplevel1_xid);
+  XWindow xid13 = CreateSimpleSnapshotWindow(toplevel1_xid, 2);
+  SendInitialEventsForWindow(xid13);
+  ChangeTabInfo(toplevel1_xid, 3, 2, wm_->GetCurrentTimeFromServer());
+  SendWindowTypeEvent(toplevel1_xid);
+
+  // Create some snapshot windows for the second toplevel.
+  XWindow xid21 = CreateSimpleSnapshotWindow(toplevel2_xid, 0);
+  SendInitialEventsForWindow(xid21);
+  XWindow xid22 = CreateSimpleSnapshotWindow(toplevel2_xid, 1);
+  SendInitialEventsForWindow(xid22);
+  ChangeTabInfo(toplevel2_xid, 2, 1, wm_->GetCurrentTimeFromServer());
+  SendWindowTypeEvent(toplevel2_xid);
+
+  // OK, now we make sure we have two toplevels, the first one has
+  // three snapshots, and the second has two.
+  EXPECT_EQ(2, lm_->toplevels_.size());
+  EXPECT_EQ(5, lm_->snapshots_.size());
+  EXPECT_EQ(lm_->toplevels_[0].get(), lm_->snapshots_[0]->toplevel());
+  EXPECT_EQ(lm_->toplevels_[0].get(), lm_->snapshots_[1]->toplevel());
+  EXPECT_EQ(lm_->toplevels_[0].get(), lm_->snapshots_[2]->toplevel());
+  EXPECT_EQ(lm_->toplevels_[1].get(), lm_->snapshots_[3]->toplevel());
+  EXPECT_EQ(lm_->toplevels_[1].get(), lm_->snapshots_[4]->toplevel());
+
+  // Now let's go into overview mode.
+  lm_->SetMode(LayoutManager::MODE_OVERVIEW);
+
+  // The second toplevel window should be current.
+  EXPECT_EQ(lm_->GetToplevelWindowByXid(toplevel2_xid), lm_->current_toplevel_);
+
+  // The fifth (second one on second toplevel) snapshot window should
+  // be current.
+  EXPECT_EQ(lm_->GetSnapshotWindowByXid(xid22), lm_->current_snapshot_);
+
+  // Now change snapshots by moving "back" one using the left arrow key.
+  long event_time = wm_->GetCurrentTimeFromServer();
+  xconn_->AddKeyMapping(74, XK_Left);
+  KeyBindings::KeyCombo left_key(XK_Left, 0);
+  SendKey(xconn_->GetRootWindow(), left_key, event_time - 1, event_time);
+
+  EXPECT_EQ(wm_->GetXAtom(ATOM_CHROME_WM_MESSAGE),
+            info2->client_messages.back().message_type);
+  EXPECT_EQ(chromeos::WM_IPC_MESSAGE_CHROME_NOTIFY_TAB_SELECT,
+            info2->client_messages.back().data.l[0]);
+  EXPECT_EQ(0, info2->client_messages.back().data.l[1]);
+
+  // Normally this would now be sent by Chrome, so we simulate it.
+  ChangeTabInfo(toplevel2_xid, 2, 0, event_time);
+  SendWindowTypeEvent(toplevel2_xid);
+
+  // The second toplevel window should be current.
+  EXPECT_EQ(lm_->GetToplevelWindowByXid(toplevel2_xid), lm_->current_toplevel_);
+  EXPECT_EQ(lm_->toplevels_[1].get(), lm_->current_toplevel_);
+
+  // The fourth snapshot (first one on second toplevel) should now be current.
+  EXPECT_EQ(lm_->GetSnapshotWindowByXid(xid21), lm_->current_snapshot_);
+  EXPECT_EQ(lm_->snapshots_[3].get(), lm_->current_snapshot_);
+
+  // Now change snapshots by moving "back" again using the left arrow key.
+  event_time = wm_->GetCurrentTimeFromServer();
+  SendKey(xconn_->GetRootWindow(), left_key, event_time - 1, event_time);
+
+  // Now we do NOT expect to see a tab select message sent to the
+  // first toplevel, since during the creation process, the third
+  // snapshot should already by selected in that toplevel, so there's
+  // no need to send one.
+  EXPECT_EQ(wm_->GetXAtom(ATOM_CHROME_WM_MESSAGE),
+            info1->client_messages.back().message_type);
+  EXPECT_EQ(chromeos::WM_IPC_MESSAGE_CHROME_NOTIFY_LAYOUT_MODE,
+            info1->client_messages.back().data.l[0]);
+
+  // The first toplevel window should now be current.
+  EXPECT_EQ(lm_->GetToplevelWindowByXid(toplevel1_xid), lm_->current_toplevel_);
+  EXPECT_EQ(lm_->toplevels_[0].get(), lm_->current_toplevel_);
+
+  // The third snapshot (third one on first toplevel) should now be current.
+  EXPECT_EQ(lm_->GetSnapshotWindowByXid(xid13), lm_->current_snapshot_);
+  EXPECT_EQ(lm_->snapshots_[2].get(), lm_->current_snapshot_);
+
+  // Now go "back" again using the left arrow key, but this time
+  // inject some changes with earlier timestamps (ostensibly generated
+  // from Chrome instead of the WM), that should be ignored.
+  event_time = wm_->GetCurrentTimeFromServer();
+  SendKey(xconn_->GetRootWindow(), left_key, event_time - 1, event_time);
+
+  EXPECT_EQ(wm_->GetXAtom(ATOM_CHROME_WM_MESSAGE),
+            info1->client_messages.back().message_type);
+  EXPECT_EQ(chromeos::WM_IPC_MESSAGE_CHROME_NOTIFY_TAB_SELECT,
+            info1->client_messages.back().data.l[0]);
+  EXPECT_EQ(1, info1->client_messages.back().data.l[1]);
+
+  // This is a simulated change by Chrome with an earlier event time.
+  ChangeTabInfo(toplevel1_xid, 3, 2, event_time - 1);
+  SendWindowTypeEvent(toplevel1_xid);
+
+  // Normally this would now be sent by Chrome in response to our
+  // message, so we simulate it.
+  ChangeTabInfo(toplevel1_xid, 3, 1, event_time);
+  SendWindowTypeEvent(toplevel1_xid);
+
+  // The first toplevel window should now be current.
+  EXPECT_EQ(lm_->GetToplevelWindowByXid(toplevel1_xid), lm_->current_toplevel_);
+  EXPECT_EQ(lm_->toplevels_[0].get(), lm_->current_toplevel_);
+
+  // The second snapshot (second one on first toplevel) should now be current.
+  EXPECT_EQ(lm_->GetSnapshotWindowByXid(xid12), lm_->current_snapshot_);
+  EXPECT_EQ(lm_->snapshots_[1].get(), lm_->current_snapshot_);
+
+  // Now go "back" again using the left arrow key, but this time
+  // inject some changes with later timestamps (ostensibly generated
+  // from Chrome instead of the WM), that should override ours.
+  event_time = wm_->GetCurrentTimeFromServer();
+  SendKey(xconn_->GetRootWindow(), left_key, event_time - 1, event_time);
+
+  EXPECT_EQ(wm_->GetXAtom(ATOM_CHROME_WM_MESSAGE),
+            info1->client_messages.back().message_type);
+  EXPECT_EQ(chromeos::WM_IPC_MESSAGE_CHROME_NOTIFY_TAB_SELECT,
+            info1->client_messages.back().data.l[0]);
+  EXPECT_EQ(0, info1->client_messages.back().data.l[1]);
+
+  // This is a simulated change by Chrome with an later event time.
+  ChangeTabInfo(toplevel1_xid, 3, 2, event_time + 1);
+  SendWindowTypeEvent(toplevel1_xid);
+
+  // Normally this would now be sent by Chrome in response to our
+  // message, so we simulate it.  It should be ignored.
+  ChangeTabInfo(toplevel1_xid, 3, 0, event_time);
+  SendWindowTypeEvent(toplevel1_xid);
+
+  // The first toplevel window should now be current.
+  EXPECT_EQ(lm_->GetToplevelWindowByXid(toplevel1_xid), lm_->current_toplevel_);
+  EXPECT_EQ(lm_->toplevels_[0].get(), lm_->current_toplevel_);
+
+  // The first snapshot (first one on first toplevel) should NOT be current.
+  EXPECT_NE(lm_->GetSnapshotWindowByXid(xid11), lm_->current_snapshot_);
+  EXPECT_NE(lm_->snapshots_[0].get(), lm_->current_snapshot_);
+
+  // The third snapshot (third one on first toplevel) should now be current.
+  EXPECT_EQ(lm_->GetSnapshotWindowByXid(xid13), lm_->current_snapshot_);
+  EXPECT_EQ(lm_->snapshots_[2].get(), lm_->current_snapshot_);
+}
+
 TEST_F(LayoutManagerTest, OverviewFocus) {
   // Create and map a toplevel window.
   XWindow toplevel_xid = CreateToplevelWindow(2, 0, 0, 0, 640, 480);
@@ -614,7 +773,7 @@ TEST_F(LayoutManagerTest, OverviewFocus) {
   // Now create and map a second snapshot window.
   XWindow xid2 = CreateSimpleSnapshotWindow(toplevel_xid, 1);
   SendInitialEventsForWindow(xid2);
-  ChangeTabInfo(toplevel_xid, 2, 1);
+  ChangeTabInfo(toplevel_xid, 2, 1, wm_->GetCurrentTimeFromServer());
   SendWindowTypeEvent(toplevel_xid);
 
   // The second snapshot window should be current after being created.
@@ -700,7 +859,7 @@ TEST_F(LayoutManagerTest, OverviewScrolling) {
   XWindow xid2 = CreateSnapshotWindow(toplevel_xid, 1, 0, 0,
                                       window_width / 2, window_height / 2);
   SendInitialEventsForWindow(xid2);
-  ChangeTabInfo(toplevel_xid, 2, 1);
+  ChangeTabInfo(toplevel_xid, 2, 1, wm_->GetCurrentTimeFromServer());
   SendWindowTypeEvent(toplevel_xid);
 
   XEvent event;
@@ -1079,9 +1238,7 @@ TEST_F(LayoutManagerTest, NestedTransients) {
 // instead of sliding in from the side.
 TEST_F(LayoutManagerTest, NoSlideForInitialWindow) {
   // Create a window and check that it's in the expected location.
-  XWindow xid = CreateSimpleWindow();
-  wm_->wm_ipc()->SetWindowType(
-      xid, chromeos::WM_IPC_WINDOW_CHROME_TOPLEVEL, NULL);
+  XWindow xid = CreateToplevelWindow(0, 0, 0, 0, 640, 480);
   SendInitialEventsForWindow(xid);
   Window* win = wm_->GetWindowOrDie(xid);
   EXPECT_EQ(0, win->client_x());
@@ -1097,9 +1254,7 @@ TEST_F(LayoutManagerTest, NoSlideForInitialWindow) {
   EXPECT_FALSE(actor->position_was_animated());
 
   // Now create a second window and check that it *does* get animated.
-  XWindow xid2 = CreateSimpleWindow();
-  wm_->wm_ipc()->SetWindowType(
-      xid2, chromeos::WM_IPC_WINDOW_CHROME_TOPLEVEL, NULL);
+  XWindow xid2 = CreateToplevelWindow(0, 0, 0, 0, 640, 480);
   SendInitialEventsForWindow(xid2);
   Window* win2 = wm_->GetWindowOrDie(xid2);
   EXPECT_EQ(0, win2->client_x());
