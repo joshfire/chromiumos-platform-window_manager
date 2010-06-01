@@ -37,7 +37,6 @@ class LayoutManagerTest : public BasicWindowManagerTest {
  protected:
   virtual void SetUp() {
     BasicWindowManagerTest::SetUp();
-
     lm_ = wm_->layout_manager_.get();
   }
   LayoutManager* lm_;  // points to wm_'s copy
@@ -919,6 +918,7 @@ TEST_F(LayoutManagerTest, InitialWindowStacking) {
   // window as already existing.
   SetLoggedInState(true);  // MockXConnection was reset
   CreateAndInitNewWm();
+  lm_ = wm_->layout_manager_.get();
 
   // Get the stacking reference points for toplevel windows and for the
   // layer beneath them.
@@ -1283,6 +1283,7 @@ TEST_F(LayoutManagerTest, KeyBindings) {
   // Both groups should be disabled when we're not logged in.
   SetLoggedInState(false);
   CreateAndInitNewWm();
+  lm_ = wm_->layout_manager_.get();
   EXPECT_FALSE(lm_->active_mode_key_bindings_group_->enabled());
   EXPECT_FALSE(lm_->overview_mode_key_bindings_group_->enabled());
 }
