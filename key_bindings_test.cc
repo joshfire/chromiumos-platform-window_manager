@@ -308,7 +308,7 @@ TEST_F(KeyBindingsTest, ManyActionsAndBindings) {
 
   // Test key combos across all bindings.
   const int kNumActivates = 2;
-  XTime event_time;
+  XTime event_time = 10;
   for (int i = 0; i < kBindingsPerAction; ++i) {
     for (int j = 0; j < kNumActions; ++j) {
       KeySym keysym = XK_a + (i * kNumActions) + j;

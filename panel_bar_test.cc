@@ -56,7 +56,7 @@ TEST_F(PanelBarTest, Basic) {
   const int initial_content_width = 250;
   const int initial_content_height = 400;
   XWindow content_xid = CreatePanelContentWindow(
-      initial_content_width, initial_content_height, titlebar_xid, true);
+      initial_content_width, initial_content_height, titlebar_xid, true, true);
   MockXConnection::WindowInfo* content_info =
       xconn_->GetWindowInfoOrDie(content_xid);
   SendInitialEventsForWindow(content_xid);
@@ -146,11 +146,7 @@ TEST_F(PanelBarTest, Basic) {
             stage->GetStackingIndex(toplevel_win2->actor()));
 
   // Create a second, collapsed panel.
-  XWindow collapsed_titlebar_xid = CreatePanelTitlebarWindow(200, 20);
-  SendInitialEventsForWindow(collapsed_titlebar_xid);
-  XWindow collapsed_content_xid =
-      CreatePanelContentWindow(200, 400, collapsed_titlebar_xid, false);
-  SendInitialEventsForWindow(collapsed_content_xid);
+  CreatePanel(200, 20, 400, false, false);
 
   // The collapsed panel shouldn't have taken the focus.
   EXPECT_EQ(toplevel_xid2, xconn_->focused_xid());
@@ -161,7 +157,7 @@ TEST_F(PanelBarTest, Basic) {
 // client messages.
 TEST_F(PanelBarTest, ActiveWindowMessage) {
   // Create a collapsed panel.
-  Panel* panel = CreatePanel(200, 20, 400, false);
+  Panel* panel = CreatePanel(200, 20, 400, false, false);
 
   // Make sure that it starts out collapsed.
   EXPECT_FALSE((panel)->is_expanded());
@@ -192,14 +188,11 @@ TEST_F(PanelBarTest, ActiveWindowMessage) {
 // refocus the partially-destroyed panel.
 TEST_F(PanelBarTest, FocusNewPanel) {
   // Create an expanded panel.
-  XWindow titlebar_xid = CreatePanelTitlebarWindow(200, 20);
-  SendInitialEventsForWindow(titlebar_xid);
-  XWindow content_xid = CreatePanelContentWindow(200, 400, titlebar_xid, true);
-  SendInitialEventsForWindow(content_xid);
+  Panel* panel = CreateSimplePanel(200, 20, 400);
 
   // It should be focused initially.
-  EXPECT_EQ(content_xid, xconn_->focused_xid());
-  EXPECT_EQ(content_xid, GetActiveWindowProperty());
+  EXPECT_EQ(panel->content_xid(), xconn_->focused_xid());
+  EXPECT_EQ(panel->content_xid(), GetActiveWindowProperty());
 
   // The panel's address should be contained in 'desired_panel_to_focus_'.
   ASSERT_EQ(1, panel_bar_->panels_.size());
@@ -209,7 +202,7 @@ TEST_F(PanelBarTest, FocusNewPanel) {
   // should be destroyed, and 'desired_panel_to_focus_' shouldn't refer to
   // it anymore.
   XEvent event;
-  xconn_->InitUnmapEvent(&event, content_xid);
+  xconn_->InitUnmapEvent(&event, panel->content_xid());
   wm_->HandleEvent(&event);
   EXPECT_TRUE(panel_bar_->panels_.empty());
   EXPECT_EQ(NULL, panel_bar_->desired_panel_to_focus_);
@@ -220,7 +213,7 @@ TEST_F(PanelBarTest, FocusNewPanel) {
 TEST_F(PanelBarTest, HideCollapsedPanels) {
   // Move the pointer to the top of the screen and create a collapsed panel.
   xconn_->SetPointerPosition(0, 0);
-  Panel* panel = CreatePanel(200, 20, 400, false);
+  Panel* panel = CreatePanel(200, 20, 400, false, false);
 
   // Check that some constants make sense in light of our titlebar's height.
   ASSERT_LT(PanelBar::kHiddenCollapsedPanelHeightPixels,
@@ -377,7 +370,7 @@ TEST_F(PanelBarTest, HideCollapsedPanels) {
 // Test that we defer hiding collapsed panels if we're in the middle of a
 // drag.
 TEST_F(PanelBarTest, DeferHidingDraggedCollapsedPanel) {
-  Panel* panel = CreatePanel(200, 20, 400, false);
+  Panel* panel = CreatePanel(200, 20, 400, false, false);
 
   const int hidden_panel_y =
       wm_->height() - PanelBar::kHiddenCollapsedPanelHeightPixels;
@@ -482,8 +475,8 @@ TEST_F(PanelBarTest, DeferHidingDraggedCollapsedPanel) {
 TEST_F(PanelBarTest, ReorderPanels) {
   // Create two 200-pixel-wide panels.
   const int width = 200;
-  Panel* panel1 = CreatePanel(width, 20, 400, false);
-  Panel* panel2 = CreatePanel(width, 20, 400, false);
+  Panel* panel1 = CreatePanel(width, 20, 400, false, false);
+  Panel* panel2 = CreatePanel(width, 20, 400, false, false);
 
   // Initially, panel1 should be on the right and panel2 to its left.
   const int rightmost_right_edge =
@@ -529,9 +522,9 @@ TEST_F(PanelBarTest, ReorderPanels) {
 // differently-sized panels.
 TEST_F(PanelBarTest, ReorderDifferentlySizedPanels) {
   const int small_width = 200;
-  Panel* small_panel = CreatePanel(small_width, 20, 400, false);
+  Panel* small_panel = CreatePanel(small_width, 20, 400, false, false);
   const int big_width = 500;
-  Panel* big_panel = CreatePanel(big_width, 20, 400, false);
+  Panel* big_panel = CreatePanel(big_width, 20, 400, false, false);
 
   const int rightmost_right_edge =
       wm_->width() - PanelBar::kPixelsBetweenPanels;
@@ -611,9 +604,9 @@ TEST_F(PanelBarTest, ReorderDifferentlySizedPanels) {
 
 TEST_F(PanelBarTest, PackPanelsAfterPanelResize) {
   // Create three 200-pixel-wide panels.
-  Panel* panel1 = CreatePanel(200, 20, 400, false);
-  Panel* panel2 = CreatePanel(200, 20, 400, false);
-  Panel* panel3 = CreatePanel(200, 20, 400, false);
+  Panel* panel1 = CreatePanel(200, 20, 400, false, false);
+  Panel* panel2 = CreatePanel(200, 20, 400, false, false);
+  Panel* panel3 = CreatePanel(200, 20, 400, false, false);
 
   // The panels should be crammed together on the right initially.
   EXPECT_EQ(wm_->width() - PanelBar::kPixelsBetweenPanels, panel1->right());
@@ -647,7 +640,7 @@ TEST_F(PanelBarTest, PackPanelsAfterPanelResize) {
 TEST_F(PanelBarTest, UrgentPanel) {
   // Move the pointer to the top of the screen and create a collapsed panel.
   xconn_->SetPointerPosition(0, 0);
-  Panel* panel = CreatePanel(200, 20, 400, false);
+  Panel* panel = CreatePanel(200, 20, 400, false, false);
 
   // Figure out where the top of the panel should be in various states.
   const int hidden_panel_y =
@@ -701,7 +694,7 @@ TEST_F(PanelBarTest, UrgentPanel) {
 
 TEST_F(PanelBarTest, DragPanelVertically) {
   // Create an expanded panel.
-  Panel* panel = CreatePanel(200, 20, 400, true);
+  Panel* panel = CreatePanel(200, 20, 400, true, true);
 
   const int right_edge = wm_->width() - PanelBar::kPixelsBetweenPanels;
   EXPECT_EQ(right_edge, panel->right());
@@ -762,6 +755,26 @@ TEST_F(PanelBarTest, DragPanelVertically) {
   EXPECT_EQ(drag_x + 20, panel->right());
   EXPECT_EQ(expanded_y, panel->titlebar_y());
   SendPanelDragCompleteMessage(panel);
+}
+
+// Test that Chrome can request that a panel not be initially focused.
+TEST_F(PanelBarTest, AvoidInitialFocus) {
+  // If there are no other windows present, the panel should be focused
+  // even if it asks not to be.
+  Panel* initial_panel = CreatePanel(200, 20, 300, true, false);
+  EXPECT_EQ(initial_panel->content_xid(), xconn_->focused_xid());
+  EXPECT_EQ(initial_panel->content_xid(), GetActiveWindowProperty());
+
+  // Create a second panel that also asks not to be focused and check that
+  // it isn't.
+  CreatePanel(200, 20, 300, true, false);
+  EXPECT_EQ(initial_panel->content_xid(), xconn_->focused_xid());
+  EXPECT_EQ(initial_panel->content_xid(), GetActiveWindowProperty());
+
+  // Now create one that asks for the focus and check that it gets it.
+  Panel* new_panel = CreatePanel(200, 20, 300, true, true);
+  EXPECT_EQ(new_panel->content_xid(), xconn_->focused_xid());
+  EXPECT_EQ(new_panel->content_xid(), GetActiveWindowProperty());
 }
 
 }  // namespace window_manager

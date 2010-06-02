@@ -53,7 +53,7 @@ TEST_F(PanelManagerTest, AttachAndDetach) {
   const int content_width = 200;
   const int content_height = 400;
   Panel* panel =
-      CreatePanel(content_width, titlebar_height, content_height, true);
+      CreateSimplePanel(content_width, titlebar_height, content_height);
 
   // Get the position of the top of the expanded panel when it's in the bar.
   const int panel_y_in_bar = wm_->height() - content_height - titlebar_height;
@@ -116,37 +116,30 @@ TEST_F(PanelManagerTest, AttachAndDetach) {
 // new panel when one with the focus gets destroyed.
 TEST_F(PanelManagerTest, DragFocusedPanel) {
   // Create a panel and check that it has the focus.
-  XWindow old_titlebar_xid = CreatePanelTitlebarWindow(150, 20);
-  SendInitialEventsForWindow(old_titlebar_xid);
-  XWindow old_content_xid =
-      CreatePanelContentWindow(200, 300, old_titlebar_xid, true);
-  SendInitialEventsForWindow(old_content_xid);
-  ASSERT_EQ(old_content_xid, xconn_->focused_xid());
+  Panel* old_panel = CreateSimplePanel(200, 20, 300);
+  ASSERT_EQ(old_panel->content_xid(), xconn_->focused_xid());
 
   // Create a second panel, which should take the focus.
-  XWindow titlebar_xid = CreatePanelTitlebarWindow(150, 20);
-  SendInitialEventsForWindow(titlebar_xid);
-  XWindow content_xid = CreatePanelContentWindow(200, 300, titlebar_xid, true);
-  SendInitialEventsForWindow(content_xid);
-  ASSERT_EQ(content_xid, xconn_->focused_xid());
-  EXPECT_EQ(content_xid, GetActiveWindowProperty());
+  Panel* panel = CreateSimplePanel(200, 20, 300);
+  ASSERT_EQ(panel->content_xid(), xconn_->focused_xid());
+  EXPECT_EQ(panel->content_xid(), GetActiveWindowProperty());
 
   // Drag the second panel out of the panel bar and check that it still has
   // the focus.
-  Panel* panel = panel_manager_->GetPanelByXid(content_xid);
-  ASSERT_TRUE(panel != NULL);
   SendPanelDraggedMessage(panel, 400, 50);
   ASSERT_TRUE(panel_manager_->GetContainerForPanel(*panel) == NULL);
-  EXPECT_EQ(content_xid, xconn_->focused_xid());
-  EXPECT_EQ(content_xid, GetActiveWindowProperty());
+  EXPECT_EQ(panel->content_xid(), xconn_->focused_xid());
+  EXPECT_EQ(panel->content_xid(), GetActiveWindowProperty());
 
   // Now reattach it and check that it still has the focus.
   SendPanelDraggedMessage(panel, 400, wm_->height() - 1);
   ASSERT_EQ(panel_manager_->GetContainerForPanel(*panel), panel_bar_);
-  EXPECT_EQ(content_xid, xconn_->focused_xid());
-  EXPECT_EQ(content_xid, GetActiveWindowProperty());
+  EXPECT_EQ(panel->content_xid(), xconn_->focused_xid());
+  EXPECT_EQ(panel->content_xid(), GetActiveWindowProperty());
 
   // Destroy the second panel.
+  const XWindow content_xid = panel->content_xid();
+  const XWindow titlebar_xid = panel->titlebar_xid();
   XEvent event;
   ASSERT_TRUE(xconn_->DestroyWindow(content_xid));
   xconn_->InitUnmapEvent(&event, content_xid);
@@ -161,13 +154,13 @@ TEST_F(PanelManagerTest, DragFocusedPanel) {
   wm_->HandleEvent(&event);
 
   // The first panel should be focused now.
-  ASSERT_EQ(old_content_xid, xconn_->focused_xid());
-  EXPECT_EQ(old_content_xid, GetActiveWindowProperty());
+  ASSERT_EQ(old_panel->content_xid(), xconn_->focused_xid());
+  EXPECT_EQ(old_panel->content_xid(), GetActiveWindowProperty());
 }
 
 TEST_F(PanelManagerTest, ChromeInitiatedPanelResize) {
   // Create a panel with a 200x400 content window.
-  Panel* panel = CreatePanel(200, 20, 400, true);
+  Panel* panel = CreateSimplePanel(200, 20, 400);
   EXPECT_EQ(200, panel->width());
   EXPECT_EQ(20, panel->titlebar_height());
   EXPECT_EQ(400, panel->content_height());
@@ -240,15 +233,15 @@ TEST_F(PanelManagerTest, Fullscreen) {
 
   // Create three panels.
   Panel* panel1 =
-      CreatePanel(content_width, titlebar_height, content_height, true);
+      CreateSimplePanel(content_width, titlebar_height, content_height);
   EXPECT_EQ(panel1->content_xid(), xconn_->focused_xid());
 
   Panel* panel2 =
-      CreatePanel(content_width, titlebar_height, content_height, true);
+      CreateSimplePanel(content_width, titlebar_height, content_height);
   EXPECT_EQ(panel2->content_xid(), xconn_->focused_xid());
 
   Panel* panel3 =
-      CreatePanel(content_width, titlebar_height, content_height, true);
+      CreateSimplePanel(content_width, titlebar_height, content_height);
   EXPECT_EQ(panel3->content_xid(), xconn_->focused_xid());
 
   // Check that they're positioned as expecded.
@@ -365,8 +358,8 @@ TEST_F(PanelManagerTest, Fullscreen) {
 // but it gets transferred to a docked panel when the pointer moves over
 // it.  See http://crosbug.com/1619.
 TEST_F(PanelManagerTest, FocusPanelInDock) {
-  Panel* panel_in_bar = CreatePanel(20, 200, 400, true);
-  Panel* panel_in_dock = CreatePanel(20, 200, 400, true);
+  Panel* panel_in_bar = CreateSimplePanel(20, 200, 400);
+  Panel* panel_in_dock = CreateSimplePanel(20, 200, 400);
 
   XConnection::WindowGeometry root_geometry;
   ASSERT_TRUE(xconn_->GetWindowGeometry(xconn_->GetRootWindow(),
@@ -399,8 +392,8 @@ TEST_F(PanelManagerTest, DockVisibilityAndResizing) {
   XWindow root_xid = xconn_->GetRootWindow();
   MockXConnection::WindowInfo* root_info = xconn_->GetWindowInfoOrDie(root_xid);
 
-  Panel* panel1 = CreatePanel(20, 200, 400, true);
-  Panel* panel2 = CreatePanel(20, 200, 400, true);
+  Panel* panel1 = CreateSimplePanel(20, 200, 400);
+  Panel* panel2 = CreateSimplePanel(20, 200, 400);
 
   // Both panel docks should initially be invisible.
   EXPECT_FALSE(left_panel_dock_->is_visible());

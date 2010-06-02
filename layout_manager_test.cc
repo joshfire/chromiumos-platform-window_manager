@@ -980,7 +980,7 @@ TEST_F(LayoutManagerTest, StackTransientsAbovePanels) {
 
   // Open a panel.  The transient windows should be stacked above the
   // panel, but the panel should be stacked above the toplevel.
-  Panel* panel = CreatePanel(200, 20, 400, true);
+  Panel* panel = CreateSimplePanel(200, 20, 400);
   MockCompositor::StageActor* stage = compositor_->GetDefaultStage();
   EXPECT_LT(stage->GetStackingIndex(second_transient_win->actor()),
             stage->GetStackingIndex(first_transient_win->actor()));

@@ -93,15 +93,26 @@ class BasicWindowManagerTest : public ::testing::Test {
 
   // Create a panel titlebar or content window.
   XWindow CreatePanelTitlebarWindow(int width, int height);
-  XWindow CreatePanelContentWindow(
-      int width, int height, XWindow titlebar_xid, bool expanded);
+  XWindow CreatePanelContentWindow(int width, int height,
+                                   XWindow titlebar_xid,
+                                   bool expanded,
+                                   bool take_focus);
+
+  // Invoke CreatePanel() with some default parameters to open an expanded
+  // panel.
+  Panel* CreateSimplePanel(int width,
+                           int titlebar_height,
+                           int content_height) {
+    return CreatePanel(width, titlebar_height, content_height, true, true);
+  }
 
   // Create titlebar and content windows for a panel, show them, and return
   // a pointer to the Panel object.
   Panel* CreatePanel(int width,
                      int titlebar_height,
                      int content_height,
-                     bool expanded);
+                     bool expanded,
+                     bool take_focus);
 
   // Simulates a change in the selected tab and tab count in a chrome
   // toplevel window.

@@ -171,12 +171,19 @@ void PanelBar::AddPanel(Panel* panel, PanelSource source) {
 
   panel->SetResizable(panel->is_expanded());
 
-  // If this is a new panel or it was already focused (e.g. it was
-  // focused when it got detached, and now it's being reattached),
-  // call FocusPanel() to focus it if needed and update
+  // If this is a new panel and it requested the focus, or it was already
+  // focused (e.g. it was focused when it got detached, and now it's being
+  // reattached), or there's just no other focused window, call
+  // FocusPanel() to focus it if needed and update
   // 'desired_panel_to_focus_'.
+  const bool focus_requested =
+      source == PANEL_SOURCE_NEW &&
+      (panel->content_win()->type_params().size() < 3 ||
+       panel->content_win()->type_params()[2]);
   if (panel->is_expanded() &&
-      (source == PANEL_SOURCE_NEW || panel->IsFocused())) {
+      (focus_requested ||
+       panel->IsFocused() ||
+       !wm()->focus_manager()->focused_win())) {
     FocusPanel(panel, wm()->GetCurrentTimeFromServer());
   }
 

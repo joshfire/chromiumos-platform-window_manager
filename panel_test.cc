@@ -42,7 +42,8 @@ TEST_F(PanelTest, InputWindows) {
   MockXConnection::WindowInfo* titlebar_info =
       xconn_->GetWindowInfoOrDie(titlebar_xid);
 
-  XWindow content_xid = CreatePanelContentWindow(200, 400, titlebar_xid, true);
+  XWindow content_xid = CreatePanelContentWindow(
+      200, 400, titlebar_xid, true, true);
   Window content_win(wm_.get(), content_xid, false);
   MockXConnection::WindowInfo* content_info =
       xconn_->GetWindowInfoOrDie(content_xid);
@@ -152,7 +153,7 @@ TEST_F(PanelTest, Resize) {
 
   int orig_content_height = 400;
   XWindow content_xid = CreatePanelContentWindow(
-      orig_width, orig_content_height, titlebar_xid, true);
+      orig_width, orig_content_height, titlebar_xid, true, true);
   Window content_win(wm_.get(), content_xid, false);
   MockXConnection::WindowInfo* content_info =
       xconn_->GetWindowInfoOrDie(content_xid);
@@ -230,10 +231,11 @@ TEST_F(PanelTest, ChromeState) {
   const XAtom state_atom = wm_->GetXAtom(ATOM_CHROME_STATE);
   const XAtom collapsed_atom = wm_->GetXAtom(ATOM_CHROME_STATE_COLLAPSED_PANEL);
 
-  // Create a panel.
+  // Create a collapsed panel.
   XWindow titlebar_xid = CreatePanelTitlebarWindow(200, 20);
   Window titlebar_win(wm_.get(), titlebar_xid, false);
-  XWindow content_xid = CreatePanelContentWindow(200, 400, titlebar_xid, false);
+  XWindow content_xid = CreatePanelContentWindow(
+      200, 400, titlebar_xid, false, false);
   Window content_win(wm_.get(), content_xid, false);
   Panel panel(panel_manager_, &content_win, &titlebar_win, false);
   panel.Move(0, 0, true, 0);
@@ -263,10 +265,11 @@ TEST_F(PanelTest, ChromeState) {
 
 // Test that we're able to hide panels' shadows.
 TEST_F(PanelTest, Shadows) {
-  // Create a panel.
+  // Create a collapsed panel.
   XWindow titlebar_xid = CreatePanelTitlebarWindow(200, 20);
   Window titlebar_win(wm_.get(), titlebar_xid, false);
-  XWindow content_xid = CreatePanelContentWindow(200, 400, titlebar_xid, false);
+  XWindow content_xid = CreatePanelContentWindow(
+      200, 400, titlebar_xid, false, false);
   Window content_win(wm_.get(), content_xid, false);
   Panel panel(panel_manager_, &content_win, &titlebar_win, true);
   panel.Move(0, 0, true, 0);
