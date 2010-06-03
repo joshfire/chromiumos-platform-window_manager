@@ -8,8 +8,10 @@
 #include <cmath>
 #include <list>
 #include <map>
+#include <set>
 #include <string>
 #include <tr1/memory>
+#include <tr1/unordered_set>
 #include <vector>
 
 #include <gtest/gtest_prod.h>  // for FRIEND_TEST() macro
@@ -175,14 +177,14 @@ class RealCompositor : public Compositor {
     explicit Actor(RealCompositor* compositor);
     virtual ~Actor();
 
-    // Begin Compositor::VisitorDestination methods
+    // Begin Compositor::VisitorDestination methods.
     virtual void Accept(ActorVisitor* visitor) {
       DCHECK(visitor);
       visitor->VisitActor(this);
     }
-    // End Compositor::VisitorDestination methods
+    // End Compositor::VisitorDestination methods.
 
-    // Begin Compositor::Actor methods
+    // Begin Compositor::Actor methods.
     virtual Actor* Clone();
     int GetWidth() { return width_; }
     int GetHeight() { return height_; }
@@ -219,7 +221,10 @@ class RealCompositor : public Compositor {
     virtual std::string GetDebugString(int indent_level) {
       return GetDebugStringInternal("Actor", indent_level);
     }
-    // End Compositor::Actor methods
+    virtual void ShowDimmed(bool dimmed, int anim_ms);
+    virtual void AddToVisibilityGroup(int group_id);
+    virtual void RemoveFromVisibilityGroup(int group_id);
+    // End Compositor::Actor methods.
 
     // Updates the actor in response to time passing, and counts the
     // number of actors as it goes.
@@ -249,17 +254,15 @@ class RealCompositor : public Compositor {
     bool is_opaque() const { return is_opaque_; }
     void set_is_opaque(bool opaque) { is_opaque_ = opaque; }
 
-    bool IsVisible() const { return visible_ && opacity_ > 0.001f; }
+    bool IsVisible() const {
+      return visible_ && opacity_ > 0.001f && IsInActiveVisibilityGroup();
+    }
     float opacity() const { return opacity_; }
     float tilt() const { return tilt_; }
     float scale_x() const { return scale_x_; }
     float scale_y() const { return scale_y_; }
     void SetDirty() { compositor_->SetDirty(); }
 
-    // Shows a horizontal gradient (transparent on left to black on
-    // right) over the window's client area if true.  Does nothing if
-    // false.  Defaults to false.
-    void ShowDimmed(bool dimmed, int anim_ms);
     bool is_dimmed() const { return dimmed_opacity_ > 0.001f; }
     float dimmed_opacity() const { return dimmed_opacity_; }
 
@@ -305,30 +308,31 @@ class RealCompositor : public Compositor {
         std::map<T*, std::tr1::shared_ptr<Animation<T> > >* animation_map,
         AnimationTime now);
 
+    // Is this actor in a visibility group that's currently being drawn (or
+    // are visibility groups disabled in the compositor)?
+    bool IsInActiveVisibilityGroup() const;
+
     RealCompositor* compositor_;
 
-    // This points to the parent that has this actor as a child.
+    // Parent containing this actor.
     ContainerActor* parent_;
 
-    // This is the x position on the screen.
+    // X- and Y-position relative to the parent's origin.
     int x_;
-
-    // This is the y position on the screen.
     int y_;
 
-    // This is the width and height of the actor's bounding box.
+    // Width and height of the actor's bounding box.
     int width_;
     int height_;
 
-    // This is the z depth of this actor (which is set according to
-    // the layer this actor is on.
+    // Z-depth of this actor (set according to the layer this actor is on).
     float z_;
 
-    // This is the x and y scale of the actor.
+    // X- and Y-scale of the actor.
     float scale_x_;
     float scale_y_;
 
-    // This is the opacity of the actor (0 = transparent, 1 = opaque)
+    // Opacity of the actor (0 = transparent, 1 = opaque).
     float opacity_;
 
     // The amount that the actor should be "tilted".  This is a
@@ -351,8 +355,7 @@ class RealCompositor : public Compositor {
     // The opacity of the dimming quad.
     float dimmed_opacity_;
 
-    // This is a name used for identifying the actor (most useful for
-    // debugging).
+    // Name used for identifying the actor (useful for debugging).
     std::string name_;
 
     // Map from the address of a field to the animation that is modifying it.
@@ -360,9 +363,12 @@ class RealCompositor : public Compositor {
     std::map<float*, std::tr1::shared_ptr<Animation<float> > >
         float_animations_;
 
-    // This keeps a mapping of int32 id to drawing data pointer.
-    // The id space is maintained by the visitor implementation.
+    // Mapping of int32 ID to drawing data pointer.  The ID space is
+    // maintained by the visitor implementation.
     DrawingDataMap drawing_data_;
+
+    // IDs of visibility groups this actor is a member of.
+    std::set<int> visibility_groups_;
 
     DISALLOW_COPY_AND_ASSIGN(Actor);
   };
@@ -381,22 +387,22 @@ class RealCompositor : public Compositor {
       visitor->VisitContainer(this);
     }
 
-    // Begin Compositor::Actor methods
+    // Begin Compositor::Actor methods.
     virtual Actor* Clone() {
       NOTIMPLEMENTED();
       CHECK(false);
       return NULL;
     }
     virtual std::string GetDebugString(int indent_level);
-    // End Compositor::Actor methods
+    // End Compositor::Actor methods.
 
-    // Begin RealCompositor::Actor methods
+    // Begin RealCompositor::Actor methods.
     virtual ActorVector GetChildren() { return children_; }
-    // End RealCompositor::Actor methods
+    // End RealCompositor::Actor methods.
 
-    // Begin Compositor::ContainerActor methods
+    // Begin Compositor::ContainerActor methods.
     void AddActor(Compositor::Actor* actor);
-    // End Compositor::ContainerActor methods
+    // End Compositor::ContainerActor methods.
 
     void RemoveActor(Compositor::Actor* actor);
     virtual void Update(int32* count, AnimationTime now);
@@ -426,11 +432,11 @@ class RealCompositor : public Compositor {
    public:
     explicit QuadActor(RealCompositor* compositor);
 
-    // Begin Compositor::Actor methods
+    // Begin Compositor::Actor methods.
     virtual std::string GetDebugString(int indent_level) {
       return GetDebugStringInternal("QuadActor", indent_level);
     }
-    // End Compositor::Actor methods
+    // End Compositor::Actor methods.
 
     void SetColor(const Compositor::Color& color,
                   const Compositor::Color& border_color,
@@ -473,12 +479,12 @@ class RealCompositor : public Compositor {
 
     XWindow texture_pixmap_window() const { return window_; }
 
-    // Begin Compositor::Actor methods
+    // Begin Compositor::Actor methods.
     virtual std::string GetDebugString(int indent_level) {
       return GetDebugStringInternal("TexturePixmapActor", indent_level);
     }
     virtual void SetSizeImpl(int* width, int* height) { DiscardPixmap(); }
-    // End Compositor::Actor methods
+    // End Compositor::Actor methods.
 
     // Implement VisitorDestination for visitor.
     void Accept(ActorVisitor* visitor) {
@@ -491,7 +497,7 @@ class RealCompositor : public Compositor {
     void set_pixmap_invalid(bool invalid) { pixmap_invalid_ = invalid; }
     bool is_pixmap_invalid() { return pixmap_invalid_; }
 
-    // Begin Compositor::TexturePixmapActor methods
+    // Begin Compositor::TexturePixmapActor methods.
     bool SetTexturePixmapWindow(XWindow xid);
     void UpdateContents() { RefreshPixmap(); }
     void DiscardPixmap();
@@ -500,7 +506,7 @@ class RealCompositor : public Compositor {
       return true;
     }
     void ClearAlphaMask() { NOTIMPLEMENTED(); }
-    // End Compositor::TexturePixmapActor methods
+    // End Compositor::TexturePixmapActor methods.
 
     // Refresh the current pixmap.
     void RefreshPixmap();
@@ -551,10 +557,10 @@ class RealCompositor : public Compositor {
       return NULL;
     }
 
-    // Begin RealCompositor::StageActor implementation.
+    // Begin Compositor::StageActor methods.
     XWindow GetStageXWindow() { return window_; }
     void SetStageColor(const Compositor::Color& color);
-    // End RealCompositor::StageActor implementation.
+    // End Compositor::StageActor methods.
 
     const Compositor::Color& stage_color() const { return stage_color_; }
     bool stage_color_changed() const { return stage_color_changed_; }
@@ -592,7 +598,7 @@ class RealCompositor : public Compositor {
                 );
   ~RealCompositor();
 
-  // Begin Compositor methods
+  // Begin Compositor methods.
   ContainerActor* CreateGroup();
   Actor* CreateRectangle(const Compositor::Color& color,
                          const Compositor::Color& border_color,
@@ -604,6 +610,8 @@ class RealCompositor : public Compositor {
                     const Compositor::Color& color);
   Actor* CloneActor(Compositor::Actor* orig);
   StageActor* GetDefaultStage() { return default_stage_.get(); }
+  virtual void SetActiveVisibilityGroups(
+      const std::tr1::unordered_set<int>& groups);
 
   // Run in-progress animations and redraw the scene if needed.  Disables
   // the draw timeout if there are no in-progress animations.
@@ -615,6 +623,12 @@ class RealCompositor : public Compositor {
   bool dirty() const { return dirty_; }
   void set_current_time_ms_for_testing(int64_t time_ms) {
     current_time_ms_for_testing_ = time_ms;
+  }
+  bool using_visibility_groups() const {
+    return !active_visibility_groups_.empty();
+  }
+  const std::tr1::unordered_set<int>& active_visibility_groups() const {
+    return active_visibility_groups_;
   }
 
   // These accessors are present for testing.
@@ -704,6 +718,10 @@ class RealCompositor : public Compositor {
 
   // Is the drawing timeout currently enabled?
   bool draw_timeout_enabled_;
+
+  // Actor visibility groups that we're currently going to draw.  If empty,
+  // we're not using visibility groups and just draw all actors.
+  std::tr1::unordered_set<int> active_visibility_groups_;
 
   DISALLOW_COPY_AND_ASSIGN(RealCompositor);
 };

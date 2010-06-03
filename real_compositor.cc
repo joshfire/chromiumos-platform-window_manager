@@ -34,8 +34,10 @@ using std::make_pair;
 using std::map;
 using std::max;
 using std::min;
+using std::set;
 using std::string;
 using std::tr1::shared_ptr;
+using std::tr1::unordered_set;
 using window_manager::util::FindWithDefault;
 using window_manager::util::NextPowerOfTwo;
 
@@ -266,6 +268,23 @@ void RealCompositor::Actor::LowerToBottom() {
   SetDirty();
 }
 
+void RealCompositor::Actor::ShowDimmed(bool dimmed, int anim_ms) {
+  AnimateField(&float_animations_, &dimmed_opacity_,
+               dimmed ? kMaxDimmedOpacity : 0.f, anim_ms);
+}
+
+void RealCompositor::Actor::AddToVisibilityGroup(int group_id) {
+  visibility_groups_.insert(group_id);
+  if (compositor_->using_visibility_groups())
+    SetDirty();
+}
+
+void RealCompositor::Actor::RemoveFromVisibilityGroup(int group_id) {
+  visibility_groups_.erase(group_id);
+  if (compositor_->using_visibility_groups())
+    SetDirty();
+}
+
 string RealCompositor::Actor::GetDebugStringInternal(const string& type_name,
                                                     int indent_level) {
   string out;
@@ -282,6 +301,20 @@ string RealCompositor::Actor::GetDebugStringInternal(const string& type_name,
                       opacity_,
                       tilt_);
   return out;
+}
+
+bool RealCompositor::Actor::IsInActiveVisibilityGroup() const {
+  if (!compositor_->using_visibility_groups())
+    return true;
+
+  const unordered_set<int>& active_groups =
+      compositor_->active_visibility_groups();
+  for (set<int>::const_iterator it = visibility_groups_.begin();
+       it != visibility_groups_.end(); ++it) {
+    if (active_groups.count(*it))
+      return true;
+  }
+  return false;
 }
 
 RealCompositor::DrawingDataPtr RealCompositor::Actor::GetDrawingData(
@@ -301,11 +334,6 @@ void RealCompositor::Actor::Update(int* count, AnimationTime now) {
   SetDirty();
   UpdateInternal(&int_animations_, now);
   UpdateInternal(&float_animations_, now);
-}
-
-void RealCompositor::Actor::ShowDimmed(bool dimmed, int anim_ms) {
-  AnimateField(&float_animations_, &dimmed_opacity_,
-               dimmed ? kMaxDimmedOpacity : 0.f, anim_ms);
 }
 
 template<class T> void RealCompositor::Actor::AnimateField(
@@ -703,6 +731,15 @@ RealCompositor::Actor* RealCompositor::CloneActor(Compositor::Actor* orig) {
   RealCompositor::Actor* actor = dynamic_cast<RealCompositor::Actor*>(orig);
   CHECK(actor);
   return actor->Clone();
+}
+
+void RealCompositor::SetActiveVisibilityGroups(
+    const unordered_set<int>& groups) {
+  if (groups.empty() && active_visibility_groups_.empty())
+    return;
+
+  active_visibility_groups_ = groups;
+  SetDirty();
 }
 
 void RealCompositor::RemoveActor(Actor* actor) {

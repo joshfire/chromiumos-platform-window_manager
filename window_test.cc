@@ -99,9 +99,7 @@ TEST_F(WindowTest, ChangeComposited) {
   XWindow xid = CreateBasicWindow(10, 20, 30, 40);
   Window window(wm_.get(), xid, false);
 
-  const MockCompositor::Actor* actor =
-      dynamic_cast<const MockCompositor::Actor*>(window.actor());
-  ASSERT_TRUE(actor != NULL);
+  MockCompositor::TexturePixmapActor* actor = GetMockActorForWindow(&window);
 
   // Initially, we should place the composited window at the same location
   // as the client window.
@@ -462,9 +460,7 @@ TEST_F(WindowTest, Shape) {
   win.SetShadowOpacity(shadow_opacity, 0);  // anim_ms
 
   // Check that the shape mask got applied to the compositing actor.
-  MockCompositor::TexturePixmapActor* mock_actor =
-      dynamic_cast<MockCompositor::TexturePixmapActor*>(win.actor());
-  CHECK(mock_actor);
+  MockCompositor::TexturePixmapActor* mock_actor = GetMockActorForWindow(&win);
   ASSERT_TRUE(mock_actor->alpha_mask_bytes() != NULL);
   EXPECT_PRED_FORMAT3(BytesAreEqual,
                       info->shape->bytes(),

@@ -354,15 +354,15 @@ void LayoutManager::HandleWindowMap(Window* win) {
   if (!wm_->logged_in())
     return;
 
+  if (!IsHandledWindowType(win->type()))
+    return;
+
   // Just show override-redirect windows; they're already positioned
   // according to client apps' wishes.
   if (win->override_redirect()) {
     win->ShowComposited();
     return;
   }
-
-  if (!IsHandledWindowType(win->type()))
-    return;
 
   DLOG(INFO) << "Handling window map for " << win->title()
              << " (" << win->xid_str() << ") of type " << win->type();

@@ -212,8 +212,7 @@ TEST_F(WindowManagerTest, ExistingWindows) {
   CreateAndInitNewWm();
   Window* win = wm_->GetWindowOrDie(xid);
   EXPECT_TRUE(win->mapped());
-  EXPECT_TRUE(dynamic_cast<const MockCompositor::Actor*>(
-                  win->actor())->visible());
+  EXPECT_TRUE(GetMockActorForWindow(win)->visible());
 
   // Now test the case where the window starts out unmapped and
   // WindowManager misses the CreateNotify event but receives the
@@ -229,8 +228,7 @@ TEST_F(WindowManagerTest, ExistingWindows) {
   EXPECT_FALSE(info->mapped);
   win = wm_->GetWindowOrDie(xid);
   EXPECT_FALSE(win->mapped());
-  EXPECT_FALSE(dynamic_cast<const MockCompositor::Actor*>(
-                   win->actor())->visible());
+  EXPECT_FALSE(GetMockActorForWindow(win)->visible());
 
   XEvent event;
   xconn_->InitMapRequestEvent(&event, xid);
@@ -240,8 +238,7 @@ TEST_F(WindowManagerTest, ExistingWindows) {
   xconn_->InitMapEvent(&event, xid);
   wm_->HandleEvent(&event);
   EXPECT_TRUE(win->mapped());
-  EXPECT_TRUE(dynamic_cast<const MockCompositor::Actor*>(
-                  win->actor())->visible());
+  EXPECT_TRUE(GetMockActorForWindow(win)->visible());
 
   // Finally, test the typical case where a window is created after
   // WindowManager has been initialized.
@@ -262,8 +259,7 @@ TEST_F(WindowManagerTest, ExistingWindows) {
   EXPECT_FALSE(info->mapped);
   win = wm_->GetWindowOrDie(xid);
   EXPECT_FALSE(win->mapped());
-  EXPECT_FALSE(dynamic_cast<const MockCompositor::Actor*>(
-                   win->actor())->visible());
+  EXPECT_FALSE(GetMockActorForWindow(win)->visible());
 
   xconn_->InitMapRequestEvent(&event, xid);
   wm_->HandleEvent(&event);
@@ -272,8 +268,7 @@ TEST_F(WindowManagerTest, ExistingWindows) {
 
   xconn_->InitMapEvent(&event, xid);
   wm_->HandleEvent(&event);
-  EXPECT_TRUE(dynamic_cast<const MockCompositor::Actor*>(
-                  win->actor())->visible());
+  EXPECT_TRUE(GetMockActorForWindow(win)->visible());
 }
 
 // Test that we display override-redirect windows onscreen regardless of
@@ -303,8 +298,7 @@ TEST_F(WindowManagerTest, OverrideRedirectMapping) {
   // Now test the other possibility, where the window isn't mapped on the X
   // server yet when we receive the CreateNotify event.
   Window* win = wm_->GetWindowOrDie(xid);
-  EXPECT_TRUE(dynamic_cast<const MockCompositor::Actor*>(
-                  win->actor())->visible());
+  EXPECT_TRUE(GetMockActorForWindow(win)->visible());
 
   XWindow xid2 = xconn_->CreateWindow(
         xconn_->GetRootWindow(),
@@ -323,8 +317,7 @@ TEST_F(WindowManagerTest, OverrideRedirectMapping) {
   wm_->HandleEvent(&event);
 
   Window* win2 = wm_->GetWindowOrDie(xid2);
-  EXPECT_TRUE(dynamic_cast<const MockCompositor::Actor*>(
-                  win2->actor())->visible());
+  EXPECT_TRUE(GetMockActorForWindow(win2)->visible());
 }
 
 TEST_F(WindowManagerTest, InputWindows) {
@@ -857,8 +850,7 @@ TEST_F(WindowManagerTest, RedirectWindows) {
   EXPECT_TRUE(existing_info->redirected);
   Window* existing_win = wm_->GetWindowOrDie(existing_xid);
   MockCompositor::TexturePixmapActor* existing_mock_actor =
-      dynamic_cast<MockCompositor::TexturePixmapActor*>(existing_win->actor());
-  CHECK(existing_mock_actor);
+      GetMockActorForWindow(existing_win);
   EXPECT_EQ(existing_xid, existing_mock_actor->xid());
 
   // Now, create a new window, but don't map it yet.  The window manager
@@ -872,9 +864,7 @@ TEST_F(WindowManagerTest, RedirectWindows) {
   xconn_->InitCreateWindowEvent(&event, xid);
   wm_->HandleEvent(&event);
   Window* win = wm_->GetWindowOrDie(xid);
-  MockCompositor::TexturePixmapActor* mock_actor =
-      dynamic_cast<MockCompositor::TexturePixmapActor*>(win->actor());
-  CHECK(mock_actor);
+  MockCompositor::TexturePixmapActor* mock_actor = GetMockActorForWindow(win);
   EXPECT_EQ(xid, mock_actor->xid());
 
   // There won't be a MapRequest event for override-redirect windows, but they
@@ -897,9 +887,7 @@ TEST_F(WindowManagerTest, RedirectWindows) {
   wm_->HandleEvent(&event);
   Window* override_redirect_win = wm_->GetWindowOrDie(override_redirect_xid);
   MockCompositor::TexturePixmapActor* override_redirect_mock_actor =
-      dynamic_cast<MockCompositor::TexturePixmapActor*>(
-          override_redirect_win->actor());
-  CHECK(override_redirect_mock_actor);
+      GetMockActorForWindow(override_redirect_win);
   EXPECT_EQ(override_redirect_xid, override_redirect_mock_actor->xid());
 }
 
@@ -1023,9 +1011,7 @@ TEST_F(WindowManagerTest, DiscardPixmapOnUnmap) {
   SendInitialEventsForWindow(xid);
 
   Window* win = wm_->GetWindowOrDie(xid);
-  MockCompositor::TexturePixmapActor* actor =
-      dynamic_cast<MockCompositor::TexturePixmapActor*>(win->actor());
-  CHECK(actor);
+  MockCompositor::TexturePixmapActor* actor = GetMockActorForWindow(win);
   int initial_pixmap_discards = actor->num_pixmap_discards();
 
   // Check that the pixmap gets discarded when the window gets resized.

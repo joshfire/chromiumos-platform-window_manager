@@ -445,4 +445,13 @@ void BasicWindowManagerTest::TestPanelContentBounds(
   EXPECT_EQ(height, panel->content_win()->actor()->GetHeight());
 }
 
+MockCompositor::TexturePixmapActor*
+BasicWindowManagerTest::GetMockActorForWindow(Window* win) {
+  CHECK(win);
+  MockCompositor::TexturePixmapActor* cast_actor =
+      dynamic_cast<MockCompositor::TexturePixmapActor*>(win->actor());
+  CHECK(cast_actor);
+  return cast_actor;
+}
+
 }  // namespace window_manager

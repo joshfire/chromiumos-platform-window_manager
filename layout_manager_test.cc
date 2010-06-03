@@ -1069,8 +1069,7 @@ TEST_F(LayoutManagerTest, NoDimmingInActiveMode) {
   // Check that the second window is focused and not dimmed.
   EXPECT_EQ(xid2, xconn_->focused_xid());
   MockCompositor::Actor* actor2 =
-      dynamic_cast<MockCompositor::Actor*>(wm_->GetWindow(xid2)->actor());
-  CHECK(actor2);
+      GetMockActorForWindow(wm_->GetWindowOrDie(xid2));
   EXPECT_FALSE(actor2->is_dimmed());
 
   // Now switch back to the first window (which was dimmed when we displayed
@@ -1078,8 +1077,7 @@ TEST_F(LayoutManagerTest, NoDimmingInActiveMode) {
   lm_->CycleCurrentToplevelWindow(true);
   EXPECT_EQ(xid1, xconn_->focused_xid());
   MockCompositor::Actor* actor1 =
-      dynamic_cast<MockCompositor::Actor*>(wm_->GetWindow(xid1)->actor());
-  CHECK(actor1);
+      GetMockActorForWindow(wm_->GetWindowOrDie(xid1));
   EXPECT_FALSE(actor1->is_dimmed());
 }
 
@@ -1093,7 +1091,7 @@ TEST_F(LayoutManagerTest, AvoidMovingCurrentWindow) {
   EXPECT_EQ(xid, xconn_->focused_xid());
 
   MockCompositor::Actor* actor =
-      dynamic_cast<MockCompositor::Actor*>(wm_->GetWindow(xid)->actor());
+      GetMockActorForWindow(wm_->GetWindowOrDie(xid));
   int initial_num_moves = actor->num_moves();
 
   // Now send a _NET_ACTIVE_WINDOW message asking the window manager to
@@ -1248,9 +1246,7 @@ TEST_F(LayoutManagerTest, NoSlideForInitialWindow) {
 
   // The actor should've been moved immediately to its current location
   // instead of getting animated.
-  MockCompositor::Actor* actor =
-      dynamic_cast<MockCompositor::Actor*>(win->actor());
-  CHECK(actor);
+  MockCompositor::Actor* actor = GetMockActorForWindow(win);
   EXPECT_FALSE(actor->position_was_animated());
 
   // Now create a second window and check that it *does* get animated.
@@ -1261,9 +1257,7 @@ TEST_F(LayoutManagerTest, NoSlideForInitialWindow) {
   EXPECT_EQ(0, win2->client_y());
   EXPECT_EQ(0, win2->composited_x());
   EXPECT_EQ(0, win2->composited_y());
-  MockCompositor::Actor* actor2 =
-      dynamic_cast<MockCompositor::Actor*>(win2->actor());
-  CHECK(actor2);
+  MockCompositor::Actor* actor2 = GetMockActorForWindow(win2);
   EXPECT_TRUE(actor2->position_was_animated());
 }
 

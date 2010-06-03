@@ -37,6 +37,7 @@ extern "C" {
 #include "window_manager/metrics_reporter.h"
 #include "window_manager/panel_manager.h"
 #include "window_manager/profiler.h"
+#include "window_manager/screen_locker_handler.h"
 #include "window_manager/stacking_manager.h"
 #include "window_manager/util.h"
 #include "window_manager/window.h"
@@ -298,6 +299,9 @@ bool WindowManager::Init() {
 
   login_controller_.reset(new LoginController(this));
   event_consumers_.insert(login_controller_.get());
+
+  screen_locker_handler_.reset(new ScreenLockerHandler(this));
+  event_consumers_.insert(screen_locker_handler_.get());
 
   hotkey_overlay_.reset(new HotkeyOverlay(xconn_, compositor_));
   stage_->AddActor(hotkey_overlay_->group());

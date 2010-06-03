@@ -146,6 +146,7 @@ srcs = Split('''\
   pointer_position_watcher.cc
   profiler.cc
   real_compositor.cc
+  screen_locker_handler.cc
   separator.cc
   shadow.cc
   snapshot_window.cc

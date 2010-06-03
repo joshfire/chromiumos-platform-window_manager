@@ -191,6 +191,9 @@ class BasicWindowManagerTest : public ::testing::Test {
   void TestPanelContentBounds(
       Panel* panel, int x, int y, int width, int height);
 
+  // Get the mock actor for the passed-in window.
+  MockCompositor::TexturePixmapActor* GetMockActorForWindow(Window* win);
+
   scoped_ptr<EventLoop> event_loop_;
   scoped_ptr<MockXConnection> xconn_;
   scoped_ptr<MockCompositor> compositor_;

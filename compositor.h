@@ -7,7 +7,9 @@
 
 #include <list>
 #include <map>
+#include <set>
 #include <string>
+#include <tr1/unordered_set>
 
 #include "base/basictypes.h"
 #include "base/logging.h"
@@ -58,6 +60,7 @@ class Compositor {
     virtual void MoveY(int y, int anim_ms) = 0;
     virtual void Scale(double scale_x, double scale_y, int anim_ms) = 0;
     virtual void SetOpacity(double opacity, int anim_ms) = 0;
+
     // Tilt is the amount of perspective to show, from 0.0 to
     // 1.0.  For 1.0, the actor is collapsed to a line.  For 0.0, the
     // actor is purely orthographic (screen aligned).  This represents
@@ -71,8 +74,8 @@ class Compositor {
 
     virtual void SetClip(int x, int y, int width, int height) = 0;
 
-    // Move an actor directly above or below another actor in the stacking
-    // order, or to the top or bottom of all of its siblings.
+    // Move an actor directly above or below another sibling actor in the
+    // stacking order, or to the top or bottom of all of its siblings.
     virtual void Raise(Actor* other) = 0;
     virtual void Lower(Actor* other) = 0;
     virtual void RaiseToTop() = 0;
@@ -83,7 +86,16 @@ class Compositor {
     // successive value of 'indent_level'.
     virtual std::string GetDebugString(int indent_level) = 0;
 
+    // Shows a horizontal gradient (transparent on left to black on
+    // right) over the window's client area if true.  Does nothing if
+    // false.  Defaults to false.
     virtual void ShowDimmed(bool dimmed, int anim_ms) = 0;
+
+    // Add or remove the actor from a visibility group.
+    // See Compositor::SetActiveVisibilityGroups() for details.
+    virtual void AddToVisibilityGroup(int group_id) = 0;
+    virtual void RemoveFromVisibilityGroup(int group_id) = 0;
+
    private:
     DISALLOW_COPY_AND_ASSIGN(Actor);
   };
@@ -153,6 +165,14 @@ class Compositor {
   // with Compositor -- the caller should not delete it.
   virtual StageActor* GetDefaultStage() = 0;
 
+  // Limit which actors will be drawn.  Actors that aren't members of a
+  // visibility group included in 'groups' (see
+  // Actor::AddToVisibilityGroup()) will be hidden.  Passing an empty set
+  // reverts to the standard behavior of drawing all actors that are
+  // visible and at least partially opaque.
+  virtual void SetActiveVisibilityGroups(
+      const std::tr1::unordered_set<int>& groups) = 0;
+
   // Draw the scene.  This happens automatically as needed but can also be
   // triggered manually.
   virtual void Draw() = 0;
@@ -193,51 +213,58 @@ class MockCompositor : public Compositor {
     bool is_dimmed() const { return is_dimmed_; }
     int num_moves() const { return num_moves_; }
     bool position_was_animated() const { return position_was_animated_; }
+    const std::set<int>& visibility_groups() const {
+      return visibility_groups_;
+    }
 
     MockCompositor::ContainerActor* parent() { return parent_; }
     void set_parent(MockCompositor::ContainerActor* new_parent) {
       parent_ = new_parent;
     }
 
-    // Begin Compositor::Actor methods
-    void SetName(const std::string& name) { name_ = name; }
-    int GetWidth() { return width_; }
-    int GetHeight() { return height_; }
-    int GetX() { return x_; }
-    int GetY() { return y_; }
-    double GetXScale() { return scale_x_; }
-    double GetYScale() { return scale_y_; }
-    void SetVisibility(bool visible) { visible_ = visible; }
-    void SetSize(int width, int height) {
+    // Begin Compositor::Actor methods.
+    virtual void SetName(const std::string& name) { name_ = name; }
+    virtual int GetWidth() { return width_; }
+    virtual int GetHeight() { return height_; }
+    virtual int GetX() { return x_; }
+    virtual int GetY() { return y_; }
+    virtual double GetXScale() { return scale_x_; }
+    virtual double GetYScale() { return scale_y_; }
+    virtual void SetVisibility(bool visible) { visible_ = visible; }
+    virtual void SetSize(int width, int height) {
       width_ = width;
       height_ = height;
       SetSizeImpl(width, height);
     }
-    void Move(int x, int y, int anim_ms) {
+    virtual void Move(int x, int y, int anim_ms) {
       x_ = x;
       y_ = y;
       num_moves_++;
       position_was_animated_ = (anim_ms > 0);
     }
-    void MoveX(int x, int anim_ms) { Move(x, y_, anim_ms); }
-    void MoveY(int y, int anim_ms) { Move(x_, y, anim_ms); }
-    void Scale(double scale_x, double scale_y, int anim_ms) {
+    virtual void MoveX(int x, int anim_ms) { Move(x, y_, anim_ms); }
+    virtual void MoveY(int y, int anim_ms) { Move(x_, y, anim_ms); }
+    virtual void Scale(double scale_x, double scale_y, int anim_ms) {
       scale_x_ = scale_x;
       scale_y_ = scale_y;
     }
-    void SetOpacity(double opacity, int anim_ms) { opacity_ = opacity; }
-    void SetTilt(double tilt, int anim_ms) {
-      tilt_ = tilt;
-    }
-    double GetTilt() const { return tilt_; }
-    void SetClip(int x, int y, int width, int height) {}
-    void Raise(Compositor::Actor* other);
-    void Lower(Compositor::Actor* other);
-    void RaiseToTop();
-    void LowerToBottom();
+    virtual void SetOpacity(double opacity, int anim_ms) { opacity_ = opacity; }
+    virtual void SetTilt(double tilt, int anim_ms) { tilt_ = tilt; }
+    virtual double GetTilt() const { return tilt_; }
+    virtual void SetClip(int x, int y, int width, int height) {}
+    virtual void Raise(Compositor::Actor* other);
+    virtual void Lower(Compositor::Actor* other);
+    virtual void RaiseToTop();
+    virtual void LowerToBottom();
     virtual std::string GetDebugString(int indent_level);
-    void ShowDimmed(bool dimmed, int anim_ms) { is_dimmed_ = dimmed; }
-    // End Compositor::Actor methods
+    virtual void ShowDimmed(bool dimmed, int anim_ms) { is_dimmed_ = dimmed; }
+    virtual void AddToVisibilityGroup(int group_id) {
+      visibility_groups_.insert(group_id);
+    }
+    virtual void RemoveFromVisibilityGroup(int group_id) {
+      visibility_groups_.erase(group_id);
+    }
+    // End Compositor::Actor methods.
 
     virtual void SetSizeImpl(int width, int height) {}
 
@@ -259,6 +286,8 @@ class MockCompositor : public Compositor {
 
     MockCompositor::ContainerActor* parent_;  // not owned
 
+    std::set<int> visibility_groups_;
+
     DISALLOW_COPY_AND_ASSIGN(Actor);
   };
 
@@ -267,8 +296,14 @@ class MockCompositor : public Compositor {
    public:
     ContainerActor();
     virtual ~ContainerActor();
+
+    // Begin Compositor::ContainerActor methods.
     void AddActor(Compositor::Actor* actor);
+    // End Compositor::ContainerActor methods.
+
+    // Begin Compositor::Actor methods.
     virtual std::string GetDebugString(int indent_level);
+    // End Compositor::Actor methods.
 
     Stacker<Actor*>* stacked_children() { return stacked_children_.get(); }
 
@@ -288,8 +323,12 @@ class MockCompositor : public Compositor {
    public:
     StageActor() {}
     virtual ~StageActor() {}
-    XWindow GetStageXWindow() { return 0; }
-    void SetStageColor(const Compositor::Color& color) {}
+
+    // Begin Compositor::StageActor methods.
+    virtual XWindow GetStageXWindow() { return 0; }
+    virtual void SetStageColor(const Compositor::Color& color) {}
+    // End Compositor::StageActor methods.
+
    private:
     DISALLOW_COPY_AND_ASSIGN(StageActor);
   };
@@ -307,17 +346,21 @@ class MockCompositor : public Compositor {
     XWindow xid() const { return xid_; }
     int num_pixmap_discards() const { return num_pixmap_discards_; }
 
-    // Begin Compositor::TexturePixmapActor implementation.
-    bool SetTexturePixmapWindow(XWindow xid) { xid_ = xid; return true; }
-    void UpdateContents() {}
-    void DiscardPixmap() { num_pixmap_discards_++; }
-    bool SetAlphaMask(const unsigned char* bytes, int width, int height);
-    void ClearAlphaMask();
-    // End Compositor::TexturePixmapActor implementation.
+    // Begin Compositor::TexturePixmapActor methods.
+    virtual bool SetTexturePixmapWindow(XWindow xid) {
+      xid_ = xid;
+      return true;
+    }
+    virtual void UpdateContents() {}
+    virtual void DiscardPixmap() { num_pixmap_discards_++; }
+    virtual bool SetAlphaMask(const unsigned char* bytes,
+                              int width, int height);
+    virtual void ClearAlphaMask();
+    // End Compositor::TexturePixmapActor methods.
 
-    // Begin MockCompositor::Actor implementation.
+    // Begin MockCompositor::Actor methods.
     virtual void SetSizeImpl(int width, int height) { DiscardPixmap(); }
-    // End MockCompositor::Actor implementation.
+    // End MockCompositor::Actor methods.
 
    private:
     XConnection* xconn_;  // not owned
@@ -338,29 +381,38 @@ class MockCompositor : public Compositor {
   ~MockCompositor() {}
 
   // Begin Compositor methods
-  ContainerActor* CreateGroup() { return new ContainerActor; }
-  Actor* CreateRectangle(const Compositor::Color& color,
-                         const Compositor::Color& border_color,
-                         int border_width) {
+  virtual ContainerActor* CreateGroup() { return new ContainerActor; }
+  virtual Actor* CreateRectangle(const Compositor::Color& color,
+                                 const Compositor::Color& border_color,
+                                 int border_width) {
     return new Actor;
   }
-  Actor* CreateImage(const std::string& filename) { return new Actor; }
-  TexturePixmapActor* CreateTexturePixmap() {
+  virtual Actor* CreateImage(const std::string& filename) { return new Actor; }
+  virtual TexturePixmapActor* CreateTexturePixmap() {
     return new TexturePixmapActor(xconn_);
   }
-  Actor* CreateText(const std::string& font_name,
-                    const std::string& text,
-                    const Compositor::Color& color) {
+  virtual Actor* CreateText(const std::string& font_name,
+                            const std::string& text,
+                            const Compositor::Color& color) {
     return new Actor;
   }
   Actor* CloneActor(Compositor::Actor* orig) { return new Actor; }
   StageActor* GetDefaultStage() { return &default_stage_; }
+  virtual void SetActiveVisibilityGroups(
+      const std::tr1::unordered_set<int>& groups) {
+    active_visibility_groups_ = groups;
+  }
   virtual void Draw() {}
   // End Compositor methods
+
+  const std::tr1::unordered_set<int>& active_visibility_groups() const {
+    return active_visibility_groups_;
+  }
 
  private:
   XConnection* xconn_;  // not owned
   StageActor default_stage_;
+  std::tr1::unordered_set<int> active_visibility_groups_;
 
   DISALLOW_COPY_AND_ASSIGN(MockCompositor);
 };

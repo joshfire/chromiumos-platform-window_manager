@@ -5,8 +5,8 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdarg>
-#include <set>
 #include <string>
+#include <tr1/unordered_set>
 #include <vector>
 
 #include <gflags/gflags.h>
@@ -28,6 +28,7 @@ DEFINE_bool(logtostderr, false,
 
 using std::set;
 using std::string;
+using std::tr1::unordered_set;
 using std::vector;
 using window_manager::util::NextPowerOfTwo;
 
@@ -736,6 +737,63 @@ TEST_F(RealCompositorTest, SkipUnneededAnimations) {
   // we're already in.
   actor->MoveX(300, 200);
   EXPECT_FALSE(compositor()->draw_timeout_enabled());
+}
+
+// Test that the compositor handles visibility groups correctly.
+TEST_F(RealCompositorTest, VisibilityGroups) {
+  // Add an actor and check that it's initially visible.
+  scoped_ptr<RealCompositor::Actor> actor(
+      compositor()->CreateRectangle(
+          Compositor::Color(), Compositor::Color(), 0));
+  compositor()->GetDefaultStage()->AddActor(actor.get());
+  EXPECT_TRUE(compositor()->dirty());
+  compositor()->Draw();
+  EXPECT_FALSE(compositor()->dirty());
+  EXPECT_TRUE(actor->IsVisible());
+
+  // Adding or removing the actor from a visibility group while the
+  // compositor isn't using visibility groups should have no effect.
+  actor->AddToVisibilityGroup(1);
+  EXPECT_FALSE(compositor()->dirty());
+  EXPECT_TRUE(actor->IsVisible());
+  actor->RemoveFromVisibilityGroup(1);
+  EXPECT_FALSE(compositor()->dirty());
+
+  // Now tell the compositor to only show visibility group 1.  The actor
+  // isn't in that group anymore, so it should be invisible.
+  unordered_set<int> groups;
+  groups.insert(1);
+  compositor()->SetActiveVisibilityGroups(groups);
+  EXPECT_TRUE(compositor()->dirty());
+  EXPECT_FALSE(actor->IsVisible());
+  compositor()->Draw();
+
+  // Add the actor to visibility group 2 and make sure that it's still hidden.
+  actor->AddToVisibilityGroup(2);
+  EXPECT_TRUE(compositor()->dirty());
+  EXPECT_FALSE(actor->IsVisible());
+  compositor()->Draw();
+
+  // Now add it to visibility group 1 and make sure that it gets shown.
+  actor->AddToVisibilityGroup(1);
+  EXPECT_TRUE(compositor()->dirty());
+  EXPECT_TRUE(actor->IsVisible());
+  compositor()->Draw();
+
+  // Remove it from both groups and check that it's hidden again.
+  actor->RemoveFromVisibilityGroup(1);
+  actor->RemoveFromVisibilityGroup(2);
+  EXPECT_TRUE(compositor()->dirty());
+  EXPECT_FALSE(actor->IsVisible());
+  compositor()->Draw();
+
+  // Now disable visibility groups in the compositor and check that the
+  // actor is visible.
+  groups.clear();
+  compositor()->SetActiveVisibilityGroups(groups);
+  EXPECT_TRUE(compositor()->dirty());
+  EXPECT_TRUE(actor->IsVisible());
+  compositor()->Draw();
 }
 
 }  // end namespace window_manager

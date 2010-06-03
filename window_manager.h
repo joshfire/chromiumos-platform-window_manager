@@ -42,6 +42,7 @@ class KeyBindingsGroup;
 class LayoutManager;
 class LoginController;
 class MetricsReporter;
+class ScreenLockerHandler;
 class StackingManager;
 class Window;
 class WmIpc;
@@ -50,6 +51,12 @@ template<class T> class Stacker;
 
 class WindowManager : public PanelManagerAreaChangeListener {
  public:
+  // Visibility groups that actors can be added to.
+  // See Compositor::SetActiveVisibilityGroups().
+  enum VisibilityGroups {
+    VISIBILITY_GROUP_SCREEN_LOCKER = 1,
+  };
+
   WindowManager(EventLoop* event_loop,
                 XConnection* xconn,
                 Compositor* compositor);
@@ -415,6 +422,7 @@ class WindowManager : public PanelManagerAreaChangeListener {
   scoped_ptr<LayoutManager> layout_manager_;
   scoped_ptr<MetricsReporter> metrics_reporter_;
   scoped_ptr<LoginController> login_controller_;
+  scoped_ptr<ScreenLockerHandler> screen_locker_handler_;
 
   // ID for the timeout that invokes metrics_reporter_->AttemptReport().
   int metrics_reporter_timeout_id_;

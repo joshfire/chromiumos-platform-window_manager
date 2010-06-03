@@ -170,9 +170,7 @@ TEST_F(LoginControllerTest, OtherWindows) {
   xconn_->InitCreateWindowEvent(&event, xid);
   wm_->HandleEvent(&event);
   Window* win = wm_->GetWindowOrDie(xid);
-  MockCompositor::Actor* actor =
-      dynamic_cast<MockCompositor::Actor*>(win->actor());
-  CHECK(actor);
+  MockCompositor::Actor* actor = GetMockActorForWindow(win);
 
   // If LoginManager sees a MapRequest event before Chrome is logged in,
   // check that it maps the window in the requested location.
