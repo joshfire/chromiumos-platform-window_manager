@@ -11,6 +11,7 @@
 #include "base/hash_tables.h"
 #include "base/scoped_ptr.h"
 #include "base/singleton.h"
+#include "window_manager/profiler_data.h"
 
 //
 // IMPORTANT NOTE:
@@ -171,22 +172,6 @@ class Profiler {
     STATUS_RUN
   };
 
-  enum MarkFlag {
-    MARK_FLAG_TAP = 0,
-    MARK_FLAG_BEGIN,
-    MARK_FLAG_END
-  };
-
-  struct Symbol {
-    char name[50];
-  };
-
-  struct Sample {
-    unsigned int symbol_id;
-    MarkFlag flag;
-    int64 time;
-  };
-
   void Start(ProfilerWriter* profiler_writer, unsigned int max_num_symbols,
              unsigned int max_num_samples);
   void Pause();
@@ -195,7 +180,7 @@ class Profiler {
 
   void Flush();
   unsigned int AddSymbol(const char* name);
-  void AddSample(unsigned int symbol_id, int64 time, MarkFlag flag);
+  void AddSample(unsigned int symbol_id, int64_t time, profiler::MarkFlag flag);
 
   ProfilerStatus status() const {
     return status_;
@@ -214,8 +199,8 @@ class Profiler {
   unsigned int max_num_samples_;
   unsigned int num_symbols_;
   unsigned int num_samples_;
-  scoped_array<Symbol> symbols_;
-  scoped_array<Sample> samples_;
+  scoped_array<profiler::Symbol> symbols_;
+  scoped_array<profiler::Sample> samples_;
 };  // Profiler
 
 class ProfilerWriter {

@@ -16,6 +16,7 @@
 #include "base/logging.h"
 #include "base/scoped_ptr.h"
 #include "base/time.h"
+#include "window_manager/profiler_data.h"
 
 namespace window_manager {
 
@@ -26,7 +27,7 @@ using file_util::OpenFile;
 //
 // Static constants and functions
 //
-static inline int64 Now() {
+static inline int64_t Now() {
   return TimeTicks::Now().ToInternalValue();
 }
 
@@ -40,15 +41,15 @@ Marker::Marker(Profiler* profiler, const char* name)
 }
 
 void Marker::Tap() {
-  profiler_->AddSample(symbol_id_, Now(), Profiler::MARK_FLAG_TAP);
+  profiler_->AddSample(symbol_id_, Now(), profiler::MARK_FLAG_TAP);
 }
 
 void Marker::Begin() {
-  profiler_->AddSample(symbol_id_, Now(), Profiler::MARK_FLAG_BEGIN);
+  profiler_->AddSample(symbol_id_, Now(), profiler::MARK_FLAG_BEGIN);
 }
 
 void Marker::End() {
-  profiler_->AddSample(symbol_id_, Now(), Profiler::MARK_FLAG_END);
+  profiler_->AddSample(symbol_id_, Now(), profiler::MARK_FLAG_END);
 }
 
 //
@@ -69,18 +70,18 @@ unsigned int DynamicMarker::GetSymbolId(const char* name) {
 }
 
 void DynamicMarker::Tap(const char* name) {
-  profiler_->AddSample(GetSymbolId(name), Now(), Profiler::MARK_FLAG_TAP);
+  profiler_->AddSample(GetSymbolId(name), Now(), profiler::MARK_FLAG_TAP);
 }
 
 void DynamicMarker::Begin(const char* name) {
   unsigned int symbol_id = GetSymbolId(name);
   recent_symbol_ids_.push(symbol_id);
-  profiler_->AddSample(symbol_id, Now(), Profiler::MARK_FLAG_BEGIN);
+  profiler_->AddSample(symbol_id, Now(), profiler::MARK_FLAG_BEGIN);
 }
 
 void DynamicMarker::End() {
   unsigned int symbol_id = recent_symbol_ids_.top();
-  profiler_->AddSample(symbol_id, Now(), Profiler::MARK_FLAG_END);
+  profiler_->AddSample(symbol_id, Now(), profiler::MARK_FLAG_END);
   recent_symbol_ids_.pop();
 }
 
@@ -117,8 +118,8 @@ void Profiler::Start(ProfilerWriter* profiler_writer,
     max_num_samples_ = max_num_samples;
     status_ = STATUS_RUN;
 
-    symbols_.reset(new Symbol[max_num_symbols_]);
-    samples_.reset(new Sample[max_num_samples_]);
+    symbols_.reset(new profiler::Symbol[max_num_symbols_]);
+    samples_.reset(new profiler::Sample[max_num_samples_]);
 
     memset(symbols_.get(), 0, sizeof(symbols_[0]) * max_num_symbols_);
     memset(samples_.get(), 0, sizeof(samples_[0]) * max_num_samples_);
@@ -168,8 +169,8 @@ unsigned int Profiler::AddSymbol(const char* name) {
   return num_symbols_++;
 }
 
-void Profiler::AddSample(unsigned int symbol_id, int64 time,
-                         Profiler::MarkFlag flag) {
+void Profiler::AddSample(unsigned int symbol_id, int64_t time,
+                         profiler::MarkFlag flag) {
   if (status_ != STATUS_RUN) {
     return;
   }
