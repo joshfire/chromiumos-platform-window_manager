@@ -1,9 +1,10 @@
-wm
-test_clutter
-screenshot
-mock_app
-mock_chrome
-*_test
-*.pb.h
+*.[ao]
 *.pb.cc
+*.pb.h
 *.pyc
+*_test
+.*.sw*
+.sconsign.dblite
+mock_chrome
+screenshot
+wm
