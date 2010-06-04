@@ -172,6 +172,10 @@ class Panel {
   // Called periodically by 'resize_event_coalescer_'.
   void ApplyResize();
 
+  // Send a CHROME_NOTIFY_PANEL_STATE message to the content window
+  // describing the panel's current expanded/collapsed state.
+  bool SendStateMessageToChrome();
+
   // Update the content window's _CHROME_STATE property according to the
   // current value of 'is_expanded_'.
   bool UpdateChromeStateProperty();

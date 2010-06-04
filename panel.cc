@@ -167,6 +167,10 @@ Panel::Panel(PanelManager* panel_manager,
       right_input_xid_, string("right input window for panel ") + xid_str());
 
   wm()->focus_manager()->UseClickToFocusForWindow(content_win_);
+
+  // Notify Chrome about the panel's state.  If we crash and get restarted,
+  // we want to make sure that Chrome thinks it's in the same state that we do.
+  SendStateMessageToChrome();
   UpdateChromeStateProperty();
 }
 
@@ -386,13 +390,8 @@ bool Panel::SetExpandedState(bool expanded) {
     return true;
 
   is_expanded_ = expanded;
-
-  WmIpc::Message msg(chromeos::WM_IPC_MESSAGE_CHROME_NOTIFY_PANEL_STATE);
-  msg.set_param(0, expanded);
-  bool success = wm()->wm_ipc()->SendMessage(content_win_->xid(), msg);
-
+  bool success = SendStateMessageToChrome();
   success &= UpdateChromeStateProperty();
-
   return success;
 }
 
@@ -596,6 +595,12 @@ void Panel::ApplyResize() {
           drag_last_width_, drag_last_height_ + titlebar_height());
     }
   }
+}
+
+bool Panel::SendStateMessageToChrome() {
+  WmIpc::Message msg(chromeos::WM_IPC_MESSAGE_CHROME_NOTIFY_PANEL_STATE);
+  msg.set_param(0, is_expanded_);
+  return wm()->wm_ipc()->SendMessage(content_win_->xid(), msg);
 }
 
 bool Panel::UpdateChromeStateProperty() {

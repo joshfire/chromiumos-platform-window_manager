@@ -8,6 +8,9 @@
 #include <string>
 
 #include <gtest/gtest.h>
+extern "C" {
+#include <X11/Xlib.h>
+}
 
 #include "base/file_path.h"
 #include "base/scoped_ptr.h"
@@ -190,6 +193,10 @@ class BasicWindowManagerTest : public ::testing::Test {
   // Test the bounds of a panel's content window.
   void TestPanelContentBounds(
       Panel* panel, int x, int y, int width, int height);
+
+  // Decode the message from 'event' into 'msg'.  Returns false on failure.
+  bool DecodeWmIpcMessage(const XClientMessageEvent& event,
+                          WmIpc::Message* msg_out);
 
   // Get the mock actor for the passed-in window.
   MockCompositor::TexturePixmapActor* GetMockActorForWindow(Window* win);

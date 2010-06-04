@@ -5,9 +5,6 @@
 #ifndef WINDOW_MANAGER_MOCK_X_CONNECTION_H_
 #define WINDOW_MANAGER_MOCK_X_CONNECTION_H_
 
-extern "C" {
-#include <X11/Xlib.h>
-}
 #include <map>
 #include <queue>
 #include <set>
@@ -15,6 +12,10 @@ extern "C" {
 #include <tr1/memory>
 #include <utility>
 #include <vector>
+
+extern "C" {
+#include <X11/Xlib.h>
+}
 
 #include "base/logging.h"
 #include "window_manager/callback.h"

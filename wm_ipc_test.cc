@@ -30,13 +30,8 @@ TEST_F(WmIpcTest, XidIncludedInMessage) {
   // Now check that the message was really sent, and that we end up with
   // the same data that we sent after asking WmIpc to parse it for us.
   ASSERT_EQ(1, static_cast<int>(info->client_messages.size()));
-  const XClientMessageEvent& event = info->client_messages[0];
   WmIpc::Message received_msg;
-  EXPECT_TRUE(wm_->wm_ipc()->GetMessage(event.window,
-                                        event.message_type,
-                                        event.format,
-                                        event.data.l,
-                                        &received_msg));
+  ASSERT_TRUE(DecodeWmIpcMessage(info->client_messages[0], &received_msg));
   EXPECT_EQ(chromeos::WM_IPC_MESSAGE_CHROME_NOTIFY_PANEL_STATE,
             received_msg.type());
   EXPECT_EQ(xid, received_msg.xid());

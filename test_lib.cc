@@ -445,6 +445,16 @@ void BasicWindowManagerTest::TestPanelContentBounds(
   EXPECT_EQ(height, panel->content_win()->actor()->GetHeight());
 }
 
+bool BasicWindowManagerTest::DecodeWmIpcMessage(
+    const XClientMessageEvent& event, WmIpc::Message* msg_out) {
+  CHECK(msg_out);
+  return wm_->wm_ipc()->GetMessage(event.window,
+                                   event.message_type,
+                                   event.format,
+                                   event.data.l,
+                                   msg_out);
+}
+
 MockCompositor::TexturePixmapActor*
 BasicWindowManagerTest::GetMockActorForWindow(Window* win) {
   CHECK(win);

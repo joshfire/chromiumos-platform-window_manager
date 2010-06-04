@@ -236,6 +236,8 @@ TEST_F(PanelTest, ChromeState) {
   Window titlebar_win(wm_.get(), titlebar_xid, false);
   XWindow content_xid = CreatePanelContentWindow(
       200, 400, titlebar_xid, false, false);
+  MockXConnection::WindowInfo* content_info =
+      xconn_->GetWindowInfoOrDie(content_xid);
   Window content_win(wm_.get(), content_xid, false);
   Panel panel(panel_manager_, &content_win, &titlebar_win, false);
   panel.Move(0, 0, true, 0);
@@ -248,12 +250,29 @@ TEST_F(PanelTest, ChromeState) {
   ASSERT_EQ(1, values.size());
   EXPECT_EQ(collapsed_atom, values[0]);
 
+  // We should also send a message to the panel telling it about the
+  // initial state.
+  EXPECT_EQ(static_cast<size_t>(1), content_info->client_messages.size());
+  WmIpc::Message msg;
+  ASSERT_TRUE(DecodeWmIpcMessage(content_info->client_messages[0], &msg));
+  EXPECT_EQ(chromeos::WM_IPC_MESSAGE_CHROME_NOTIFY_PANEL_STATE, msg.type());
+  EXPECT_EQ(content_xid, msg.xid());
+  EXPECT_EQ(0, msg.param(0));
+  content_info->client_messages.clear();
+
   // After we tell the panel to notify Chrome that it's been expanded, it
   // should remove the collapsed atom (and additionally, the entire
   // property).
   panel.SetExpandedState(true);
   EXPECT_TRUE(panel.is_expanded());
   EXPECT_FALSE(xconn_->GetIntArrayProperty(content_xid, state_atom, &values));
+
+  // We should send another message saying that it's expanded now.
+  EXPECT_EQ(static_cast<size_t>(1), content_info->client_messages.size());
+  ASSERT_TRUE(DecodeWmIpcMessage(content_info->client_messages[0], &msg));
+  EXPECT_EQ(chromeos::WM_IPC_MESSAGE_CHROME_NOTIFY_PANEL_STATE, msg.type());
+  EXPECT_EQ(content_xid, msg.xid());
+  EXPECT_EQ(1, msg.param(0));
 
   // Now tell it to notify Chrome that it's been collapsed again.
   panel.SetExpandedState(false);
