@@ -5,10 +5,10 @@
 #ifndef WINDOW_MANAGER_ATOM_CACHE_H_
 #define WINDOW_MANAGER_ATOM_CACHE_H_
 
-#include <map>
 #include <string>
 
 #include "base/basictypes.h"
+#include "base/hash_tables.h"
 #include "window_manager/x_types.h"
 
 namespace window_manager {
@@ -45,6 +45,7 @@ enum Atom {
   ATOM_NET_WM_STATE_MAXIMIZED_HORZ,
   ATOM_NET_WM_STATE_MAXIMIZED_VERT,
   ATOM_NET_WM_STATE_MODAL,
+  ATOM_NET_WM_USER_TIME,
   ATOM_NET_WM_WINDOW_OPACITY,
   ATOM_NET_WM_WINDOW_TYPE,
   ATOM_NET_WM_WINDOW_TYPE_COMBO,
@@ -92,8 +93,8 @@ class AtomCache {
   // server's IDs to atoms' string names.  These maps aren't necessarily in
   // sync; 'atom_to_xatom_' is constant after the constructor finishes but
   // GetName() caches additional string mappings in 'xatom_to_string_'.
-  std::map<Atom, XAtom> atom_to_xatom_;
-  std::map<XAtom, std::string> xatom_to_string_;
+  base::hash_map<int, XAtom> atom_to_xatom_;
+  base::hash_map<XAtom, std::string> xatom_to_string_;
 
   DISALLOW_COPY_AND_ASSIGN(AtomCache);
 };

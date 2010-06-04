@@ -1577,6 +1577,15 @@ void WindowManager::HandlePropertyNotify(const XPropertyEvent& e) {
     return;
   }
 
+  // TODO: These can currently be very spammy.  The property is changed in
+  // response to user interaction, including scrollwheel events, which can
+  // be generated very quickly (thousands per second!).  Exit early for now
+  // so we don't get bogged down writing to the log, but this can be
+  // deleted later once we have a better solution for handling fast
+  // scrolling.
+  if (e.atom == GetXAtom(ATOM_NET_WM_USER_TIME))
+    return;
+
   Window* win = GetWindow(e.window);
   if (win) {
     bool deleted = (e.state == PropertyDelete);

@@ -10,9 +10,10 @@
 #include "window_manager/util.h"
 #include "window_manager/x_connection.h"
 
-using std::map;
+using base::hash_map;
 using std::string;
 using std::vector;
+using window_manager::util::FindWithDefault;
 using window_manager::util::XidStr;
 
 namespace window_manager {
@@ -51,6 +52,7 @@ static const AtomInfo kAtomInfos[] = {
   { ATOM_NET_WM_STATE_MAXIMIZED_HORZ,  "_NET_WM_STATE_MAXIMIZED_HORZ" },
   { ATOM_NET_WM_STATE_MAXIMIZED_VERT,  "_NET_WM_STATE_MAXIMIZED_VERT" },
   { ATOM_NET_WM_STATE_MODAL,           "_NET_WM_STATE_MODAL" },
+  { ATOM_NET_WM_USER_TIME,             "_NET_WM_USER_TIME" },
   { ATOM_NET_WM_WINDOW_OPACITY,        "_NET_WM_WINDOW_OPACITY" },
   { ATOM_NET_WM_WINDOW_TYPE,           "_NET_WM_WINDOW_TYPE" },
   { ATOM_NET_WM_WINDOW_TYPE_COMBO,     "_NET_WM_WINDOW_TYPE_COMBO" },
@@ -83,9 +85,8 @@ AtomCache::AtomCache(XConnection* xconn)
   vector<string> names;
   vector<XAtom> xatoms;
 
-  for (int i = 0; i < kNumAtoms; ++i) {
+  for (int i = 0; i < kNumAtoms; ++i)
     names.push_back(kAtomInfos[i].name);
-  }
 
   CHECK(xconn_->GetAtoms(names, &xatoms));
   CHECK(xatoms.size() == kNumAtoms);
@@ -99,18 +100,18 @@ AtomCache::AtomCache(XConnection* xconn)
 }
 
 XAtom AtomCache::GetXAtom(Atom atom) const {
-  map<Atom, XAtom>::const_iterator it = atom_to_xatom_.find(atom);
-  CHECK(it != atom_to_xatom_.end())
-      << "Couldn't find X atom for Atom " << XidStr(atom);
-  return it->second;
+  XAtom xatom = FindWithDefault(atom_to_xatom_,
+                                static_cast<int>(atom),
+                                static_cast<XAtom>(0));
+  CHECK(xatom) << "Couldn't find X atom for Atom " << XidStr(atom);
+  return xatom;
 }
 
 const string& AtomCache::GetName(XAtom xatom) {
-  map<XAtom, string>::const_iterator
-      it = xatom_to_string_.find(xatom);
-  if (it != xatom_to_string_.end()) {
+  hash_map<XAtom, string>::const_iterator it = xatom_to_string_.find(xatom);
+  if (it != xatom_to_string_.end())
     return it->second;
-  }
+
   string name;
   if (!xconn_->GetAtomName(xatom, &name)) {
     LOG(ERROR) << "Unable to look up name for atom " << XidStr(xatom);
