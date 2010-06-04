@@ -51,7 +51,8 @@ class LoginControllerTest : public BasicWindowManagerTest {
   // Create the set of windows expected by LoginController.
   void CreateLoginWindows(int num_entries,
                           bool background_is_ready,
-                          bool create_guest_window) {
+                          bool create_guest_window,
+                          bool create_new_guest_entry) {
     CHECK(num_entries == 0 || num_entries >= 2);
 
     if (!background_xid_) {
@@ -76,7 +77,17 @@ class LoginControllerTest : public BasicWindowManagerTest {
       EntryWindows entry;
       entry.border_xid = CreateSimpleWindow();
       entry.image_xid = CreateSimpleWindow();
-      entry.controls_xid = CreateSimpleWindow();
+      if (create_new_guest_entry && (i + 1) == num_entries) {
+        const int guest_controls_width = 260;
+        const int guest_controls_height = 290;
+        entry.controls_xid = CreateBasicWindow(0, 0, guest_controls_width,
+                                               guest_controls_height);
+      } else {
+        const int guest_controls_width = 260;
+        const int guest_controls_height = 30;
+        entry.controls_xid = CreateBasicWindow(0, 0, guest_controls_width,
+                                               guest_controls_height);
+      }
       entry.label_xid = CreateSimpleWindow();
       entry.unselected_label_xid = CreateSimpleWindow();
 
@@ -223,7 +234,7 @@ TEST_F(LoginControllerTest, OtherWindows) {
 
 // Test that the login controller assigns the focus correctly in a few cases.
 TEST_F(LoginControllerTest, Focus) {
-  CreateLoginWindows(3, true, false);
+  CreateLoginWindows(3, true, false, true);
 
   // Initially, the first entry's controls window should be focused.
   EXPECT_EQ(entries_[0].controls_xid, xconn_->focused_xid());
@@ -272,13 +283,13 @@ TEST_F(LoginControllerTest, Focus) {
 // Test that the login controller focuses the guest window when no entries
 // are created.
 TEST_F(LoginControllerTest, FocusInitialGuestWindow) {
-  CreateLoginWindows(0, true, true);
+  CreateLoginWindows(0, true, true, true);
   EXPECT_EQ(guest_xid_, xconn_->focused_xid());
   EXPECT_EQ(guest_xid_, GetActiveWindowProperty());
 }
 
 TEST_F(LoginControllerTest, FocusTransientParent) {
-  CreateLoginWindows(2, true, false);
+  CreateLoginWindows(2, true, false, true);
 
   // When we open a transient dialog, it should get the focus.
   const XWindow transient_xid = CreateSimpleWindow();
@@ -331,7 +342,7 @@ TEST_F(LoginControllerTest, FocusTransientParent) {
 }
 
 TEST_F(LoginControllerTest, Modality) {
-  CreateLoginWindows(2, true, false);
+  CreateLoginWindows(2, true, false, true);
   const XWindow controls_xid = entries_[0].controls_xid;
   MockXConnection::WindowInfo* controls_info =
       xconn_->GetWindowInfoOrDie(controls_xid);
@@ -370,7 +381,7 @@ TEST_F(LoginControllerTest, Modality) {
 
 TEST_F(LoginControllerTest, HideAfterLogin) {
   // We should show the windows after they're mapped.
-  CreateLoginWindows(2, true, false);
+  CreateLoginWindows(2, true, false, true);
   EXPECT_FALSE(WindowIsOffscreen(background_xid_));
 
   // They should still be shown even after the user logs in.
@@ -392,7 +403,7 @@ TEST_F(LoginControllerTest, KeyBindingsDuringStateChange) {
   EXPECT_FALSE(login_controller_->entry_key_bindings_group_->enabled());
 
   // Create some entries and check that the bindings are enabled.
-  CreateLoginWindows(2, true, false);
+  CreateLoginWindows(2, true, false, true);
   EXPECT_TRUE(login_controller_->entry_key_bindings_group_->enabled());
 
   // Tell the WM to make the login entries non-selectable (as if the user
@@ -409,9 +420,9 @@ TEST_F(LoginControllerTest, KeyBindingsDuringStateChange) {
   EXPECT_FALSE(login_controller_->entry_key_bindings_group_->enabled());
 }
 
-TEST_F(LoginControllerTest, SelectGuestWindow) {
-  // Create two entries and a guest window.
-  CreateLoginWindows(2, true, true);  // create_guest_window=true
+TEST_F(LoginControllerTest, SelectGuestWindowOldChrome) {
+  // Create two entries and a guest window for old Chrome.
+  CreateLoginWindows(2, true, true, false);  // create_guest_window=true
 
   // The first entry should initially be focused and the key bindings
   // should be enabled.
@@ -424,6 +435,63 @@ TEST_F(LoginControllerTest, SelectGuestWindow) {
   XEvent event;
   xconn_->InitButtonPressEvent(&event, input_xid, 0, 0, 1);
   wm_->HandleEvent(&event);
+
+  // The guest window should be focused and the key bindings disabled.
+  EXPECT_EQ(guest_xid_, xconn_->focused_xid());
+  EXPECT_EQ(guest_xid_, GetActiveWindowProperty());
+  EXPECT_FALSE(login_controller_->entry_key_bindings_group_->enabled());
+}
+
+TEST_F(LoginControllerTest, SelectGuestWindowNewChrome) {
+  // Create two entries for new Chrome.
+  CreateLoginWindows(2, true, false, true);  // create_guest_window=false
+
+  // The first entry should initially be focused and the key bindings
+  // should be enabled.
+  EXPECT_EQ(entries_[0].controls_xid, xconn_->focused_xid());
+  EXPECT_EQ(entries_[0].controls_xid, GetActiveWindowProperty());
+  EXPECT_TRUE(login_controller_->entry_key_bindings_group_->enabled());
+
+  // Click on the entry for the guest window.
+  XWindow input_xid = login_controller_->entries_[1].input_window_xid;
+  XEvent event;
+  xconn_->InitButtonPressEvent(&event, input_xid, 0, 0, 1);
+  wm_->HandleEvent(&event);
+
+  // The guest entry should be focused and the key bindings
+  // should be disabled.
+  EXPECT_EQ(entries_[1].controls_xid, xconn_->focused_xid());
+  EXPECT_EQ(entries_[1].controls_xid, GetActiveWindowProperty());
+  EXPECT_FALSE(login_controller_->entry_key_bindings_group_->enabled());
+
+  // Click on the first entry.
+  input_xid = login_controller_->entries_[0].input_window_xid;
+  xconn_->InitButtonPressEvent(&event, input_xid, 0, 0, 1);
+  wm_->HandleEvent(&event);
+
+  // The first entry should be focused and the key bindings
+  // should be enabled.
+  EXPECT_EQ(entries_[0].controls_xid, xconn_->focused_xid());
+  EXPECT_EQ(entries_[0].controls_xid, GetActiveWindowProperty());
+  EXPECT_TRUE(login_controller_->entry_key_bindings_group_->enabled());
+
+  // Click on the entry for the guest window again.
+  input_xid = login_controller_->entries_[1].input_window_xid;
+  xconn_->InitButtonPressEvent(&event, input_xid, 0, 0, 1);
+  wm_->HandleEvent(&event);
+
+  // The guest entry should be focused and the key bindings
+  // should be enabled.
+  EXPECT_EQ(entries_[1].controls_xid, xconn_->focused_xid());
+  EXPECT_EQ(entries_[1].controls_xid, GetActiveWindowProperty());
+  EXPECT_FALSE(login_controller_->entry_key_bindings_group_->enabled());
+
+  // Create guest window.
+  guest_xid_ = CreateBasicWindow(0, 0, wm_->width() / 2, wm_->height() / 2);
+  wm_->wm_ipc()->SetWindowType(guest_xid_,
+                               chromeos::WM_IPC_WINDOW_LOGIN_GUEST,
+                               NULL);
+  SendInitialEventsForWindow(guest_xid_);
 
   // The guest window should be focused and the key bindings disabled.
   EXPECT_EQ(guest_xid_, xconn_->focused_xid());

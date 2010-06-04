@@ -74,7 +74,8 @@ class LoginController : public EventConsumer {
   friend class LoginControllerTest;  // runs InitialShow() manually
   FRIEND_TEST(LoginControllerTest, Focus);
   FRIEND_TEST(LoginControllerTest, KeyBindingsDuringStateChange);
-  FRIEND_TEST(LoginControllerTest, SelectGuestWindow);
+  FRIEND_TEST(LoginControllerTest, SelectGuestWindowOldChrome);
+  FRIEND_TEST(LoginControllerTest, SelectGuestWindowNewChrome);
 
   // SelectionChangedManager is used to cleanup after the selection changes.
   // When the selection changes |Schedule| is invoked on the
@@ -254,6 +255,11 @@ class LoginController : public EventConsumer {
 
   // Navigate through users (left/right). Doesn't wrap around the edge.
   void CycleSelectedEntry(bool to_right);
+
+  // Return true if old version of Chrome is detected and we should preserve
+  // old behavior for backward compatibility. has_all_windows_ must be true
+  // before calling this method.
+  bool IsOldChrome();
 
   WindowManager* wm_;
 

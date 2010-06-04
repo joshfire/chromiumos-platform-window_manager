@@ -668,7 +668,8 @@ void LoginController::SelectEntryAt(size_t index) {
     selection_changed_manager_.Stop();
   }
 
-  if (index + 1 == entries_.size()) {
+  const bool selecting_guest = (index + 1 == entries_.size());
+  if (IsOldChrome() && selecting_guest) {
     if (!guest_window_) {
       waiting_for_guest_ = true;
       // We haven't got the guest window yet, tell chrome to create it.
@@ -683,7 +684,16 @@ void LoginController::SelectEntryAt(size_t index) {
     return;
   }
 
-  waiting_for_guest_ = false;
+  // For guest entry navigation bindings should be disabled to allow normal
+  // keyboard navigation among controls on guest login dialog.
+  const bool guest_was_selected =
+      (selected_entry_index_ == entries_.size() - 1);
+  if (selecting_guest)
+    entry_key_bindings_group_->Disable();
+  else if (guest_was_selected)
+    entry_key_bindings_group_->Enable();
+
+  waiting_for_guest_ = selecting_guest;
 
   const size_t last_selected_index = selected_entry_index_;
 
@@ -696,6 +706,7 @@ void LoginController::SelectEntryAt(size_t index) {
     const Entry& entry = entries_[i];
     const bool selected = (i == selected_entry_index_);
     const bool was_selected = (i == last_selected_index);
+    const bool is_guest = (i + 1 == entries_.size()); 
 
     Rect border_bounds, image_bounds, controls_bounds, label_bounds;
     CalculateEntryBounds(origins[i], selected,
@@ -704,9 +715,15 @@ void LoginController::SelectEntryAt(size_t index) {
 
     if (selected) {
       entry.border_window->ScaleComposited(1, 1, kAnimationTimeInMs);
-      entry.image_window->ScaleComposited(1, 1, kAnimationTimeInMs);
       entry.controls_window->ScaleComposited(1, 1, kAnimationTimeInMs);
-      entry.controls_window->MoveClient(controls_bounds.x, controls_bounds.y);
+      if (selecting_guest) {
+        // Hide image window and place controls window on its positions.
+        entry.image_window->HideComposited();
+        entry.controls_window->MoveClient(image_bounds.x, image_bounds.y);
+      } else {
+        entry.image_window->ScaleComposited(1, 1, kAnimationTimeInMs);
+        entry.controls_window->MoveClient(controls_bounds.x, controls_bounds.y);
+      }
       wm_->ConfigureInputWindow(entry.input_window_xid, -1, -1, 1, 1);
       FocusLoginWindow(entry.controls_window, wm_->GetCurrentTimeFromServer());
 
@@ -736,14 +753,23 @@ void LoginController::SelectEntryAt(size_t index) {
       entry.label_window->MoveComposited(label_bounds.x, label_bounds.y,
                                          kAnimationTimeInMs);
       entry.controls_window->MoveClientOffscreen();
+      // Show image window if it was hidden for guest entry.
+      if (guest_was_selected)
+        entry.image_window->ShowComposited();
     }
 
     entry.border_window->MoveComposited(border_bounds.x, border_bounds.y,
                                         kAnimationTimeInMs);
     entry.image_window->MoveComposited(image_bounds.x, image_bounds.y,
                                        kAnimationTimeInMs);
-    entry.controls_window->MoveComposited(controls_bounds.x, controls_bounds.y,
-                                          kAnimationTimeInMs);
+    if (selecting_guest && is_guest) {
+      entry.controls_window->MoveComposited(image_bounds.x, image_bounds.y,
+                                            kAnimationTimeInMs);
+    } else {
+      entry.controls_window->MoveComposited(controls_bounds.x,
+                                            controls_bounds.y,
+                                            kAnimationTimeInMs);
+    }
 
     if (!selected && !was_selected) {
       entry.unselected_label_window->MoveComposited(label_bounds.x,
@@ -758,7 +784,7 @@ void LoginController::SelectEntryAt(size_t index) {
 void LoginController::Hide() {
   selection_changed_manager_.Stop();
 
-  if (selected_entry_index_ + 1 == entries_.size())
+  if (IsOldChrome() && selected_entry_index_ + 1 == entries_.size())
     return;  // Guest entry is selected and all the windows are already
              // offscreen.
 
@@ -880,6 +906,8 @@ void LoginController::SelectGuest() {
                                             kAnimationTimeInMs);
   guest_entry.border_window->ScaleComposited(1, 1, kAnimationTimeInMs);
   guest_entry.border_window->SetCompositedOpacity(0, kAnimationTimeInMs);
+  guest_entry.controls_window->HideComposited();
+  guest_entry.image_window->ShowComposited();
   guest_entry.image_window->MoveComposited(guest_image_target_bounds.x,
                                            guest_image_target_bounds.y,
                                            kAnimationTimeInMs);
@@ -899,6 +927,7 @@ void LoginController::SelectGuest() {
 
   guest_entry.unselected_label_window->SetCompositedOpacity(0,
                                                             kAnimationTimeInMs);
+  guest_entry.label_window->SetCompositedOpacity(0, kAnimationTimeInMs);
   wm_->ConfigureInputWindow(guest_entry.input_window_xid, -1, -1, -1, -1);
 }
 
@@ -1183,6 +1212,13 @@ void LoginController::CycleSelectedEntry(bool to_right) {
   int index = static_cast<int>(selected_entry_index_) + (to_right ? 1 : -1);
   if (index >= 0 && index < static_cast<int>(entries_.size()))
     SelectEntryAt(static_cast<size_t>(index));
+}
+
+bool LoginController::IsOldChrome() {
+  CHECK(has_all_windows_);
+  // HACK(dpolukhin): detect old chrome version to preserve old WM behaviour.
+  // Will be removed in couple weeks. It is required for backward compatibility.
+  return (controls_height_ == entries_.back().controls_window->client_height());
 }
 
 }  // namespace window_manager
