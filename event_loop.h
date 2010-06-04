@@ -104,6 +104,13 @@ class EventLoop {
   // are no-ops, and we'll crash if Run() is ever called.
   bool timerfd_supported_;
 
+  // Callbacks that have been scheduled to run during the current poll
+  // cycle.  If two timeouts A and B fire during the same cycle and A's
+  // callback happens to get executed first and removes B, we want avoid
+  // running B's callback afterwards.  We store the set here so that
+  // RemoveFileDescriptor() can remove items from it.
+  std::set<std::tr1::shared_ptr<Closure> > callbacks_to_run_;
+
   DISALLOW_COPY_AND_ASSIGN(EventLoop);
 };
 

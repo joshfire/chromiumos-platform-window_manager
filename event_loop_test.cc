@@ -14,6 +14,8 @@
 DEFINE_bool(logtostderr, false,
             "Print debugging messages to stderr (suppressed otherwise)");
 
+using window_manager::EventLoop;
+
 namespace window_manager {
 
 class EventLoopTest : public ::testing::Test {};
@@ -81,14 +83,30 @@ class TestEventLoopSubscriber {
   int num_times_timeout_invoked_;
 };
 
+// Struct passed in to RemoveTimeout() (the protobuf callback library only
+// supports binding two arguments, but we need to pass in three, so we wrap
+// them in a struct).
+struct RemoveTimeoutData {
+  RemoveTimeoutData(EventLoop* event_loop)
+      : event_loop(event_loop),
+        timeout_id_to_remove(0),
+        called(false) {
+  }
+  EventLoop* event_loop;
+  int timeout_id_to_remove;
+  bool called;
+};
+
+// Helper function for the RemoveScheduledTimeout test.
+static void RemoveTimeout(RemoveTimeoutData* data) {
+  DCHECK(data);
+  data->event_loop->RemoveTimeout(data->timeout_id_to_remove);
+  data->called = true;
+  data->event_loop->Exit();
+}
+
 // Perform a somewhat-tricky test of the event loop.
 TEST_F(EventLoopTest, Basic) {
-  if (!EventLoop::IsTimerFdSupported()) {
-    LOG(ERROR) << "timerfd isn't supported on this system; skipping "
-               << "EventLoopTest::Basic";
-    return;
-  }
-
   EventLoop event_loop;
   MockXConnection xconn;
   TestEventLoopSubscriber subscriber(&event_loop, &xconn);
@@ -115,8 +133,33 @@ TEST_F(EventLoopTest, Basic) {
   event_loop.Run();
 }
 
+// Test that if two timeouts are scheduled in the same poll cycle and one
+// of them removes the other, the second one doesn't get invoked.
+TEST_F(EventLoopTest, RemoveScheduledTimeout) {
+  EventLoop event_loop;
+  RemoveTimeoutData first_timeout_data(&event_loop);
+  RemoveTimeoutData second_timeout_data(&event_loop);
+
+  // We don't know which timeout's callback will be invoked first, so we
+  // make each remove the other.
+  second_timeout_data.timeout_id_to_remove = event_loop.AddTimeout(
+      NewPermanentCallback(RemoveTimeout, &first_timeout_data), 0, 0);
+  first_timeout_data.timeout_id_to_remove = event_loop.AddTimeout(
+      NewPermanentCallback(RemoveTimeout, &second_timeout_data), 0, 0);
+  event_loop.Run();
+
+  // At the end, exactly one of the callbacks should've been called.
+  EXPECT_TRUE(first_timeout_data.called ^ second_timeout_data.called)
+      << "first=" << first_timeout_data.called
+      << " second=" << second_timeout_data.called;
+}
+
 }  // namespace window_manager
 
 int main(int argc, char** argv) {
+  if (!EventLoop::IsTimerFdSupported()) {
+    LOG(ERROR) << "timerfd isn't supported on this system; skipping tests";
+    return 0;
+  }
   return window_manager::InitAndRunTests(&argc, argv, &FLAGS_logtostderr);
 }

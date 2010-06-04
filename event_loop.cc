@@ -110,14 +110,14 @@ void EventLoop::Run() {
 
       // Save all the callbacks so we can run them later -- they may add or
       // remove FDs, and we don't want things to be changed underneath us.
-      callbacks_to_run.push_back(it->second);
+      callbacks_to_run_.insert(it->second);
     }
 
-    for (vector<shared_ptr<Closure> >::iterator it = callbacks_to_run.begin();
-         it != callbacks_to_run.end(); ++it) {
-      (*it)->Run();
+    while (!callbacks_to_run_.empty()) {
+      shared_ptr<Closure> callback = *(callbacks_to_run_.begin());
+      callbacks_to_run_.erase(callbacks_to_run_.begin());
+      callback->Run();
     }
-    callbacks_to_run.clear();
   }
 }
 
@@ -133,6 +133,7 @@ void EventLoop::AddFileDescriptor(int fd, Closure* cb) {
 void EventLoop::RemoveFileDescriptor(int fd) {
   FdCallbackMap::iterator it = callbacks_.find(fd);
   CHECK(it != callbacks_.end()) << "Got request to remove unknown fd " << fd;
+  callbacks_to_run_.erase(it->second);
   callbacks_.erase(it);
   PCHECK(epoll_ctl(epoll_fd_, EPOLL_CTL_DEL, fd, NULL) != -1);
 }

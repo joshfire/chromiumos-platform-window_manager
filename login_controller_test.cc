@@ -389,9 +389,8 @@ TEST_F(LoginControllerTest, HideAfterLogin) {
   EXPECT_FALSE(WindowIsOffscreen(background_xid_));
 
   // But we should hide them after the first Chrome window is created.
-  XWindow xid = CreateSimpleWindow();
-  wm_->wm_ipc()->SetWindowType(
-      xid, chromeos::WM_IPC_WINDOW_CHROME_TOPLEVEL, NULL);
+  XWindow xid = CreateToplevelWindow(1, 0,  // tab_count, selected_tab
+                                     0, 0, 200, 200);  // position and size
   SendInitialEventsForWindow(xid);
   EXPECT_TRUE(WindowIsOffscreen(background_xid_));
 }
