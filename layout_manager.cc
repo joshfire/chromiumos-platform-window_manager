@@ -1087,7 +1087,7 @@ void LayoutManager::HandleSnapshotChangeRequest(int index) {
   LayoutWindows(true);
 }
 
-void LayoutManager::Metrics::Populate(chrome_os_pb::SystemMetrics *metrics_pb) {
+void LayoutManager::Metrics::Populate(chrome_os_pb::SystemMetrics* metrics_pb) {
   CHECK(metrics_pb);
   metrics_pb->Clear();
   metrics_pb->set_overview_keystroke_count(overview_by_keystroke_count);

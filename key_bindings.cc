@@ -74,7 +74,7 @@ struct Action {
       : running(false),
         begin_closure(begin_closure_param),
         repeat_closure(repeat_closure_param),
-        end_closure(end_closure_param) { }
+        end_closure(end_closure_param) {}
   ~Action() {
     CHECK(bindings.empty());
   }

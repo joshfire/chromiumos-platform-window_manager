@@ -31,7 +31,7 @@ ImageContainer* ImageContainer::CreateContainer(const string& filename) {
 // static
 bool PngImageContainer::IsPngImage(const string& filename) {
   // Load the image.
-  FILE *fp = fopen(filename.c_str(), "rb");
+  FILE* fp = fopen(filename.c_str(), "rb");
   if (!fp) {
     LOG(ERROR) << "Unable to open '" << filename
                << "' for reading in IsPngImage.";
@@ -93,7 +93,7 @@ ImageContainer::Result PngImageContainer::LoadImage() {
   }
 
   // Load the image.
-  FILE *fp = fopen(filename().c_str(), "rb");
+  FILE* fp = fopen(filename().c_str(), "rb");
   if (!fp) {
     LOG(ERROR) << "Unable to open '" << filename()
                << "' for reading in LoadImage.";

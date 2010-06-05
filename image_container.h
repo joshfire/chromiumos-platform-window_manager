@@ -65,7 +65,7 @@ class ImageContainer {
 
  protected:
   // Takes ownership of the given new allocated array.
-  void set_data(char *new_data) { data_.reset(new_data); }
+  void set_data(char* new_data) { data_.reset(new_data); }
 
   // Set parameters read from image.
   void set_width(int new_width) { width_ = new_width; }

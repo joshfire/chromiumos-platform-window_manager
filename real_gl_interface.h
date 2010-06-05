@@ -82,7 +82,7 @@ class RealGLInterface : public GLInterface {
                   GLint border,
                   GLenum format,
                   GLenum type,
-                  const GLvoid *pixels);
+                  const GLvoid* pixels);
   void Translatef(GLfloat x, GLfloat y, GLfloat z);
   void VertexPointer(GLint size, GLenum type, GLsizei stride,
                      const GLvoid* pointer);

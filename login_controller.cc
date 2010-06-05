@@ -706,7 +706,7 @@ void LoginController::SelectEntryAt(size_t index) {
     const Entry& entry = entries_[i];
     const bool selected = (i == selected_entry_index_);
     const bool was_selected = (i == last_selected_index);
-    const bool is_guest = (i + 1 == entries_.size()); 
+    const bool is_guest = (i + 1 == entries_.size());
 
     Rect border_bounds, image_bounds, controls_bounds, label_bounds;
     CalculateEntryBounds(origins[i], selected,

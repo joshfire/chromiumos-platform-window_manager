@@ -331,7 +331,7 @@ void RealGLInterface::Rotatef(GLfloat angle, GLfloat x,
   glRotatef(angle, x, y, z);
 }
 
-void RealGLInterface::Scalef(GLfloat x, GLfloat y, GLfloat z ) {
+void RealGLInterface::Scalef(GLfloat x, GLfloat y, GLfloat z) {
   glScalef(x, y, z);
 }
 
@@ -361,7 +361,7 @@ void RealGLInterface::TexImage2D(GLenum target,
                                  GLint border,
                                  GLenum format,
                                  GLenum type,
-                                 const GLvoid *pixels ) {
+                                 const GLvoid* pixels) {
   glTexImage2D(target, level, internalFormat, width, height,
                border, format, type, pixels);
 }

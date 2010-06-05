@@ -76,7 +76,7 @@ class MockGLInterface : public GLInterface {
   void PushMatrix() {}
   void PopMatrix() {}
   void Rotatef(GLfloat angle, GLfloat x, GLfloat y, GLfloat z) {}
-  void Scalef(GLfloat x, GLfloat y, GLfloat z ) {}
+  void Scalef(GLfloat x, GLfloat y, GLfloat z) {}
   void TexCoordPointer(GLint size, GLenum type, GLsizei stride,
                        const GLvoid* pointer) {}
   void TexParameteri(GLenum target, GLenum pname, GLint param) {}
@@ -90,7 +90,7 @@ class MockGLInterface : public GLInterface {
                   GLint border,
                   GLenum format,
                   GLenum type,
-                  const GLvoid *pixels ) { }
+                  const GLvoid* pixels) {}
   void Translatef(GLfloat x, GLfloat y, GLfloat z) {}
   void VertexPointer(GLint size, GLenum type, GLsizei stride,
                      const GLvoid* pointer) {}
