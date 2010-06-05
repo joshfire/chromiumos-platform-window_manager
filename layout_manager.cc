@@ -248,7 +248,7 @@ LayoutManager::LayoutManager(WindowManager* wm, PanelManager* panel_manager)
       NULL, NULL);
   overview_mode_key_bindings_group_->AddBinding(
       KeyBindings::KeyCombo(XK_9, KeyBindings::kAltMask),
-      "select-last-toplevel");
+      "select-last-snapshot");
 
   // TODO: When we support closing tabs in snapshot mode, we should
   // bind that function to ctrl-w here.
