@@ -43,7 +43,7 @@ TEST_F(PanelTest, InputWindows) {
       xconn_->GetWindowInfoOrDie(titlebar_xid);
 
   XWindow content_xid = CreatePanelContentWindow(
-      200, 400, titlebar_xid, true, true);
+      200, 400, titlebar_xid, true, true, 0);
   Window content_win(wm_.get(), content_xid, false);
   MockXConnection::WindowInfo* content_info =
       xconn_->GetWindowInfoOrDie(content_xid);
@@ -153,7 +153,7 @@ TEST_F(PanelTest, Resize) {
 
   int orig_content_height = 400;
   XWindow content_xid = CreatePanelContentWindow(
-      orig_width, orig_content_height, titlebar_xid, true, true);
+      orig_width, orig_content_height, titlebar_xid, true, true, 0);
   Window content_win(wm_.get(), content_xid, false);
   MockXConnection::WindowInfo* content_info =
       xconn_->GetWindowInfoOrDie(content_xid);
@@ -235,7 +235,7 @@ TEST_F(PanelTest, ChromeState) {
   XWindow titlebar_xid = CreatePanelTitlebarWindow(200, 20);
   Window titlebar_win(wm_.get(), titlebar_xid, false);
   XWindow content_xid = CreatePanelContentWindow(
-      200, 400, titlebar_xid, false, false);
+      200, 400, titlebar_xid, false, false, 0);
   MockXConnection::WindowInfo* content_info =
       xconn_->GetWindowInfoOrDie(content_xid);
   Window content_win(wm_.get(), content_xid, false);
@@ -288,7 +288,7 @@ TEST_F(PanelTest, Shadows) {
   XWindow titlebar_xid = CreatePanelTitlebarWindow(200, 20);
   Window titlebar_win(wm_.get(), titlebar_xid, false);
   XWindow content_xid = CreatePanelContentWindow(
-      200, 400, titlebar_xid, false, false);
+      200, 400, titlebar_xid, false, false, 0);
   Window content_win(wm_.get(), content_xid, false);
   Panel panel(panel_manager_, &content_win, &titlebar_win, true);
   panel.Move(0, 0, true, 0);

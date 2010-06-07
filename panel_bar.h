@@ -162,9 +162,9 @@ class PanelBar : public PanelContainer {
   // current position and repack the other panels if necessary.
   void ReorderPanel(Panel* fixed_panel);
 
-  // Pack all collapsed panels with the exception of 'fixed_panel' (if
-  // non-NULL) towards the right.  We reserve space for 'fixed_panel' and
-  // update its snapped position, but we don't update its actual position.
+  // Pack all panels with the exception of 'fixed_panel' (if non-NULL)
+  // towards the right.  We reserve space for 'fixed_panel' and update its
+  // snapped position, but we don't update its actual position.
   void PackPanels(Panel* fixed_panel);
 
   // Create an anchor for a panel.  If there's a previous anchor, we

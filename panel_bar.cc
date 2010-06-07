@@ -134,7 +134,31 @@ void PanelBar::AddPanel(Panel* panel, PanelSource source) {
   info->is_urgent = panel->content_win()->wm_hint_urgent();
   CHECK(panel_infos_.insert(make_pair(panel, info)).second);
 
-  panels_.insert(panels_.begin(), panel);
+  // Decide where we want to insert the panel.  If it requested to be
+  // opened to the left of its creator, we insert it in the correct spot
+  // in 'panels_' and place it to the left of its creator's fixed position.
+  Panels::iterator insert_it = panels_.begin();
+  if (source == PANEL_SOURCE_NEW &&
+      panel->content_win()->type_params().size() >= 4 &&
+      panel->content_win()->type_params()[3]) {
+    XWindow creator_xid = panel->content_win()->type_params()[3];
+    Window* creator_win = wm()->GetWindow(creator_xid);
+    if (creator_win) {
+      Panels::iterator it = FindPanelInVectorByWindow(panels_, *creator_win);
+      if (it == panels_.end()) {
+        LOG(WARNING) << "Unable to find creator panel " << XidStr(creator_xid)
+                     << " for new panel " << panel->xid_str();
+      } else {
+        info->snapped_right = GetPanelInfoOrDie(*it)->snapped_right -
+                              (*it)->width() -
+                              kPixelsBetweenPanels;
+        insert_it = it;
+      }
+    }
+  }
+
+  const bool inserting_in_middle = insert_it != panels_.begin();
+  panels_.insert(insert_it, panel);
   total_panel_width_ += panel->width() + kPixelsBetweenPanels;
 
   // If the panel is being dragged, move it to the correct position within
@@ -155,9 +179,13 @@ void PanelBar::AddPanel(Panel* panel, PanelSource source) {
   // Now move the panel to its final position.
   switch (source) {
     case PANEL_SOURCE_NEW:
-      // Make newly-created panels animate in from offscreen.
+      // Make newly-created panels slide in from the bottom of the screen.
       panel->Move(info->snapped_right, wm()->height(), false, 0);
       panel->MoveY(final_y, true, kPanelStateAnimMs);
+      // If we didn't insert it on the left, we'll have to move the other
+      // panels around to make room.
+      if (inserting_in_middle)
+        PackPanels(dragged_panel_);
       break;
     case PANEL_SOURCE_DRAGGED:
       panel->MoveY(final_y, true, 0);

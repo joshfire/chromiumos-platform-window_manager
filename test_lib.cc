@@ -195,12 +195,14 @@ XWindow BasicWindowManagerTest::CreatePanelContentWindow(
     int width, int height,
     XWindow titlebar_xid,
     bool expanded,
-    bool take_focus) {
+    bool take_focus,
+    XWindow creator_content_xid) {
   XWindow xid = CreateBasicWindow(0, 0, width, height);
   std::vector<int> params;
   params.push_back(titlebar_xid);
   params.push_back(expanded ? 1 : 0);
   params.push_back(take_focus ? 1 : 0);
+  params.push_back(creator_content_xid);
   wm_->wm_ipc()->SetWindowType(
       xid, chromeos::WM_IPC_WINDOW_CHROME_PANEL_CONTENT, &params);
   return xid;
@@ -210,11 +212,13 @@ Panel* BasicWindowManagerTest::CreatePanel(int width,
                                            int titlebar_height,
                                            int content_height,
                                            bool expanded,
-                                           bool take_focus) {
+                                           bool take_focus,
+                                           XWindow creator_content_xid) {
   XWindow titlebar_xid = CreatePanelTitlebarWindow(width, titlebar_height);
   SendInitialEventsForWindow(titlebar_xid);
   XWindow content_xid = CreatePanelContentWindow(
-      width, content_height, titlebar_xid, expanded, take_focus);
+      width, content_height, titlebar_xid, expanded, take_focus,
+      creator_content_xid);
   SendInitialEventsForWindow(content_xid);
   Panel* panel = wm_->panel_manager_->panel_bar_->GetPanelByWindow(
       *(wm_->GetWindow(content_xid)));
