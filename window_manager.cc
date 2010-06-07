@@ -44,6 +44,7 @@ extern "C" {
 #include "window_manager/x_connection.h"
 
 DEFINE_string(xterm_command, "xterm", "Command for hotkey xterm spawn.");
+DEFINE_string(background_color, "#4279d6", "Background color to use");
 DEFINE_string(background_image, "", "Background image to display");
 DEFINE_string(lock_screen_command, "powerd_lock_screen",
               "Command to lock the screen");
@@ -245,8 +246,7 @@ bool WindowManager::Init() {
   stage_xid_ = stage_->GetStageXWindow();
   stage_->SetName("stage");
   stage_->SetSize(width_, height_);
-  // Color equivalent to "#4279d6"
-  stage_->SetStageColor(Compositor::Color(0.25882f, 0.47451f, 0.83922f));
+  stage_->SetStageColor(Compositor::Color(FLAGS_background_color));
   stage_->SetVisibility(true);
 
   wm_ipc_.reset(new WmIpc(xconn_, atom_cache_.get()));
@@ -656,7 +656,7 @@ void WindowManager::UpdateClientWindowDebugging() {
   int cnt = 0;
   float step = 6.f/xids.size();
   for (vector<XWindow>::iterator it = xids.begin(); it != xids.end(); ++it) {
-    Compositor::Color bgColor(1.f, 1.f, 1.f);
+    Compositor::Color bgColor;
     bgColor.SetHsv(cnt++ * step, 1.f, 1.f);
     XConnection::WindowGeometry geometry;
     if (!xconn_->GetWindowGeometry(*it, &geometry))

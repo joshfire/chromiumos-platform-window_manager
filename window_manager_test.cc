@@ -607,7 +607,7 @@ TEST_F(WindowManagerTest, ResizeScreen) {
   TestIntArrayProperty(root_xid, workarea_atom, 4,
                        0, 0, root_info->width, root_info->height);
 
-  // Setup a background Actor.
+  // Set up a background Actor.
   Compositor::Actor* background = compositor_->CreateRectangle(
       Compositor::Color(0xff, 0xff, 0xff),
       Compositor::Color(0xff, 0xff, 0xff), 0);

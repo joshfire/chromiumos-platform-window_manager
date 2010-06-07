@@ -5,6 +5,9 @@
 #include "window_manager/compositor.h"
 
 #include <cmath>
+#include <cstdio>
+
+using std::string;
 
 namespace window_manager {
 
@@ -52,6 +55,31 @@ void Compositor::Color::SetHsv(float hue, float saturation, float value) {
       blue = channel2;
       break;
   }
+}
+
+bool Compositor::Color::SetHex(const string& hex_str) {
+  const char* str = hex_str.c_str();
+  if (str[0] == '#')
+    str++;
+
+  unsigned int r, g, b;
+  if (strlen(str) == 3) {
+    if (sscanf(str, "%01x%01x%01x", &r, &g, &b) != 3)
+      return false;
+    r = r * 16 + r;
+    g = g * 16 + g;
+    b = b * 16 + b;
+  } else if (strlen(str) == 6) {
+    if (sscanf(str, "%02x%02x%02x", &r, &g, &b) != 3)
+      return false;
+  } else {
+    return false;
+  }
+
+  red = r / 255.0f;
+  green = g / 255.0f;
+  blue = b / 255.0f;
+  return true;
 }
 
 int Compositor::Actor::GetTiltedWidth(int width, double tilt) {

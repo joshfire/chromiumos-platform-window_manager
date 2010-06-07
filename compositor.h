@@ -28,7 +28,15 @@ class Compositor {
   struct Color {
     Color() : red(0.f), green(0.f), blue(0.f) {}
     Color(float r, float g, float b) : red(r), green(g), blue(b) {}
+    explicit Color(const std::string& hex_str) { CHECK(SetHex(hex_str)); }
+
     void SetHsv(float hue, float saturation, float value);
+
+    // Set the color using a hex string of the form "#341a8b" or "#3ab"
+    // (the latter form is expanded to "#33aabb").  The leading '#' is
+    // optional, and letters can be either uppercase or lowercase.
+    // Returns false if the conversion failed.
+    bool SetHex(const std::string& hex_str);
 
     float red;
     float green;
