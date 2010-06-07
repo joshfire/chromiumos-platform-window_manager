@@ -20,9 +20,10 @@ struct Symbol {
   char name[50];
 };
 
+// This struct must be 16 bytes aligned.
 struct Sample {
-  int16_t symbol_id;
-  int16_t flag;  // MarkFlag
+  int32_t symbol_id;
+  int32_t flag;  // MarkFlag
   int64_t time;
 };
 
