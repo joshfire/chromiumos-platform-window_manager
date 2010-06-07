@@ -35,7 +35,7 @@ using window_manager::util::XidStr;
 
 namespace window_manager {
 
-const int PanelBar::kPixelsBetweenPanels = 3;
+const int PanelBar::kPixelsBetweenPanels = 6;
 const int PanelBar::kShowCollapsedPanelsDistancePixels = 1;
 const int PanelBar::kHideCollapsedPanelsDistancePixels = 30;
 const int PanelBar::kHiddenCollapsedPanelHeightPixels = 3;

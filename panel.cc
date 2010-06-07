@@ -61,8 +61,8 @@ static const Compositor::Color kResizeBoxBorderColor(0.137255,
                                                      0.513725);
 static const double kResizeBoxOpacity = 0.3;
 
-const int Panel::kResizeBorderWidth = 5;
-const int Panel::kResizeCornerSize = 25;
+const int Panel::kResizeBorderWidth = 3;
+const int Panel::kResizeCornerSize = 20;
 
 Panel::Panel(PanelManager* panel_manager,
              Window* content_win,
