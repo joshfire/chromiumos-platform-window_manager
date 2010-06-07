@@ -18,6 +18,7 @@ extern "C" {
 #include "window_manager/event_consumer_registrar.h"
 #include "window_manager/focus_manager.h"
 #include "window_manager/panel_manager.h"
+#include "window_manager/transient_window_collection.h"
 #include "window_manager/util.h"
 #include "window_manager/window_manager.h"
 #include "window_manager/x_connection.h"
@@ -95,7 +96,8 @@ Panel::Panel(PanelManager* panel_manager,
       drag_last_width_(1),
       drag_last_height_(1),
       event_consumer_registrar_(
-          new EventConsumerRegistrar(wm(), panel_manager)) {
+          new EventConsumerRegistrar(wm(), panel_manager)),
+      transients_(new TransientWindowCollection(content_win_, panel_manager)) {
   CHECK(content_win_);
   CHECK(titlebar_win_);
 
@@ -185,6 +187,8 @@ Panel::~Panel() {
   wm()->xconn()->DestroyWindow(top_right_input_xid_);
   wm()->xconn()->DestroyWindow(left_input_xid_);
   wm()->xconn()->DestroyWindow(right_input_xid_);
+  content_win_->HideComposited();
+  titlebar_win_->HideComposited();
   panel_manager_ = NULL;
   content_win_ = NULL;
   titlebar_win_ = NULL;
@@ -273,6 +277,13 @@ void Panel::HandleInputWindowPointerMotion(XWindow xid, int x, int y) {
 void Panel::HandleWindowConfigureRequest(
     Window* win, int req_x, int req_y, int req_width, int req_height) {
   DCHECK(win);
+
+  if (transients_->ContainsWindow(*win)) {
+    transients_->HandleConfigureRequest(
+        win, req_x, req_y, req_width, req_height);
+    return;
+  }
+
   if (drag_xid_ != None) {
     LOG(WARNING) << "Ignoring configure request for " << win->xid_str()
                  << " in panel " << xid_str() << " because the panel is being "
@@ -296,6 +307,8 @@ void Panel::Move(int right, int y, bool move_client_windows, int anim_ms) {
   titlebar_bounds_.y = y;
   content_bounds_.x = right - content_bounds_.width;
   content_bounds_.y = y + titlebar_bounds_.height;
+
+  transients_->CloseAllWindows();
 
   if (CanConfigureWindows()) {
     titlebar_win_->MoveComposited(
@@ -324,6 +337,8 @@ void Panel::MoveX(int right, bool move_client_windows, int anim_ms) {
   titlebar_bounds_.x = right - titlebar_bounds_.width;
   content_bounds_.x = right - content_bounds_.width;
 
+  transients_->CloseAllWindows();
+
   if (CanConfigureWindows()) {
     titlebar_win_->MoveCompositedX(titlebar_bounds_.x, anim_ms);
     content_win_->MoveCompositedX(content_bounds_.x, anim_ms);
@@ -340,6 +355,8 @@ void Panel::MoveY(int y, bool move_client_windows, int anim_ms) {
       << "Move() must be called initially to configure composited windows";
   titlebar_bounds_.y = y;
   content_bounds_.y = y + titlebar_bounds_.height;
+
+  transients_->CloseAllWindows();
 
   if (CanConfigureWindows()) {
     titlebar_win_->MoveCompositedY(titlebar_bounds_.y, anim_ms);
@@ -390,6 +407,10 @@ bool Panel::SetExpandedState(bool expanded) {
     return true;
 
   is_expanded_ = expanded;
+
+  if (!is_expanded_)
+    transients_->CloseAllWindows();
+
   bool success = SendStateMessageToChrome();
   success &= UpdateChromeStateProperty();
   return success;
@@ -414,6 +435,8 @@ void Panel::ResizeContent(int width, int height, Gravity gravity) {
   if (changing_height)
     titlebar_bounds_.y = content_bounds_.y - titlebar_bounds_.height;
 
+  transients_->CloseAllWindows();
+
   if (CanConfigureWindows()) {
     content_win_->ResizeClient(width, height, gravity);
     titlebar_win_->ResizeClient(width, titlebar_bounds_.height, gravity);
@@ -436,6 +459,8 @@ void Panel::SetFullscreenState(bool fullscreen) {
   DLOG(INFO) << "Setting fullscreen state for panel " << xid_str()
              << " to " << fullscreen;
   is_fullscreen_ = fullscreen;
+
+  transients_->CloseAllWindows();
 
   // Update the EWMH property if needed.
   if (content_win_->wm_state_fullscreen() != is_fullscreen_) {
@@ -476,6 +501,24 @@ void Panel::HandleScreenResize() {
     content_win_->ResizeClient(
         wm()->width(), wm()->height(), GRAVITY_NORTHWEST);
   }
+}
+
+void Panel::HandleTransientWindowMap(Window* win) {
+  DCHECK(win);
+  transients_->AddWindow(win, true);  // stack directly above panel
+}
+
+void Panel::HandleTransientWindowUnmap(Window* win) {
+  DCHECK(win);
+  transients_->RemoveWindow(win);
+}
+
+void Panel::HandleTransientWindowButtonPress(
+    Window* win, int button, XTime timestamp) {
+  DCHECK(win);
+  DCHECK(transients_->ContainsWindow(*win));
+  transients_->SetPreferredWindowToFocus(win);
+  transients_->TakeFocus(timestamp);
 }
 
 void Panel::ConfigureInputWindows() {

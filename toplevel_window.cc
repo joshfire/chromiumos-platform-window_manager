@@ -331,13 +331,13 @@ void LayoutManager::ToplevelWindow::ConfigureForActiveMode(bool animate) {
 
   if (state_ == STATE_ACTIVE_MODE_ONSCREEN) {
     win_->MoveClient(win_x, win_y);
-    transients_->ConfigureAllWindows(anim_ms);
+    transients_->ConfigureAllWindowsRelativeToOwner(anim_ms);
     win_->SetShadowOpacity(1.0, anim_ms);
   } else {
     win_->MoveClientOffscreen();
     win_->SetShadowOpacity(0, anim_ms);
-    transients_->ConfigureAllWindows(
-         last_state_ == STATE_ACTIVE_MODE_ONSCREEN ? anim_ms : 0);
+    transients_->ConfigureAllWindowsRelativeToOwner(
+        last_state_ == STATE_ACTIVE_MODE_ONSCREEN ? anim_ms : 0);
   }
 }
 

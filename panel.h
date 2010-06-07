@@ -23,6 +23,7 @@ namespace window_manager {
 
 class EventConsumerRegistrar;
 class PanelManager;
+class TransientWindowCollection;
 class WindowManager;
 
 // A panel, representing a pop-up window.  Each panel consists of a content
@@ -88,7 +89,8 @@ class Panel {
       XWindow xid, int x, int y, int button, XTime timestamp);
   void HandleInputWindowPointerMotion(XWindow xid, int x, int y);
 
-  // Handle a configure request for the titlebar or content window.
+  // Handle a configure request for the titlebar or content window, or
+  // maybe one of the panel's transient windows.
   void HandleWindowConfigureRequest(
       Window* win, int req_x, int req_y, int req_width, int req_height);
 
@@ -146,6 +148,13 @@ class Panel {
   // container, but this gives fullscreen panels a change to resize
   // themselves to match the new screen size.
   void HandleScreenResize();
+
+  // Handle a transient window belonging to this panel being mapped or
+  // unmapped or receiving a button press.
+  void HandleTransientWindowMap(Window* win);
+  void HandleTransientWindowUnmap(Window* win);
+  void HandleTransientWindowButtonPress(
+      Window* win, int button, XTime timestamp);
 
  private:
   FRIEND_TEST(PanelBarTest, PackPanelsAfterPanelResize);
@@ -261,6 +270,9 @@ class Panel {
 
   // PanelManager event registrations related to this panel's windows.
   scoped_ptr<EventConsumerRegistrar> event_consumer_registrar_;
+
+  // Transient windows owned by this panel.
+  scoped_ptr<TransientWindowCollection> transients_;
 
   DISALLOW_COPY_AND_ASSIGN(Panel);
 };

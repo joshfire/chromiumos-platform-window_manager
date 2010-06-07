@@ -180,6 +180,10 @@ class BasicWindowManagerTest : public ::testing::Test {
   // window.
   XWindow GetActiveWindowProperty();
 
+  // Get the number of WM_DELETE_WINDOW messages that have been sent to a
+  // window.
+  int GetNumDeleteWindowMessagesForWindow(XWindow xid);
+
   // Are the passed-in window's composited and client windows stacked
   // between the passed-in layer and the layer underneath it?
   bool WindowIsInLayer(Window* win, StackingManager::Layer layer);

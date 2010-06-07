@@ -104,8 +104,25 @@ void PanelManager::HandleWindowMap(Window* win) {
   CHECK(win);
 
   if (win->type() != chromeos::WM_IPC_WINDOW_CHROME_PANEL_CONTENT &&
-      win->type() != chromeos::WM_IPC_WINDOW_CHROME_PANEL_TITLEBAR)
+      win->type() != chromeos::WM_IPC_WINDOW_CHROME_PANEL_TITLEBAR) {
+    // The only non-panel windows that we'll handle are transients
+    // belonging to panels.
+    if (!win->transient_for_xid())
+      return;
+
+    Panel* owner_panel = GetPanelByXid(win->transient_for_xid());
+    if (!owner_panel) {
+      // Maybe its owner is itself a transient for a panel.
+      Window* owner_win = wm_->GetWindow(win->transient_for_xid());
+      if (owner_win)
+        owner_panel = GetPanelOwningTransientWindow(*owner_win);
+    }
+    if (owner_panel) {
+      transient_xids_by_owner_[win->xid()] = owner_panel;
+      owner_panel->HandleTransientWindowMap(win);
+    }
     return;
+  }
 
   // Handle initial setup for existing windows for which we never saw a map
   // request event.
@@ -172,6 +189,14 @@ void PanelManager::HandleWindowMap(Window* win) {
 
 void PanelManager::HandleWindowUnmap(Window* win) {
   CHECK(win);
+
+  Panel* owner_panel = GetPanelOwningTransientWindow(*win);
+  if (owner_panel) {
+    transient_xids_by_owner_.erase(win->xid());
+    owner_panel->HandleTransientWindowUnmap(win);
+    return;
+  }
+
   Panel* panel = GetPanelByWindow(*win);
   if (!panel)
     return;
@@ -217,8 +242,7 @@ void PanelManager::HandleButtonPress(XWindow xid,
                                      int button,
                                      XTime timestamp) {
   // If this is a container's input window, notify the container.
-  PanelContainer* container = FindWithDefault(
-      container_input_xids_, xid, static_cast<PanelContainer*>(NULL));
+  PanelContainer* container = GetContainerOwningInputWindow(xid);
   if (container) {
     container->HandleInputWindowButtonPress(
         xid, x, y, x_root, y_root, button, timestamp);
@@ -226,23 +250,29 @@ void PanelManager::HandleButtonPress(XWindow xid,
   }
 
   // If this is a panel's input window, notify the panel.
-  Panel* panel = FindWithDefault(
-      panel_input_xids_, xid, static_cast<Panel*>(NULL));
+  Panel* panel = GetPanelOwningInputWindow(xid);
   if (panel) {
     panel->HandleInputWindowButtonPress(xid, x, y, button, timestamp);
     return;
   }
 
-  // If it's a panel's content window, notify the panel's container.
   Window* win = wm_->GetWindow(xid);
-  if (win) {
-    Panel* panel = GetPanelByWindow(*win);
-    if (panel) {
-      container = GetContainerForPanel(*panel);
-      if (container)
-        container->HandlePanelButtonPress(panel, button, timestamp);
-      return;
-    }
+  if (!win)
+    return;
+
+  // If it's a panel's content window, notify the panel's container.
+  panel = GetPanelByWindow(*win);
+  if (panel) {
+    container = GetContainerForPanel(*panel);
+    if (container)
+      container->HandlePanelButtonPress(panel, button, timestamp);
+    return;
+  }
+
+  panel = GetPanelOwningTransientWindow(*win);
+  if (panel) {
+    panel->HandleTransientWindowButtonPress(win, button, timestamp);
+    return;
   }
 }
 
@@ -254,16 +284,14 @@ void PanelManager::HandleButtonRelease(XWindow xid,
   // We only care if button releases happened in container or panel input
   // windows -- there's no current need to notify containers about button
   // releases in their panels.
-  PanelContainer* container = FindWithDefault(
-      container_input_xids_, xid, static_cast<PanelContainer*>(NULL));
+  PanelContainer* container = GetContainerOwningInputWindow(xid);
   if (container) {
     container->HandleInputWindowButtonRelease(
         xid, x, y, x_root, y_root, button, timestamp);
     return;
   }
 
-  Panel* panel = FindWithDefault(
-      panel_input_xids_, xid, static_cast<Panel*>(NULL));
+  Panel* panel = GetPanelOwningInputWindow(xid);
   if (panel) {
     panel->HandleInputWindowButtonRelease(xid, x, y, button, timestamp);
     return;
@@ -274,8 +302,7 @@ void PanelManager::HandlePointerEnter(XWindow xid,
                                       int x, int y,
                                       int x_root, int y_root,
                                       XTime timestamp) {
-  PanelContainer* container = FindWithDefault(
-      container_input_xids_, xid, static_cast<PanelContainer*>(NULL));
+  PanelContainer* container = GetContainerOwningInputWindow(xid);
   if (container) {
     container->HandleInputWindowPointerEnter(
         xid, x, y, x_root, y_root, timestamp);
@@ -299,8 +326,7 @@ void PanelManager::HandlePointerLeave(XWindow xid,
                                       int x, int y,
                                       int x_root, int y_root,
                                       XTime timestamp) {
-  PanelContainer* container = FindWithDefault(
-      container_input_xids_, xid, static_cast<PanelContainer*>(NULL));
+  PanelContainer* container = GetContainerOwningInputWindow(xid);
   if (container)
     container->HandleInputWindowPointerLeave(
         xid, x, y, x_root, y_root, timestamp);
@@ -310,8 +336,7 @@ void PanelManager::HandlePointerMotion(XWindow xid,
                                        int x, int y,
                                        int x_root, int y_root,
                                        XTime timestamp) {
-  Panel* panel = FindWithDefault(
-      panel_input_xids_, xid, static_cast<Panel*>(NULL));
+  Panel* panel = GetPanelOwningInputWindow(xid);
   if (panel)
     panel->HandleInputWindowPointerMotion(xid, x, y);
 }
@@ -478,6 +503,21 @@ Panel* PanelManager::GetPanelByWindow(const Window& win) {
 
   return FindWithDefault(
       panels_by_titlebar_xid_, win.xid(), static_cast<Panel*>(NULL));
+}
+
+Panel* PanelManager::GetPanelOwningTransientWindow(const Window& win) {
+  return FindWithDefault(transient_xids_by_owner_,
+                         win.xid(),
+                         static_cast<Panel*>(NULL));
+}
+
+Panel* PanelManager::GetPanelOwningInputWindow(XWindow xid) {
+  return FindWithDefault(panel_input_xids_, xid, static_cast<Panel*>(NULL));
+}
+
+PanelContainer* PanelManager::GetContainerOwningInputWindow(XWindow xid) {
+  return FindWithDefault(
+      container_input_xids_, xid, static_cast<PanelContainer*>(NULL));
 }
 
 void PanelManager::RegisterContainer(PanelContainer* container) {

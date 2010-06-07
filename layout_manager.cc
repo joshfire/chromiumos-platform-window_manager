@@ -410,7 +410,7 @@ void LayoutManager::HandleWindowMap(Window* win) {
         wm_->stacking_manager()->StackWindowAtTopOfLayer(
             win, StackingManager::LAYER_TOPLEVEL_WINDOW);
 
-      if (win->transient_for_xid() != None) {
+      if (win->transient_for_xid()) {
         ToplevelWindow* toplevel_owner = NULL;
         Window* owner_win = wm_->GetWindow(win->transient_for_xid());
         if (owner_win) {
@@ -424,22 +424,19 @@ void LayoutManager::HandleWindowMap(Window* win) {
             toplevel_owner = GetToplevelWindowOwningTransientWindow(*owner_win);
         }
 
-        if (toplevel_owner) {
-          transient_to_toplevel_[win->xid()] = toplevel_owner;
-          toplevel_owner->HandleTransientWindowMap(win, mode_ == MODE_OVERVIEW);
+        // If we didn't find an owner for the transient, don't do anything
+        // with it.  Maybe it belongs to to a panel instead.
+        if (!toplevel_owner)
+          return;
 
-          if (mode_ == MODE_ACTIVE &&
-              current_toplevel_ != NULL &&
-              current_toplevel_->IsWindowOrTransientFocused())
-            current_toplevel_->TakeFocus(wm_->GetCurrentTimeFromServer());
-          break;
-        } else {
-          LOG(WARNING) << "Ignoring " << win->xid_str()
-                       << "'s WM_TRANSIENT_FOR hint of "
-                       << XidStr(win->transient_for_xid())
-                       << ", which isn't a toplevel window";
-          // Continue on and treat the transient as a toplevel window.
-        }
+        transient_to_toplevel_[win->xid()] = toplevel_owner;
+        toplevel_owner->HandleTransientWindowMap(win, mode_ == MODE_OVERVIEW);
+
+        if (mode_ == MODE_ACTIVE &&
+            current_toplevel_ != NULL &&
+            current_toplevel_->IsWindowOrTransientFocused())
+          current_toplevel_->TakeFocus(wm_->GetCurrentTimeFromServer());
+        break;
       }
 
       shared_ptr<ToplevelWindow> toplevel(

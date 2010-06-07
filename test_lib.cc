@@ -376,6 +376,23 @@ XWindow BasicWindowManagerTest::GetActiveWindowProperty() {
   return active_window;
 }
 
+int BasicWindowManagerTest::GetNumDeleteWindowMessagesForWindow(XWindow xid) {
+  MockXConnection::WindowInfo* info = xconn_->GetWindowInfoOrDie(xid);
+
+  int num_deletes = 0;
+  for (vector<XClientMessageEvent>::const_iterator it =
+         info->client_messages.begin();
+       it != info->client_messages.end(); ++it) {
+    if (it->message_type == wm_->GetXAtom(ATOM_WM_PROTOCOLS) &&
+        it->format == XConnection::kLongFormat &&
+        (static_cast<XAtom>(it->data.l[0]) ==
+            wm_->GetXAtom(ATOM_WM_DELETE_WINDOW))) {
+      num_deletes++;
+    }
+  }
+  return num_deletes;
+}
+
 bool BasicWindowManagerTest::WindowIsInLayer(Window* win,
                                              StackingManager::Layer layer) {
   const StackingManager::Layer next_layer =

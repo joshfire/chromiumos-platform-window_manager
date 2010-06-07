@@ -10,6 +10,7 @@
 
 #include "base/basictypes.h"
 #include "base/scoped_ptr.h"
+#include "window_manager/geometry.h"
 #include "window_manager/util.h"
 #include "window_manager/window.h"
 #include "window_manager/x_types.h"
@@ -60,7 +61,7 @@ class TransientWindowCollection {
 
   // Update all transient windows' positions and scales based on the owner
   // window's position and scale.
-  void ConfigureAllWindows(int anim_ms);
+  void ConfigureAllWindowsRelativeToOwner(int anim_ms);
 
   // Stack all transient windows' composited and client windows in the
   // order dictated by 'stacked_transients_'.  If
@@ -73,6 +74,11 @@ class TransientWindowCollection {
   void HandleConfigureRequest(Window* transient_win,
                               int req_x, int req_y,
                               int req_width, int req_height);
+
+  // Close all transient windows (which should eventually result in the
+  // owner receiving a bunch of UnmapNotify events and calling
+  // RemoveWindow() for each transient).
+  void CloseAllWindows();
 
  private:
   // Information about a transient window.
@@ -94,12 +100,11 @@ class TransientWindowCollection {
       y_offset = win->client_y() - base_win->client_y();
     }
 
-    // Update offsets so the transient will be centered over the
-    // passed-in window.
-    void UpdateOffsetsToCenterOverWindow(Window* base_win) {
-      x_offset = (base_win->client_width() - win->client_width()) / 2;
-      y_offset = (base_win->client_height() - win->client_height()) / 2;
-    }
+    // Update offsets so the transient will be centered over the passed-in
+    // window.  If 'bounding_rect' has a positive width and height, the
+    // transient window's position will be constrained within it if possible.
+    void UpdateOffsetsToCenterOverWindow(Window* base_win,
+                                         const Rect& bounding_rect);
 
     // The transient window itself.  Not owned by us.
     Window* win;

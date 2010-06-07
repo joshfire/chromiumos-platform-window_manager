@@ -2,11 +2,14 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#include <algorithm>
+
 #include <gflags/gflags.h>
 #include <gtest/gtest.h>
 
 #include "base/scoped_ptr.h"
 #include "base/logging.h"
+#include "cros/chromeos_wm_ipc_enums.h"
 #include "window_manager/event_loop.h"
 #include "window_manager/layout_manager.h"
 #include "window_manager/mock_x_connection.h"
@@ -14,6 +17,7 @@
 #include "window_manager/panel_bar.h"
 #include "window_manager/panel_dock.h"
 #include "window_manager/panel_manager.h"
+#include "window_manager/stacking_manager.h"
 #include "window_manager/test_lib.h"
 #include "window_manager/window.h"
 #include "window_manager/window_manager.h"
@@ -21,6 +25,8 @@
 
 DEFINE_bool(logtostderr, false,
             "Print debugging messages to stderr (suppressed otherwise)");
+
+using std::min;
 
 namespace window_manager {
 
@@ -475,6 +481,91 @@ TEST_F(PanelManagerTest, DockVisibilityAndResizing) {
   EXPECT_EQ(root_info->width - PanelManager::kPanelDockWidth,
             layout_manager_->width());
   EXPECT_EQ(root_info->height, layout_manager_->height());
+}
+
+// Test that we support transient windows for panels.
+TEST_F(PanelManagerTest, TransientWindows) {
+  XConnection::WindowGeometry root_geometry;
+  ASSERT_TRUE(
+      xconn_->GetWindowGeometry(xconn_->GetRootWindow(), &root_geometry));
+
+  Panel* panel = CreatePanel(20, 200, 400, true, true, 0);
+
+  // Create a transient window owned by the panel.
+  const int transient_x = 30, transient_y = 40;
+  const int transient_width = 300, transient_height = 200;
+  XWindow transient_xid = CreateBasicWindow(transient_x, transient_y,
+                                            transient_width, transient_height);
+  MockXConnection::WindowInfo* transient_info =
+      xconn_->GetWindowInfoOrDie(transient_xid);
+  // Say that we support the WM_DELETE_WINDOW protocol so that the window
+  // manager will try to close us when needed.
+  transient_info->int_properties[wm_->GetXAtom(ATOM_WM_PROTOCOLS)].push_back(
+      wm_->GetXAtom(ATOM_WM_DELETE_WINDOW));
+  transient_info->transient_for = panel->content_xid();
+  SendInitialEventsForWindow(transient_xid);
+  Window* transient_win = wm_->GetWindowOrDie(transient_xid);
+
+  // We should try to center the transient window over the panel (at least
+  // to the degree that we can while still keeping the transient onscreen).
+  EXPECT_EQ(min(panel->content_x() +
+                  (panel->content_width() - transient_width) / 2,
+                root_geometry.width - transient_width),
+            transient_info->x);
+  EXPECT_EQ(min(panel->content_win()->client_y() +
+                  (panel->content_height() - transient_height) / 2,
+                root_geometry.height - transient_height),
+            transient_info->y);
+  EXPECT_EQ(transient_width, transient_info->width);
+  EXPECT_EQ(transient_height, transient_info->height);
+
+  // Check that the transient is stacked within the same layer as the
+  // panel, and that it's stacked above the content window.
+  EXPECT_TRUE(WindowIsInLayer(transient_win,
+                              StackingManager::LAYER_STATIONARY_PANEL_IN_BAR));
+  EXPECT_LT(xconn_->stacked_xids().GetIndex(transient_xid),
+            xconn_->stacked_xids().GetIndex(panel->content_xid()));
+  MockCompositor::StageActor* stage = compositor_->GetDefaultStage();
+  EXPECT_LT(stage->GetStackingIndex(transient_win->actor()),
+            stage->GetStackingIndex(panel->content_win()->actor()));
+
+  // If we move the panel, the window manager should try to close the
+  // transient window.
+  EXPECT_EQ(0, GetNumDeleteWindowMessagesForWindow(transient_xid));
+  SendPanelDraggedMessage(panel, panel->right() - 2, panel->titlebar_y());
+  EXPECT_GT(GetNumDeleteWindowMessagesForWindow(transient_xid), 0);
+  SendPanelDragCompleteMessage(panel);
+
+  // Ditto if the panel is collapsed.
+  int initial_num_delete_messages =
+      GetNumDeleteWindowMessagesForWindow(transient_xid);
+  SendSetPanelStateMessage(panel, false);  // expanded=false
+  EXPECT_GT(GetNumDeleteWindowMessagesForWindow(transient_xid),
+            initial_num_delete_messages);
+
+  // Unmap the transient window.
+  xconn_->UnmapWindow(transient_xid);
+  XEvent event;
+  xconn_->InitUnmapEvent(&event, transient_xid);
+  wm_->HandleEvent(&event);
+
+  // Create another transient with the CHROME_INFO_BUBBLE type, which
+  // should allow us to place it wherever we want.
+  const int infobubble_x = 40, infobubble_y = 50;
+  const int infobubble_width = 200, infobubble_height = 20;
+  XWindow infobubble_xid = CreateBasicWindow(
+      infobubble_x, infobubble_y, infobubble_width, infobubble_height);
+  MockXConnection::WindowInfo* infobubble_info =
+      xconn_->GetWindowInfoOrDie(infobubble_xid);
+  wm_->wm_ipc()->SetWindowType(
+      infobubble_xid, chromeos::WM_IPC_WINDOW_CHROME_INFO_BUBBLE, NULL);
+  infobubble_info->transient_for = panel->content_xid();
+  SendInitialEventsForWindow(infobubble_xid);
+
+  EXPECT_EQ(infobubble_x, infobubble_info->x);
+  EXPECT_EQ(infobubble_y, infobubble_info->y);
+  EXPECT_EQ(infobubble_width, infobubble_info->width);
+  EXPECT_EQ(infobubble_height, infobubble_info->height);
 }
 
 }  // namespace window_manager

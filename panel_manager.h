@@ -170,6 +170,15 @@ class PanelManager : public EventConsumer, public FocusChangeListener {
                                  static_cast<PanelContainer*>(NULL));
   }
 
+  // Get the panel owning the passed-in transient window.  Returns NULL if
+  // the window isn't owned by a panel.
+  Panel* GetPanelOwningTransientWindow(const Window& win);
+
+  // Get the panel or container owning the passed-in input window, or NULL
+  // if it isn't an input window owned by one of them.
+  Panel* GetPanelOwningInputWindow(XWindow xid);
+  PanelContainer* GetContainerOwningInputWindow(XWindow xid);
+
   // Register a container's input windows in 'container_input_xids_' and
   // append a pointer to the container to 'containers_'.
   void RegisterContainer(PanelContainer* container);
@@ -250,6 +259,9 @@ class PanelManager : public EventConsumer, public FocusChangeListener {
   // Listeners that will be notified when the screen area consumed by the
   // PanelManager changes.  Listener objects aren't owned by us.
   std::set<PanelManagerAreaChangeListener*> area_change_listeners_;
+
+  // Map from transient windows' IDs to the panels that own them.
+  std::map<XWindow, Panel*> transient_xids_by_owner_;
 
   DISALLOW_COPY_AND_ASSIGN(PanelManager);
 };

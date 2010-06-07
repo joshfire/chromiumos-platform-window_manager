@@ -91,13 +91,13 @@ void TransientWindowCollection::AddWindow(
   shared_ptr<TransientWindow> transient(new TransientWindow(transient_win));
   transients_[transient_win->xid()] = transient;
 
-  // All transient windows other than info bubbles get centered over their
-  // owner.
+  // Info bubbles always keep their initial positions.
   if (transient_win->type() == chromeos::WM_IPC_WINDOW_CHROME_INFO_BUBBLE) {
     transient->SaveOffsetsRelativeToWindow(owner_win_);
     transient->centered = false;
   } else {
-    transient->UpdateOffsetsToCenterOverWindow(owner_win_);
+    transient->UpdateOffsetsToCenterOverWindow(
+        owner_win_, Rect(0, 0, wm()->width(), wm()->height()));
     transient->centered = true;
   }
 
@@ -153,7 +153,8 @@ void TransientWindowCollection::RemoveWindow(Window* transient_win) {
   }
 }
 
-void TransientWindowCollection::ConfigureAllWindows(int anim_ms) {
+void TransientWindowCollection::ConfigureAllWindowsRelativeToOwner(
+    int anim_ms) {
   for (TransientWindowMap::iterator it = transients_.begin();
        it != transients_.end(); ++it) {
     ConfigureTransientWindow(it->second.get(), anim_ms);
@@ -195,13 +196,52 @@ void TransientWindowCollection::HandleConfigureRequest(
       req_height != transient_win->client_height()) {
     transient_win->ResizeClient(req_width, req_height, GRAVITY_NORTHWEST);
     if (transient->centered) {
-      transient->UpdateOffsetsToCenterOverWindow(owner_win_);
+      transient->UpdateOffsetsToCenterOverWindow(
+          owner_win_, Rect(0, 0, wm()->width(), wm()->height()));
       moved = true;
     }
   }
 
   if (moved)
     ConfigureTransientWindow(transient, 0);
+}
+
+void TransientWindowCollection::CloseAllWindows() {
+  XTime timestamp = wm()->GetCurrentTimeFromServer();
+  for (TransientWindowMap::const_iterator it = transients_.begin();
+       it != transients_.end(); ++it) {
+    Window* win = it->second->win;
+    if (!win->SendDeleteRequest(timestamp))
+      LOG(WARNING) << "Unable to close transient window " << win->xid_str();
+  }
+}
+
+void
+TransientWindowCollection::TransientWindow::UpdateOffsetsToCenterOverWindow(
+    Window* base_win, const Rect& bounding_rect) {
+  x_offset = (base_win->client_width() - win->client_width()) / 2;
+  y_offset = (base_win->client_height() - win->client_height()) / 2;
+
+  if (bounding_rect.width <= 0 || bounding_rect.height <= 0)
+    return;
+
+  if (base_win->client_x() + x_offset + win->client_width() >
+      bounding_rect.x + bounding_rect.width) {
+    x_offset = bounding_rect.x + bounding_rect.width -
+        win->client_width() - base_win->client_x();
+  }
+  if (base_win->client_x() + x_offset < bounding_rect.x) {
+    x_offset = bounding_rect.x - base_win->client_x();
+  }
+
+  if (base_win->client_y() + y_offset + win->client_height() >
+      bounding_rect.y + bounding_rect.height) {
+    y_offset = bounding_rect.y + bounding_rect.height -
+        win->client_height() - base_win->client_y();
+  }
+  if (base_win->client_y() + y_offset < bounding_rect.y) {
+    y_offset = bounding_rect.y - base_win->client_y();
+  }
 }
 
 TransientWindowCollection::TransientWindow*
