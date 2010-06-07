@@ -45,7 +45,7 @@ extern "C" {
 
 DEFINE_string(xterm_command, "xterm", "Command for hotkey xterm spawn.");
 DEFINE_string(background_image, "", "Background image to display");
-DEFINE_string(lock_screen_command, "xscreensaver-command -l",
+DEFINE_string(lock_screen_command, "powerd_lock_screen",
               "Command to lock the screen");
 DEFINE_string(configure_monitor_command,
               "/usr/sbin/monitor_reconfigure",
