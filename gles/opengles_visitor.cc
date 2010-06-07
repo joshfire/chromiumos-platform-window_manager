@@ -131,7 +131,8 @@ void OpenGlesDrawVisitor::BindImage(const ImageContainer* container,
                   0, GL_RGBA, GL_UNSIGNED_BYTE, container->data());
 
   OpenGlesTextureData* data = new OpenGlesTextureData(gl_);
-  data->SetTexture(texture, true);
+  data->SetTexture(texture,
+                   container->format() == ImageContainer::IMAGE_FORMAT_RGBA_32);
   actor->SetDrawingData(kTextureData, RealCompositor::DrawingDataPtr(data));
   LOG(INFO) << "Binding image " << container->filename()
             << " to texture " << texture;

@@ -25,6 +25,7 @@ class ImageContainer {
 
   enum Format {
     IMAGE_FORMAT_RGBA_32 = 0,
+    IMAGE_FORMAT_RGBX_32      // RGB image padded to RGBA with opaque alpha
   };
 
   // This determines the type of image container to use automatically
@@ -58,10 +59,10 @@ class ImageContainer {
   // The number of bits per channel in the image.
   int bits_per_channel() const { return 8; }
 
-  // Currently, this class only supports results in 32-bit RGBA
+  // Currently, this class only supports results in 32-bit RGBA or RGBX
   // format.  When other formats are added, they should be added to
   // the Format enum, and accessors made to support them.
-  Format format() { return IMAGE_FORMAT_RGBA_32; }
+  Format format() const { return format_; }
 
  protected:
   // Takes ownership of the given new allocated array.
@@ -70,6 +71,7 @@ class ImageContainer {
   // Set parameters read from image.
   void set_width(int new_width) { width_ = new_width; }
   void set_height(int new_height) { height_ = new_height; }
+  void set_format(Format format) { format_ = format; }
 
  private:
   // The filename we were constructed with.
@@ -85,6 +87,9 @@ class ImageContainer {
 
   // Height in pixels of a column in the image.
   uint32 height_;
+
+  // Format of the image either RGBA or RGBX.
+  Format format_;
 
   DISALLOW_COPY_AND_ASSIGN(ImageContainer);
 };

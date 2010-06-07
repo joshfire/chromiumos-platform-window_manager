@@ -128,6 +128,9 @@ ImageContainer::Result PngImageContainer::LoadImage() {
   // Add an opaque alpha channel if there isn't one already.
   if (!(color_type & PNG_COLOR_MASK_ALPHA)) {
     png_set_filler(read_obj, 0xff, PNG_FILLER_AFTER);
+    set_format(IMAGE_FORMAT_RGBX_32);
+  } else {
+    set_format(IMAGE_FORMAT_RGBA_32);
   }
 
   // If the image has a transparancy color set, convert it to an alpha

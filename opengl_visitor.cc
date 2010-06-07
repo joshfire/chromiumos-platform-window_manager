@@ -377,10 +377,8 @@ void OpenGlDrawVisitor::BindImage(const ImageContainer* container,
                             container->data());
   CHECK_GL_ERROR(gl_interface_);
   OpenGlTextureData* data = new OpenGlTextureData(gl_interface_);
-  // TODO: once ImageContainer supports non-alpha images, calculate
-  // whether or not this texture has alpha (instead of just passing
-  // 'true').
-  data->SetTexture(new_texture, true);
+  data->SetTexture(new_texture,
+                   container->format() == ImageContainer::IMAGE_FORMAT_RGBA_32);
   actor->SetSize(container->width(), container->height());
   actor->SetDrawingData(OpenGlDrawVisitor::TEXTURE_DATA,
                         RealCompositor::DrawingDataPtr(data));
