@@ -254,7 +254,7 @@ class RealCompositor : public Compositor {
     bool is_opaque() const { return is_opaque_; }
     void set_is_opaque(bool opaque) { is_opaque_ = opaque; }
 
-    bool IsVisible() const {
+    virtual bool IsVisible() const {
       return visible_ && opacity_ > 0.001f && IsInActiveVisibilityGroup();
     }
     float opacity() const { return opacity_; }
@@ -282,6 +282,7 @@ class RealCompositor : public Compositor {
     friend class RealCompositor::LayerVisitor;
 
     RealCompositor* compositor() { return compositor_; }
+    bool visible() const { return visible_; }
 
     void CloneImpl(Actor* clone);
     virtual void SetSizeImpl(int* width, int* height) {}
@@ -552,10 +553,18 @@ class RealCompositor : public Compositor {
       visitor->VisitStage(this);
     }
 
+    // Begin Compositor::Actor methods.
     virtual Actor* Clone() {
       NOTIMPLEMENTED();
       return NULL;
     }
+    // End Compositor::Actor methods.
+
+    // Begin RealCompositor::Actor methods.
+    // We don't want to bother with things like visibility groups or
+    // opacity for the stage.
+    virtual bool IsVisible() const { return visible(); }
+    // End RealCompositor::Actor methods.
 
     // Begin Compositor::StageActor methods.
     XWindow GetStageXWindow() { return window_; }

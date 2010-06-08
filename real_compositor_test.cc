@@ -768,6 +768,9 @@ TEST_F(RealCompositorTest, VisibilityGroups) {
   EXPECT_FALSE(actor->IsVisible());
   compositor()->Draw();
 
+  // The stage shouldn't care about visibility groups.
+  EXPECT_TRUE(compositor()->GetDefaultStage()->IsVisible());
+
   // Add the actor to visibility group 2 and make sure that it's still hidden.
   actor->AddToVisibilityGroup(2);
   EXPECT_TRUE(compositor()->dirty());
