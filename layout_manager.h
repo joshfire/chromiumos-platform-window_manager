@@ -177,26 +177,24 @@ class LayoutManager : public EventConsumer,
 
   // Modes used to display windows.
   enum Mode {
-    // Layout manager was just created, and mode not set yet.
-    MODE_NEW = 0,
-
     // Display the current toplevel window at full size and let it
     // receive input.  Hide all other windows.
     MODE_ACTIVE,
 
-    // Display 'previously_current_window_' at full size and let it
-    // receive input.  Hide all other windows, and automatically
-    // switch to MODE_ACTIVE.
-    MODE_ACTIVE_CANCELLED,
-
     // Display stacked snapshots of all of the tabs instead of the
     // toplevel windows.
     MODE_OVERVIEW,
+
+    // This is only passed in to SetMode() when the user hits Escape to
+    // exit out of overview mode without selecting a window.  It's
+    // immediately mapped to MODE_ACTIVE, so no other code needs to be able
+    // to handle it.
+    MODE_ACTIVE_CANCELLED,
   };
 
   // What fraction of the manager's total width should be visible on the
   // sides when the snapshots are panned all the way to one end or the
-  // other.
+  // other?
   static const double kSideMarginRatio;
 
   // What fraction of the manager's total width should each window use
@@ -333,7 +331,7 @@ class LayoutManager : public EventConsumer,
 
   // Send a message to a window describing the current state of 'mode_'.
   // Does nothing if 'win' isn't a toplevel Chrome window.
-  void SendModeMessage(ToplevelWindow* toplevel);
+  void SendModeMessage(ToplevelWindow* toplevel, bool cancelled);
 
   // Ask the current window to delete itself.
   void SendDeleteRequestToCurrentToplevel();

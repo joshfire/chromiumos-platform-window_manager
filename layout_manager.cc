@@ -90,7 +90,7 @@ const int LayoutManager::kWindowOpacityAnimMs =
 LayoutManager::LayoutManager(WindowManager* wm, PanelManager* panel_manager)
     : wm_(wm),
       panel_manager_(panel_manager),
-      mode_(MODE_NEW),
+      mode_(MODE_ACTIVE),
       x_(0),
       y_(0),
       width_(wm_->width()),
@@ -277,8 +277,6 @@ LayoutManager::LayoutManager(WindowManager* wm, PanelManager* panel_manager)
   overview_mode_key_bindings_group_->AddBinding(
       KeyBindings::KeyCombo(XK_l, KeyBindings::kAltMask),
       "pan-overview-mode-right");
-
-  SetMode(MODE_ACTIVE);
 }
 
 LayoutManager::~LayoutManager() {
@@ -443,9 +441,7 @@ void LayoutManager::HandleWindowMap(Window* win) {
           new ToplevelWindow(win, this));
 
       switch (mode_) {
-        case MODE_NEW:
         case MODE_ACTIVE:
-        case MODE_ACTIVE_CANCELLED:
           // Activate the new window, adding it to the right of the
           // currently-active window.
           if (current_toplevel_) {
@@ -461,11 +457,13 @@ void LayoutManager::HandleWindowMap(Window* win) {
           // In overview mode, just put new windows on the right.
           toplevels_.push_back(toplevel);
           break;
+        default:
+          NOTREACHED() << "Unhandled mode " << mode_;
       }
 
       // Tell the newly mapped window what the mode is so it'll map
       // the snapshot windows it has if we're in overview mode.
-      SendModeMessage(toplevel.get());
+      SendModeMessage(toplevel.get(), false);  // cancelled=false
 
       SetCurrentToplevel(toplevel.get());
 
@@ -807,6 +805,15 @@ void LayoutManager::LayoutWindows(bool animate) {
 }
 
 void LayoutManager::SetMode(Mode mode) {
+  // Just treat the active-cancelled state as regular active mode; we're
+  // really just using it to pass an extra bit of information into this
+  // method so we can notify Chrome that overview mode was cancelled.
+  bool was_cancelled = false;
+  if (mode == MODE_ACTIVE_CANCELLED) {
+    was_cancelled = true;
+    mode = MODE_ACTIVE;
+  }
+
   if (mode == mode_)
     return;
 
@@ -814,15 +821,13 @@ void LayoutManager::SetMode(Mode mode) {
     DisableKeyBindingsForMode(mode_);
 
   mode_ = mode;
-  DLOG(INFO) << "Switching to " << GetModeName(mode_) << " mode.";
+  DLOG(INFO) << "Switching to " << GetModeName(mode_) << " mode";
 
   switch (mode_) {
-    case MODE_NEW:
     case MODE_ACTIVE:
       // Cancelling actually happens on the chrome side, since it
       // knows what tabs used to be selected.  It knows to cancel
       // because it's a different layout mode.
-    case MODE_ACTIVE_CANCELLED:
       if (current_toplevel_)
         current_toplevel_->TakeFocus(wm_->GetCurrentTimeFromServer());
       for (ToplevelWindows::iterator it = toplevels_.begin();
@@ -869,6 +874,8 @@ void LayoutManager::SetMode(Mode mode) {
       }
       break;
     }
+    default:
+      NOTREACHED() << "Unhandled mode " << mode_;
   }
 
   LayoutWindows(true);
@@ -877,12 +884,8 @@ void LayoutManager::SetMode(Mode mode) {
   // each toplevel window will map its associated snapshot windows.
   for (ToplevelWindows::iterator it = toplevels_.begin();
        it != toplevels_.end(); ++it) {
-    SendModeMessage(it->get());
+    SendModeMessage(it->get(), was_cancelled);
   }
-
-  // Done cancelling.
-  if (mode_ == MODE_ACTIVE_CANCELLED)
-    mode_ = MODE_ACTIVE;
 
   if (wm_->logged_in())
     EnableKeyBindingsForMode(mode_);
@@ -1317,7 +1320,7 @@ void LayoutManager::SetCurrentSnapshotWithClick(SnapshotWindow* snapshot,
   }
 }
 
-void LayoutManager::SendModeMessage(ToplevelWindow* toplevel) {
+void LayoutManager::SendModeMessage(ToplevelWindow* toplevel, bool cancelled) {
   if (!toplevel ||
       toplevel->win()->type() != chromeos::WM_IPC_WINDOW_CHROME_TOPLEVEL)
     return;
@@ -1325,20 +1328,17 @@ void LayoutManager::SendModeMessage(ToplevelWindow* toplevel) {
   WmIpc::Message msg(chromeos::WM_IPC_MESSAGE_CHROME_NOTIFY_LAYOUT_MODE);
   switch (mode_) {
     // Set the mode in the message using the appropriate value from wm_ipc.h.
-    case MODE_NEW:
-    case MODE_ACTIVE_CANCELLED:
     case MODE_ACTIVE:
       msg.set_param(0, 0);
-      msg.set_param(1, mode_ == MODE_ACTIVE_CANCELLED ? 1 : 0);
       break;
     case MODE_OVERVIEW:
       msg.set_param(0, 1);
-      msg.set_param(1, 0);
       break;
     default:
       CHECK(false) << "Unhandled mode " << mode_;
       break;
   }
+  msg.set_param(1, cancelled);
   wm_->wm_ipc()->SendMessage(toplevel->win()->xid(), msg);
 }
 
@@ -1552,7 +1552,6 @@ int LayoutManager::GetPreceedingTabCount(const ToplevelWindow& toplevel) const {
 
 void LayoutManager::EnableKeyBindingsForMode(Mode mode) {
   switch (mode) {
-    case MODE_NEW:
     case MODE_ACTIVE:
       active_mode_key_bindings_group_->Enable();
       break;
@@ -1566,7 +1565,6 @@ void LayoutManager::EnableKeyBindingsForMode(Mode mode) {
 
 void LayoutManager::DisableKeyBindingsForMode(Mode mode) {
   switch (mode) {
-    case MODE_NEW:
     case MODE_ACTIVE:
       active_mode_key_bindings_group_->Disable();
       break;
