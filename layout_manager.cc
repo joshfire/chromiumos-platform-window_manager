@@ -364,8 +364,8 @@ void LayoutManager::HandleWindowMap(Window* win) {
     return;
   }
 
-  DLOG(INFO) << "Handling window map for " << win->title()
-             << " (" << win->xid_str() << ") of type " << win->type();
+  DLOG(INFO) << "Handling window map for " << win->xid_str()
+             << " of type " << win->type();
 
   const size_t initial_num_toplevels = toplevels_.size();
 
