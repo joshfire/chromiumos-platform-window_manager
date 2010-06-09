@@ -91,6 +91,7 @@ class MockGLInterface : public GLInterface {
                   GLenum format,
                   GLenum type,
                   const GLvoid* pixels) {}
+  void EnableAnisotropicFiltering() {}
   void Translatef(GLfloat x, GLfloat y, GLfloat z) {}
   void VertexPointer(GLint size, GLenum type, GLsizei stride,
                      const GLvoid* pointer) {}

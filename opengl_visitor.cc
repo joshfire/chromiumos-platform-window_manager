@@ -190,11 +190,12 @@ bool OpenGlPixmapData::BindToPixmap(
 
   gl_interface->GenTextures(1, &data->texture_);
   gl_interface->BindTexture(GL_TEXTURE_2D, data->texture_);
-  gl_interface->TexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-  gl_interface->TexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-  gl_interface->TexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S,
+  gl_interface->EnableAnisotropicFiltering();
+  gl_interface->TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+  gl_interface->TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+  gl_interface->TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S,
                               GL_CLAMP_TO_EDGE);
-  gl_interface->TexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T,
+  gl_interface->TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T,
                               GL_CLAMP_TO_EDGE);
   gl_interface->BindGlxTexImage(data->glx_pixmap_, GLX_FRONT_LEFT_EXT, NULL);
   CHECK_GL_ERROR(gl_interface);
