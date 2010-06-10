@@ -256,6 +256,9 @@ OpenGlDrawVisitor::OpenGlDrawVisitor(GLInterface* gl_interface,
   CHECK(gl_interface_);
   context_ = gl_interface_->CreateGlxContext();
   CHECK(context_) << "Unable to create a context from the available visuals.";
+  CHECK(gl_interface_->IsGlxDirect(context_))
+      << "Direct rendering is required (indirect mode doesn't support vertex "
+      << "buffer objects).";
 
   gl_interface_->MakeGlxCurrent(stage->GetStageXWindow(), context_);
 

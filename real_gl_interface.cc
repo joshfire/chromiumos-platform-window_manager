@@ -141,6 +141,10 @@ void RealGLInterface::DestroyGlxContext(GLXContext context) {
   }
 }
 
+Bool RealGLInterface::IsGlxDirect(GLXContext context) {
+  return glXIsDirect(xconn_->GetDisplay(), context);
+}
+
 void RealGLInterface::SwapGlxBuffers(GLXDrawable drawable) {
   xconn_->TrapErrors();
   glXSwapBuffers(xconn_->GetDisplay(), drawable);

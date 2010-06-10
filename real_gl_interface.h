@@ -16,79 +16,83 @@ class RealXConnection;
 class RealGLInterface : public GLInterface {
  public:
   explicit RealGLInterface(RealXConnection* connection);
+  virtual ~RealGLInterface() {}
 
-  void GlxFree(void* item);
+  // Begin GLInterface methods.
+  virtual void GlxFree(void* item);
 
-  GLXPixmap CreateGlxPixmap(GLXFBConfig config,
-                          XPixmap pixmap,
-                          const int* attrib_list);
-  void DestroyGlxPixmap(GLXPixmap pixmap);
-  GLXContext CreateGlxContext();
-  void DestroyGlxContext(GLXContext context);
-  void SwapGlxBuffers(GLXDrawable drawable);
-  Bool MakeGlxCurrent(GLXDrawable drawable, GLXContext ctx);
-  GLXFBConfig* GetGlxFbConfigs(int* nelements);
-  XVisualInfo* GetGlxVisualFromFbConfig(GLXFBConfig config);
-  int GetGlxFbConfigAttrib(GLXFBConfig config,
-                         int attribute,
-                         int* value);
-  void BindGlxTexImage(GLXDrawable drawable,
-                        int buffer,
-                        int* attrib_list);
-  void ReleaseGlxTexImage(GLXDrawable drawable,
-                           int buffer);
+  virtual GLXPixmap CreateGlxPixmap(GLXFBConfig config,
+                                    XPixmap pixmap,
+                                    const int* attrib_list);
+  virtual void DestroyGlxPixmap(GLXPixmap pixmap);
+  virtual GLXContext CreateGlxContext();
+  virtual void DestroyGlxContext(GLXContext context);
+  virtual Bool IsGlxDirect(GLXContext context);
+  virtual void SwapGlxBuffers(GLXDrawable drawable);
+  virtual Bool MakeGlxCurrent(GLXDrawable drawable, GLXContext ctx);
+  virtual GLXFBConfig* GetGlxFbConfigs(int* nelements);
+  virtual XVisualInfo* GetGlxVisualFromFbConfig(GLXFBConfig config);
+  virtual int GetGlxFbConfigAttrib(GLXFBConfig config,
+                                   int attribute,
+                                   int* value);
+  virtual void BindGlxTexImage(GLXDrawable drawable,
+                               int buffer,
+                               int* attrib_list);
+  virtual void ReleaseGlxTexImage(GLXDrawable drawable, int buffer);
 
   // GL Functions
-  void Viewport(GLint x, GLint y, GLsizei width, GLsizei height);
-  void BindBuffer(GLenum target, GLuint buffer);
-  void BindTexture(GLenum target, GLuint texture);
-  void BlendFunc(GLenum sfactor, GLenum dfactor);
-  void BufferData(GLenum target, GLsizeiptr size, const GLvoid* data,
-                  GLenum usage);
-  void Clear(GLbitfield mask);
-  void ClearColor(GLfloat red, GLfloat green, GLfloat blue, GLfloat alpha);
-  void Color4f(GLfloat red, GLfloat green, GLfloat blue, GLfloat alpha);
-  void DeleteBuffers(GLsizei n, const GLuint* buffers);
-  void DeleteTextures(GLsizei n, const GLuint* textures);
-  void DepthMask(GLboolean flag);
-  void Disable(GLenum cap);
-  void DisableClientState(GLenum array);
-  void DrawArrays(GLenum mode, GLint first, GLsizei count);
-  void Enable(GLenum cap);
-  void EnableClientState(GLenum cap);
-  void Finish();
-  void GenBuffers(GLsizei n, GLuint* buffers);
-  void GenTextures(GLsizei n, GLuint* textures);
-  GLenum GetError();
-  void LoadIdentity();
-  void MultMatrixf(GLfloat* matrix);
-  void MatrixMode(GLenum mode);
-  void Ortho(GLdouble left, GLdouble right, GLdouble bottom, GLdouble top,
-             GLdouble near, GLdouble far);
-  void PushMatrix();
-  void PopMatrix();
-  void Rotatef(GLfloat angle, GLfloat x, GLfloat y, GLfloat z);
-  void Scalef(GLfloat x, GLfloat y, GLfloat z);
-  void TexCoordPointer(GLint size, GLenum type, GLsizei stride,
-                       const GLvoid* pointer);
-  void TexParameteri(GLenum target, GLenum pname, GLint param);
-  void TexParameterf(GLenum target, GLenum pname, GLfloat param);
-  void TexEnvf(GLenum target, GLenum pname, GLfloat param);
-  void TexImage2D(GLenum target,
-                  GLint level,
-                  GLint internalFormat,
-                  GLsizei width,
-                  GLsizei height,
-                  GLint border,
-                  GLenum format,
-                  GLenum type,
-                  const GLvoid* pixels);
-  void EnableAnisotropicFiltering();
-  void Translatef(GLfloat x, GLfloat y, GLfloat z);
-  void VertexPointer(GLint size, GLenum type, GLsizei stride,
-                     const GLvoid* pointer);
-  void ColorPointer(GLint size, GLenum type, GLsizei stride,
-                    const GLvoid* pointer);
+  virtual void Viewport(GLint x, GLint y, GLsizei width, GLsizei height);
+  virtual void BindBuffer(GLenum target, GLuint buffer);
+  virtual void BindTexture(GLenum target, GLuint texture);
+  virtual void BlendFunc(GLenum sfactor, GLenum dfactor);
+  virtual void BufferData(GLenum target, GLsizeiptr size, const GLvoid* data,
+                          GLenum usage);
+  virtual void Clear(GLbitfield mask);
+  virtual void ClearColor(GLfloat red, GLfloat green, GLfloat blue,
+                          GLfloat alpha);
+  virtual void Color4f(GLfloat red, GLfloat green, GLfloat blue, GLfloat alpha);
+  virtual void DeleteBuffers(GLsizei n, const GLuint* buffers);
+  virtual void DeleteTextures(GLsizei n, const GLuint* textures);
+  virtual void DepthMask(GLboolean flag);
+  virtual void Disable(GLenum cap);
+  virtual void DisableClientState(GLenum array);
+  virtual void DrawArrays(GLenum mode, GLint first, GLsizei count);
+  virtual void Enable(GLenum cap);
+  virtual void EnableClientState(GLenum cap);
+  virtual void Finish();
+  virtual void GenBuffers(GLsizei n, GLuint* buffers);
+  virtual void GenTextures(GLsizei n, GLuint* textures);
+  virtual GLenum GetError();
+  virtual void LoadIdentity();
+  virtual void MultMatrixf(GLfloat* matrix);
+  virtual void MatrixMode(GLenum mode);
+  virtual void Ortho(GLdouble left, GLdouble right, GLdouble bottom,
+                     GLdouble top, GLdouble near, GLdouble far);
+  virtual void PushMatrix();
+  virtual void PopMatrix();
+  virtual void Rotatef(GLfloat angle, GLfloat x, GLfloat y, GLfloat z);
+  virtual void Scalef(GLfloat x, GLfloat y, GLfloat z);
+  virtual void TexCoordPointer(GLint size, GLenum type, GLsizei stride,
+                               const GLvoid* pointer);
+  virtual void TexParameteri(GLenum target, GLenum pname, GLint param);
+  virtual void TexParameterf(GLenum target, GLenum pname, GLfloat param);
+  virtual void TexEnvf(GLenum target, GLenum pname, GLfloat param);
+  virtual void TexImage2D(GLenum target,
+                          GLint level,
+                          GLint internalFormat,
+                          GLsizei width,
+                          GLsizei height,
+                          GLint border,
+                          GLenum format,
+                          GLenum type,
+                          const GLvoid* pixels);
+  virtual void EnableAnisotropicFiltering();
+  virtual void Translatef(GLfloat x, GLfloat y, GLfloat z);
+  virtual void VertexPointer(GLint size, GLenum type, GLsizei stride,
+                             const GLvoid* pointer);
+  virtual void ColorPointer(GLint size, GLenum type, GLsizei stride,
+                            const GLvoid* pointer);
+  // End GLInterface methods.
 
  private:
   RealXConnection* xconn_;

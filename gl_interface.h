@@ -28,12 +28,14 @@ class GLInterface : virtual public GLInterfaceBase {
   virtual void GlxFree(void* item) = 0;
 
   // GLX functions that we use.
+  // These functions all correspond to similar glX* functions (without the Glx).
   virtual GLXPixmap CreateGlxPixmap(GLXFBConfig config,
                                     XPixmap pixmap,
                                     const int* attrib_list) = 0;
   virtual void DestroyGlxPixmap(GLXPixmap pixmap) = 0;
   virtual GLXContext CreateGlxContext() = 0;
   virtual void DestroyGlxContext(GLXContext context) = 0;
+  virtual Bool IsGlxDirect(GLXContext context) = 0;
   virtual void SwapGlxBuffers(GLXDrawable drawable) = 0;
   virtual Bool MakeGlxCurrent(GLXDrawable drawable,
                               GLXContext ctx) = 0;
