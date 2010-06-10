@@ -22,7 +22,6 @@
 #include "window_manager/separator.h"
 #include "window_manager/snapshot_window.h"
 #include "window_manager/stacking_manager.h"
-#include "window_manager/system_metrics.pb.h"
 #include "window_manager/toplevel_window.h"
 #include "window_manager/util.h"
 #include "window_manager/window.h"
@@ -1085,17 +1084,6 @@ void LayoutManager::HandleSnapshotChangeRequest(int index) {
 
   SetCurrentSnapshot(snapshots_[index].get());
   LayoutWindows(true);
-}
-
-void LayoutManager::Metrics::Populate(chrome_os_pb::SystemMetrics* metrics_pb) {
-  CHECK(metrics_pb);
-  metrics_pb->Clear();
-  metrics_pb->set_overview_keystroke_count(overview_by_keystroke_count);
-  metrics_pb->set_overview_exit_mouse_count(overview_exit_by_mouse_count);
-  metrics_pb->set_overview_exit_keystroke_count(
-      overview_exit_by_keystroke_count);
-  metrics_pb->set_keystroke_window_cycling_count(
-      window_cycle_by_keystroke_count);
 }
 
 void LayoutManager::CenterCurrentSnapshot(int x, int y) {

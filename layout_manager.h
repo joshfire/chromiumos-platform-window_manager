@@ -23,10 +23,6 @@
 #include "window_manager/wm_ipc.h"  // for WmIpc::Message
 #include "window_manager/x_types.h"
 
-namespace chrome_os_pb {
-class SystemMetrics;
-}
-
 namespace window_manager {
 
 class EventConsumerRegistrar;
@@ -51,40 +47,11 @@ class LayoutManager : public EventConsumer,
   LayoutManager(WindowManager* wm, PanelManager* panel_manager);
   ~LayoutManager();
 
-  // Struct for keeping track of user metrics relevant to the LayoutManager.
-  struct Metrics {
-    Metrics()
-        : overview_by_keystroke_count(0),
-          overview_exit_by_mouse_count(0),
-          overview_exit_by_keystroke_count(0),
-          window_cycle_by_keystroke_count(0) {
-    }
-
-    // Given a metrics protobuffer, populates the applicable fields.
-    void Populate(chrome_os_pb::SystemMetrics* metrics_pb);
-
-    void Reset() {
-      overview_by_keystroke_count = 0;
-      overview_exit_by_mouse_count = 0;
-      overview_exit_by_keystroke_count = 0;
-      window_cycle_by_keystroke_count = 0;
-    }
-
-    int overview_by_keystroke_count;
-    int overview_exit_by_mouse_count;
-    int overview_exit_by_keystroke_count;
-    int window_cycle_by_keystroke_count;
-  };
-
   int x() const { return x_; }
   int y() const { return y_; }
   int width() const { return width_; }
   int height() const { return height_; }
   int overview_panning_offset() const { return overview_panning_offset_; }
-
-  // Returns a pointer to the struct in which LayoutManager tracks
-  // relevant user metrics.
-  Metrics* GetMetrics() { return &metrics_; }
 
   // Begin EventConsumer implementation.
   virtual bool IsInputWindow(XWindow xid);
@@ -444,8 +411,6 @@ class LayoutManager : public EventConsumer,
   // X component of the pointer's previous position during a drag on the
   // background window.
   int overview_drag_last_x_;
-
-  Metrics metrics_;
 
   // Have we seen a MapRequest event yet?  We perform some initial setup
   // (e.g. stacking) in response to MapRequests, so we track this so we can

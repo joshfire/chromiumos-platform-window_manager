@@ -70,7 +70,6 @@ static const AtomInfo kAtomInfos[] = {
   { ATOM_WM_PROTOCOLS,                 "WM_PROTOCOLS" },
   { ATOM_WM_S0,                        "WM_S0" },
   { ATOM_WM_STATE,                     "WM_STATE" },
-  { ATOM_WM_SYSTEM_METRICS,            "WM_SYSTEM_METRICS" },
   { ATOM_WM_TAKE_FOCUS,                "WM_TAKE_FOCUS" },
   { ATOM_WM_TRANSIENT_FOR,             "WM_TRANSIENT_FOR" },
 };

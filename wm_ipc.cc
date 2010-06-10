@@ -60,11 +60,6 @@ bool WmIpc::SetWindowType(XWindow xid,
       atom_cache_->GetXAtom(ATOM_CARDINAL), values);
 }
 
-bool WmIpc::SetSystemMetricsProperty(XWindow xid, const string& metrics) {
-  return xconn_->SetStringProperty(
-      xid, atom_cache_->GetXAtom(ATOM_WM_SYSTEM_METRICS), metrics);
-}
-
 bool WmIpc::GetMessage(XWindow xid,
                        XAtom message_type,
                        int format,

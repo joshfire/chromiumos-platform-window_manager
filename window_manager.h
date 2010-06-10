@@ -41,7 +41,6 @@ class KeyBindings;
 class KeyBindingsGroup;
 class LayoutManager;
 class LoginController;
-class MetricsReporter;
 class ScreenLockerHandler;
 class StackingManager;
 class Window;
@@ -420,12 +419,8 @@ class WindowManager : public PanelManagerAreaChangeListener {
   scoped_ptr<KeyBindings> key_bindings_;
   scoped_ptr<PanelManager> panel_manager_;
   scoped_ptr<LayoutManager> layout_manager_;
-  scoped_ptr<MetricsReporter> metrics_reporter_;
   scoped_ptr<LoginController> login_controller_;
   scoped_ptr<ScreenLockerHandler> screen_locker_handler_;
-
-  // ID for the timeout that invokes metrics_reporter_->AttemptReport().
-  int metrics_reporter_timeout_id_;
 
   // ID for the timeout that calls QueryKeyboardState().
   int query_keyboard_state_timeout_id_;

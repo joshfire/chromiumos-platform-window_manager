@@ -120,10 +120,6 @@ class WmIpc {
   // parameter.
   bool SendMessage(XWindow xid, const Message& msg);
 
-  // Set a property on the chosen window that contains system metrics
-  // information.  False returned on error.
-  bool SetSystemMetricsProperty(XWindow xid, const std::string& metrics);
-
  private:
   XConnection* xconn_;     // not owned
   AtomCache* atom_cache_;  // not owned

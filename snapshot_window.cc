@@ -17,7 +17,6 @@
 #include "window_manager/event_consumer_registrar.h"
 #include "window_manager/motion_event_coalescer.h"
 #include "window_manager/stacking_manager.h"
-#include "window_manager/system_metrics.pb.h"
 #include "window_manager/toplevel_window.h"
 #include "window_manager/util.h"
 #include "window_manager/window.h"

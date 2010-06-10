@@ -7,44 +7,6 @@ import itertools
 
 import make_shaders
 
-Help('''\
-Type: 'scons' to build and 'scons -c' to clean\
-''')
-
-""" Inputs:
-        target: list of targets to compile to
-        source: list of sources to compile
-        env: the scons environment in which we are compiling
-    Outputs:
-        target: the list of targets we'll emit
-        source: the list of sources we'll compile"""
-def ProtocolBufferEmitter(target, source, env):
-  output = str(source[0])
-  output = output[0:output.rfind('.proto')]
-  target = [
-    output + '.pb.cc',
-    output + '.pb.h',
-  ]
-  return target, source
-
-""" Inputs:
-        source: list of sources to process
-        target: list of targets to generate
-        env: scons environment in which we are working
-        for_signature: unused
-    Outputs: a list of commands to execute to generate the targets from
-             the sources."""
-def ProtocolBufferGenerator(source, target, env, for_signature):
-  commands = [
-    '/usr/bin/protoc '
-    ' --proto_path . ${SOURCES} --cpp_out .']
-  return commands
-
-proto_builder = Builder(generator = ProtocolBufferGenerator,
-                        emitter = ProtocolBufferEmitter,
-                        single_source = 1,
-                        suffix = '.pb.cc')
-
 # Create a base environment including things that are likely to be common
 # to all of the objects in this directory. We pull in overrides from the
 # environment to enable cross-compile.
@@ -88,11 +50,7 @@ backend = ARGUMENTS.get('BACKEND', 'OPENGL').lower()
 # Start a new environment for the window manager.
 wm_env = base_env.Clone()
 
-# Add a builder for .proto files
-wm_env['BUILDERS']['ProtocolBuffer'] = proto_builder
-
 wm_env.Append(LIBS=['protobuf'])
-
 wm_env.ParseConfig('pkg-config --cflags --libs libpcrecpp libpng12 ' +
                    'xcb x11-xcb xcb-composite xcb-randr xcb-shape xcb-damage ' +
                    'xdamage xext')
@@ -108,13 +66,10 @@ elif backend == 'opengles':
   make_shaders.AddBuildRules(wm_env)
   wm_env.Append(LIBS=['EGL', 'GLESv2'])
 
-wm_env.ProtocolBuffer('system_metrics.pb.cc', 'system_metrics.proto');
-
 # Define an IPC library that will be used both by the WM and by client apps.
 srcs = Split('''\
   atom_cache.cc
   real_x_connection.cc
-  system_metrics.pb.cc
   util.cc
   wm_ipc.cc
   x_connection.cc
@@ -136,7 +91,6 @@ srcs = Split('''\
   key_bindings.cc
   layout_manager.cc
   login_controller.cc
-  metrics_reporter.cc
   mock_compositor.cc
   motion_event_coalescer.cc
   panel.cc

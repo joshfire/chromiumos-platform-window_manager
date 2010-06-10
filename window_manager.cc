@@ -34,7 +34,6 @@ extern "C" {
 #include "window_manager/key_bindings.h"
 #include "window_manager/layout_manager.h"
 #include "window_manager/login_controller.h"
-#include "window_manager/metrics_reporter.h"
 #include "window_manager/panel_manager.h"
 #include "window_manager/profiler.h"
 #include "window_manager/screen_locker_handler.h"
@@ -185,7 +184,6 @@ WindowManager::WindowManager(EventLoop* event_loop,
       mapped_xids_(new Stacker<XWindow>),
       stacked_xids_(new Stacker<XWindow>),
       active_window_xid_(0),
-      metrics_reporter_timeout_id_(-1),
       query_keyboard_state_timeout_id_(-1),
       showing_hotkey_overlay_(false),
       wm_ipc_version_(1),
@@ -202,8 +200,6 @@ WindowManager::~WindowManager() {
     xconn_->DestroyWindow(wm_xid_);
   if (background_xid_)
     xconn_->DestroyWindow(background_xid_);
-  if (metrics_reporter_timeout_id_ >= 0)
-    event_loop_->RemoveTimeout(metrics_reporter_timeout_id_);
   if (query_keyboard_state_timeout_id_ >= 0)
     event_loop_->RemoveTimeout(query_keyboard_state_timeout_id_);
   if (panel_manager_.get())
@@ -320,14 +316,6 @@ bool WindowManager::Init() {
               SubstructureNotifyMask,
             true));  // preserve the existing event mask
   grab.reset();
-
-  metrics_reporter_.reset(new MetricsReporter(layout_manager_.get(),
-                                              wm_ipc_.get()));
-  metrics_reporter_timeout_id_ = event_loop_->AddTimeout(
-      NewPermanentCallback(
-          metrics_reporter_.get(), &MetricsReporter::AttemptReport),
-      MetricsReporter::kMetricsReportingIntervalMs,
-      MetricsReporter::kMetricsReportingIntervalMs);
 
   return true;
 }
