@@ -149,12 +149,13 @@ class Panel {
   // themselves to match the new screen size.
   void HandleScreenResize();
 
-  // Handle a transient window belonging to this panel being mapped or
-  // unmapped or receiving a button press.
+  // Handle events referring to one of this panel's transient windows.
   void HandleTransientWindowMap(Window* win);
   void HandleTransientWindowUnmap(Window* win);
   void HandleTransientWindowButtonPress(
       Window* win, int button, XTime timestamp);
+  void HandleTransientWindowClientMessage(
+      Window* win, XAtom message_type, const long data[5]);
 
  private:
   FRIEND_TEST(PanelBarTest, PackPanelsAfterPanelResize);

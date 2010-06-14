@@ -566,6 +566,24 @@ TEST_F(PanelManagerTest, TransientWindows) {
   EXPECT_EQ(infobubble_y, infobubble_info->y);
   EXPECT_EQ(infobubble_width, infobubble_info->width);
   EXPECT_EQ(infobubble_height, infobubble_info->height);
+
+  // Check that we'll honor a request to make the infobubble modal.
+  xconn_->InitClientMessageEvent(
+      &event, infobubble_xid, wm_->GetXAtom(ATOM_NET_WM_STATE),
+      1, wm_->GetXAtom(ATOM_NET_WM_STATE_MODAL), None, None, None);
+  wm_->HandleEvent(&event);
+  EXPECT_TRUE(wm_->GetWindowOrDie(infobubble_xid)->wm_state_modal());
+
+  // Now create a toplevel window and check that it gets focused, and then
+  // send a _NET_ACTIVE_WINDOW message asking the WM to focus the infobubble.
+  XWindow toplevel_xid = CreateToplevelWindow(1, 0, 0, 0, 1024, 768);
+  SendInitialEventsForWindow(toplevel_xid);
+  ASSERT_EQ(toplevel_xid, xconn_->focused_xid());
+  xconn_->InitClientMessageEvent(
+      &event, infobubble_xid, wm_->GetXAtom(ATOM_NET_ACTIVE_WINDOW),
+      1, wm_->GetCurrentTimeFromServer() + 1, 0, None, None);
+  wm_->HandleEvent(&event);
+  EXPECT_EQ(infobubble_xid, xconn_->focused_xid());
 }
 
 }  // namespace window_manager

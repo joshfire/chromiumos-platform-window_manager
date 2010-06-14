@@ -396,6 +396,15 @@ void PanelManager::HandleChromeMessage(const WmIpc::Message& msg) {
 void PanelManager::HandleClientMessage(XWindow xid,
                                        XAtom message_type,
                                        const long data[5]) {
+  Window* win = wm_->GetWindow(xid);
+  if (!win)
+    return;
+
+  if (Panel* owner_panel = GetPanelOwningTransientWindow(*win)) {
+    owner_panel->HandleTransientWindowClientMessage(win, message_type, data);
+    return;
+  }
+
   Panel* panel = GetPanelByXid(xid);
   if (!panel)
     return;
@@ -405,8 +414,7 @@ void PanelManager::HandleClientMessage(XWindow xid,
                << " (requestor says its currently-active window is "
                << XidStr(data[2]) << "; real active window is "
                << XidStr(wm_->active_window_xid()) << ")";
-    PanelContainer* container = GetContainerForPanel(*panel);
-    if (container)
+    if (PanelContainer* container = GetContainerForPanel(*panel))
       container->HandleFocusPanelMessage(panel, data[1]);
   } else if (message_type == wm_->GetXAtom(ATOM_NET_WM_STATE)) {
     if (panel->content_xid() == xid) {

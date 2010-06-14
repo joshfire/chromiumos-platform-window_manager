@@ -514,6 +514,27 @@ void Panel::HandleTransientWindowButtonPress(
   transients_->TakeFocus(timestamp);
 }
 
+void Panel::HandleTransientWindowClientMessage(
+    Window* win, XAtom message_type, const long data[5]) {
+  DCHECK(win);
+  DCHECK(transients_->ContainsWindow(*win));
+
+  if (message_type == wm()->GetXAtom(ATOM_NET_ACTIVE_WINDOW)) {
+    transients_->SetPreferredWindowToFocus(win);
+    transients_->TakeFocus(data[1]);
+  } else if (message_type == wm()->GetXAtom(ATOM_NET_WM_STATE)) {
+    map<XAtom, bool> states;
+    win->ParseWmStateMessage(data, &states);
+    map<XAtom, bool>::const_iterator it =
+        states.find(wm()->GetXAtom(ATOM_NET_WM_STATE_MODAL));
+    if (it != states.end()) {
+      map<XAtom, bool> new_state;
+      new_state[it->first] = it->second;
+      win->ChangeWmState(new_state);
+    }
+  }
+}
+
 void Panel::ConfigureInputWindows() {
   if (!resizable_) {
     wm()->xconn()->ConfigureWindowOffscreen(top_input_xid_);
