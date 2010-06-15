@@ -464,7 +464,7 @@ void Panel::SetFullscreenState(bool fullscreen) {
 
   if (fullscreen) {
     wm()->stacking_manager()->StackWindowAtTopOfLayer(
-        content_win_, StackingManager::LAYER_FULLSCREEN_PANEL);
+        content_win_, StackingManager::LAYER_FULLSCREEN_WINDOW);
     content_win_->MoveComposited(0, 0, 0);
     content_win_->MoveClient(0, 0);
     content_win_->ResizeClient(

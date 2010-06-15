@@ -1307,6 +1307,78 @@ TEST_F(LayoutManagerTest, KeyBindings) {
   EXPECT_FALSE(lm_->overview_mode_key_bindings_group_->enabled());
 }
 
+// Test our handling of requests to toggle the fullscreen state on toplevel
+// windows.
+TEST_F(LayoutManagerTest, Fullscreen) {
+  XWindow xid = CreateSimpleWindow();
+  SendInitialEventsForWindow(xid);
+  Window* win = wm_->GetWindowOrDie(xid);
+  EXPECT_FALSE(win->wm_state_fullscreen());
+  EXPECT_TRUE(WindowIsInLayer(win, StackingManager::LAYER_TOPLEVEL_WINDOW));
+
+  // When a window asks to be fullscreened, its fullscreen property should
+  // be set and it should be moved to the fullscreen stacking layer.
+  XEvent event;
+  xconn_->InitClientMessageEvent(
+      &event, xid, wm_->GetXAtom(ATOM_NET_WM_STATE),
+      1, wm_->GetXAtom(ATOM_NET_WM_STATE_FULLSCREEN), None, None, None);
+  wm_->HandleEvent(&event);
+  EXPECT_TRUE(win->wm_state_fullscreen());
+  EXPECT_TRUE(WindowIsInLayer(win, StackingManager::LAYER_FULLSCREEN_WINDOW));
+
+  // When we map a second toplevel window, it should get the focus and the
+  // first window should be automatically unfullscreened.
+  XWindow xid2 = CreateSimpleWindow();
+  SendInitialEventsForWindow(xid2);
+  Window* win2 = wm_->GetWindowOrDie(xid2);
+  ASSERT_EQ(xid2, xconn_->focused_xid());
+  EXPECT_FALSE(win->wm_state_fullscreen());
+  EXPECT_FALSE(win2->wm_state_fullscreen());
+  EXPECT_TRUE(WindowIsInLayer(win, StackingManager::LAYER_TOPLEVEL_WINDOW));
+  EXPECT_TRUE(WindowIsInLayer(win2, StackingManager::LAYER_TOPLEVEL_WINDOW));
+
+  // Check that the first window is automatically focused if it requests to
+  // be fullscreened again.
+  wm_->HandleEvent(&event);
+  EXPECT_EQ(xid, xconn_->focused_xid());
+  EXPECT_TRUE(win->wm_state_fullscreen());
+  EXPECT_TRUE(WindowIsInLayer(win, StackingManager::LAYER_FULLSCREEN_WINDOW));
+
+  // Now open a panel that'll take the focus and check that the toplevel
+  // window is again unfullscreened.
+  CreateSimplePanel(200, 20, 400);
+  EXPECT_FALSE(win->wm_state_fullscreen());
+  EXPECT_TRUE(WindowIsInLayer(win, StackingManager::LAYER_TOPLEVEL_WINDOW));
+
+  // Make the window fullscreen again and check that it stays that way if a
+  // transient window is opened for it.
+  wm_->HandleEvent(&event);
+  EXPECT_EQ(xid, xconn_->focused_xid());
+  EXPECT_TRUE(win->wm_state_fullscreen());
+  EXPECT_TRUE(WindowIsInLayer(win, StackingManager::LAYER_FULLSCREEN_WINDOW));
+
+  XWindow transient_xid = CreateBasicWindow(0, 0, 300, 300);
+  MockXConnection::WindowInfo* transient_info =
+      xconn_->GetWindowInfoOrDie(transient_xid);
+  transient_info->transient_for = xid;
+  SendInitialEventsForWindow(transient_xid);
+  Window* transient_win = wm_->GetWindowOrDie(transient_xid);
+  EXPECT_TRUE(win->wm_state_fullscreen());
+  EXPECT_TRUE(WindowIsInLayer(win, StackingManager::LAYER_FULLSCREEN_WINDOW));
+  EXPECT_TRUE(WindowIsInLayer(transient_win,
+                              StackingManager::LAYER_FULLSCREEN_WINDOW));
+
+  // Now ask to make the toplevel non-fullscreen.
+  xconn_->InitClientMessageEvent(
+      &event, xid, wm_->GetXAtom(ATOM_NET_WM_STATE),
+      0, wm_->GetXAtom(ATOM_NET_WM_STATE_FULLSCREEN), None, None, None);
+  wm_->HandleEvent(&event);
+  EXPECT_FALSE(win->wm_state_fullscreen());
+  EXPECT_TRUE(WindowIsInLayer(win, StackingManager::LAYER_TOPLEVEL_WINDOW));
+  EXPECT_TRUE(WindowIsInLayer(transient_win,
+                              StackingManager::LAYER_ACTIVE_TRANSIENT_WINDOW));
+}
+
 }  // namespace window_manager
 
 int main(int argc, char** argv) {

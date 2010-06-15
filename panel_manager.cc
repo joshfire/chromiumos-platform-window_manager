@@ -642,7 +642,7 @@ void PanelManager::RemovePanelFromContainer(Panel* panel,
 void PanelManager::MakePanelFullscreen(Panel* panel) {
   DCHECK(panel);
   if (panel->is_fullscreen()) {
-    LOG(WARNING) << "Ignoring request to fullscreen already-fullscreened "
+    LOG(WARNING) << "Ignoring request to fullscreen already-fullscreen "
                  << "panel " << panel->xid_str();
     return;
   }

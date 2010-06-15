@@ -49,6 +49,8 @@ class LayoutManager::ToplevelWindow {
 
   Window* win() { return win_; }
 
+  bool is_fullscreen() const { return is_fullscreen_; }
+
   // Returns the current state of this window.
   State state() const { return state_; }
   static const char* GetStateName(State state);
@@ -112,6 +114,9 @@ class LayoutManager::ToplevelWindow {
   // from Chrome.
   void SendTabSelectedMessage(int tab_index, XTime timestamp);
 
+  // Fullscreen or unfullscreen this toplevel window.
+  void SetFullscreenState(bool fullscreen);
+
  private:
   WindowManager* wm() { return layout_manager_->wm_; }
 
@@ -157,6 +162,9 @@ class LayoutManager::ToplevelWindow {
 
   // LayoutManager event registrations for this toplevel window.
   scoped_ptr<EventConsumerRegistrar> event_consumer_registrar_;
+
+  // Is this toplevel window currently fullscreen?
+  bool is_fullscreen_;
 
   DISALLOW_COPY_AND_ASSIGN(ToplevelWindow);
 };

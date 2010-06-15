@@ -287,7 +287,7 @@ TEST_F(PanelManagerTest, Fullscreen) {
   EXPECT_EQ(panel2->content_xid(), xconn_->focused_xid());
   TestPanelContentBounds(panel2, 0, 0, wm_->width(), wm_->height());
   EXPECT_TRUE(WindowIsInLayer(panel2->content_win(),
-                              StackingManager::LAYER_FULLSCREEN_PANEL));
+                              StackingManager::LAYER_FULLSCREEN_WINDOW));
   TestIntArrayProperty(
       panel2->content_xid(), wm_state_atom, 1, fullscreen_atom);
 
@@ -302,7 +302,7 @@ TEST_F(PanelManagerTest, Fullscreen) {
   EXPECT_EQ(panel3->content_xid(), xconn_->focused_xid());
   TestPanelContentBounds(panel3, 0, 0, wm_->width(), wm_->height());
   EXPECT_TRUE(WindowIsInLayer(panel3->content_win(),
-                              StackingManager::LAYER_FULLSCREEN_PANEL));
+                              StackingManager::LAYER_FULLSCREEN_WINDOW));
   TestIntArrayProperty(
       panel3->content_xid(), wm_state_atom, 1, fullscreen_atom);
 
@@ -325,7 +325,7 @@ TEST_F(PanelManagerTest, Fullscreen) {
   EXPECT_TRUE(panel3->is_fullscreen());
   TestPanelContentBounds(panel3, 0, 0, wm_->width(), wm_->height());
   EXPECT_TRUE(WindowIsInLayer(panel3->content_win(),
-                              StackingManager::LAYER_FULLSCREEN_PANEL));
+                              StackingManager::LAYER_FULLSCREEN_WINDOW));
   EXPECT_EQ(rightmost_panel_right, panel2->right());
   EXPECT_EQ(middle_panel_right, panel3->right());
 

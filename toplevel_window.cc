@@ -64,7 +64,8 @@ LayoutManager::ToplevelWindow::ToplevelWindow(Window* win,
       tab_count_(0),
       last_tab_selected_time_(0),
       event_consumer_registrar_(
-          new EventConsumerRegistrar(wm(), layout_manager_)) {
+          new EventConsumerRegistrar(wm(), layout_manager_)),
+      is_fullscreen_(false) {
 #if defined(EXTRA_LOGGING)
   DLOG(INFO) << "Creating ToplevelWindow for window " << XidStr(win_->xid());
 #endif
@@ -104,6 +105,7 @@ LayoutManager::ToplevelWindow::~ToplevelWindow() {
   layout_manager_ = NULL;
 }
 
+// static
 const char* LayoutManager::ToplevelWindow::GetStateName(State state) {
   switch(state) {
     case STATE_NEW:
@@ -214,6 +216,32 @@ void LayoutManager::ToplevelWindow::SendTabSelectedMessage(int tab_index,
   wm()->wm_ipc()->SendMessage(win_->xid(), msg);
 }
 
+void LayoutManager::ToplevelWindow::SetFullscreenState(bool fullscreen) {
+  if (fullscreen == is_fullscreen_)
+    return;
+
+  is_fullscreen_ = fullscreen;
+  if (win_->wm_state_fullscreen() != is_fullscreen_) {
+    map<XAtom, bool> wm_state;
+    wm_state[wm()->GetXAtom(ATOM_NET_WM_STATE_FULLSCREEN)] = is_fullscreen_;
+    win_->ChangeWmState(wm_state);
+  }
+
+  if (is_fullscreen_) {
+    wm()->stacking_manager()->StackWindowAtTopOfLayer(
+        win_, StackingManager::LAYER_FULLSCREEN_WINDOW);
+    // TODO: We should probably also resize the window to fill the whole
+    // screen even if a panel dock is visible.
+  } else {
+    wm()->stacking_manager()->StackWindowAtTopOfLayer(
+        win_, StackingManager::LAYER_TOPLEVEL_WINDOW);
+  }
+
+  const bool stack_transient_directly_above_win =
+      is_fullscreen_ || state_ == STATE_OVERVIEW_MODE;
+  transients_->ApplyStackingForAllWindows(stack_transient_directly_above_win);
+}
+
 void LayoutManager::ToplevelWindow::ConfigureForActiveMode(bool animate) {
   const int layout_x = layout_manager_->x();
   const int layout_y = layout_manager_->y();
@@ -302,7 +330,7 @@ void LayoutManager::ToplevelWindow::ConfigureForActiveMode(bool animate) {
       break;
   }
 
-  transients_->ApplyStackingForAllWindows(false);  // stack in upper layer
+  transients_->ApplyStackingForAllWindows(is_fullscreen_);
 
   // Now set in motion the animations by targeting their destination.
   switch (state_) {
@@ -418,7 +446,7 @@ bool LayoutManager::ToplevelWindow::IsWindowOrTransientFocused() const {
 
 void LayoutManager::ToplevelWindow::HandleTransientWindowMap(
     Window* transient_win, bool in_overview_mode) {
-  bool stack_directly_above_toplevel = in_overview_mode;
+  const bool stack_directly_above_toplevel = in_overview_mode || is_fullscreen_;
   transients_->AddWindow(transient_win, stack_directly_above_toplevel);
 }
 

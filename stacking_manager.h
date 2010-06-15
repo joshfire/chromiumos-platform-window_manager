@@ -40,8 +40,9 @@ class StackingManager {
     // Hotkey overlay images.
     LAYER_HOTKEY_OVERLAY,
 
-    // A fullscreen panel content window.
-    LAYER_FULLSCREEN_PANEL,
+    // A fullscreen window (maybe a regular Chrome window; maybe a panel
+    // content window).
+    LAYER_FULLSCREEN_WINDOW,
 
     // A panel as it's being dragged.  This is a separate layer so that the
     // panel's shadow will be cast over stationary panels.

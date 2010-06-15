@@ -536,7 +536,7 @@ TEST_F(WindowManagerTest, StackOverrideRedirectWindowsAboveLayers) {
   // normal window.
   XWindow fullscreen_layer_xid =
       wm_->stacking_manager()->layer_to_xid_[
-          StackingManager::LAYER_FULLSCREEN_PANEL];
+          StackingManager::LAYER_FULLSCREEN_WINDOW];
   xconn_->StackWindow(xid, fullscreen_layer_xid, true);
   xconn_->InitConfigureNotifyEvent(&event, xid);
   event.xconfigure.above = fullscreen_layer_xid;

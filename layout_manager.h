@@ -17,6 +17,7 @@
 #include "cros/chromeos_wm_ipc_enums.h"
 #include "window_manager/compositor.h"
 #include "window_manager/event_consumer.h"
+#include "window_manager/focus_manager.h"
 #include "window_manager/key_bindings.h"
 #include "window_manager/panel_manager.h"
 #include "window_manager/window.h"
@@ -42,6 +43,7 @@ template<class T> class Stacker;  // from util.h
 // displayed across the bottom of the screen.
 //
 class LayoutManager : public EventConsumer,
+                      public FocusChangeListener,
                       public PanelManagerAreaChangeListener {
  public:
   LayoutManager(WindowManager* wm, PanelManager* panel_manager);
@@ -99,6 +101,10 @@ class LayoutManager : public EventConsumer,
                                    const long data[5]);
   virtual void HandleWindowPropertyChange(XWindow xid, XAtom xatom);
   // End EventConsumer implementation.
+
+  // Begin FocusChangeListener implementation.
+  virtual void HandleFocusChange();
+  // End FocusChangeListener implementation.
 
   // Begin PanelManagerAreaChangeListener implementation.
   virtual void HandlePanelManagerAreaChange();
@@ -360,6 +366,16 @@ class LayoutManager : public EventConsumer,
   // |toplevel| in the list, but not including |toplevel|'s tabs.
   int GetPreceedingTabCount(const ToplevelWindow& toplevel) const;
 
+  // Make 'toplevel' be fullscreen (this currently just means that it'll be
+  // stacked above other windows, panels, etc.).  If another toplevel is
+  // fullscreen already it will be restored first, and 'toplevel' will be
+  // made current if it isn't already.
+  void MakeToplevelFullscreen(ToplevelWindow* toplevel);
+
+  // Make 'toplevel', which should already be fullscreen, just be a regular
+  // non-fullscreen window again.
+  void RestoreFullscreenToplevel(ToplevelWindow* toplevel);
+
   WindowManager* wm_;            // not owned
   PanelManager* panel_manager_;  // not owned
 
@@ -404,6 +420,10 @@ class LayoutManager : public EventConsumer,
   // mode, this one is displayed highlighted.  Unless there are no
   // snapshot windows, this should never be NULL.
   SnapshotWindow* current_snapshot_;
+
+  // Fullscreen toplevel window, or NULL if no toplevel window is currently
+  // fullscreen.
+  ToplevelWindow* fullscreen_toplevel_;
 
   // Amount that snapshot windows' positions should be offset to the left
   // for overview mode.  Used to implement panning.

@@ -77,6 +77,7 @@ LayoutManager::LayoutManager(WindowManager* wm, PanelManager* panel_manager)
       panel_manager_right_width_(0),
       current_toplevel_(NULL),
       current_snapshot_(NULL),
+      fullscreen_toplevel_(NULL),
       overview_panning_offset_(0),
       overview_background_offset_(0),
       overview_width_of_snapshots_(0),
@@ -92,6 +93,7 @@ LayoutManager::LayoutManager(WindowManager* wm, PanelManager* panel_manager)
       active_mode_key_bindings_group_(new KeyBindingsGroup(wm->key_bindings())),
       overview_mode_key_bindings_group_(
           new KeyBindingsGroup(wm->key_bindings())) {
+  wm_->focus_manager()->RegisterFocusChangeListener(this);
   panel_manager_->RegisterAreaChangeListener(this);
   panel_manager_->GetArea(&panel_manager_left_width_,
                           &panel_manager_right_width_);
@@ -258,6 +260,7 @@ LayoutManager::LayoutManager(WindowManager* wm, PanelManager* panel_manager)
 }
 
 LayoutManager::~LayoutManager() {
+  wm_->focus_manager()->UnregisterFocusChangeListener(this);
   panel_manager_->UnregisterAreaChangeListener(this);
   wm_->xconn()->RemoveButtonGrabOnWindow(wm_->background_xid(), 1);
 
@@ -280,6 +283,10 @@ LayoutManager::~LayoutManager() {
 
   toplevels_.clear();
   snapshots_.clear();
+
+  current_toplevel_ = NULL;
+  current_snapshot_ = NULL;
+  fullscreen_toplevel_ = NULL;
 }
 
 bool LayoutManager::IsInputWindow(XWindow xid) {
@@ -410,13 +417,13 @@ void LayoutManager::HandleWindowMap(Window* win) {
 
         if (mode_ == MODE_ACTIVE &&
             current_toplevel_ != NULL &&
-            current_toplevel_->IsWindowOrTransientFocused())
+            current_toplevel_->IsWindowOrTransientFocused()) {
           current_toplevel_->TakeFocus(wm_->GetCurrentTimeFromServer());
+        }
         break;
       }
 
-      shared_ptr<ToplevelWindow> toplevel(
-          new ToplevelWindow(win, this));
+      shared_ptr<ToplevelWindow> toplevel(new ToplevelWindow(win, this));
 
       switch (mode_) {
         case MODE_ACTIVE:
@@ -605,10 +612,27 @@ void LayoutManager::HandleClientMessage(XWindow xid,
     return;
 
   if (message_type == wm_->GetXAtom(ATOM_NET_WM_STATE)) {
-    // Just blindly apply whatever state properties the window asked for.
     map<XAtom, bool> states;
     win->ParseWmStateMessage(data, &states);
-    win->ChangeWmState(states);
+    map<XAtom, bool>::const_iterator it =
+        states.find(wm_->GetXAtom(ATOM_NET_WM_STATE_FULLSCREEN));
+    if (it != states.end()) {
+      ToplevelWindow* toplevel = GetToplevelWindowByWindow(*win);
+      if (toplevel) {
+        if (it->second)
+          MakeToplevelFullscreen(toplevel);
+        else
+          RestoreFullscreenToplevel(toplevel);
+      }
+    }
+    it = states.find(wm_->GetXAtom(ATOM_NET_WM_STATE_MODAL));
+    if (it != states.end()) {
+      if (GetToplevelWindowOwningTransientWindow(*win)) {
+        map<XAtom, bool> new_state;
+        new_state[it->first] = it->second;
+        win->ChangeWmState(new_state);
+      }
+    }
   } else if (message_type == wm_->GetXAtom(ATOM_NET_ACTIVE_WINDOW)) {
     DLOG(INFO) << "Got _NET_ACTIVE_WINDOW request to focus " << XidStr(xid)
                << " (requestor says its currently-active window is "
@@ -676,6 +700,13 @@ void LayoutManager::HandleWindowPropertyChange(XWindow xid, XAtom xatom) {
     UpdateCurrentSnapshot();
     if (mode_ == MODE_OVERVIEW)
       LayoutWindows(true);
+  }
+}
+
+void LayoutManager::HandleFocusChange() {
+  if (fullscreen_toplevel_ &&
+      !fullscreen_toplevel_->IsWindowOrTransientFocused()) {
+    RestoreFullscreenToplevel(fullscreen_toplevel_);
   }
 }
 
@@ -1356,6 +1387,32 @@ void LayoutManager::UpdateOverviewPanningForMotion() {
   LayoutWindows(false);  // animate = false
 }
 
+void LayoutManager::EnableKeyBindingsForMode(Mode mode) {
+  switch (mode) {
+    case MODE_ACTIVE:
+      active_mode_key_bindings_group_->Enable();
+      break;
+    case MODE_OVERVIEW:
+      overview_mode_key_bindings_group_->Enable();
+      break;
+    default:
+      NOTREACHED() << "Unhandled mode " << mode;
+  }
+}
+
+void LayoutManager::DisableKeyBindingsForMode(Mode mode) {
+  switch (mode) {
+    case MODE_ACTIVE:
+      active_mode_key_bindings_group_->Disable();
+      break;
+    case MODE_OVERVIEW:
+      overview_mode_key_bindings_group_->Disable();
+      break;
+    default:
+      NOTREACHED() << "Unhandled mode " << mode;
+  }
+}
+
 void LayoutManager::UpdateCurrentSnapshot() {
   if (snapshots_.empty()) {
     current_snapshot_ = NULL;
@@ -1455,6 +1512,8 @@ void LayoutManager::RemoveToplevel(ToplevelWindow* toplevel) {
 
   if (current_toplevel_ == toplevel)
     current_toplevel_ = NULL;
+  if (fullscreen_toplevel_ == toplevel)
+    fullscreen_toplevel_ = NULL;
 
   // Find any transient windows associated with this toplevel window
   // and remove them.
@@ -1543,30 +1602,37 @@ int LayoutManager::GetPreceedingTabCount(const ToplevelWindow& toplevel) const {
   return count;
 }
 
-void LayoutManager::EnableKeyBindingsForMode(Mode mode) {
-  switch (mode) {
-    case MODE_ACTIVE:
-      active_mode_key_bindings_group_->Enable();
-      break;
-    case MODE_OVERVIEW:
-      overview_mode_key_bindings_group_->Enable();
-      break;
-    default:
-      NOTREACHED() << "Unhandled mode " << mode;
+void LayoutManager::MakeToplevelFullscreen(ToplevelWindow* toplevel) {
+  DCHECK(toplevel);
+  if (toplevel->is_fullscreen()) {
+    LOG(WARNING) << "Ignoring request to fullscreen already-fullscreen "
+                 << "toplevel window " << toplevel->win()->xid_str();
+    return;
   }
+
+  if (fullscreen_toplevel_)
+    RestoreFullscreenToplevel(fullscreen_toplevel_);
+
+  if (toplevel != current_toplevel_) {
+    SetCurrentToplevel(toplevel);
+    LayoutWindows(true);
+  }
+  if (!toplevel->IsWindowOrTransientFocused())
+    toplevel->TakeFocus(wm_->GetCurrentTimeFromServer());
+  toplevel->SetFullscreenState(true);
+  fullscreen_toplevel_ = toplevel;
 }
 
-void LayoutManager::DisableKeyBindingsForMode(Mode mode) {
-  switch (mode) {
-    case MODE_ACTIVE:
-      active_mode_key_bindings_group_->Disable();
-      break;
-    case MODE_OVERVIEW:
-      overview_mode_key_bindings_group_->Disable();
-      break;
-    default:
-      NOTREACHED() << "Unhandled mode " << mode;
+void LayoutManager::RestoreFullscreenToplevel(ToplevelWindow* toplevel) {
+  DCHECK(toplevel);
+  if (!toplevel->is_fullscreen()) {
+    LOG(WARNING) << "Ignoring request to restore non-fullscreen "
+                 << "toplevel window " << toplevel->win()->xid_str();
+    return;
   }
+  toplevel->SetFullscreenState(false);
+  if (fullscreen_toplevel_ == toplevel)
+    fullscreen_toplevel_ = NULL;
 }
 
 }  // namespace window_manager
