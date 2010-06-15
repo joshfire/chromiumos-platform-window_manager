@@ -122,7 +122,7 @@ class LayoutManager : public EventConsumer,
   FRIEND_TEST(LayoutManagerTest, StackTransientsAbovePanels);
   FRIEND_TEST(LayoutManagerTest, NoDimmingInActiveMode);
   FRIEND_TEST(LayoutManagerTest, AvoidMovingCurrentWindow);
-  FRIEND_TEST(LayoutManagerTest, OverviewScrolling);
+  FRIEND_TEST(LayoutManagerTest, OverviewSpacing);
   FRIEND_TEST(LayoutManagerTest, NestedTransients);
   FRIEND_TEST(LayoutManagerTest, KeyBindings);
 
@@ -159,6 +159,18 @@ class LayoutManager : public EventConsumer,
     MODE_ACTIVE_CANCELLED,
   };
 
+  // What fraction of the manager's total width should be placed between
+  // groups of snapshots in overview mode?
+  static const double kOverviewGroupSpacing;
+
+  // How many pixels should be used for padding the snapshot on the
+  // right side when it is selected.
+  static const double kOverviewSelectedPadding;
+
+  // What's the maximum fraction of the manager's total size that a window
+  // should be scaled to in overview mode?
+  static const double kOverviewWindowMaxSizeRatio;
+
   // What fraction of the manager's total width should be visible on the
   // sides when the snapshots are panned all the way to one end or the
   // other?
@@ -176,9 +188,9 @@ class LayoutManager : public EventConsumer,
   // Animation speed used for windows.
   static const int kWindowAnimMs;
 
-  // This is the scale of a selected snapshot window, relative to an
-  // unselected snapshot.
-  static const double kOverviewSelectedScale;
+  // This is the scale of an unselected snapshot window, relative to
+  // a selected snapshot.
+  static const double kOverviewNotSelectedScale;
 
   // This is the speed that opacity should be animated for some
   // contexts.
@@ -262,6 +274,12 @@ class LayoutManager : public EventConsumer,
   // that position.
   SnapshotWindow* GetSnapshotAfter(SnapshotWindow* window);
   SnapshotWindow* GetSnapshotBefore(SnapshotWindow* window);
+
+  // This gets the snapshot window that corresponds to the selected
+  // tab in the given toplevel window.  Returns NULL if there is no
+  // selected tab, or if the selected tab doesn't have a corresponding
+  // snapshot window.
+  SnapshotWindow* GetSelectedSnapshotFromToplevel(const ToplevelWindow& window);
 
   // Get the XID of the input window created for a window.
   XWindow GetInputXidForWindow(const Window& win);

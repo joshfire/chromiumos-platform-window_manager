@@ -20,6 +20,7 @@
 #include "window_manager/event_consumer_registrar.h"
 #include "window_manager/focus_manager.h"
 #include "window_manager/motion_event_coalescer.h"
+#include "window_manager/snapshot_window.h"
 #include "window_manager/stacking_manager.h"
 #include "window_manager/transient_window_collection.h"
 #include "window_manager/util.h"
@@ -50,7 +51,7 @@ namespace window_manager {
 
 // When animating a window zooming out while switching windows, what size
 // should it scale to?
-static const double kWindowFadeSizeFraction = 0.5;
+static const double kWindowFadeSizeFraction = 0.7;
 
 LayoutManager::ToplevelWindow::ToplevelWindow(Window* win,
                                               LayoutManager* layout_manager)
@@ -223,6 +224,7 @@ void LayoutManager::ToplevelWindow::ConfigureForActiveMode(bool animate) {
       *(layout_manager_->current_toplevel()));
   const bool to_left_of_active = this_index < current_index;
   const int anim_ms = animate ? LayoutManager::kWindowAnimMs : 0;
+  const int opacity_anim_ms = animate ? LayoutManager::kWindowOpacityAnimMs : 0;
   const int animation_time =
       (last_state_ == STATE_ACTIVE_MODE_ONSCREEN) ? anim_ms : 0;
 
@@ -265,13 +267,34 @@ void LayoutManager::ToplevelWindow::ConfigureForActiveMode(bool animate) {
       break;
     }
     case STATE_ACTIVE_MODE_IN_FADE: {
-      // These start off invisible, and fade in, scaling up from
-      // something smaller than full size.
-      float center_scale = 0.5 * kWindowFadeSizeFraction;
-      win_->SetCompositedOpacity(0, 0);
-      win_->ScaleComposited(0.5, 0.5, 0);
-      win_->MoveComposited(layout_x + center_scale * win_->client_width(),
-                           layout_y + center_scale * win_->client_height(), 0);
+      win_->SetCompositedOpacity(0.0, 0);
+      SnapshotWindow* selected_snapshot =
+          layout_manager_->GetSelectedSnapshotFromToplevel(*this);
+      if (selected_snapshot) {
+        // Since we have a current snapshot, we start off with the
+        // location and dimensions of that snapshot.
+        const int snapshot_x = selected_snapshot->overview_x() +
+                               layout_manager_->overview_panning_offset();
+        const int snapshot_y = selected_snapshot->overview_y();
+        const int snapshot_width = selected_snapshot->overview_width();
+        const int snapshot_height = selected_snapshot->overview_height();
+        win_->MoveComposited(snapshot_x, snapshot_y, 0);
+        win_->ScaleComposited(static_cast<float>(snapshot_width) /
+                              win_->client_width(),
+                              static_cast<float>(snapshot_height) /
+                              win_->client_height(), 0);
+      } else {
+        // These start off invisible, and fade in, scaling up from
+        // something smaller than full size.
+        win_->ScaleComposited(kWindowFadeSizeFraction,
+                              kWindowFadeSizeFraction, 0);
+        win_->MoveComposited(
+            layout_x + (layout_width -
+                        (kWindowFadeSizeFraction * win_->client_width())) / 2,
+            layout_y + (layout_height -
+                        (kWindowFadeSizeFraction * win_->client_height())) / 2,
+            0);
+      }
       break;
     }
     case STATE_OVERVIEW_MODE:
@@ -294,11 +317,14 @@ void LayoutManager::ToplevelWindow::ConfigureForActiveMode(bool animate) {
       break;
     }
     case STATE_ACTIVE_MODE_OUT_FADE: {
-      float center_scale = 0.5 * kWindowFadeSizeFraction;
-      win_->SetCompositedOpacity(0.f, anim_ms);
-      win_->MoveComposited(layout_x + center_scale * win_->client_width(),
-                           layout_y + center_scale * win_->client_height(),
-                           anim_ms);
+      win_->SetCompositedOpacity(0.f, opacity_anim_ms);
+      win_->MoveComposited(
+          layout_x +
+          (layout_width - (kWindowFadeSizeFraction * win_->client_width())) /
+          (2 * kWindowFadeSizeFraction),
+          layout_y +
+          (layout_height - (kWindowFadeSizeFraction * win_->client_height())) /
+          (2 * kWindowFadeSizeFraction), anim_ms);
       win_->ScaleComposited(
           kWindowFadeSizeFraction, kWindowFadeSizeFraction, anim_ms);
       SetState(STATE_ACTIVE_MODE_OFFSCREEN);
@@ -318,7 +344,7 @@ void LayoutManager::ToplevelWindow::ConfigureForActiveMode(bool animate) {
     case STATE_ACTIVE_MODE_ONSCREEN:
     case STATE_NEW:  {
       win_->MoveComposited(win_x, win_y, anim_ms);
-      win_->SetCompositedOpacity(1.f, anim_ms / 4);
+      win_->SetCompositedOpacity(1.f, opacity_anim_ms);
       win_->ScaleComposited(1.f, 1.f, anim_ms);
       SetState(STATE_ACTIVE_MODE_ONSCREEN);
       break;
@@ -342,16 +368,33 @@ void LayoutManager::ToplevelWindow::ConfigureForActiveMode(bool animate) {
 
 void LayoutManager::ToplevelWindow::ConfigureForOverviewMode(bool animate) {
   const int anim_ms = animate ? LayoutManager::kWindowAnimMs : 0;
+  const int opacity_anim_ms = animate ? LayoutManager::kWindowOpacityAnimMs : 0;
   // If this is the current toplevel window, we fade it out while
   // scaling it down.
   if (layout_manager_->current_toplevel() == this) {
-    float center_scale = 0.5 * kWindowFadeSizeFraction;
-    win_->ScaleComposited(kWindowFadeSizeFraction, kWindowFadeSizeFraction,
-                          anim_ms);
-    win_->MoveComposited(center_scale * win_->client_width(),
-                         center_scale * win_->client_height(),
-                         anim_ms);
-    win_->SetCompositedOpacity(0.0, anim_ms / 4);
+    SnapshotWindow* selected_snapshot =
+        layout_manager_->GetSelectedSnapshotFromToplevel(*this);
+    if (selected_snapshot) {
+      const int snapshot_x = selected_snapshot->overview_x() +
+                   layout_manager_->overview_panning_offset();
+      const int snapshot_y = selected_snapshot->overview_y();
+      const int snapshot_width = selected_snapshot->overview_width();
+      const int snapshot_height = selected_snapshot->overview_height();
+
+      win_->MoveComposited(snapshot_x, snapshot_y, anim_ms);
+      win_->ScaleComposited(static_cast<float>(snapshot_width) /
+                            win_->client_width(),
+                            static_cast<float>(snapshot_height) /
+                            win_->client_height(), anim_ms);
+    } else {
+      float center_scale = 0.5 * kWindowFadeSizeFraction;
+      win_->ScaleComposited(kWindowFadeSizeFraction, kWindowFadeSizeFraction,
+                            anim_ms);
+      win_->MoveComposited(center_scale * win_->client_width(),
+                           center_scale * win_->client_height(),
+                           anim_ms);
+    }
+    win_->SetCompositedOpacity(0.0, opacity_anim_ms);
   } else {
     win_->SetCompositedOpacity(0.0, 0);
   }

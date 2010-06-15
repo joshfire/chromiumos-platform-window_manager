@@ -44,47 +44,26 @@ using window_manager::util::XidStr;
 
 namespace window_manager {
 
-// What's the maximum fraction of the manager's total size that a window
-// should be scaled to in overview mode?
-static const double kOverviewWindowMaxSizeRatio = 0.5;
-
-// How many pixels should be used for padding the snapshot on the
-// right side when it is selected.
-static const double kOverviewSelectedPadding = 4.0;
-
-// What fraction of the manager's total width should be placed between
-// groups of snapshots in overview mode?
-static const double kOverviewGroupSpacing = 0.06;
-
 // Duration between panning updates while a drag is occurring on the
 // background window in overview mode.
 static const int kOverviewDragUpdateMs = 50;
 
-// What fraction of the snapshot window's total height should be used
+// What fraction of the layout manager's total height should be used
 // for the height of the separator.
-static const double kSeparatorHeightRatio = 0.9;
+static const double kSeparatorHeightRatio = 0.8;
 
 // The width of the separator in pixels.
 static const int kSeparatorWidth = 2;
 
-// What fraction of the manager's total width should be visible on the
-// sides when the snapshots are panned all the way to one end or the
-// other.
+const double LayoutManager::kOverviewGroupSpacing = 0.03;
+const double LayoutManager::kOverviewSelectedPadding = 4.0;
+const double LayoutManager::kOverviewWindowMaxSizeRatio = 0.7;
 const double LayoutManager::kSideMarginRatio = 0.4;
-
-// What fraction of the manager's total width should each window use for
-// peeking out underneath the window on top of it in overview mode?
-const double LayoutManager::kOverviewExposedWindowRatio = 0.04;
-
-// Animation speed used for windows.
-const int LayoutManager::kWindowAnimMs = 250;
-
-// How much should we scale a snapshot window if it is selected?
-const double LayoutManager::kOverviewSelectedScale = 1.1;
-
-// Animation speed used for opacity of windows.
+const double LayoutManager::kOverviewExposedWindowRatio = 0.06;
+const int LayoutManager::kWindowAnimMs = 200;
+const double LayoutManager::kOverviewNotSelectedScale = 0.9;
 const int LayoutManager::kWindowOpacityAnimMs =
-    LayoutManager::kWindowAnimMs / 4;
+    LayoutManager::kWindowAnimMs / 2;
 
 LayoutManager::LayoutManager(WindowManager* wm, PanelManager* panel_manager)
     : wm_(wm),
@@ -146,8 +125,6 @@ LayoutManager::LayoutManager(WindowManager* wm, PanelManager* panel_manager)
       NULL, NULL);
   overview_mode_key_bindings_group_->AddBinding(
       KeyBindings::KeyCombo(XK_Escape, 0), "switch-to-active-mode");
-  overview_mode_key_bindings_group_->AddBinding(
-      KeyBindings::KeyCombo(XK_F12, 0), "switch-to-active-mode");
 
   kb->AddAction(
       "cycle-active-forward",
@@ -210,6 +187,8 @@ LayoutManager::LayoutManager(WindowManager* wm, PanelManager* panel_manager)
   overview_mode_key_bindings_group_->AddBinding(
       KeyBindings::KeyCombo(XK_Return, 0),
       "switch-to-active-mode-for-selected");
+  overview_mode_key_bindings_group_->AddBinding(
+      KeyBindings::KeyCombo(XK_F12, 0), "switch-to-active-mode-for-selected");
 
   for (int i = 0; i < 8; ++i) {
     kb->AddAction(
@@ -378,11 +357,6 @@ void LayoutManager::HandleWindowMap(Window* win) {
       shared_ptr<SnapshotWindow> snapshot(new SnapshotWindow(win, this));
       input_to_snapshot_[snapshot->input_xid()] = snapshot.get();
       snapshots_.push_back(snapshot);
-      SortSnapshots();
-      DLOG(INFO) << "Adding snapshot " << win->xid_str()
-                 << " at tab index " << snapshot->tab_index()
-                 << " (total of " << snapshots_.size() << ")";
-      UpdateCurrentSnapshot();
       if (mode_ == MODE_OVERVIEW) {
         if (snapshot.get() == current_snapshot_) {
           snapshot->SetState(SnapshotWindow::STATE_OVERVIEW_MODE_SELECTED);
@@ -392,6 +366,11 @@ void LayoutManager::HandleWindowMap(Window* win) {
       } else {
         snapshot->SetState(SnapshotWindow::STATE_ACTIVE_MODE_INVISIBLE);
       }
+      SortSnapshots();
+      DLOG(INFO) << "Adding snapshot " << win->xid_str()
+                 << " at tab index " << snapshot->tab_index()
+                 << " (total of " << snapshots_.size() << ")";
+      UpdateCurrentSnapshot();
       break;
     }
     case chromeos::WM_IPC_WINDOW_CHROME_TOPLEVEL:
@@ -824,7 +803,7 @@ void LayoutManager::SetMode(Mode mode) {
 
   switch (mode_) {
     case MODE_ACTIVE:
-      // Cancelling actually happens on the chrome side, since it
+      // Cancelling actually happens on the Chrome side, since it
       // knows what tabs used to be selected.  It knows to cancel
       // because it's a different layout mode.
       if (current_toplevel_)
@@ -975,6 +954,16 @@ LayoutManager::SnapshotWindow* LayoutManager::GetSnapshotBefore(
   return NULL;
 }
 
+LayoutManager::SnapshotWindow* LayoutManager::GetSelectedSnapshotFromToplevel(
+    const ToplevelWindow& toplevel) {
+  if (toplevel.selected_tab() >= 0) {
+    int index = GetPreceedingTabCount(toplevel) + toplevel.selected_tab();
+    if (index >= 0 && index < static_cast<int>(snapshots_.size()))
+      return snapshots_[index].get();
+  }
+  return NULL;
+}
+
 XWindow LayoutManager::GetInputXidForWindow(const Window& win) {
   SnapshotWindow* snapshot = GetSnapshotWindowByWindow(win);
   return snapshot ? snapshot->input_xid() : None;
@@ -1107,26 +1096,23 @@ void LayoutManager::CalculatePositionsForOverviewMode() {
   if (toplevels_.empty() || snapshots_.empty() || mode_ != MODE_OVERVIEW)
     return;
 
-  const int width_limit = kOverviewWindowMaxSizeRatio * width_;
-  const int height_limit = kOverviewWindowMaxSizeRatio * height_;
   ToplevelWindow* last_toplevel = snapshots_[0]->toplevel();
   int running_width = 0;
   int selected_index = 0;
   int selected_offset = 0;
+  const int snapshot_width = snapshots_[0]->win()->client_width();
+  const int snapshot_height = snapshots_[0]->win()->client_height();
   for (int i = 0; static_cast<size_t>(i) < snapshots_.size(); ++i) {
     SnapshotWindow* snapshot = snapshots_[i].get();
     bool is_selected = (snapshot == current_snapshot_);
-
-    if (snapshot->toplevel() != last_toplevel)
-      running_width += width_ * kOverviewGroupSpacing + 0.5f;
 
     if (is_selected) {
       selected_index = i;
       selected_offset = running_width;
     }
 
-    double scale = is_selected ? kOverviewSelectedScale : 1.0;
-    snapshot->SetSize(width_limit * scale, height_limit * scale);
+    double scale = is_selected ? 1.0 : kOverviewNotSelectedScale;
+    snapshot->SetSize(snapshot_width * scale, snapshot_height * scale);
     snapshot->SetPosition(running_width,
                           (height_ - snapshot->overview_height()) / 2);
 
@@ -1155,27 +1141,45 @@ void LayoutManager::CalculatePositionsForOverviewMode() {
                                 snapshots_[i - 1]->overview_tilted_width();
         Separator* separator = separators_[separator_index].get();
         separator->SetX((running_width + previous_position) / 2);
-        int new_height = kSeparatorHeightRatio *
-                         min(snapshots_[i-1]->overview_height(),
-                             snapshot->overview_height());
+        int new_height = kSeparatorHeightRatio * height_;
         separator->Resize(kSeparatorWidth, new_height, 0);
         separator->SetY((height_ - new_height) / 2);
       }
     }
 
-    running_width += is_selected ?
-                     snapshot->overview_width() + kOverviewSelectedPadding  :
-                     (kOverviewExposedWindowRatio * width_limit /
-                      kOverviewWindowMaxSizeRatio);
+    if (static_cast<size_t>(i + 1) < snapshots_.size()) {
+      if (is_selected) {
+        running_width += snapshot->overview_width() + kOverviewSelectedPadding;
+        if (snapshots_[i + 1]->toplevel() != snapshot->toplevel())
+          running_width += width_ * kOverviewGroupSpacing + 0.5f;
+      } else {
+        // If the next snapshot is in a different toplevel, then we
+        // want to add the whole width of the window and some space.
+        if (snapshots_[i + 1]->toplevel() != snapshot->toplevel()) {
+          running_width += snapshot->overview_tilted_width() +
+                           width_ * kOverviewGroupSpacing + 0.5f;
+        } else {
+          running_width += (kOverviewExposedWindowRatio * snapshot_width /
+                            kOverviewWindowMaxSizeRatio);
+        }
+      }
+    } else {
+      // Still need to add this on the last one to get the
+      // overview_width_of_snapshots_ correct.
+      running_width += is_selected ?
+                       snapshot->overview_width() + kOverviewSelectedPadding :
+                       (kOverviewExposedWindowRatio * snapshot_width /
+                        kOverviewWindowMaxSizeRatio);
+    }
     last_toplevel = snapshot->toplevel();
   }
 
   // Calculate the overall size of all the snapshots.
   if (snapshots_.back().get() != current_snapshot_) {
-    overview_width_of_snapshots_ = running_width -
-                                   (kOverviewExposedWindowRatio * width_limit /
-                                    kOverviewWindowMaxSizeRatio) +
-                                   snapshots_.back()->overview_tilted_width();
+    overview_width_of_snapshots_ =
+        running_width - (kOverviewExposedWindowRatio *
+                         snapshot_width / kOverviewWindowMaxSizeRatio) +
+        snapshots_.back()->overview_tilted_width() + 0.5;
   } else {
     overview_width_of_snapshots_ = running_width - kOverviewSelectedPadding;
   }
@@ -1239,8 +1243,12 @@ void LayoutManager::CycleCurrentSnapshotWindow(bool forward) {
     UpdateCurrentSnapshot();
   } else {
     int old_index = GetIndexForSnapshotWindow(*current_snapshot_);
-    int new_index = (snapshots_.size() + old_index + (forward ? 1 : -1))
-                    % snapshots_.size();
+    int new_index = old_index + (forward ? 1 : -1);
+
+    // This clamps the snapshot index to the ends.
+    new_index = min(new_index, static_cast<int>(snapshots_.size()) - 1);
+    new_index = max(new_index, 0);
+
     XTime event_time = wm_->key_bindings()->current_event_time();
     // If this is the result of a key press, then we want to
     // use the event time from that key press.
@@ -1269,6 +1277,7 @@ void LayoutManager::SetCurrentSnapshotWithClick(SnapshotWindow* snapshot,
   if (current_snapshot_ != snapshot) {
     if (mode_ != MODE_OVERVIEW) {
       current_snapshot_ = snapshot;
+      current_snapshot_->SetState(SnapshotWindow::STATE_ACTIVE_MODE_INVISIBLE);
       return;
     }
 
@@ -1281,11 +1290,7 @@ void LayoutManager::SetCurrentSnapshotWithClick(SnapshotWindow* snapshot,
                << current_snapshot_->win()->xid_str();
 
     // Tell the snapshot that it's been selected.
-    if (current_snapshot_->state() !=
-        SnapshotWindow::STATE_OVERVIEW_MODE_SELECTED) {
-      current_snapshot_->SetState(
-          SnapshotWindow::STATE_OVERVIEW_MODE_SELECTED);
-    }
+    current_snapshot_->SetState(SnapshotWindow::STATE_OVERVIEW_MODE_SELECTED);
 
     // Since we switched snapshots, we may have switched current
     // toplevel windows.

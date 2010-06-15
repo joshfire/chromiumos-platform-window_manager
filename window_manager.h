@@ -202,7 +202,7 @@ class WindowManager : public PanelManagerAreaChangeListener {
   friend class PanelDockTest;             // uses 'panel_manager_'
   friend class PanelManagerTest;          // uses 'panel_manager_'
   FRIEND_TEST(LayoutManagerTest, Basic);  // uses TrackWindow()
-  FRIEND_TEST(LayoutManagerTest, OverviewScrolling);
+  FRIEND_TEST(LayoutManagerTest, OverviewSpacing);
   FRIEND_TEST(LayoutManagerTest, InitialWindowStacking);
   FRIEND_TEST(LayoutManagerTest, KeyBindings);
   FRIEND_TEST(WindowTest, TransientFor);  // uses TrackWindow()

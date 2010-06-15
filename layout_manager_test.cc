@@ -821,7 +821,7 @@ TEST_F(LayoutManagerTest, OverviewFocus) {
   EXPECT_FALSE(toplevel_info->button_is_grabbed(AnyButton));
 }
 
-TEST_F(LayoutManagerTest, OverviewScrolling) {
+TEST_F(LayoutManagerTest, OverviewSpacing) {
   const int window_width = 640;
   const int window_height = 480;
 
@@ -837,15 +837,24 @@ TEST_F(LayoutManagerTest, OverviewScrolling) {
                                               window_width, window_height);
   SendInitialEventsForWindow(toplevel_xid);
 
-  // Create an associated snapshot window.
+  // Create and map a second toplevel window.
+  XWindow toplevel_xid2 = CreateToplevelWindow(1, 0, 0, 0,
+                                               window_width, window_height);
+  SendInitialEventsForWindow(toplevel_xid2);
+
+  // Create an associated snapshot window with some "realistic"
+  // values.  (The numbers here don't represent the values that Chrome
+  // is using to make the snapshots, they're just reasonable values.)
+  const int snapshot_height = MockXConnection::kDisplayHeight / 2;
+  const int snapshot_width = snapshot_height * 1024 / 1280;
   XWindow xid = CreateSnapshotWindow(toplevel_xid, 0, 0, 0,
-                                     window_width / 2, window_height / 2);
+                                     snapshot_width, snapshot_height);
   SendInitialEventsForWindow(xid);
 
   // This is the vertical offset to center the background.
   int centering_offset = -(MockXConnection::kDisplayHeight *
                            WindowManager::kBackgroundExpansionFactor -
-                           MockXConnection::kDisplayHeight)/2;
+                           MockXConnection::kDisplayHeight) / 2;
 
   // The background should not be scrolled horizontally yet.
   EXPECT_EQ(0, background->GetX());
@@ -856,10 +865,23 @@ TEST_F(LayoutManagerTest, OverviewScrolling) {
 
   // Now create and map a second snapshot window.
   XWindow xid2 = CreateSnapshotWindow(toplevel_xid, 1, 0, 0,
-                                      window_width / 2, window_height / 2);
+                                      snapshot_width, snapshot_height);
   SendInitialEventsForWindow(xid2);
   ChangeTabInfo(toplevel_xid, 2, 1, wm_->GetCurrentTimeFromServer());
   SendWindowTypeEvent(toplevel_xid);
+
+  // Now create and map a third snapshot window, with the second
+  // toplevel as its parent.
+  XWindow xid3 = CreateSnapshotWindow(toplevel_xid2, 0, 0, 0,
+                                      snapshot_width, snapshot_height);
+  SendInitialEventsForWindow(xid3);
+  ChangeTabInfo(toplevel_xid2, 1, 0, wm_->GetCurrentTimeFromServer());
+  SendWindowTypeEvent(toplevel_xid2);
+
+  EXPECT_EQ(-(lm_->current_snapshot_->overview_x() +
+              (lm_->current_snapshot_->overview_width() -
+               lm_->width_) / 2),
+            lm_->overview_panning_offset_);
 
   XEvent event;
   XWindow input_xid = lm_->GetInputXidForWindow(*(wm_->GetWindowOrDie(xid2)));
@@ -868,28 +890,31 @@ TEST_F(LayoutManagerTest, OverviewScrolling) {
   xconn_->InitButtonReleaseEvent(&event, input_xid, 0, 0, 1);
   wm_->HandleEvent(&event);
 
-  EXPECT_EQ(static_cast<int>(MockXConnection::kDisplayWidth *
-                             LayoutManager::kOverviewExposedWindowRatio),
-            lm_->snapshots_.back()->overview_x());
+  int second_snapshot_x = snapshot_width *
+                          LayoutManager::kOverviewExposedWindowRatio /
+                          LayoutManager::kOverviewWindowMaxSizeRatio;
+
+  int third_snapshot_x =
+      second_snapshot_x + snapshot_width +
+      LayoutManager::kOverviewSelectedPadding +
+      lm_->width_ * LayoutManager::kOverviewGroupSpacing + 0.5f;
+
   EXPECT_EQ(0, lm_->snapshots_.front()->overview_x());
-  EXPECT_EQ(static_cast<int>(0.5 + LayoutManager::kOverviewSelectedScale *
-                             MockXConnection::kDisplayWidth / 2.f),
-            lm_->snapshots_.back()->overview_width());
-  EXPECT_EQ(MockXConnection::kDisplayWidth / 2,
+  EXPECT_EQ(second_snapshot_x, lm_->snapshots_[1]->overview_x());
+  EXPECT_EQ(third_snapshot_x, lm_->snapshots_[2]->overview_x());
+  EXPECT_EQ(snapshot_width, lm_->snapshots_[1]->overview_width());
+  EXPECT_EQ(static_cast<int>(snapshot_width *
+                             LayoutManager::kOverviewNotSelectedScale),
             lm_->snapshots_.front()->overview_width());
-  EXPECT_EQ(-(lm_->current_snapshot_->overview_x() +
-              (lm_->current_snapshot_->overview_width() -
-               MockXConnection::kDisplayWidth) / 2),
-            lm_->overview_panning_offset_);
 
   const float kMargin = MockXConnection::kDisplayWidth *
                         LayoutManager::kSideMarginRatio;
   const int overview_width_of_snapshots =
-      MockXConnection::kDisplayWidth *
-      LayoutManager::kOverviewExposedWindowRatio +
+      third_snapshot_x +
       lm_->snapshots_.back()->overview_tilted_width();
+  EXPECT_EQ(overview_width_of_snapshots, lm_->overview_width_of_snapshots_);
   int min_x = kMargin;
-  int max_x = MockXConnection::kDisplayWidth - overview_width_of_snapshots -
+  int max_x = lm_->width_ - overview_width_of_snapshots -
               kMargin;
   int background_overage = wm_->background()->GetWidth() - wm_->width();
   float scroll_percent = static_cast<float>(lm_->overview_panning_offset_ -
