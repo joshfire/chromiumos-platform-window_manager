@@ -387,7 +387,7 @@ template<class T> void RealCompositor::Actor::UpdateInternal(
 RealCompositor::ContainerActor::~ContainerActor() {
   for (ActorVector::iterator iterator = children_.begin();
        iterator != children_.end(); ++iterator) {
-    dynamic_cast<RealCompositor::Actor*>(*iterator)->set_parent(NULL);
+    (*iterator)->set_parent(NULL);
   }
 }
 
@@ -425,7 +425,7 @@ void RealCompositor::ContainerActor::RemoveActor(Compositor::Actor* actor) {
 void RealCompositor::ContainerActor::Update(int* count, AnimationTime now) {
   for (ActorVector::iterator iterator = children_.begin();
        iterator != children_.end(); ++iterator) {
-    dynamic_cast<RealCompositor::Actor*>(*iterator)->Update(count, now);
+    (*iterator)->Update(count, now);
   }
   RealCompositor::Actor::Update(count, now);
 }
