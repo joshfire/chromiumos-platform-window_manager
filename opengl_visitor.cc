@@ -504,10 +504,7 @@ void OpenGlDrawVisitor::VisitQuad(RealCompositor::QuadActor* actor) {
       gl_interface_->Disable(GL_TEXTURE_2D);
     }
   }
-  gl_interface_->PushMatrix();
-  gl_interface_->Translatef(actor->x(), actor->y(), actor->z());
-  gl_interface_->Scalef(actor->width() * actor->scale_x(),
-                        actor->height() * actor->scale_y(), 1.f);
+
 #ifdef EXTRA_LOGGING
   DLOG(INFO) << "  at: (" << actor->x() << ", "  << actor->y()
              << ", " << actor->z() << ") with scale: ("
@@ -516,26 +513,11 @@ void OpenGlDrawVisitor::VisitQuad(RealCompositor::QuadActor* actor) {
              << ") and opacity " << actor_opacity;
 #endif
 
-  if (actor->tilt() > 0.001f) {
-    // Post-multiply a perspective matrix onto the model view matrix,
-    // and a rotation in Y so that all the other model view ops happen
-    // outside of the perspective transform.
-
-    // This matrix is the result of a translate by 0.5 in Y, followed
-    // by a simple perspective transform, followed by a translate in
-    // -0.5 in Y, so that the perspective foreshortening is centered
-    // vertically on the quad.
-    static float tilt_matrix [] = {
-      1.0f, 0.0f, 0.0f, 0.0f,
-      0.0f, 1.0f, 0.0f, 0.0f,
-      0.0f, -0.2f, 0.0f, -0.4f,
-      0.0f, 0.0f, 0.0f, 1.0f
-    };
-    gl_interface_->MultMatrixf(tilt_matrix);
-    gl_interface_->Rotatef(90.0f * actor->tilt(),
-                           0.f, 1.f, 0.f);
-  }
-
+  gl_interface_->PushMatrix();
+  actor->UpdateModelView();
+  // operator[] in Matrix4 returns by value in const version.
+  Matrix4 model_view = actor->model_view();
+  gl_interface_->LoadMatrixf(&model_view[0][0]);
   gl_interface_->DrawArrays(GL_TRIANGLE_STRIP, 0, 4);
   gl_interface_->DisableClientState(GL_COLOR_ARRAY);
   gl_interface_->PopMatrix();
@@ -588,9 +570,10 @@ void OpenGlDrawVisitor::VisitStage(RealCompositor::StageActor* actor) {
 
   gl_interface_->MatrixMode(GL_PROJECTION);
   gl_interface_->LoadIdentity();
-  gl_interface_->Ortho(0, actor->width(), actor->height(), 0,
-                       -RealCompositor::LayerVisitor::kMinDepth,
-                       -RealCompositor::LayerVisitor::kMaxDepth);
+  actor->UpdateProjection();
+  // operator[] in Matrix4 returns by value in const version.
+  Matrix4 projection = actor->projection();
+  gl_interface_->LoadMatrixf(&projection[0][0]);
   gl_interface_->MatrixMode(GL_MODELVIEW);
   gl_interface_->LoadIdentity();
   gl_interface_->Clear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -657,18 +640,10 @@ void OpenGlDrawVisitor::VisitStage(RealCompositor::StageActor* actor) {
 }
 
 void OpenGlDrawVisitor::VisitContainer(RealCompositor::ContainerActor* actor) {
-  if (!actor->IsVisible()) {
+  if (!actor->IsVisible())
     return;
-  }
 
-  if (actor != stage_) {
-    gl_interface_->PushMatrix();
-    // Don't translate by Z because the actors already have their
-    // absolute Z values from the layer calculation.
-    gl_interface_->Translatef(actor->x(), actor->y(), 0.0f);
-    gl_interface_->Scalef(actor->width() * actor->scale_x(),
-                          actor->height() * actor->scale_y(), 1.f);
-  }
+  actor->UpdateModelView();
 
 #ifdef EXTRA_LOGGING
   DLOG(INFO) << "Drawing container " << actor->name() << ".";
@@ -739,10 +714,6 @@ void OpenGlDrawVisitor::VisitContainer(RealCompositor::ContainerActor* actor) {
 
     // Reset ancestor opacity.
     ancestor_opacity_ = original_opacity;
-  }
-
-  if (actor != stage_) {
-    gl_interface_->PopMatrix();
   }
 }
 

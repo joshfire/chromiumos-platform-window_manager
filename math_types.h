@@ -2,8 +2,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifndef WINDOW_MANAGER_GLES_MATH_TYPES_H_
-#define WINDOW_MANAGER_GLES_MATH_TYPES_H_
+#ifndef WINDOW_MANAGER_MATH_TYPES_H_
+#define WINDOW_MANAGER_MATH_TYPES_H_
 
 #include <vectormath/scalar/cpp/vectormath_aos.h>
 
@@ -16,4 +16,4 @@ typedef Vectormath::Aos::Matrix4 Matrix4;
 
 }  // window_manager
 
-#endif  // WINDOW_MANAGER_GLES_MATH_TYPES_H_
+#endif  // WINDOW_MANAGER_MATH_TYPES_H_

@@ -13,7 +13,7 @@
 #include "base/scoped_ptr.h"
 
 #include "window_manager/compositor.h"
-#include "window_manager/gles/math_types.h"
+#include "window_manager/math_types.h"
 #include "window_manager/real_compositor.h"
 
 namespace window_manager {

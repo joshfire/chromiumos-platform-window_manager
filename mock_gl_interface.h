@@ -70,6 +70,7 @@ class MockGLInterface : public GLInterface {
   virtual void GenTextures(GLsizei n, GLuint* textures) {}
   virtual GLenum GetError() { return GL_NO_ERROR; }
   virtual void LoadIdentity() {}
+  virtual void LoadMatrixf(const GLfloat* m) {}
   virtual void MultMatrixf(GLfloat* matrix) {}
   virtual void MatrixMode(GLenum mode) {}
   virtual void Ortho(GLdouble left, GLdouble right, GLdouble bottom,

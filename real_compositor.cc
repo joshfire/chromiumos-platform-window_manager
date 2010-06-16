@@ -46,6 +46,15 @@ using window_manager::util::NextPowerOfTwo;
 
 namespace window_manager {
 
+// Struct used for visibility and culling tests.
+// The X and Y axes are the same as in OpenGL. Where positive X is right, and
+// positive Y is top. Both corners are exclusive, so two bounding boxes do not
+// intersect if their sides overlap.
+struct BoundingBox {
+  float top_left_x, top_left_y;
+  float bottom_right_x, bottom_right_y;
+};
+
 const float kMaxDimmedOpacity = 0.6f;
 
 const float RealCompositor::LayerVisitor::kMinDepth = 0.0f;
@@ -54,6 +63,48 @@ const float RealCompositor::LayerVisitor::kMaxDepth =
 
 // Minimum amount of time in milliseconds between scene redraws.
 static const int64_t kDrawTimeoutMs = 16;
+
+static inline bool IntersectWithScreen(const BoundingBox& a) {
+  // The window has corners top left (-1, 1) and bottom right (1, -1)
+  return !(a.bottom_right_x <= -1.0 || 1.0 <= a.top_left_x ||
+           a.top_left_y <= -1.0 || 1.0 <= a.bottom_right_y);
+}
+
+static inline float min4(float a, float b, float c, float d) {
+  return min(min(min(a, b), c), d);
+}
+
+static inline float max4(float a, float b, float c, float d) {
+  return max(max(max(a, b), c), d);
+}
+
+static bool IsActorOnScreen(RealCompositor::StageActor* stage,
+                            RealCompositor::QuadActor* actor) {
+  static const Vector4 bottom_left(0, 0, 0, 1);
+  static const Vector4 top_left(0, 1, 0, 1);
+  static const Vector4 top_right(1, 1, 0, 1);
+  static const Vector4 bottom_right(1, 0, 0, 1);
+
+  const Matrix4& transform = stage->projection() * actor->model_view();
+
+  const Vector4 tl = transform * top_left;
+  const Vector4 tr = transform * top_right;
+  const Vector4 bl = transform * bottom_left;
+  const Vector4 br = transform * bottom_right;
+
+  BoundingBox box = { min4(tl[0], tr[0], bl[0], br[0]),   // top left x
+                      max4(tl[1], tr[1], bl[1], br[1]),   // top left y
+                      max4(tl[0], tr[0], bl[0], br[0]),   // bottom right x
+                      min4(tl[1], tr[1], bl[1], br[1]) }; // bottom right y
+
+  const bool intersect = IntersectWithScreen(box);
+#ifdef EXTRA_LOGGING
+  DLOG(INFO) << actor->name() << " " << (intersect ? "in" : "out")
+             << "(" << box.top_left_x << "," << box.top_left_y << ")-("
+             << box.bottom_right_x << "," << box.bottom_right_y << ")";
+#endif
+  return intersect;
+}
 
 void RealCompositor::ActorVisitor::VisitContainer(ContainerActor* actor) {
   CHECK(actor);
@@ -163,6 +214,7 @@ RealCompositor::Actor::Actor(RealCompositor* compositor)
       scale_y_(1.f),
       opacity_(1.f),
       tilt_(0.f),
+      model_view_(Matrix4::identity()),
       is_opaque_(false),
       has_children_(false),
       visible_(true),
@@ -336,6 +388,35 @@ void RealCompositor::Actor::Update(int* count, AnimationTime now) {
   UpdateInternal(&float_animations_, now);
 }
 
+void RealCompositor::Actor::UpdateModelView() {
+  if (parent() != NULL) {
+    model_view_ = parent()->model_view();
+  } else {
+    model_view_ = Matrix4::identity();
+  }
+  model_view_ *= Matrix4::translation(Vector3(x(), y(), z()));
+  model_view_ *= Matrix4::scale(Vector3(width() * scale_x(),
+                                        height() * scale_y(),
+                                        1.f));
+
+  if (tilt() > 0.001f) {
+    // Post-multiply a perspective matrix onto the model view matrix, and
+    // a rotation in Y so that all the other model view ops happen
+    // outside of the perspective transform.
+
+    // This matrix is the result of a translate by 0.5 in Y, followed
+    // by a simple perspective transform, followed by a translate in
+    // -0.5 in Y, so that the perspective foreshortening is centered
+    // vertically on the quad.
+    static Matrix4 tilt_matrix(Vector4(1.0f, 0.0f, 0.0f, 0.0f),
+                               Vector4(0.0f, 1.0f, 0.0f, 0.0f),
+                               Vector4(0.0f, -0.2f, 0.0f, -0.4f),
+                               Vector4(0.0f, 0.0f, 0.0f, 1.0f));
+    model_view_ *= tilt_matrix;
+    model_view_ *= Matrix4::rotationY(tilt() * M_PI / 2.0);
+  }
+}
+
 template<class T> void RealCompositor::Actor::AnimateField(
     map<T*, shared_ptr<Animation<T> > >* animation_map,
     T* field, T value, int duration_ms) {
@@ -428,6 +509,20 @@ void RealCompositor::ContainerActor::Update(int* count, AnimationTime now) {
     (*iterator)->Update(count, now);
   }
   RealCompositor::Actor::Update(count, now);
+}
+
+void RealCompositor::ContainerActor::UpdateModelView() {
+  if (parent() != NULL) {
+    set_model_view(parent()->model_view());
+  } else {
+    set_model_view(Matrix4::identity());
+  }
+  // Don't translate by Z because the actors already have their
+  // absolute Z values from the layer calculation.
+  set_model_view(model_view() * Matrix4::translation(Vector3(x(), y(), 0.0f)));
+  set_model_view(model_view() * Matrix4::scale(Vector3(width() * scale_x(),
+                                                       height() * scale_y(),
+                                                       1.f)));
 }
 
 void RealCompositor::ContainerActor::RaiseChild(
@@ -603,13 +698,15 @@ void RealCompositor::TexturePixmapActor::RefreshPixmap() {
   if (data)
     data->Refresh();
 #endif
-  SetDirty();
+  if (visible() && IsActorOnScreen(compositor()->GetDefaultStage(), this))
+    SetDirty();
 }
 
 RealCompositor::StageActor::StageActor(RealCompositor* the_compositor,
                                        int width, int height)
     : RealCompositor::ContainerActor(the_compositor),
       window_(0),
+      projection_(Matrix4::identity()),
       stage_color_changed_(true),
       was_resized_(true),
       stage_color_(0.f, 0.f, 0.f) {
@@ -634,6 +731,13 @@ void RealCompositor::StageActor::SetSizeImpl(int* width, int* height) {
   CHECK(window_) << "Missing window in StageActor::SetSizeImpl.";
   compositor()->x_conn()->ResizeWindow(window_, *width, *height);
   was_resized_ = true;
+}
+
+void RealCompositor::StageActor::UpdateProjection() {
+  projection_ = Matrix4::orthographic(
+                    0, width(), height(), 0,
+                    -RealCompositor::LayerVisitor::kMinDepth,
+                    -RealCompositor::LayerVisitor::kMaxDepth);
 }
 
 

@@ -20,6 +20,7 @@
 #include "base/logging.h"
 #include "base/scoped_ptr.h"
 #include "window_manager/compositor.h"
+#include "window_manager/math_types.h"
 #include "window_manager/x_types.h"
 
 #if !(defined(COMPOSITOR_OPENGL) || defined(COMPOSITOR_OPENGLES))
@@ -230,6 +231,9 @@ class RealCompositor : public Compositor {
     // number of actors as it goes.
     virtual void Update(int32* count, AnimationTime now);
 
+    // Updates the model view matrix associated with this actor.
+    virtual void UpdateModelView();
+
     // Regular actors have no children, but we want to be able to
     // avoid a virtual function call to determine this while
     // traversing.
@@ -247,6 +251,13 @@ class RealCompositor : public Compositor {
     int y() const { return y_; }
     void set_z(float z) { z_ = z; }
     float z() const { return z_; }
+
+    // The model view matrix is derived from translation, scaling, rotation,
+    // and tilt operations.  All actors should have model view matrices.
+    const Matrix4& model_view() const { return model_view_; }
+    void set_model_view(const Matrix4& model_view) {
+      model_view_ = model_view;
+    }
 
     // Note that is_opaque isn't valid until after a LayerVisitor has
     // been run over the tree -- that's what calculates the opacity
@@ -341,6 +352,10 @@ class RealCompositor : public Compositor {
     // edge.
     float tilt_;
 
+    // Cache model view matrix, so that it is only updated when something
+    // changes and it can be reused.
+    Matrix4 model_view_;
+
     // Calculated during the layer visitor pass, and used to determine
     // if this object is opaque for traversal purposes.
     bool is_opaque_;
@@ -399,6 +414,9 @@ class RealCompositor : public Compositor {
 
     // Begin RealCompositor::Actor methods.
     virtual ActorVector GetChildren() { return children_; }
+
+    // ContainerActor handles translation differently than other actors.
+    virtual void UpdateModelView();
     // End RealCompositor::Actor methods.
 
     // Begin Compositor::ContainerActor methods.
@@ -564,11 +582,15 @@ class RealCompositor : public Compositor {
     // We don't want to bother with things like visibility groups or
     // opacity for the stage.
     virtual bool IsVisible() const { return visible(); }
+
+    // StageActor does not update model view matrix, it updates projection.
+    virtual void UpdateModelView() {}
     // End RealCompositor::Actor methods.
 
     // Begin Compositor::StageActor methods.
     XWindow GetStageXWindow() { return window_; }
     void SetStageColor(const Compositor::Color& color);
+    void UpdateProjection();
     // End Compositor::StageActor methods.
 
     const Compositor::Color& stage_color() const { return stage_color_; }
@@ -578,12 +600,17 @@ class RealCompositor : public Compositor {
     bool was_resized() const { return was_resized_; }
     void unset_was_resized() { was_resized_ = false; }
 
+    const Matrix4& projection() const { return projection_; }
+
    protected:
     virtual void SetSizeImpl(int* width, int* height);
 
    private:
     // This is the XWindow associated with the stage.  Owned by this class.
     XWindow window_;
+
+    // Only StageActor has projection matrix.
+    Matrix4 projection_;
 
     // Has the stage's color been changed?  This gets set by
     // SetStageColor() and checked and reset by the visitor.

@@ -334,6 +334,10 @@ void RealGLInterface::LoadIdentity() {
   glLoadIdentity();
 }
 
+void RealGLInterface::LoadMatrixf(const GLfloat* m) {
+  glLoadMatrixf(m);
+}
+
 void RealGLInterface::MultMatrixf(GLfloat* matrix) {
   glMultMatrixf(matrix);
 }

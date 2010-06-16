@@ -80,6 +80,7 @@ class GLInterface : virtual public GLInterfaceBase {
   virtual void GenTextures(GLsizei n, GLuint* textures) = 0;
   virtual GLenum GetError() = 0;
   virtual void LoadIdentity() = 0;
+  virtual void LoadMatrixf(const GLfloat* m) = 0;
   virtual void MatrixMode(GLenum mode) = 0;
   virtual void MultMatrixf(GLfloat* matrix) = 0;
   virtual void Ortho(GLdouble left, GLdouble right, GLdouble bottom,
