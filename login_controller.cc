@@ -234,7 +234,6 @@ void LoginController::HandleWindowMap(Window* win) {
       if (entry->image_window)
         LOG(WARNING) << "two images at index " << GetUserIndex(win);
       entry->image_window = win;
-      wm_->xconn()->RemoveInputRegionFromWindow(entry->image_window->xid());
       break;
     }
     case chromeos::WM_IPC_WINDOW_LOGIN_CONTROLS: {
@@ -312,10 +311,10 @@ void LoginController::HandleWindowMap(Window* win) {
               win->CenterClientOverWindow(owner_win);
           }
           wm_->focus_manager()->UseClickToFocusForWindow(win);
+          wm_->FocusWindow(win, wm_->GetCurrentTimeFromServer());
         }
         win->MoveCompositedToClient();
         win->ShowComposited();
-        wm_->FocusWindow(win, wm_->GetCurrentTimeFromServer());
       }
 
       return;
@@ -594,6 +593,7 @@ void LoginController::InitialShow() {
       entry.unselected_label_window->HideComposited();
       entry.label_window->ShowComposited();
       entry.controls_window->MoveClient(controls_bounds.x, controls_bounds.y);
+      entry.image_window->MoveClient(image_bounds.x, image_bounds.y);
     } else {
       ScaleUnselectedEntry(entry, border_bounds, label_bounds, true);
       entry.label_window->HideComposited();
@@ -721,6 +721,7 @@ void LoginController::SelectEntryAt(size_t index) {
         entry.image_window->HideComposited();
         entry.controls_window->MoveClient(image_bounds.x, image_bounds.y);
       } else {
+        entry.image_window->MoveClient(image_bounds.x, image_bounds.y);
         entry.image_window->ScaleComposited(1, 1, kAnimationTimeInMs);
         entry.controls_window->MoveClient(controls_bounds.x, controls_bounds.y);
       }
@@ -753,6 +754,7 @@ void LoginController::SelectEntryAt(size_t index) {
       entry.label_window->MoveComposited(label_bounds.x, label_bounds.y,
                                          kAnimationTimeInMs);
       entry.controls_window->MoveClientOffscreen();
+      entry.image_window->MoveClientOffscreen();
       // Show image window if it was hidden for guest entry.
       if (guest_was_selected)
         entry.image_window->ShowComposited();
