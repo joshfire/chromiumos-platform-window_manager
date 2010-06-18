@@ -260,6 +260,17 @@ TEST_F(LoginControllerTest, Focus) {
   EXPECT_EQ(other_xid, GetActiveWindowProperty());
   EXPECT_FALSE(other_info->button_is_grabbed(0));
 
+  // Check that override-redirect non-login window (i.e. tooltip) won'be
+  // focused.
+  const XWindow override_redirect_xid = CreateSimpleWindow();
+  MockXConnection::WindowInfo* override_redirect_info =
+      xconn_->GetWindowInfoOrDie(override_redirect_xid);
+  override_redirect_info->override_redirect = true;
+  ASSERT_TRUE(xconn_->MapWindow(override_redirect_xid));
+  SendInitialEventsForWindow(override_redirect_xid);
+  EXPECT_NE(override_redirect_xid, xconn_->focused_xid());
+  EXPECT_NE(override_redirect_xid, GetActiveWindowProperty());
+
   // Button grabs should be installed on the background and controls windows.
   MockXConnection::WindowInfo* background_info =
       xconn_->GetWindowInfoOrDie(background_xid_);
