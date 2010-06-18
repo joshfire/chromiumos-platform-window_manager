@@ -38,12 +38,12 @@ TEST_F(WindowTest, WindowType) {
   EXPECT_EQ(chromeos::WM_IPC_WINDOW_UNKNOWN, win.type());
   EXPECT_TRUE(win.using_shadow());
 
-  // Toplevel windows should have shadows too.
+  // Toplevel windows shouldn't have shadows.
   ASSERT_TRUE(wm_->wm_ipc()->SetWindowType(
                   xid, chromeos::WM_IPC_WINDOW_CHROME_TOPLEVEL, NULL));
   EXPECT_TRUE(win.FetchAndApplyWindowType(true));  // update_shadow
   EXPECT_EQ(chromeos::WM_IPC_WINDOW_CHROME_TOPLEVEL, win.type());
-  EXPECT_TRUE(win.using_shadow());
+  EXPECT_FALSE(win.using_shadow());
 
   // Info bubbles shouldn't have shadows.
   ASSERT_TRUE(wm_->wm_ipc()->SetWindowType(
