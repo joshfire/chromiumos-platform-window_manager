@@ -509,6 +509,67 @@ TEST_F(LoginControllerTest, SelectGuestWindowNewChrome) {
   EXPECT_FALSE(login_controller_->entry_key_bindings_group_->enabled());
 }
 
+// Test which windows of selected and unselected entry should be off or on
+// screen.
+TEST_F(LoginControllerTest, ClientOnOffScreen) {
+  // Create two entries for new Chrome.
+  CreateLoginWindows(3, true, false, true);  // Only need usual entry windows.
+
+  // The first entry is selected. Test that controls, image and label
+  // windows are on screen and the rest windows are off screen.
+  EXPECT_TRUE(WindowIsOffscreen(entries_[0].border_xid));
+  EXPECT_FALSE(WindowIsOffscreen(entries_[0].image_xid));
+  EXPECT_FALSE(WindowIsOffscreen(entries_[0].controls_xid));
+  EXPECT_FALSE(WindowIsOffscreen(entries_[0].label_xid));
+  EXPECT_TRUE(WindowIsOffscreen(entries_[0].unselected_label_xid));
+
+  // For the second unselected entry, all windows must be offscreen.
+  EXPECT_TRUE(WindowIsOffscreen(entries_[1].border_xid));
+  EXPECT_TRUE(WindowIsOffscreen(entries_[1].image_xid));
+  EXPECT_TRUE(WindowIsOffscreen(entries_[1].controls_xid));
+  EXPECT_TRUE(WindowIsOffscreen(entries_[1].label_xid));
+  EXPECT_TRUE(WindowIsOffscreen(entries_[1].unselected_label_xid));
+
+  // Click on the second entry to change the selection.
+  XWindow input_xid = login_controller_->entries_[1].input_window_xid;
+  XEvent event;
+  xconn_->InitButtonPressEvent(&event, input_xid, 0, 0, 1);
+  wm_->HandleEvent(&event);
+
+  // Now the same should be checked for both entries but with the second as
+  // the selected one.
+  EXPECT_TRUE(WindowIsOffscreen(entries_[1].border_xid));
+  EXPECT_FALSE(WindowIsOffscreen(entries_[1].image_xid));
+  EXPECT_FALSE(WindowIsOffscreen(entries_[1].controls_xid));
+  EXPECT_FALSE(WindowIsOffscreen(entries_[1].label_xid));
+  EXPECT_TRUE(WindowIsOffscreen(entries_[1].unselected_label_xid));
+
+  EXPECT_TRUE(WindowIsOffscreen(entries_[0].border_xid));
+  EXPECT_TRUE(WindowIsOffscreen(entries_[0].image_xid));
+  EXPECT_TRUE(WindowIsOffscreen(entries_[0].controls_xid));
+  EXPECT_TRUE(WindowIsOffscreen(entries_[0].label_xid));
+  EXPECT_TRUE(WindowIsOffscreen(entries_[0].unselected_label_xid));
+
+  // Now check that for both entries windows are hidden when login succeeded
+  // and the first Chrome window is shown.
+  SetLoggedInState(true);
+  XWindow xid = CreateToplevelWindow(1, 0,  // tab_count, selected_tab
+                                     0, 0, 200, 200);  // position and size
+  SendInitialEventsForWindow(xid);
+
+  EXPECT_TRUE(WindowIsOffscreen(entries_[0].border_xid));
+  EXPECT_TRUE(WindowIsOffscreen(entries_[0].image_xid));
+  EXPECT_TRUE(WindowIsOffscreen(entries_[0].controls_xid));
+  EXPECT_TRUE(WindowIsOffscreen(entries_[0].label_xid));
+  EXPECT_TRUE(WindowIsOffscreen(entries_[0].unselected_label_xid));
+
+  EXPECT_TRUE(WindowIsOffscreen(entries_[1].border_xid));
+  EXPECT_TRUE(WindowIsOffscreen(entries_[1].image_xid));
+  EXPECT_TRUE(WindowIsOffscreen(entries_[1].controls_xid));
+  EXPECT_TRUE(WindowIsOffscreen(entries_[1].label_xid));
+  EXPECT_TRUE(WindowIsOffscreen(entries_[1].unselected_label_xid));
+}
+
 }  // namespace window_manager
 
 int main(int argc, char** argv) {

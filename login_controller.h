@@ -76,6 +76,7 @@ class LoginController : public EventConsumer {
   FRIEND_TEST(LoginControllerTest, KeyBindingsDuringStateChange);
   FRIEND_TEST(LoginControllerTest, SelectGuestWindowOldChrome);
   FRIEND_TEST(LoginControllerTest, SelectGuestWindowNewChrome);
+  FRIEND_TEST(LoginControllerTest, ClientOnOffScreen);
 
   // SelectionChangedManager is used to cleanup after the selection changes.
   // When the selection changes |Schedule| is invoked on the

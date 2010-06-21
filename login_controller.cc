@@ -252,7 +252,6 @@ void LoginController::HandleWindowMap(Window* win) {
       if (entry->label_window)
         LOG(WARNING) << "two labels at index " << GetUserIndex(win);
       entry->label_window = win;
-      wm_->xconn()->RemoveInputRegionFromWindow(entry->label_window->xid());
       break;
     }
     case chromeos::WM_IPC_WINDOW_LOGIN_UNSELECTED_LABEL: {
@@ -592,11 +591,13 @@ void LoginController::InitialShow() {
       FocusLoginWindow(entry.controls_window, wm_->GetCurrentTimeFromServer());
       entry.unselected_label_window->HideComposited();
       entry.label_window->ShowComposited();
+      entry.label_window->MoveClient(label_bounds.x, label_bounds.y);
       entry.controls_window->MoveClient(controls_bounds.x, controls_bounds.y);
       entry.image_window->MoveClient(image_bounds.x, image_bounds.y);
     } else {
       ScaleUnselectedEntry(entry, border_bounds, label_bounds, true);
       entry.label_window->HideComposited();
+      entry.label_window->MoveClientOffscreen();
       entry.unselected_label_window->ShowComposited();
     }
 
@@ -742,6 +743,7 @@ void LoginController::SelectEntryAt(size_t index) {
       entry.label_window->MoveComposited(label_bounds.x,
                                          label_bounds.y,
                                          kAnimationTimeInMs);
+      entry.label_window->MoveClient(label_bounds.x, label_bounds.y);
       entry.unselected_label_window->HideComposited();
     } else {
       ScaleUnselectedEntry(entry, border_bounds, label_bounds, false);
@@ -755,6 +757,7 @@ void LoginController::SelectEntryAt(size_t index) {
                                          kAnimationTimeInMs);
       entry.controls_window->MoveClientOffscreen();
       entry.image_window->MoveClientOffscreen();
+      entry.label_window->MoveClientOffscreen();
       // Show image window if it was hidden for guest entry.
       if (guest_was_selected)
         entry.image_window->ShowComposited();
@@ -824,6 +827,8 @@ void LoginController::Hide() {
           max_y + (label_bounds.y - border_bounds.y),
           kAnimationTimeInMs);
       entry.label_window->SetCompositedOpacity(0, kAnimationTimeInMs);
+      entry.label_window->MoveClientOffscreen();
+      entry.image_window->MoveClientOffscreen();
     } else {
       entry.unselected_label_window->MoveComposited(
           label_bounds.x,
