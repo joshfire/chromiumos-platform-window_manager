@@ -428,6 +428,19 @@ TEST_F(WindowManagerTest, EventConsumer) {
   xconn_->InitMapEvent(&event, xid3);
   wm_->HandleEvent(&event);
   EXPECT_EQ(1, ec.num_mapped_windows());
+
+  // Create a window that'll get mapped by LayoutManager.  Send two
+  // MapRequests for it (see http://crosbug.com/4176), and check that our
+  // event consumer only gets notified about the first one.
+  ec.reset_stats();
+  XWindow xid4 = CreateSimpleWindow();
+  xconn_->InitCreateWindowEvent(&event, xid4);
+  wm_->HandleEvent(&event);
+  xconn_->InitMapRequestEvent(&event, xid4);
+  wm_->HandleEvent(&event);
+  xconn_->InitMapRequestEvent(&event, xid4);
+  wm_->HandleEvent(&event);
+  EXPECT_EQ(1, ec.num_mapped_windows());
 }
 
 // Check that windows that get reparented away from the root (like Flash

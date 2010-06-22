@@ -1518,9 +1518,17 @@ void WindowManager::HandleMapRequest(const XMapRequestEvent& e) {
     return;
   }
 
+  // We've seen this happen before (see http://crosbug.com/4176), and it
+  // can cause problems in code further down the pipe.
+  if (win->mapped()) {
+    LOG(WARNING) << "Ignoring map request for already-mapped window "
+                 << win->xid_str();
+    return;
+  }
+
   if (win->override_redirect()) {
     LOG(WARNING) << "Huh?  Got a MapRequest event for override-redirect "
-                 << "window " << XidStr(e.window);
+                 << "window " << win->xid_str();
   }
 
   for (set<EventConsumer*>::iterator it = event_consumers_.begin();

@@ -423,6 +423,14 @@ void LayoutManager::HandleWindowMap(Window* win) {
         break;
       }
 
+      if (GetToplevelWindowByWindow(*win)) {
+        // WindowManager should already weed out duplicate notifications.
+        // See http://crosbug.com/4176.
+        LOG(DFATAL) << "Got notification about already-handled window "
+                    << win->xid_str() << " getting mapped";
+        return;
+      }
+
       shared_ptr<ToplevelWindow> toplevel(new ToplevelWindow(win, this));
 
       switch (mode_) {
