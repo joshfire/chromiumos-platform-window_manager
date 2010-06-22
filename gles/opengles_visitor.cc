@@ -149,9 +149,7 @@ void OpenGlesDrawVisitor::VisitStage(RealCompositor::StageActor* actor) {
   }
 
   if (actor->was_resized()) {
-    // TODO: Expose glViewport() and invoke it here with
-    // (0, 0, actor->width(), actor->height()).
-    NOTIMPLEMENTED();
+    gl_->Viewport(0, 0, actor->width(), actor->height());
     actor->unset_was_resized();
   }
 

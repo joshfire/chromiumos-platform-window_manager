@@ -124,6 +124,7 @@ class RealGles2Interface : public Gles2Interface {
   void VertexAttribPointer(GLuint indx, GLint size, GLenum type,
                            GLboolean normalized, GLsizei stride,
                            const void* ptr);
+  void Viewport(GLint x, GLint y, GLsizei width, GLsizei height);
 
   // Fucntions from the GL_OES_EGL_image extension
   void EGLImageTargetTexture2DOES(GLenum target, GLeglImageOES image);

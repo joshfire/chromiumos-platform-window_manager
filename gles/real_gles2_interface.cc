@@ -501,6 +501,12 @@ void RealGles2Interface::VertexAttribPointer(GLuint indx, GLint size,
   GLES2_DCHECK_ERROR();
 }
 
+void RealGles2Interface::Viewport(GLint x, GLint y, GLsizei width,
+                                  GLsizei height) {
+  glViewport(x, y, width, height);
+  GLES2_DCHECK_ERROR();
+}
+
 void RealGles2Interface::EGLImageTargetTexture2DOES(GLenum target,
                                                     GLeglImageOES image) {
   DCHECK(gl_egl_image_target_texture_2d_oes_);

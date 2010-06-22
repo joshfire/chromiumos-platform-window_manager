@@ -136,6 +136,7 @@ class Gles2Interface : virtual public GLInterfaceBase {
   virtual void VertexAttribPointer(GLuint indx, GLint size, GLenum type,
                                    GLboolean normalized, GLsizei stride,
                                    const void* ptr) = 0;
+  virtual void Viewport(GLint x, GLint y, GLsizei width, GLsizei height) = 0;
 
   // Fucntions from the GL_OES_EGL_image extension
   virtual void EGLImageTargetTexture2DOES(GLenum target,
