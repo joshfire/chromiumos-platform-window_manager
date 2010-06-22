@@ -138,6 +138,30 @@ class LoginControllerTest : public BasicWindowManagerTest {
       login_controller_->InitialShow();
   }
 
+  void UnmapLoginEntry(int i) {
+    XEvent event;
+
+    xconn_->UnmapWindow(entries_[i].border_xid);
+    xconn_->InitUnmapEvent(&event, entries_[i].border_xid);
+    wm_->HandleEvent(&event);
+
+    xconn_->UnmapWindow(entries_[i].image_xid);
+    xconn_->InitUnmapEvent(&event, entries_[i].image_xid);
+    wm_->HandleEvent(&event);
+
+    xconn_->UnmapWindow(entries_[i].controls_xid);
+    xconn_->InitUnmapEvent(&event, entries_[i].controls_xid);
+    wm_->HandleEvent(&event);
+
+    xconn_->UnmapWindow(entries_[i].label_xid);
+    xconn_->InitUnmapEvent(&event, entries_[i].label_xid);
+    wm_->HandleEvent(&event);
+
+    xconn_->UnmapWindow(entries_[i].unselected_label_xid);
+    xconn_->InitUnmapEvent(&event, entries_[i].unselected_label_xid);
+    wm_->HandleEvent(&event);
+  }
+
   // A collection of windows for a single login entry.
   struct EntryWindows {
     EntryWindows()
@@ -502,6 +526,42 @@ TEST_F(LoginControllerTest, SelectGuestWindowNewChrome) {
                                chromeos::WM_IPC_WINDOW_LOGIN_GUEST,
                                NULL);
   SendInitialEventsForWindow(guest_xid_);
+
+  // The guest window should be focused and the key bindings disabled.
+  EXPECT_EQ(guest_xid_, xconn_->focused_xid());
+  EXPECT_EQ(guest_xid_, GetActiveWindowProperty());
+  EXPECT_FALSE(login_controller_->entry_key_bindings_group_->enabled());
+}
+
+TEST_F(LoginControllerTest, RemoveUser) {
+  // Create 3 entries for new Chrome.
+  CreateLoginWindows(3, true, false, true);  // create_guest_window=false
+
+  // The first entry should initially be focused and the key bindings
+  // should be enabled.
+  EXPECT_EQ(entries_[0].controls_xid, xconn_->focused_xid());
+  EXPECT_EQ(entries_[0].controls_xid, GetActiveWindowProperty());
+  EXPECT_TRUE(login_controller_->entry_key_bindings_group_->enabled());
+
+  UnmapLoginEntry(0);
+  EXPECT_EQ(entries_[1].controls_xid, xconn_->focused_xid());
+  EXPECT_EQ(entries_[1].controls_xid, GetActiveWindowProperty());
+  EXPECT_TRUE(login_controller_->entry_key_bindings_group_->enabled());
+
+  UnmapLoginEntry(1);
+  // The guest entry should be focused and the key bindings
+  // should be enabled.
+  EXPECT_EQ(entries_[2].controls_xid, xconn_->focused_xid());
+  EXPECT_EQ(entries_[2].controls_xid, GetActiveWindowProperty());
+  EXPECT_FALSE(login_controller_->entry_key_bindings_group_->enabled());
+
+  // Create guest window.
+  guest_xid_ = CreateBasicWindow(0, 0, wm_->width() / 2, wm_->height() / 2);
+  wm_->wm_ipc()->SetWindowType(guest_xid_,
+                               chromeos::WM_IPC_WINDOW_LOGIN_GUEST,
+                               NULL);
+  SendInitialEventsForWindow(guest_xid_);
+  UnmapLoginEntry(2);
 
   // The guest window should be focused and the key bindings disabled.
   EXPECT_EQ(guest_xid_, xconn_->focused_xid());

@@ -392,6 +392,15 @@ void LoginController::HandleWindowUnmap(Window* win) {
       if (entry.has_no_windows()) {
         UnregisterInputWindow(&entry);
         entries_.erase(entries_.begin() + i);
+        if (!guest_window_ && !entries_.empty() && selected_entry_index_ == i) {
+          // Selected entry was unmapped, switch active entry to next one.
+          // If next is a guest entry, select previous one.
+          selected_entry_index_ = -1;
+          size_t active_entry = i;
+          if (active_entry == (entries_.size() - 1) && entries_.size() > 1)
+            active_entry--;
+          SelectEntryAt(active_entry);
+        }
       }
 
       // Only one entry can possibly contain a window, no need to continue
@@ -783,7 +792,8 @@ void LoginController::SelectEntryAt(size_t index) {
     }
   }
 
-  selection_changed_manager_.Schedule(last_selected_index);
+  if (last_selected_index != static_cast<size_t>(-1))
+    selection_changed_manager_.Schedule(last_selected_index);
 }
 
 void LoginController::Hide() {
@@ -942,9 +952,6 @@ void LoginController::CalculateIdealOrigins(
     size_t entry_count,
     size_t selected_index,
     vector<Point>* origins) {
-  // We should at least have a guest and non-guest user.
-  DCHECK_GT(entry_count, static_cast<size_t>(1));
-
   const int selected_width = border_width_;
   const int selected_height = border_height_ + label_height_;
 
@@ -1106,7 +1113,6 @@ bool LoginController::HasAllWindows() {
     return false;
 
   int user_count = entries_[0].border_window->type_params()[1];
-  DCHECK_GT(user_count, 1);
   if (entries_.size() != static_cast<size_t>(user_count))
     return false;
 
@@ -1135,7 +1141,8 @@ void LoginController::OnGotNewWindowOrPropertyChange() {
 
     StackWindows();
 
-    if (initial_show_timeout_id_ == kNoTimer) {
+    // Don't show initial animation for guest only case.
+    if (initial_show_timeout_id_ == kNoTimer && entries_.size() > 1) {
       initial_show_timeout_id_ = wm_->event_loop()->AddTimeout(
           NewPermanentCallback(this, &LoginController::InitialShow),
           kInitialShowDelayMs,
@@ -1222,7 +1229,6 @@ void LoginController::CycleSelectedEntry(bool to_right) {
 }
 
 bool LoginController::IsOldChrome() {
-  CHECK(has_all_windows_);
   // HACK(dpolukhin): detect old chrome version to preserve old WM behaviour.
   // Will be removed in couple weeks. It is required for backward compatibility.
   return (controls_height_ == entries_.back().controls_window->client_height());
