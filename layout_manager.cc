@@ -858,8 +858,9 @@ void LayoutManager::SetMode(Mode mode) {
       break;
     case MODE_OVERVIEW: {
       UpdateCurrentSnapshot();
-      if (current_toplevel_->IsWindowOrTransientFocused()) {
-        // We need to take the input focus away here; otherwise the
+      if (current_toplevel_ &&
+          current_toplevel_->IsWindowOrTransientFocused()) {
+        // We need to give the input focus away here; otherwise the
         // previously-focused window would continue to get keyboard events
         // in overview mode.  Let the WindowManager decide what to do with it.
         wm_->TakeFocus(wm_->GetCurrentTimeFromServer());

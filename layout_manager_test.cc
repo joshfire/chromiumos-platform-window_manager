@@ -1379,6 +1379,15 @@ TEST_F(LayoutManagerTest, Fullscreen) {
                               StackingManager::LAYER_ACTIVE_TRANSIENT_WINDOW));
 }
 
+// This just checks that we don't crash when changing modes while there
+// aren't any toplevel windows (http://crosbug.com/4167).
+TEST_F(LayoutManagerTest, ChangeModeWithNoWindows) {
+  lm_->SetMode(LayoutManager::MODE_OVERVIEW);
+  EXPECT_EQ(LayoutManager::MODE_OVERVIEW, lm_->mode());
+  lm_->SetMode(LayoutManager::MODE_ACTIVE);
+  EXPECT_EQ(LayoutManager::MODE_ACTIVE, lm_->mode());
+}
+
 }  // namespace window_manager
 
 int main(int argc, char** argv) {
