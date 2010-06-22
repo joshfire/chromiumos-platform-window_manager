@@ -122,9 +122,9 @@ class PanelManager : public EventConsumer, public FocusChangeListener {
   virtual void HandleFocusChange();
   // End FocusChangeListener implementation.
 
-  // Handle notification from a panel that it's been resized.  We just
-  // forward this through to its container, if any.
-  void HandlePanelResize(Panel* panel);
+  // Handle notification from a panel that it's been resized by the user.
+  // We just forward this through to its container, if any.
+  void HandlePanelResizeByUser(Panel* panel);
 
   // Handle notification from a dock that it has become visible or
   // invisible.  We notify the objects in 'area_change_listeners_'.

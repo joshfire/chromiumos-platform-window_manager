@@ -69,7 +69,9 @@ class PanelBar : public PanelContainer {
                                                int drag_x, int drag_y);
   virtual void HandleNotifyPanelDragCompleteMessage(Panel* panel);
   virtual void HandleFocusPanelMessage(Panel* panel, XTime timestamp);
-  virtual void HandlePanelResize(Panel* panel);
+  virtual void HandlePanelResizeRequest(Panel* panel,
+                                        int req_width, int req_height);
+  virtual void HandlePanelResizeByUser(Panel* panel);
   virtual void HandleScreenResize();
   virtual void HandlePanelUrgencyChange(Panel* panel);
   virtual bool TakeFocus(XTime timestamp);

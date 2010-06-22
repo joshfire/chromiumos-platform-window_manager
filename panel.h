@@ -78,6 +78,9 @@ class Panel {
 
   bool IsFocused() const { return content_win_->IsFocused(); }
 
+  // Is the user currently dragging one of the resize handles?
+  bool IsBeingResizedByUser() const { return drag_xid_ != 0; }
+
   // Fill the passed-in vector with all of the panel's input windows (in an
   // arbitrary order).
   void GetInputWindows(std::vector<XWindow>* windows_out);
@@ -88,11 +91,6 @@ class Panel {
   void HandleInputWindowButtonRelease(
       XWindow xid, int x, int y, int button, XTime timestamp);
   void HandleInputWindowPointerMotion(XWindow xid, int x, int y);
-
-  // Handle a configure request for the titlebar or content window, or
-  // maybe one of the panel's transient windows.
-  void HandleWindowConfigureRequest(
-      Window* win, int req_x, int req_y, int req_width, int req_height);
 
   // Move the panel.  'right' is given in terms of one pixel beyond
   // the panel's right edge (since content and titlebar windows share a
@@ -156,12 +154,15 @@ class Panel {
       Window* win, int button, XTime timestamp);
   void HandleTransientWindowClientMessage(
       Window* win, XAtom message_type, const long data[5]);
+  void HandleTransientWindowConfigureRequest(
+      Window* win, int req_x, int req_y, int req_width, int req_height);
 
  private:
   FRIEND_TEST(PanelBarTest, PackPanelsAfterPanelResize);
   FRIEND_TEST(PanelManagerTest, ChromeInitiatedPanelResize);
   FRIEND_TEST(PanelTest, InputWindows);  // uses '*_input_xid_'
   FRIEND_TEST(PanelTest, Resize);        // uses '*_input_xid_'
+  FRIEND_TEST(PanelTest, MinimumSize);   // uses 'kMinWidth' and 'kMinHeight'
 
   WindowManager* wm();
 
@@ -234,6 +235,10 @@ class Panel {
   //   | W |
   static const int kResizeCornerSize;
 
+  // Minimum dimensions to which a panel content window can be resized.
+  static const int kMinWidth;
+  static const int kMinHeight;
+
   // Used to catch clicks for resizing.
   XWindow top_input_xid_;
   XWindow top_left_input_xid_;
@@ -250,7 +255,7 @@ class Panel {
   bool composited_windows_set_up_;
 
   // XID of the input window currently being dragged to resize the panel,
-  // or None if no drag is in progress.
+  // or 0 if no drag is in progress.
   XWindow drag_xid_;
 
   // Gravity holding a corner in place as the panel is being resized (e.g.

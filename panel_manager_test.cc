@@ -197,9 +197,9 @@ TEST_F(PanelManagerTest, ChromeInitiatedPanelResize) {
 
   // Test that shrinking the content works too.
   xconn_->InitConfigureRequestEvent(
-      &event, panel->content_xid(), 0, 0, 100, 300);
+      &event, panel->content_xid(), 0, 0, 200, 300);
   wm_->HandleEvent(&event);
-  EXPECT_EQ(100, panel->width());
+  EXPECT_EQ(200, panel->width());
   EXPECT_EQ(20, panel->titlebar_height());
   EXPECT_EQ(300, panel->content_height());
   EXPECT_EQ(initial_right, panel->right());
@@ -216,7 +216,7 @@ TEST_F(PanelManagerTest, ChromeInitiatedPanelResize) {
   xconn_->InitConfigureRequestEvent(
       &event, panel->content_xid(), 0, 0, 200, 400);
   wm_->HandleEvent(&event);
-  EXPECT_EQ(100, panel->width());
+  EXPECT_EQ(200, panel->width());
   EXPECT_EQ(20, panel->titlebar_height());
   EXPECT_EQ(300, panel->content_height());
   EXPECT_EQ(initial_right, panel->right());
@@ -225,7 +225,7 @@ TEST_F(PanelManagerTest, ChromeInitiatedPanelResize) {
   // Finish the user-initiated resize and check that it's applied.
   xconn_->InitButtonReleaseEvent(&event, input_xid, -200, -200, 1);
   wm_->HandleEvent(&event);
-  EXPECT_EQ(300, panel->width());
+  EXPECT_EQ(400, panel->width());
   EXPECT_EQ(20, panel->titlebar_height());
   EXPECT_EQ(500, panel->content_height());
   EXPECT_EQ(initial_right, panel->right());

@@ -308,6 +308,42 @@ TEST_F(PanelTest, Shadows) {
   EXPECT_DOUBLE_EQ(0.0, content_win.shadow()->opacity());
 }
 
+// Test that we don't let panels get smaller than the minimal allowed size.
+TEST_F(PanelTest, MinimumSize) {
+  // Create a panel with a really small (20x20) content window.
+  XWindow titlebar_xid = CreatePanelTitlebarWindow(200, 20);
+  Window titlebar_win(wm_.get(), titlebar_xid, false);
+  XWindow content_xid = CreatePanelContentWindow(
+      20, 20, titlebar_xid, false, false, 0);
+  Window content_win(wm_.get(), content_xid, false);
+
+  // The content window should've been resized to the minimum size.
+  Panel panel(panel_manager_, &content_win, &titlebar_win, true);
+  EXPECT_EQ(Panel::kMinWidth, content_win.client_width());
+  EXPECT_EQ(Panel::kMinHeight, content_win.client_height());
+
+  // Drag the upper-left resize panel down and to the right.
+  xconn_->set_pointer_grab_xid(panel.top_left_input_xid_);
+  panel.HandleInputWindowButtonPress(
+      panel.top_left_input_xid_, 0, 0, 1, CurrentTime);
+  panel.HandleInputWindowPointerMotion(panel.top_left_input_xid_, 5, 5);
+  xconn_->set_pointer_grab_xid(None);
+  panel.HandleInputWindowButtonRelease(
+      panel.top_left_input_xid_, 5, 5, 1, CurrentTime);
+
+  // The content window size should be unchanged, since we tried to make it
+  // smaller while it was already at the minimum.
+  EXPECT_EQ(Panel::kMinWidth, content_win.client_width());
+  EXPECT_EQ(Panel::kMinHeight, content_win.client_height());
+
+  // Now tell the panel to make the content window smaller (this is the
+  // path that gets taken when we get a ConfigureRequest).  It should
+  // ignore the request.
+  panel.ResizeContent(20, 20, GRAVITY_SOUTHEAST);
+  EXPECT_EQ(Panel::kMinWidth, content_win.client_width());
+  EXPECT_EQ(Panel::kMinHeight, content_win.client_height());
+}
+
 }  // namespace window_manager
 
 int main(int argc, char** argv) {

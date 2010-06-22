@@ -230,10 +230,37 @@ void PanelManager::HandleWindowUnmap(Window* win) {
 
 void PanelManager::HandleWindowConfigureRequest(
     Window* win, int req_x, int req_y, int req_width, int req_height) {
+  if (Panel* owner_panel = GetPanelOwningTransientWindow(*win)) {
+    owner_panel->HandleTransientWindowConfigureRequest(
+        win, req_x, req_y, req_width, req_height);
+    return;
+  }
+
   Panel* panel = GetPanelByWindow(*win);
   if (!panel)
     return;
-  panel->HandleWindowConfigureRequest(win, req_x, req_y, req_width, req_height);
+
+  if (win != panel->content_win()) {
+    LOG(WARNING) << "Ignoring request to configure non-content window "
+                 << win->xid_str() << " for panel " << panel->xid_str();
+    return;
+  }
+  PanelContainer* container = GetContainerForPanel(*panel);
+  if (!container) {
+    LOG(WARNING) << "Ignoring request to configure panel " << panel->xid_str()
+                 << " while it's not in a container";
+    return;
+  }
+  if (panel->IsBeingResizedByUser()) {
+    LOG(WARNING) << "Ignoring request to configure panel " << panel->xid_str()
+                 << " while it's being manually resized";
+    return;
+  }
+
+  if (req_width != panel->content_width() ||
+      req_height != panel->content_height()) {
+    container->HandlePanelResizeRequest(panel, req_width, req_height);
+  }
 }
 
 void PanelManager::HandleButtonPress(XWindow xid,
@@ -452,11 +479,10 @@ void PanelManager::HandleFocusChange() {
     RestoreFullscreenPanel(fullscreen_panel_);
 }
 
-void PanelManager::HandlePanelResize(Panel* panel) {
+void PanelManager::HandlePanelResizeByUser(Panel* panel) {
   DCHECK(panel);
-  PanelContainer* container = GetContainerForPanel(*panel);
-  if (container)
-    container->HandlePanelResize(panel);
+  if (PanelContainer* container = GetContainerForPanel(*panel))
+    container->HandlePanelResizeByUser(panel);
 }
 
 void PanelManager::HandleDockVisibilityChange(PanelDock* dock) {

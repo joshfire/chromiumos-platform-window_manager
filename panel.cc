@@ -23,10 +23,6 @@ extern "C" {
 #include "window_manager/window_manager.h"
 #include "window_manager/x_connection.h"
 
-DEFINE_int32(panel_max_width, -1,
-             "Maximum width for panels (0 or less means unconstrained)");
-DEFINE_int32(panel_max_height, -1,
-             "Maximum height for panels (0 or less means unconstrained)");
 DEFINE_bool(panel_opaque_resize, false, "Resize panels opaquely");
 
 using std::map;
@@ -41,10 +37,6 @@ namespace window_manager {
 // Amount of time to take to fade in the actor used for non-opaque resizes.
 static const int kResizeActorOpacityAnimMs = 150;
 
-// Minimum dimensions to which a panel content window can be resized.
-static const int kPanelMinWidth = 20;
-static const int kPanelMinHeight = 20;
-
 // Frequency with which we should update the size of panels as they're
 // being resized.
 static const int kResizeUpdateMs = 25;
@@ -56,6 +48,8 @@ static const double kResizeBoxOpacity = 0.3;
 
 const int Panel::kResizeBorderWidth = 3;
 const int Panel::kResizeCornerSize = 20;
+const int Panel::kMinWidth = 200;
+const int Panel::kMinHeight = 200;
 
 Panel::Panel(PanelManager* panel_manager,
              Window* content_win,
@@ -126,13 +120,9 @@ Panel::Panel(PanelManager* panel_manager,
   wm()->xconn()->AddButtonGrabOnWindow(left_input_xid_, 1, event_mask, false);
   wm()->xconn()->AddButtonGrabOnWindow(right_input_xid_, 1, event_mask, false);
 
-  // Constrain the size of the content if we've been requested to do so.
-  int capped_width = (FLAGS_panel_max_width > 0) ?
-      min(content_win_->client_width(), FLAGS_panel_max_width) :
-      content_win_->client_width();
-  int capped_height = (FLAGS_panel_max_height > 0) ?
-      min(content_win_->client_height(), FLAGS_panel_max_height) :
-      content_win_->client_height();
+  // Make sure that the panel isn't smaller than we allow.
+  int capped_width = max(content_win_->client_width(), kMinWidth);
+  int capped_height = max(content_win_->client_height(), kMinHeight);
   if (capped_width != content_win_->client_width() ||
       capped_height != content_win_->client_height()) {
     content_win_->ResizeClient(capped_width, capped_height, GRAVITY_NORTHWEST);
@@ -171,7 +161,7 @@ Panel::Panel(PanelManager* panel_manager,
 Panel::~Panel() {
   if (drag_xid_) {
     wm()->xconn()->RemovePointerGrab(false, CurrentTime);
-    drag_xid_ = None;
+    drag_xid_ = 0;
   }
   wm()->xconn()->DeselectInputOnWindow(titlebar_win_->xid(), EnterWindowMask);
   wm()->xconn()->DestroyWindow(top_input_xid_);
@@ -184,11 +174,11 @@ Panel::~Panel() {
   panel_manager_ = NULL;
   content_win_ = NULL;
   titlebar_win_ = NULL;
-  top_input_xid_ = None;
-  top_left_input_xid_ = None;
-  top_right_input_xid_ = None;
-  left_input_xid_ = None;
-  right_input_xid_ = None;
+  top_input_xid_ = 0;
+  top_left_input_xid_ = 0;
+  top_right_input_xid_ = 0;
+  left_input_xid_ = 0;
+  right_input_xid_ = 0;
 }
 
 void Panel::GetInputWindows(vector<XWindow>* windows_out) {
@@ -206,7 +196,7 @@ void Panel::HandleInputWindowButtonPress(
     XWindow xid, int x, int y, int button, XTime timestamp) {
   if (button != 1)
     return;
-  DCHECK(drag_xid_ == None)
+  DCHECK(drag_xid_ == 0)
       << "Panel " << xid_str() << " got button press in " << XidStr(xid)
       << " but already has drag XID " << XidStr(drag_xid_);
 
@@ -248,13 +238,16 @@ void Panel::HandleInputWindowButtonRelease(
   // by the X server on button release.
   resize_event_coalescer_.StorePosition(x, y);
   resize_event_coalescer_.Stop();
-  drag_xid_ = None;
+  drag_xid_ = 0;
 
   if (!FLAGS_panel_opaque_resize) {
     DCHECK(resize_actor_.get());
     resize_actor_.reset(NULL);
     ResizeContent(drag_last_width_, drag_last_height_, drag_gravity_);
   }
+
+  // Let the container know about the resize.
+  panel_manager_->HandlePanelResizeByUser(this);
 }
 
 void Panel::HandleInputWindowPointerMotion(XWindow xid, int x, int y) {
@@ -265,34 +258,6 @@ void Panel::HandleInputWindowPointerMotion(XWindow xid, int x, int y) {
     return;
   }
   resize_event_coalescer_.StorePosition(x, y);
-}
-
-void Panel::HandleWindowConfigureRequest(
-    Window* win, int req_x, int req_y, int req_width, int req_height) {
-  DCHECK(win);
-
-  if (transients_->ContainsWindow(*win)) {
-    transients_->HandleConfigureRequest(
-        win, req_x, req_y, req_width, req_height);
-    return;
-  }
-
-  if (drag_xid_ != None) {
-    LOG(WARNING) << "Ignoring configure request for " << win->xid_str()
-                 << " in panel " << xid_str() << " because the panel is being "
-                 << "resized by the user";
-    return;
-  }
-  if (win != content_win_) {
-    LOG(WARNING) << "Ignoring configure request for non-content window "
-                 << win->xid_str() << " in panel " << xid_str();
-    return;
-  }
-
-  if (req_width != content_bounds_.width ||
-      req_height != content_bounds_.height) {
-    ResizeContent(req_width, req_height, GRAVITY_SOUTHEAST);
-  }
 }
 
 void Panel::Move(int right, int y, bool move_client_windows, int anim_ms) {
@@ -421,6 +386,14 @@ void Panel::ResizeContent(int width, int height, Gravity gravity) {
   DCHECK_GT(width, 0);
   DCHECK_GT(height, 0);
 
+  if (width < kMinWidth || height < kMinHeight) {
+    LOG(WARNING) << "Capping resize of panel " << xid_str() << " to "
+                 << kMinWidth << "x" << kMinHeight << " (request "
+                 << "was for " << width << "x" << height << ")";
+    width = max(width, kMinWidth);
+    height = max(height, kMinHeight);
+  }
+
   bool changing_height = (height != content_bounds_.height);
 
   content_bounds_.resize(width, height, gravity);
@@ -442,7 +415,6 @@ void Panel::ResizeContent(int width, int height, Gravity gravity) {
   }
 
   ConfigureInputWindows();
-  panel_manager_->HandlePanelResize(this);
 }
 
 void Panel::SetFullscreenState(bool fullscreen) {
@@ -533,6 +505,14 @@ void Panel::HandleTransientWindowClientMessage(
       win->ChangeWmState(new_state);
     }
   }
+}
+
+void Panel::HandleTransientWindowConfigureRequest(
+    Window* win, int req_x, int req_y, int req_width, int req_height) {
+  DCHECK(win);
+  DCHECK(transients_->ContainsWindow(*win));
+  transients_->HandleConfigureRequest(
+      win, req_x, req_y, req_width, req_height);
 }
 
 void Panel::ConfigureInputWindows() {
@@ -626,8 +606,8 @@ void Panel::ApplyResize() {
     dy = 0;
   }
 
-  drag_last_width_ = max(drag_orig_width_ + dx, kPanelMinWidth);
-  drag_last_height_ = max(drag_orig_height_ + dy, kPanelMinHeight);
+  drag_last_width_ = max(drag_orig_width_ + dx, kMinWidth);
+  drag_last_height_ = max(drag_orig_height_ + dy, kMinHeight);
 
   if (FLAGS_panel_opaque_resize) {
     // TODO: We don't use opaque resizing currently, but if we ever start,

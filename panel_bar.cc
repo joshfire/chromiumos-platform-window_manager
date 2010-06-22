@@ -403,7 +403,14 @@ void PanelBar::HandleFocusPanelMessage(Panel* panel, XTime timestamp) {
   FocusPanel(panel, timestamp);
 }
 
-void PanelBar::HandlePanelResize(Panel* panel) {
+void PanelBar::HandlePanelResizeRequest(Panel* panel,
+                                        int req_width, int req_height) {
+  DCHECK(panel);
+  panel->ResizeContent(req_width, req_height, GRAVITY_SOUTHEAST);
+  PackPanels(NULL);
+}
+
+void PanelBar::HandlePanelResizeByUser(Panel* panel) {
   DCHECK(panel);
   PackPanels(NULL);
 }

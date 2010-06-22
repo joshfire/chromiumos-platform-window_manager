@@ -223,13 +223,25 @@ void PanelDock::HandleNotifyPanelDragCompleteMessage(Panel* panel) {
 }
 
 void PanelDock::HandleFocusPanelMessage(Panel* panel, XTime timestamp) {
+  DCHECK(panel);
   FocusPanel(panel, timestamp);
 }
 
-void PanelDock::HandlePanelResize(Panel* panel) {
-  // TODO: We should probably prevent a panel's width from being changed at
-  // all while it's docked, and repack all the panels in the dock if the
-  // panel's height is changed.
+void PanelDock::HandlePanelResizeRequest(Panel* panel,
+                                         int req_width, int req_height) {
+
+  DCHECK(panel);
+
+  // We ignore requests to change the panel's width.
+  if (req_width != panel->content_width()) {
+    LOG(WARNING) << "Ignoring width resize request for docked panel "
+                 << panel->xid_str() << " (orig was " << panel->content_width()
+                 << "x" << panel->content_height() << "), new is " << req_width
+                 << "x" << req_height << ")";
+    req_width = panel->content_width();
+  }
+  panel->ResizeContent(req_width, req_height, GRAVITY_NORTHWEST);
+  PackPanels(dragged_panel_);
 }
 
 void PanelDock::HandleScreenResize() {

@@ -148,6 +148,55 @@ TEST_F(PanelDockTest, ReorderPanels) {
   EXPECT_EQ(panel1->total_height(), panel2->titlebar_y());
 }
 
+// Test that resize requests for docked panels are handled correctly.
+// Specifically, check that we ignore requests to change panels' widths
+// while they're docked and that we repack all of the docked panels after a
+// height change.
+TEST_F(PanelDockTest, HandleResizeRequests) {
+  const int initial_width = 300;
+  const int initial_height = 400;
+  const int initial_title_height = 20;
+  Panel* panel1 = CreateSimplePanel(
+      initial_width, initial_title_height, initial_height);
+  Panel* panel2 = CreateSimplePanel(
+      initial_width, initial_title_height, initial_height);
+
+  // Drag both panels into the dock.
+  int drag_right = wm_->width();
+  SendPanelDraggedMessage(panel1, drag_right, 0);
+  SendPanelDragCompleteMessage(panel1);
+  SendPanelDraggedMessage(panel2, drag_right, 0);
+  SendPanelDraggedMessage(panel2, drag_right, 400);
+  SendPanelDragCompleteMessage(panel2);
+
+  EXPECT_EQ(0, panel1->titlebar_y());
+  EXPECT_EQ(wm_->width(), panel1->right());
+  EXPECT_EQ(right_dock_->width(), panel1->width());
+  EXPECT_EQ(initial_height, panel1->content_height());
+
+  EXPECT_EQ(initial_title_height + initial_height, panel2->titlebar_y());
+  EXPECT_EQ(wm_->width(), panel2->right());
+  EXPECT_EQ(right_dock_->width(), panel2->width());
+  EXPECT_EQ(initial_height, panel2->content_height());
+
+  // Now request a size change for the first panel.
+  const int new_height = 250;
+  XEvent event;
+  xconn_->InitConfigureRequestEvent(
+      &event, panel1->content_xid(), 0, 0, initial_width, new_height);
+  wm_->HandleEvent(&event);
+
+  EXPECT_EQ(0, panel1->titlebar_y());
+  EXPECT_EQ(wm_->width(), panel1->right());
+  EXPECT_EQ(right_dock_->width(), panel1->width());
+  EXPECT_EQ(new_height, panel1->content_height());
+
+  EXPECT_EQ(initial_title_height + new_height, panel2->titlebar_y());
+  EXPECT_EQ(wm_->width(), panel2->right());
+  EXPECT_EQ(right_dock_->width(), panel2->width());
+  EXPECT_EQ(initial_height, panel2->content_height());
+}
+
 }  // namespace window_manager
 
 int main(int argc, char** argv) {

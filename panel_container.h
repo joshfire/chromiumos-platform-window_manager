@@ -102,8 +102,14 @@ class PanelContainer {
   // Handle a message asking us to focus one of our panels.
   virtual void HandleFocusPanelMessage(Panel* panel, XTime timestamp) = 0;
 
-  // Notification that one of this container's panels has been resized.
-  virtual void HandlePanelResize(Panel* panel) = 0;
+  // Handle a ConfigureRequest event that asks for a panel's content window
+  // to be resized.
+  virtual void HandlePanelResizeRequest(Panel* panel,
+                                        int req_width, int req_height) = 0;
+
+  // Handle the user resizing the panel by dragging one of its resize
+  // borders.  This method is invoked at the end of the resize.
+  virtual void HandlePanelResizeByUser(Panel* panel) = 0;
 
   // Handle the screen being resized.
   virtual void HandleScreenResize() = 0;
