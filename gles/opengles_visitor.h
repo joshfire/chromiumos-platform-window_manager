@@ -64,8 +64,7 @@ class OpenGlesDrawVisitor : virtual public RealCompositor::ActorVisitor {
   EGLContext egl_context_;
 
   // Matrix state
-  Matrix4 perspective_;
-  Matrix4 model_view_;
+  Matrix4 projection_;
 
   // Cumulative opacity of the ancestors
   float ancestor_opacity_;

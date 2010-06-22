@@ -159,11 +159,8 @@ void OpenGlesDrawVisitor::VisitStage(RealCompositor::StageActor* actor) {
   // an actor (e.g. a background image) covering the whole stage.
   gl_->Clear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-  perspective_ = Matrix4::orthographic(
-      0, actor->width(), actor->height(), 0,
-      -RealCompositor::LayerVisitor::kMinDepth,
-      -RealCompositor::LayerVisitor::kMaxDepth);
-  model_view_ = Matrix4::identity();
+  actor->UpdateProjection();
+  projection_ = actor->projection();
 
   // Set the z-depths for the actors.
   RealCompositor::LayerVisitor layer_visitor(compositor_->actor_count());
@@ -221,30 +218,8 @@ void OpenGlesDrawVisitor::VisitQuad(RealCompositor::QuadActor* actor) {
   scoped_array<float> colors;
 
   // mvp matrix
-  Matrix4 new_model_view = model_view_;
-  new_model_view *= Matrix4::translation(Vector3(actor->x(), actor->y(),
-                                                 actor->z()));
-  new_model_view *= Matrix4::scale(Vector3(actor->width() * actor->scale_x(),
-                                           actor->height() * actor->scale_y(),
-                                           1.f));
-  Matrix4 mvp = perspective_ * new_model_view;
-
-  if (actor->tilt() > 0.001f) {
-    // Post-multiply a perspective matrix onto the model view matrix, and
-    // a rotation in Y so that all the other model view ops happen
-    // outside of the perspective transform.
-
-    // This matrix is the result of a translate by 0.5 in Y, followed
-    // by a simple perspective transform, followed by a translate in
-    // -0.5 in Y, so that the perspective foreshortening is centered
-    // vertically on the quad.
-    static Matrix4 tilt_matrix(Vector4(1.0f, 0.0f, 0.0f, 0.0f),
-                               Vector4(0.0f, 1.0f, 0.0f, 0.0f),
-                               Vector4(0.0f, -0.2f, 0.0f, -0.4f),
-                               Vector4(0.0f, 0.0f, 0.0f, 1.0f));
-    mvp *= tilt_matrix;
-    mvp *= Matrix4::rotationY(actor->tilt() * M_PI / 2.0);
-  }
+  actor->UpdateModelView();
+  Matrix4 mvp = projection_ * actor->model_view();
 
   // texture
   OpenGlesTextureData* texture_data = reinterpret_cast<OpenGlesTextureData*>(
@@ -355,11 +330,7 @@ void OpenGlesDrawVisitor::VisitContainer(
     return;
 
   LOG(INFO) << "Visit container: " << actor->name();
-  Matrix4 old_model_view = model_view_;
-  model_view_ *= Matrix4::translation(Vector3(actor->x(), actor->y(), 0.f));
-  model_view_ *= Matrix4::scale(Vector3(actor->width() * actor->scale_x(),
-                                        actor->height() * actor->scale_y(),
-                                        1.f));
+  actor->UpdateModelView();
 
   const float original_opacity = ancestor_opacity_;
   ancestor_opacity_ *= actor->opacity();
@@ -373,8 +344,6 @@ void OpenGlesDrawVisitor::VisitContainer(
 
   // Reset opacity.
   ancestor_opacity_ = original_opacity;
-  // Pop matrix.
-  model_view_ = old_model_view;
 }
 
 OpenGlesTextureData::OpenGlesTextureData(Gles2Interface* gl)

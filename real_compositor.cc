@@ -413,7 +413,7 @@ void RealCompositor::Actor::UpdateModelView() {
                                Vector4(0.0f, -0.2f, 0.0f, -0.4f),
                                Vector4(0.0f, 0.0f, 0.0f, 1.0f));
     model_view_ *= tilt_matrix;
-    model_view_ *= Matrix4::rotationY(tilt() * M_PI / 2.0);
+    model_view_ *= Matrix4::rotationY(tilt() * M_PI_2);
   }
 }
 
