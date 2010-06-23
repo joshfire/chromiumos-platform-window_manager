@@ -171,6 +171,9 @@ class LoginController : public EventConsumer {
   // Invoked to handle the initial show.
   void InitialShow();
 
+  // Set up the background window's position and visibility.
+  void ConfigureBackgroundWindow();
+
   // Stacks the windows. The only stacking we care about is that the
   // image_window is above the border_window and the controls_window is above
   // the border window.

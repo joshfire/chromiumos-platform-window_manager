@@ -583,8 +583,6 @@ void LoginController::InitialShow() {
   vector<Point> origins;
   CalculateIdealOrigins(entries_.size(), selected_entry_index_, &origins);
 
-  const int max_y = wm_->height();
-
   for (size_t i = 0; i < entries_.size(); ++i) {
     const Entry& entry = entries_[i];
     const bool selected = (i == selected_entry_index_);
@@ -610,41 +608,44 @@ void LoginController::InitialShow() {
       entry.unselected_label_window->ShowComposited();
     }
 
-    entry.border_window->MoveComposited(border_bounds.x, max_y, 0);
+    entry.border_window->SetCompositedOpacity(0, 0);
+    entry.border_window->MoveComposited(border_bounds.x, border_bounds.y, 0);
     entry.border_window->ShowComposited();
-    entry.border_window->MoveComposited(border_bounds.x, border_bounds.y,
-                                        kInitialShowAnimationTimeInMs);
+    entry.border_window->SetCompositedOpacity(1, kInitialShowAnimationTimeInMs);
 
-    entry.image_window->MoveComposited(image_bounds.x, max_y +
-                                       (image_bounds.y - border_bounds.y), 0);
+    entry.image_window->SetCompositedOpacity(0, 0);
+    entry.image_window->MoveComposited(image_bounds.x, image_bounds.y, 0);
     entry.image_window->ShowComposited();
-    entry.image_window->MoveComposited(image_bounds.x, image_bounds.y,
-                                       kInitialShowAnimationTimeInMs);
+    entry.image_window->SetCompositedOpacity(1, kInitialShowAnimationTimeInMs);
 
+    entry.controls_window->SetCompositedOpacity(0, 0);
     entry.controls_window->MoveComposited(
-        controls_bounds.x, max_y + (controls_bounds.y - border_bounds.y),
-        0);
+        controls_bounds.x, controls_bounds.y, 0);
     entry.controls_window->ShowComposited();
-    entry.controls_window->MoveComposited(controls_bounds.x, controls_bounds.y,
-                                          kInitialShowAnimationTimeInMs);
+    entry.controls_window->SetCompositedOpacity(
+        1, kInitialShowAnimationTimeInMs);
 
     Window* label_window =
         selected ? entry.label_window : entry.unselected_label_window;
-    label_window->MoveComposited(
-        image_bounds.x, max_y + (label_bounds.y - border_bounds.y),
-        0);
-    label_window->MoveComposited(label_bounds.x, label_bounds.y,
-                                 kInitialShowAnimationTimeInMs);
+    label_window->SetCompositedOpacity(0, 0);
+    label_window->MoveComposited(label_bounds.x, label_bounds.y, 0);
+    label_window->ShowComposited();
+    label_window->SetCompositedOpacity(1, kInitialShowAnimationTimeInMs);
   }
 }
 
-void LoginController::StackWindows() {
+void LoginController::ConfigureBackgroundWindow() {
+  DCHECK(background_window_);
   wm_->stacking_manager()->StackWindowAtTopOfLayer(
       background_window_, StackingManager::LAYER_LOGIN_WINDOW);
-  background_window_->MoveComposited(0, 0, 0);
+  background_window_->MoveClient(0, 0);
+  background_window_->MoveCompositedToClient();
+  background_window_->SetCompositedOpacity(0, 0);
   background_window_->ShowComposited();
-  background_window_->MoveClientToComposited();
+  background_window_->SetCompositedOpacity(1, kInitialShowAnimationTimeInMs);
+}
 
+void LoginController::StackWindows() {
   for (size_t i = 0; i < entries_.size(); ++i) {
     const Entry& entry = entries_[i];
     wm_->stacking_manager()->StackWindowAtTopOfLayer(
@@ -1139,6 +1140,7 @@ void LoginController::OnGotNewWindowOrPropertyChange() {
     has_all_windows_ = true;
     entry_key_bindings_group_->Enable();
 
+    ConfigureBackgroundWindow();
     StackWindows();
 
     // Don't show initial animation for guest only case.
@@ -1151,18 +1153,17 @@ void LoginController::OnGotNewWindowOrPropertyChange() {
   }
 
   if (entries_.empty() && guest_window_ && IsBackgroundWindowReady()) {
-    background_window_->MoveClient(0, 0);
-    background_window_->MoveCompositedToClient();
-    background_window_->ShowComposited();
+    ConfigureBackgroundWindow();
 
     guest_window_->MoveClient(
         (wm_->width() - guest_window_->client_width()) / 2,
         (wm_->height() - guest_window_->client_height()) / 2);
     guest_window_->MoveCompositedToClient();
-    guest_window_->StackCompositedAbove(
-        background_window_->actor(), NULL, true);
-    guest_window_->StackClientAbove(background_window_->xid());
+    wm_->stacking_manager()->StackWindowAtTopOfLayer(
+        guest_window_, StackingManager::LAYER_LOGIN_WINDOW);
+    guest_window_->SetCompositedOpacity(0, 0);
     guest_window_->ShowComposited();
+    guest_window_->SetCompositedOpacity(1, kInitialShowAnimationTimeInMs);
     FocusLoginWindow(guest_window_, wm_->GetCurrentTimeFromServer());
   }
 }
