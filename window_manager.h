@@ -358,6 +358,16 @@ class WindowManager : public PanelManagerAreaChangeListener {
   XWindow wm_xid_;
 
   Compositor::StageActor* stage_;  // not owned
+
+  // If we're started before the user has logged in, this displays the
+  // initial contents of the root window.  We use this as a background.
+  scoped_ptr<Compositor::TexturePixmapActor> startup_background_;
+
+  // This is the pixmap that gets displayed by 'startup_background_'.
+  // We copy the root window here.
+  XPixmap startup_pixmap_;
+
+  // This background is displayed post-login in overview mode.
   scoped_ptr<Compositor::Actor> background_;
 
   // Window containing the compositor's stage.

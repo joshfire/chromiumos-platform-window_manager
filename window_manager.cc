@@ -177,7 +177,6 @@ WindowManager::WindowManager(EventLoop* event_loop,
       height_(0),
       wm_xid_(0),
       stage_(NULL),
-      background_(NULL),
       stage_xid_(0),
       overlay_xid_(0),
       background_xid_(0),
@@ -200,6 +199,8 @@ WindowManager::~WindowManager() {
     xconn_->DestroyWindow(wm_xid_);
   if (background_xid_)
     xconn_->DestroyWindow(background_xid_);
+  if (startup_pixmap_)
+    xconn_->FreePixmap(startup_pixmap_);
   if (query_keyboard_state_timeout_id_ >= 0)
     event_loop_->RemoveTimeout(query_keyboard_state_timeout_id_);
   if (panel_manager_.get())
@@ -256,6 +257,19 @@ bool WindowManager::Init() {
         compositor_->CreateImage(FLAGS_background_image);
     background->SetVisibility(logged_in_);
     SetBackgroundActor(background);
+  }
+
+  if (!logged_in_) {
+    startup_pixmap_ = xconn_->CreatePixmap(root_, width_, height_,
+                                           root_geometry.depth);
+    xconn_->CopyArea(root_, startup_pixmap_, 0, 0, 0, 0, width_, height_);
+    startup_background_.reset(compositor_->CreateTexturePixmap());
+    startup_background_->SetName("startup background");
+    startup_background_->SetPixmap(startup_pixmap_);
+    startup_background_->SetVisibility(true);
+    stage_->AddActor(startup_background_.get());
+    stacking_manager_->StackActorAtTopOfLayer(
+        startup_background_.get(), StackingManager::LAYER_BACKGROUND);
   }
 
   if (FLAGS_use_compositing) {
@@ -644,8 +658,8 @@ void WindowManager::UpdateClientWindowDebugging() {
   int cnt = 0;
   float step = 6.f/xids.size();
   for (vector<XWindow>::iterator it = xids.begin(); it != xids.end(); ++it) {
-    Compositor::Color bgColor;
-    bgColor.SetHsv(cnt++ * step, 1.f, 1.f);
+    Compositor::Color bg_color;
+    bg_color.SetHsv(cnt++ * step, 1.f, 1.f);
     XConnection::WindowGeometry geometry;
     if (!xconn_->GetWindowGeometry(*it, &geometry))
       continue;
@@ -661,7 +675,7 @@ void WindowManager::UpdateClientWindowDebugging() {
     group->SetClip(0, 0, geometry.width, geometry.height);
 
     Compositor::Actor* rect =
-        compositor_->CreateRectangle(bgColor, kFgColor, 1);
+        compositor_->CreateRectangle(bg_color, kFgColor, 1);
     group->AddActor(rect);
     rect->SetName("debug box");
     rect->Move(0, 0, 0);
@@ -1021,6 +1035,11 @@ void WindowManager::HandleMappedWindow(Window* win) {
 
     if (background_.get())
       background_->SetVisibility(true);
+    if (startup_background_.get()) {
+      startup_background_.reset();
+      xconn_->FreePixmap(startup_pixmap_);
+      startup_pixmap_ = 0;
+    }
 
     if (!FLAGS_initial_chrome_window_mapped_file.empty()) {
       DLOG(INFO) << "Writing initial Chrome window's ID to file "
@@ -1054,15 +1073,6 @@ bool WindowManager::SetWmStateProperty(XWindow xid, int state) {
   values.push_back(0);  // we don't use icons
   XAtom xatom = GetXAtom(ATOM_WM_STATE);
   return xconn_->SetIntArrayProperty(xid, xatom, xatom, values);
-}
-
-void WindowManager::SetBackgroundActor(Compositor::Actor* actor) {
-  background_.reset(actor);
-  background_->SetName("background");
-  ConfigureBackground(width_, height_);
-  stage_->AddActor(background_.get());
-  stacking_manager_->StackActorAtTopOfLayer(
-      background_.get(), StackingManager::LAYER_BACKGROUND);
 }
 
 void WindowManager::ConfigureBackground(int width, int height) {
@@ -1118,6 +1128,15 @@ void WindowManager::ConfigureBackground(int width, int height) {
 
   // Center the image vertically.
   background_->Move(0, (height - background_height) / 2, 0);
+}
+
+void WindowManager::SetBackgroundActor(Compositor::Actor* actor) {
+  background_.reset(actor);
+  background_->SetName("background");
+  ConfigureBackground(width_, height_);
+  stage_->AddActor(background_.get());
+  stacking_manager_->StackActorAtTopOfLayer(
+      background_.get(), StackingManager::LAYER_BACKGROUND);
 }
 
 bool WindowManager::UpdateClientListProperty() {

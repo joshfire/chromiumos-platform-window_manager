@@ -47,10 +47,13 @@ int main(int argc, char** argv) {
         << "(should be hexadecimal X ID)";
   }
 
-  XWindowAttributes attr;
-  CHECK(XGetWindowAttributes(display, win, &attr) != 0);
+  Window root = None;
+  int x = 0, y = 0;
+  unsigned int width = 0, height = 0, border_width = 0, depth = 0;
+  CHECK(XGetGeometry(display, win, &root, &x, &y, &width, &height,
+                     &border_width, &depth));
   XImage* image = XGetImage(
-      display, win, 0, 0, attr.width, attr.height, AllPlanes, ZPixmap);
+      display, win, 0, 0, width, height, AllPlanes, ZPixmap);
   CHECK(image);
   CHECK(image->depth == 24 || image->depth == 32)
       << "Unsupported image depth " << image->depth;

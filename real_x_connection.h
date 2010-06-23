@@ -53,8 +53,15 @@ class RealXConnection : public XConnection {
   bool RedirectSubwindowsForCompositing(XWindow xid);
   bool UnredirectWindowForCompositing(XWindow xid);
   XWindow GetCompositingOverlayWindow(XWindow root);
+  XPixmap CreatePixmap(XDrawable drawable,
+                       int width, int height,
+                       int depth);
   XPixmap GetCompositingPixmapForWindow(XWindow xid);
   bool FreePixmap(XPixmap pixmap);
+  void CopyArea(XDrawable src_drawable, XDrawable dest_drawable,
+                int src_x, int src_y,
+                int dest_x, int dest_y,
+                int width, int height);
   XWindow GetRootWindow() { return root_; }
   XWindow CreateWindow(XWindow parent, int x, int y, int width, int height,
                        bool override_redirect, bool input_only, int event_mask);

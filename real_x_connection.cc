@@ -493,6 +493,14 @@ XWindow RealXConnection::GetCompositingOverlayWindow(XWindow root) {
   return reply->overlay_win;
 }
 
+XPixmap RealXConnection::CreatePixmap(XDrawable drawable,
+                                      int width, int height,
+                                      int depth) {
+  xcb_pixmap_t pixmap = xcb_generate_id(xcb_conn_);
+  xcb_create_pixmap(xcb_conn_, depth, pixmap, drawable, width, height);
+  return pixmap;
+}
+
 XPixmap RealXConnection::GetCompositingPixmapForWindow(XWindow xid) {
   const xcb_pixmap_t pixmap = xcb_generate_id(xcb_conn_);
   xcb_void_cookie_t cookie = xcb_composite_name_window_pixmap_checked(
@@ -506,6 +514,26 @@ XPixmap RealXConnection::GetCompositingPixmapForWindow(XWindow xid) {
 bool RealXConnection::FreePixmap(XPixmap pixmap) {
   xcb_free_pixmap(xcb_conn_, pixmap);
   return true;
+}
+
+void RealXConnection::CopyArea(XDrawable src_drawable, XDrawable dest_drawable,
+                               int src_x, int src_y,
+                               int dest_x, int dest_y,
+                               int width, int height) {
+
+  xcb_gcontext_t gc = xcb_generate_id(xcb_conn_);
+  const static uint32_t kGcValueMask =
+      XCB_GC_FUNCTION | XCB_GC_PLANE_MASK | XCB_GC_SUBWINDOW_MODE;
+  const static uint32_t kGcValues[] = {
+    XCB_GX_COPY,
+    0xffffffff,
+    // This is needed for copying e.g. the root window.
+    XCB_SUBWINDOW_MODE_INCLUDE_INFERIORS,
+  };
+  xcb_create_gc(xcb_conn_, gc, dest_drawable, kGcValueMask, kGcValues);
+  xcb_copy_area(xcb_conn_, src_drawable, dest_drawable, gc,
+                src_x, src_y, dest_x, dest_y, width, height);
+  xcb_free_gc(xcb_conn_, gc);
 }
 
 XWindow RealXConnection::CreateWindow(

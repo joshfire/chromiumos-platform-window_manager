@@ -258,11 +258,22 @@ class XConnection {
   // below the screensaver window but above all other windows).
   virtual XWindow GetCompositingOverlayWindow(XWindow root) = 0;
 
+  // Create a pixmap on the same screen as 'drawable'.
+  virtual XPixmap CreatePixmap(XDrawable drawable,
+                               int width, int height,
+                               int depth) = 0;
+
   // Get a pixmap referring to a redirected window's offscreen storage.
   virtual XPixmap GetCompositingPixmapForWindow(XWindow xid) = 0;
 
   // Free a pixmap.
   virtual bool FreePixmap(XPixmap pixmap) = 0;
+
+  // Copy an area of one drawable to another drawable.
+  virtual void CopyArea(XDrawable src_drawable, XDrawable dest_drawable,
+                        int src_x, int src_y,
+                        int dest_x, int dest_y,
+                        int width, int height) = 0;
 
   // Get the root window.
   virtual XWindow GetRootWindow() = 0;
