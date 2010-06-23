@@ -122,13 +122,9 @@ class RealCompositor : public Compositor {
     // Default implementation visits container as an Actor, and then
     // calls Visit on all the container's children.
     virtual void VisitContainer(ContainerActor* actor);
-    virtual void VisitStage(StageActor* actor) {
-      VisitContainer(actor);
-    }
+    virtual void VisitStage(StageActor* actor) { VisitContainer(actor); }
+    virtual void VisitQuad(QuadActor* actor) { VisitActor(actor); }
     virtual void VisitTexturePixmap(TexturePixmapActor* actor) {
-      VisitActor(actor);
-    }
-    virtual void VisitQuad(QuadActor* actor) {
       VisitActor(actor);
     }
    private:
@@ -200,7 +196,6 @@ class RealCompositor : public Compositor {
     void SetSize(int width, int height) {
       width_ = width;
       height_ = height;
-      SetSizeImpl(&width_, &height_);
       SetDirty();
     }
     void SetName(const std::string& name) { name_ = name; }
@@ -289,14 +284,13 @@ class RealCompositor : public Compositor {
     void EraseDrawingData(int32 id) { drawing_data_.erase(id); }
 
    protected:
-    // So it can update the opacity flag.
+    // Needs to update the opacity flag.
     friend class RealCompositor::LayerVisitor;
 
     RealCompositor* compositor() { return compositor_; }
     bool visible() const { return visible_; }
 
     void CloneImpl(Actor* clone);
-    virtual void SetSizeImpl(int* width, int* height) {}
 
     // Helper method that can be invoked by derived classes.  Returns a
     // string defining this actor, saying that its type is 'type_name'
@@ -404,6 +398,10 @@ class RealCompositor : public Compositor {
     }
 
     // Begin Compositor::Actor methods.
+    virtual void SetSize(int width, int height) {
+      // TODO: Implement a more complete story for setting sizes of containers.
+      LOG(WARNING) << "Ignoring request to set size of ContainerActor";
+    }
     virtual Actor* Clone() {
       NOTIMPLEMENTED();
       CHECK(false);
@@ -433,13 +431,6 @@ class RealCompositor : public Compositor {
     void LowerChild(RealCompositor::Actor* child,
                     RealCompositor::Actor* below);
 
-   protected:
-    virtual void SetSizeImpl(int* width, int* height) {
-      // For containers, the size is always 1x1.
-      // TODO: Implement a more complete story for setting sizes of containers.
-      *width = 1;
-      *height = 1;
-    }
    private:
     // The list of this container's children.
     ActorVector children_;
@@ -494,67 +485,53 @@ class RealCompositor : public Compositor {
                              public Compositor::TexturePixmapActor {
    public:
     explicit TexturePixmapActor(RealCompositor* compositor);
-    virtual ~TexturePixmapActor() { Reset(); }
+    virtual ~TexturePixmapActor();
 
-    XWindow texture_pixmap_window() const { return window_; }
+    XID pixmap() const { return pixmap_; }
+    bool pixmap_is_opaque() const { return pixmap_is_opaque_; }
 
     // Begin Compositor::Actor methods.
     virtual std::string GetDebugString(int indent_level) {
       return GetDebugStringInternal("TexturePixmapActor", indent_level);
     }
-    virtual void SetSizeImpl(int* width, int* height) { DiscardPixmap(); }
+    // TexturePixmapActors just track the size of their pixmaps.
+    virtual void SetSize(int width, int height) {
+      LOG(WARNING) << "Ignoring request to set size of TexturePixmapActor";
+    }
+    virtual Actor* Clone() {
+      NOTIMPLEMENTED();
+      CHECK(false);
+      return NULL;
+    }
     // End Compositor::Actor methods.
 
     // Implement VisitorDestination for visitor.
-    void Accept(ActorVisitor* visitor) {
+    virtual void Accept(ActorVisitor* visitor) {
       CHECK(visitor);
       visitor->VisitTexturePixmap(this);
     }
 
-    // Throw out the current pixmap and create a new one on the next
-    // draw pass.
-    void set_pixmap_invalid(bool invalid) { pixmap_invalid_ = invalid; }
-    bool is_pixmap_invalid() { return pixmap_invalid_; }
-
     // Begin Compositor::TexturePixmapActor methods.
-    bool SetTexturePixmapWindow(XWindow xid);
-    void UpdateContents() { RefreshPixmap(); }
-    void DiscardPixmap();
-    bool SetAlphaMask(const unsigned char* bytes, int width, int height) {
+    virtual void SetPixmap(XID pixmap);
+    virtual void UpdateTexture();
+    virtual void SetAlphaMask(const uint8_t* bytes, int width, int height) {
       NOTIMPLEMENTED();
-      return true;
     }
-    void ClearAlphaMask() { NOTIMPLEMENTED(); }
+    virtual void ClearAlphaMask() { NOTIMPLEMENTED(); }
     // End Compositor::TexturePixmapActor methods.
-
-    // Refresh the current pixmap.
-    void RefreshPixmap();
-
-    // Stop monitoring the current window, if any, for changes and destroy
-    // the current pixmap.
-    void Reset();
-
-    // Throw out the current pixmap.  A new one will be created
-    // automatically when needed.
-    void DestroyPixmap();
-
-    virtual Actor* Clone();
-
-   protected:
-    void CloneImpl(TexturePixmapActor* clone);
 
    private:
     FRIEND_TEST(RealCompositorTest, HandleXEvents);
 
     // Is there currently any pixmap drawing data?  Tests use this to
-    // check that old pixmaps get thrown away when needed.
+    // check that old drawing data is discarded when needed.
     bool HasPixmapDrawingData();
 
-    // This is the XWindow that this actor is associated with.
-    XWindow window_;
+    // Offscreen X pixmap whose contents we're displaying.
+    XID pixmap_;
 
-    // Indicates that the pixmap should be refreshed on the next pass.
-    bool pixmap_invalid_;
+    // Is 'pixmap_' opaque (i.e. it has a non-32-bit depth)?
+    bool pixmap_is_opaque_;
 
     DISALLOW_COPY_AND_ASSIGN(TexturePixmapActor);
   };
@@ -572,6 +549,7 @@ class RealCompositor : public Compositor {
     }
 
     // Begin Compositor::Actor methods.
+    virtual void SetSize(int width, int height);
     virtual Actor* Clone() {
       NOTIMPLEMENTED();
       return NULL;
@@ -601,9 +579,6 @@ class RealCompositor : public Compositor {
     void unset_was_resized() { was_resized_ = false; }
 
     const Matrix4& projection() const { return projection_; }
-
-   protected:
-    virtual void SetSizeImpl(int* width, int* height);
 
    private:
     // This is the XWindow associated with the stage.  Owned by this class.
@@ -692,14 +667,6 @@ class RealCompositor : public Compositor {
 
   // Used by tests.
   void set_actor_count(int count) { actor_count_ = count; }
-
-  // This is called when we start monitoring for changes, and sets up
-  // redirection for the supplied window.
-  void StartMonitoringWindowForChanges(XWindow xid, TexturePixmapActor* actor);
-
-  // This is called when we stop monitoring for changes, and removes
-  // the redirection for the supplied window.
-  void StopMonitoringWindowForChanges(XWindow xid, TexturePixmapActor* actor);
 
   // Enable or disable the draw timeout.  Safe to call if it's already
   // enabled/disabled.

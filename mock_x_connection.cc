@@ -32,6 +32,7 @@ MockXConnection::MockXConnection()
     : windows_(),
       stacked_xids_(new Stacker<XWindow>),
       next_window_(1),
+      next_pixmap_(100000),
       root_(CreateWindow(None, 0, 0,
                          kDisplayWidth, kDisplayHeight, true, false, 0)),
       overlay_(CreateWindow(root_, 0, 0,
@@ -65,8 +66,15 @@ MockXConnection::~MockXConnection() {
 bool MockXConnection::GetWindowGeometry(XWindow xid, WindowGeometry* geom_out) {
   CHECK(geom_out);
   WindowInfo* info = GetWindowInfo(xid);
-  if (!info)
-    return false;
+  if (!info) {
+    // Maybe this is a compositing pixmap for a window.  If so, just use
+    // the window's geometry instead.
+    XWindow window_xid = FindWithDefault(
+        pixmap_to_window_, static_cast<XID>(xid), static_cast<XWindow>(0));
+    info = GetWindowInfo(window_xid);
+    if (!info)
+      return false;
+  }
   geom_out->x = info->x;
   geom_out->y = info->y;
   geom_out->width = info->width;
@@ -288,7 +296,7 @@ bool MockXConnection::UnredirectWindowForCompositing(XWindow xid) {
 XPixmap MockXConnection::GetCompositingPixmapForWindow(XWindow xid) {
   WindowInfo* info = GetWindowInfo(xid);
   if (!info)
-    return false;
+    return 0;
   return info->compositing_pixmap;
 }
 
@@ -309,7 +317,11 @@ XWindow MockXConnection::CreateWindow(
   info->override_redirect = override_redirect;
   info->input_only = input_only;
   info->event_mask = event_mask;
+  info->compositing_pixmap = next_pixmap_++;
+  CHECK(!GetWindowInfo(info->compositing_pixmap));
+
   windows_[xid] = info;
+  pixmap_to_window_[info->compositing_pixmap] = xid;
   stacked_xids_->AddOnTop(xid);
 
   const WindowInfo* parent_info = GetWindowInfo(parent);
@@ -323,6 +335,7 @@ bool MockXConnection::DestroyWindow(XWindow xid) {
   map<XWindow, shared_ptr<WindowInfo> >::iterator it = windows_.find(xid);
   if (it == windows_.end())
     return false;
+  pixmap_to_window_.erase(it->second->compositing_pixmap);
   windows_.erase(it);
   stacked_xids_->Remove(xid);
   if (focused_xid_ == xid)

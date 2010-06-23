@@ -102,11 +102,11 @@ class MockXConnection : public XConnection {
   std::string GetStringFromKeySym(KeySym keysym) { return ""; }
   bool GrabKey(KeyCode keycode, uint32 modifiers);
   bool UngrabKey(KeyCode keycode, uint32 modifiers);
-  XDamage CreateDamage(XDrawable drawable, int level) { return 1; }
+  XDamage CreateDamage(XDrawable drawable, DamageReportLevel level) {
+    return 1;
+  }
   void DestroyDamage(XDamage damage) {}
-  void SubtractRegionFromDamage(XDamage damage,
-                                XServerRegion repair,
-                                XServerRegion parts) {}
+  void ClearDamage(XDamage damage) {}
   bool SetDetectableKeyboardAutoRepeat(bool detectable) { return true; }
   bool QueryKeyboardState(std::vector<uint8_t>* keycodes_out) { return true; }
   bool QueryPointerPosition(int* x_root, int* y_root);
@@ -302,13 +302,22 @@ class MockXConnection : public XConnection {
   bool GrabServerImpl() { return true; }
   bool UngrabServerImpl() { return true; }
 
+  // Map from window ID to info about the window.
   std::map<XWindow, std::tr1::shared_ptr<WindowInfo> > windows_;
+
+  // Map from compositing pixmaps to the windows that they represent.
+  std::map<XID, XWindow> pixmap_to_window_;
 
   // All windows other than the overlay and root, in top-to-bottom stacking
   // order.
   scoped_ptr<Stacker<XWindow> > stacked_xids_;
 
+  // Next window ID that should be used by CreateWindow().
   XWindow next_window_;
+
+  // Next compositing pixmap ID that should be used by CreateWindow().
+  // Note that these share the same space as 'next_window_'.
+  XID next_pixmap_;
 
   XWindow root_;
   XWindow overlay_;

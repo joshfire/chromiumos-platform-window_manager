@@ -106,14 +106,24 @@ int MockCompositor::ContainerActor::GetStackingIndex(Compositor::Actor* actor) {
   return stacked_children_->GetIndex(cast_actor);
 }
 
+void MockCompositor::TexturePixmapActor::SetPixmap(XWindow pixmap) {
+  pixmap_ = pixmap;
+  XConnection::WindowGeometry geometry;
+  if (xconn_->GetWindowGeometry(pixmap_, &geometry)) {
+    width_ = geometry.width;
+    height_ = geometry.height;
+  } else {
+    width_ = 0;
+    height_ = 0;
+  }
+}
 
-bool MockCompositor::TexturePixmapActor::SetAlphaMask(
-    const unsigned char* bytes, int width, int height) {
+void MockCompositor::TexturePixmapActor::SetAlphaMask(
+    const uint8_t* bytes, int width, int height) {
   ClearAlphaMask();
   size_t size = width * height;
   alpha_mask_bytes_ = new unsigned char[size];
   memcpy(alpha_mask_bytes_, bytes, size);
-  return true;
 }
 
 void MockCompositor::TexturePixmapActor::ClearAlphaMask() {

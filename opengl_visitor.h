@@ -46,44 +46,29 @@ class OpenGlQuadDrawingData : public RealCompositor::DrawingData  {
 
 class OpenGlPixmapData : public RealCompositor::DrawingData  {
  public:
-  OpenGlPixmapData(GLInterface* gl_interface, XConnection* x_conn);
+  OpenGlPixmapData(OpenGlDrawVisitor* visitor);
   virtual ~OpenGlPixmapData();
 
+  // This creates a GLX pixmap from the actor's pixmap and binds it to a GL
+  // texture.  false is returned if the process fails (in which case this
+  // object should be thrown away).
+  bool Init(RealCompositor::TexturePixmapActor* actor);
+
+  // Refresh the texture in response to the X pixmap's contents being
+  // modified.
   void Refresh();
 
-  // This creates a new OpenGlTextureData for the given actor, setting
-  // up the texture id on the texture data object, and attaching it to
-  // the actor.  Returns false if texture cannot be bound.
-  static bool BindToPixmap(OpenGlDrawVisitor* visitor,
-                           RealCompositor::TexturePixmapActor* actor);
-
-  void SetTexture(GLuint texture, bool has_alpha);
-
-  XPixmap pixmap() const { return pixmap_; }
   GLuint texture() const { return texture_; }
-  bool has_alpha() const { return has_alpha_; }
 
  private:
-  // This is the GL interface to use for communicating with GL.
-  GLInterface* gl_interface_;
+  OpenGlDrawVisitor* visitor_;  // not owned
+  GLInterface* gl_;             // not owned
 
-  // This is the X connection to use for communicating with X.
-  XConnection* x_conn_;
-
-  // This is the texture ID of the bound texture.
+  // GL texture.
   GLuint texture_;
 
-  // This is the compositing pixmap associated with the window.
-  XPixmap pixmap_;
-
-  // This is the GLX pixmap we draw into, created from the pixmap above.
+  // GLX pixmap created from the actor's X pixmap.
   GLXPixmap glx_pixmap_;
-
-  // This is the id of the damage region.
-  XID damage_;
-
-  // Whether or not this pixmap has an alpha channel.
-  bool has_alpha_;
 };
 
 class OpenGlTextureData : public RealCompositor::DrawingData  {

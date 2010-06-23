@@ -17,7 +17,6 @@ typedef XID XAtom;
 typedef XID XDamage;
 typedef XID XDrawable;
 typedef XID XPixmap;
-typedef XID XServerRegion;
 typedef XID XVisualID;
 typedef XID XWindow;
 

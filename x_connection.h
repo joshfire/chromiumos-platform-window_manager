@@ -137,6 +137,16 @@ class XConnection {
     DISALLOW_COPY_AND_ASSIGN(ScopedServerGrab);
   };
 
+  // Different ways that damage to a drawable can be reported.
+  // The values for these symbols are taken from the Damage wire format
+  // (e.g. see damagewire.h in the Xlib Damage implementation).
+  enum DamageReportLevel {
+    DAMAGE_REPORT_LEVEL_RAW_RECTANGLES = 0,
+    DAMAGE_REPORT_LEVEL_DELTA_RECTANGLES = 1,
+    DAMAGE_REPORT_LEVEL_BOUNDING_BOX = 2,
+    DAMAGE_REPORT_LEVEL_NON_EMPTY = 3,
+  };
+
   // Get the base event ID for extension events.
   int damage_event_base() const { return damage_event_base_; }
   int shape_event_base() const { return shape_event_base_; }
@@ -386,11 +396,9 @@ class XConnection {
   virtual bool UngrabKey(KeyCode keycode, uint32 modifiers) = 0;
 
   // Manage damage regions.
-  virtual XDamage CreateDamage(XDrawable drawable, int level) = 0;
+  virtual XDamage CreateDamage(XDrawable drawable, DamageReportLevel level) = 0;
   virtual void DestroyDamage(XDamage damage) = 0;
-  virtual void SubtractRegionFromDamage(XDamage damage,
-                                        XServerRegion repair,
-                                        XServerRegion parts) = 0;
+  virtual void ClearDamage(XDamage damage) = 0;
 
   // When auto-repeating a key combo, the X Server may send:
   //   KeyPress   @ time_0    <-- Key pressed down

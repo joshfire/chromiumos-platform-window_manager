@@ -48,7 +48,7 @@ TEST_F(ShadowTest, Basic) {
 
   // Check the sides.
   EXPECT_EQ(0, shadow.top_actor_->GetX());
-  EXPECT_EQ(1, shadow.top_actor_->GetY());
+  EXPECT_EQ(-1, shadow.top_actor_->GetY());
   EXPECT_FLOAT_EQ(200.0f, shadow.top_actor_->GetXScale());
   EXPECT_FLOAT_EQ(1.0f, shadow.top_actor_->GetYScale());
 
@@ -57,7 +57,7 @@ TEST_F(ShadowTest, Basic) {
   EXPECT_FLOAT_EQ(200.0f, shadow.bottom_actor_->GetXScale());
   EXPECT_FLOAT_EQ(1.0f, shadow.bottom_actor_->GetYScale());
 
-  EXPECT_EQ(1, shadow.left_actor_->GetX());
+  EXPECT_EQ(-1, shadow.left_actor_->GetX());
   EXPECT_EQ(0, shadow.left_actor_->GetY());
   EXPECT_FLOAT_EQ(1.0f, shadow.left_actor_->GetXScale());
   EXPECT_FLOAT_EQ(100.0f, shadow.left_actor_->GetYScale());
@@ -68,13 +68,13 @@ TEST_F(ShadowTest, Basic) {
   EXPECT_FLOAT_EQ(100.0f, shadow.right_actor_->GetYScale());
 
   // Check the corners.
-  EXPECT_EQ(1, shadow.tl_actor_->GetX());
-  EXPECT_EQ(1, shadow.tl_actor_->GetY());
+  EXPECT_EQ(-1, shadow.tl_actor_->GetX());
+  EXPECT_EQ(-1, shadow.tl_actor_->GetY());
   EXPECT_FLOAT_EQ(1.0f, shadow.tl_actor_->GetXScale());
   EXPECT_FLOAT_EQ(1.0f, shadow.tl_actor_->GetYScale());
 
   EXPECT_EQ(200, shadow.tr_actor_->GetX());
-  EXPECT_EQ(1, shadow.tr_actor_->GetY());
+  EXPECT_EQ(-1, shadow.tr_actor_->GetY());
   EXPECT_FLOAT_EQ(1.0f, shadow.tr_actor_->GetXScale());
   EXPECT_FLOAT_EQ(1.0f, shadow.tr_actor_->GetYScale());
 
@@ -83,7 +83,7 @@ TEST_F(ShadowTest, Basic) {
   EXPECT_FLOAT_EQ(1.0f, shadow.br_actor_->GetXScale());
   EXPECT_FLOAT_EQ(1.0f, shadow.br_actor_->GetYScale());
 
-  EXPECT_EQ(1, shadow.bl_actor_->GetX());
+  EXPECT_EQ(-1, shadow.bl_actor_->GetX());
   EXPECT_EQ(100, shadow.bl_actor_->GetY());
   EXPECT_FLOAT_EQ(1.0f, shadow.bl_actor_->GetXScale());
   EXPECT_FLOAT_EQ(1.0f, shadow.bl_actor_->GetYScale());

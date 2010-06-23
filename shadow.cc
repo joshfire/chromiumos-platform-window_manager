@@ -107,6 +107,9 @@ void Shadow::MoveY(int y, int anim_ms) {
 }
 
 void Shadow::Resize(int width, int height, int anim_ms) {
+  width_ = width;
+  height_ = height;
+
   top_actor_->Move(kInset, -kTopHeight, anim_ms);
   bottom_actor_->Move(kInset, height, anim_ms);
   left_actor_->Move(-kLeftWidth, kInset, anim_ms);

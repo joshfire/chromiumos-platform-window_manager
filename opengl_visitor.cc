@@ -14,7 +14,6 @@
 #include <GL/glext.h>
 #include <GL/glx.h>
 #include <gflags/gflags.h>
-#include <xcb/damage.h>
 
 #include "base/basictypes.h"
 #include "base/logging.h"
@@ -84,141 +83,77 @@ void OpenGlQuadDrawingData::set_vertex_color(int index,
   color_buffer_[index] = a;
 }
 
-OpenGlPixmapData::OpenGlPixmapData(GLInterface* gl_interface,
-                                   XConnection* x_conn)
-    : gl_interface_(gl_interface),
-      x_conn_(x_conn),
+OpenGlPixmapData::OpenGlPixmapData(OpenGlDrawVisitor* visitor)
+    : visitor_(visitor),
+      gl_(visitor_->gl_interface_),
       texture_(0),
-      pixmap_(XCB_NONE),
-      glx_pixmap_(XCB_NONE),
-      damage_(XCB_NONE),
-      has_alpha_(false) {}
+      glx_pixmap_(0) {
+  DCHECK(visitor);
+}
 
 OpenGlPixmapData::~OpenGlPixmapData() {
-  if (damage_) {
-    x_conn_->DestroyDamage(damage_);
-    damage_ = XCB_NONE;
-  }
   if (texture_) {
-    gl_interface_->DeleteTextures(1, &texture_);
+    gl_->DeleteTextures(1, &texture_);
     texture_ = 0;
   }
   if (glx_pixmap_) {
-    gl_interface_->DestroyGlxPixmap(glx_pixmap_);
-    glx_pixmap_ = XCB_NONE;
+    gl_->DestroyGlxPixmap(glx_pixmap_);
+    glx_pixmap_ = 0;
   }
-  if (pixmap_) {
-    x_conn_->FreePixmap(pixmap_);
-    pixmap_ = XCB_NONE;
-  }
+  visitor_ = NULL;
+  gl_ = NULL;
 }
 
-void OpenGlPixmapData::Refresh() {
-  LOG_IF(ERROR, !texture_) << "Refreshing with no texture.";
-  if (!texture_)
-    return;
-
-  gl_interface_->BindTexture(GL_TEXTURE_2D, texture_);
-  gl_interface_->ReleaseGlxTexImage(glx_pixmap_, GLX_FRONT_LEFT_EXT);
-  gl_interface_->BindGlxTexImage(glx_pixmap_, GLX_FRONT_LEFT_EXT, NULL);
-  if (damage_) {
-    x_conn_->SubtractRegionFromDamage(damage_, XCB_NONE, XCB_NONE);
-  }
-  CHECK_GL_ERROR(gl_interface_);
-}
-
-void OpenGlPixmapData::SetTexture(GLuint texture, bool has_alpha) {
-  if (texture_ && texture_ != texture) {
-    gl_interface_->DeleteTextures(1, &texture_);
-  }
-  texture_ = texture;
-  has_alpha_ = has_alpha;
-  Refresh();
-}
-
-// static
-bool OpenGlPixmapData::BindToPixmap(
-    OpenGlDrawVisitor* visitor,
-    RealCompositor::TexturePixmapActor* actor) {
-  GLInterface* gl_interface = visitor->gl_interface_;
-  XConnection* x_conn = visitor->x_conn_;
-
-  CHECK(actor);
-  if (!actor->texture_pixmap_window()) {
-    // This just means that the window hasn't been mapped yet, so
-    // we don't have a pixmap to bind to yet.
+bool OpenGlPixmapData::Init(RealCompositor::TexturePixmapActor* actor) {
+  DCHECK(actor);
+  CHECK(!glx_pixmap_) << "Pixmap data was already initialized";
+  if (!actor->pixmap()) {
+    LOG(WARNING) << "Can't create GLX pixmap for actor \"" << actor->name()
+                 << "\", since it doesn't have an X pixmap";
     return false;
   }
 
-  // Clear out the existing drawing data.
-  actor->EraseDrawingData(OpenGlDrawVisitor::PIXMAP_DATA);
-
-  scoped_ptr<OpenGlPixmapData> data(new OpenGlPixmapData(gl_interface, x_conn));
-
-  data->pixmap_ = x_conn->GetCompositingPixmapForWindow(
-      actor->texture_pixmap_window());
-  if (data->pixmap_ == XCB_NONE) {
-    return false;
-  }
-
-  XConnection::WindowGeometry geometry;
-  x_conn->GetWindowGeometry(data->pixmap_, &geometry);
-  bool is_rgba = (geometry.depth == 32);
-  int attribs[] = {
+  const int kGlxPixmapAttribs[] = {
     GLX_TEXTURE_FORMAT_EXT,
-    is_rgba ? GLX_TEXTURE_FORMAT_RGBA_EXT : GLX_TEXTURE_FORMAT_RGB_EXT,
+    actor->pixmap_is_opaque() ?
+      GLX_TEXTURE_FORMAT_RGB_EXT :
+      GLX_TEXTURE_FORMAT_RGBA_EXT,
     GLX_TEXTURE_TARGET_EXT,
     GLX_TEXTURE_2D_EXT,
     0
   };
-  data->has_alpha_ = is_rgba;
-  data->glx_pixmap_ = gl_interface->CreateGlxPixmap(
-      is_rgba ?
-        visitor->framebuffer_config_rgba_ :
-        visitor->framebuffer_config_rgb_,
-      data->pixmap_,
-      attribs);
-  CHECK_GL_ERROR(gl_interface);
-  if (data->glx_pixmap_ == XCB_NONE) {
-    // TODO: Figure out what causes this.  Perhaps the window was destroyed
-    // by the time that we tried to use its pixmap.
-    LOG(WARNING) << "Failed to create GLX pixmap for window "
-                 << XidStr(actor->texture_pixmap_window()) << " using pixmap "
-                 << XidStr(data->pixmap_);
+  glx_pixmap_ = gl_->CreateGlxPixmap(
+      actor->pixmap_is_opaque() ?
+        visitor_->framebuffer_config_rgb_ :
+        visitor_->framebuffer_config_rgba_,
+      actor->pixmap(),
+      kGlxPixmapAttribs);
+  CHECK_GL_ERROR(gl_);
+  if (!glx_pixmap_) {
+    LOG(WARNING) << "Failed to create GLX pixmap for actor \"" << actor->name()
+                 << "\" using pixmap " << XidStr(actor->pixmap());
     return false;
   }
 
-  gl_interface->GenTextures(1, &data->texture_);
-  gl_interface->BindTexture(GL_TEXTURE_2D, data->texture_);
-  gl_interface->EnableAnisotropicFiltering();
-  gl_interface->TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-  gl_interface->TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-  gl_interface->TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S,
-                              GL_CLAMP_TO_EDGE);
-  gl_interface->TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T,
-                              GL_CLAMP_TO_EDGE);
-  gl_interface->BindGlxTexImage(data->glx_pixmap_, GLX_FRONT_LEFT_EXT, NULL);
-  CHECK_GL_ERROR(gl_interface);
-  data->damage_ = x_conn->CreateDamage(actor->texture_pixmap_window(),
-                                       XCB_DAMAGE_REPORT_LEVEL_NON_EMPTY);
-  if (data->damage_ == XCB_NONE) {
-    LOG(WARNING) << "Failed to create damage object for window "
-                 << XidStr(actor->texture_pixmap_window());
-    return false;
-  }
-
-#ifdef EXTRA_LOGGING
-  LOG(INFO) << "Adding pixmap data that is "
-            << (data->has_alpha_ ? "transparent" : "opaque")
-            << " (" << geometry.depth << "-bit) to " << actor->name();
-#endif
-  // Set this in case we are adding the pixmap data as part of the pass.
-  actor->set_is_opaque(actor->opacity() > 0.999f && !data->has_alpha_);
-  actor->SetDrawingData(OpenGlDrawVisitor::PIXMAP_DATA,
-                        RealCompositor::DrawingDataPtr(data.release()));
-  actor->set_pixmap_invalid(false);
-  actor->SetDirty();
+  gl_->GenTextures(1, &texture_);
+  gl_->BindTexture(GL_TEXTURE_2D, texture_);
+  gl_->EnableAnisotropicFiltering();
+  gl_->TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+  gl_->TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+  gl_->TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+  gl_->TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+  gl_->BindGlxTexImage(glx_pixmap_, GLX_FRONT_LEFT_EXT, NULL);
+  CHECK_GL_ERROR(gl_);
   return true;
+}
+
+void OpenGlPixmapData::Refresh() {
+  DCHECK(texture_);
+  DCHECK(glx_pixmap_);
+  gl_->BindTexture(GL_TEXTURE_2D, texture_);
+  gl_->ReleaseGlxTexImage(glx_pixmap_, GLX_FRONT_LEFT_EXT);
+  gl_->BindGlxTexImage(glx_pixmap_, GLX_FRONT_LEFT_EXT, NULL);
+  CHECK_GL_ERROR(gl_);
 }
 
 OpenGlTextureData::OpenGlTextureData(GLInterface* gl_interface)
@@ -397,16 +332,25 @@ void OpenGlDrawVisitor::VisitActor(RealCompositor::Actor* actor) {
 
 void OpenGlDrawVisitor::VisitTexturePixmap(
     RealCompositor::TexturePixmapActor* actor) {
-  if (!actor->IsVisible()) return;
+  if (!actor->IsVisible())
+    return;
+
   PROFILER_MARKER_BEGIN(VisitTexturePixmap);
+
   // Make sure there's a bound texture.
-  if (!actor->GetDrawingData(PIXMAP_DATA).get() ||
-      actor->is_pixmap_invalid()) {
-    if (!OpenGlPixmapData::BindToPixmap(this, actor)) {
-      // We didn't find a bound pixmap, so let's just skip drawing this
-      // actor.  (it's probably because it hasn't been mapped).
+  if (!actor->GetDrawingData(PIXMAP_DATA).get()) {
+    if (!actor->pixmap()) {
+      PROFILER_MARKER_END(VisitTexturePixmap);
       return;
     }
+
+    scoped_ptr<OpenGlPixmapData> data(new OpenGlPixmapData(this));
+    if (!data->Init(actor)) {
+      PROFILER_MARKER_END(VisitTexturePixmap);
+      return;
+    }
+    actor->SetDrawingData(OpenGlDrawVisitor::PIXMAP_DATA,
+                          RealCompositor::DrawingDataPtr(data.release()));
   }
 
   // All texture pixmaps are also QuadActors, and so we let the

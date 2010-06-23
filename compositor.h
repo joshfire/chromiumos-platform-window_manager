@@ -127,25 +127,21 @@ class Compositor {
     DISALLOW_COPY_AND_ASSIGN(StageActor);
   };
 
+  // TexturePixmapActor displays the contents of a pixmap onscreen.
   class TexturePixmapActor : virtual public Actor {
    public:
     TexturePixmapActor() {}
     virtual ~TexturePixmapActor() {}
-    virtual bool SetTexturePixmapWindow(XWindow xid) = 0;
 
-    // Update our copy of the window's contents in response to notification
-    // that they have been modified.
-    virtual void UpdateContents() = 0;
+    // Create a texture containing the contents of the passed-in pixmap.
+    virtual void SetPixmap(XID pixmap) = 0;
 
-    // Discard the current pixmap.  The X Composite extension creates a new
-    // pixmap when a window gets mapped or resized; the old pixmap needs to
-    // be discarded in these cases.
-    virtual void DiscardPixmap() = 0;
+    // Update the texture after the contents of the pixmap have changed.
+    virtual void UpdateTexture() = 0;
 
     // Add an additional texture to mask out parts of the actor.
     // 'bytes' must be of size 'width' * 'height'.
-    virtual bool SetAlphaMask(
-        const unsigned char* bytes, int width, int height) = 0;
+    virtual void SetAlphaMask(const uint8_t* bytes, int width, int height) = 0;
 
     // Clear the previously-applied alpha mask.
     virtual void ClearAlphaMask() = 0;
@@ -197,10 +193,10 @@ class MockCompositor : public Compositor {
   class Actor : virtual public Compositor::Actor {
    public:
     Actor()
-        : x_(-1),
-          y_(-1),
-          width_(-1),
-          height_(-1),
+        : x_(0),
+          y_(0),
+          width_(1),
+          height_(1),
           scale_x_(1.0),
           scale_y_(1.0),
           opacity_(1.0),
@@ -242,7 +238,6 @@ class MockCompositor : public Compositor {
     virtual void SetSize(int width, int height) {
       width_ = width;
       height_ = height;
-      SetSizeImpl(width, height);
     }
     virtual void Move(int x, int y, int anim_ms) {
       x_ = x;
@@ -273,8 +268,6 @@ class MockCompositor : public Compositor {
       visibility_groups_.erase(group_id);
     }
     // End Compositor::Actor methods.
-
-    virtual void SetSizeImpl(int width, int height) {}
 
    protected:
     std::string name_;
@@ -347,40 +340,38 @@ class MockCompositor : public Compositor {
     explicit TexturePixmapActor(XConnection* xconn)
         : xconn_(xconn),
           alpha_mask_bytes_(NULL),
-          xid_(0),
-          num_pixmap_discards_(0) {}
+          pixmap_(0),
+          num_texture_updates_(0) {}
     virtual ~TexturePixmapActor() { ClearAlphaMask(); }
-    const unsigned char* alpha_mask_bytes() const { return alpha_mask_bytes_; }
-    XWindow xid() const { return xid_; }
-    int num_pixmap_discards() const { return num_pixmap_discards_; }
+    const uint8_t* alpha_mask_bytes() const { return alpha_mask_bytes_; }
+    XID pixmap() const { return pixmap_; }
+    int num_texture_updates() const { return num_texture_updates_; }
 
     // Begin Compositor::TexturePixmapActor methods.
-    virtual bool SetTexturePixmapWindow(XWindow xid) {
-      xid_ = xid;
-      return true;
-    }
-    virtual void UpdateContents() {}
-    virtual void DiscardPixmap() { num_pixmap_discards_++; }
-    virtual bool SetAlphaMask(const unsigned char* bytes,
-                              int width, int height);
+    virtual void SetPixmap(XID pixmap);
+    virtual void UpdateTexture() { num_texture_updates_++; }
+    virtual void SetAlphaMask(const uint8_t* bytes, int width, int height);
     virtual void ClearAlphaMask();
     // End Compositor::TexturePixmapActor methods.
 
     // Begin MockCompositor::Actor methods.
-    virtual void SetSizeImpl(int width, int height) { DiscardPixmap(); }
+    virtual void SetSize(int width, int height) {}
     // End MockCompositor::Actor methods.
 
    private:
     XConnection* xconn_;  // not owned
 
     // Shape as set by SetAlphaMask(), or NULL if the actor is unshaped.
-    unsigned char* alpha_mask_bytes_;
+    uint8_t* alpha_mask_bytes_;
 
-    // Redirected window that we're displaying.
-    XWindow xid_;
+    // Redirected window that we're tracking.
+    XWindow redirected_window_;
 
-    // Number of times that DiscardPixmap() has been called.
-    int num_pixmap_discards_;
+    // Pixmap that we're displaying.
+    XID pixmap_;
+
+    // Number of times that UpdateTexture() has been called.
+    int num_texture_updates_;
 
     DISALLOW_COPY_AND_ASSIGN(TexturePixmapActor);
   };

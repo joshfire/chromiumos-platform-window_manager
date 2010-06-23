@@ -1496,11 +1496,11 @@ void WindowManager::HandleMapNotify(const XMapEvent& e) {
   if (!win)
     return;
 
-  if (win->mapped()) {
-    DLOG(INFO) << "Ignoring map notify for already-handled window "
-               << XidStr(e.window);
+  // We need to get a new pixmap for the window.
+  win->HandleMapNotify();
+
+  if (win->mapped())
     return;
-  }
 
   win->set_mapped(true);
   HandleMappedWindow(win);
@@ -1692,12 +1692,6 @@ void WindowManager::HandleUnmapNotify(const XUnmapEvent& e) {
   SetWmStateProperty(e.window, 0);  // WithdrawnState
   win->set_mapped(false);
   win->HideComposited();
-
-  // The Composite extension creates a new pixmap each time that a window
-  // is mapped.  Throw out the current pixmap to make sure that we'll pick
-  // up a new one if it gets mapped again later -- see
-  // http://crosbug.com/3159.
-  win->actor()->DiscardPixmap();
 
   FOR_EACH_EVENT_CONSUMER(event_consumers_, HandleWindowUnmap(win));
 

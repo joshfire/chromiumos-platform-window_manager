@@ -25,7 +25,7 @@
 
 // Work around broken eglext.h headers
 #ifndef EGL_NO_IMAGE_KHR
-#define EGL_NO_IMAGE_KHR (reinterpret_cast<EGLImageKHR>(0))
+#define EGL_NO_IMAGE_KHR (static_cast<EGLImageKHR>(0))
 #endif
 #ifndef EGL_IMAGE_PRESERVED_KHR
 #define EGL_IMAGE_PRESERVED_KHR 0x30D2
@@ -190,7 +190,7 @@ void OpenGlesDrawVisitor::VisitTexturePixmap(
       actor->GetDrawingData(kEglImageData).get());
 
   if (!image_data) {
-    image_data = new OpenGlesEglImageData(x_connection_, gl_);
+    image_data = new OpenGlesEglImageData(gl_);
     actor->SetDrawingData(kEglImageData,
                           RealCompositor::DrawingDataPtr(image_data));
   }
@@ -198,7 +198,7 @@ void OpenGlesDrawVisitor::VisitTexturePixmap(
   if (!image_data->bound()) {
     if (image_data->Bind(actor, egl_context_)) {
       OpenGlesTextureData* texture = new OpenGlesTextureData(gl_);
-      image_data->BindTexture(texture);
+      image_data->BindTexture(texture, actor->pixmap_is_opaque() == false);
       actor->SetDrawingData(kTextureData,
                             RealCompositor::DrawingDataPtr(texture));
       VisitQuad(actor);
@@ -220,7 +220,7 @@ void OpenGlesDrawVisitor::VisitQuad(RealCompositor::QuadActor* actor) {
   Matrix4 mvp = projection_ * actor->model_view();
 
   // texture
-  OpenGlesTextureData* texture_data = reinterpret_cast<OpenGlesTextureData*>(
+  OpenGlesTextureData* texture_data = dynamic_cast<OpenGlesTextureData*>(
       actor->GetDrawingData(kTextureData).get());
   gl_->BindTexture(GL_TEXTURE_2D, texture_data ? texture_data->texture() : 0);
   const bool texture_has_alpha = texture_data ?
@@ -359,38 +359,24 @@ void OpenGlesTextureData::SetTexture(GLuint texture, bool has_alpha) {
   has_alpha_ = has_alpha;
 }
 
-OpenGlesEglImageData::OpenGlesEglImageData(XConnection* x,
-                                           Gles2Interface* gl)
+OpenGlesEglImageData::OpenGlesEglImageData(Gles2Interface* gl)
     : bound_(false),
-      x_(x),
       gl_(gl),
-      damage_(XCB_NONE),
-      pixmap_(XCB_NONE),
       egl_image_(EGL_NO_IMAGE_KHR) {
 }
 
 OpenGlesEglImageData::~OpenGlesEglImageData() {
-  if (damage_)
-    x_->DestroyDamage(damage_);
   if (egl_image_)
     gl_->EglDestroyImageKHR(gl_->egl_display(), egl_image_);
-  if (pixmap_)
-    x_->FreePixmap(pixmap_);
 }
 
 bool OpenGlesEglImageData::Bind(RealCompositor::TexturePixmapActor* actor,
                                 EGLContext egl_context) {
+  DCHECK(actor);
   CHECK(!bound_);
 
-  const XID window = actor->texture_pixmap_window();
-  if (!window) {
-    // Unmapped window, nothing to bind to
-    return false;
-  }
-
-  pixmap_ = x_->GetCompositingPixmapForWindow(window);
-  if (pixmap_ == XCB_NONE) {
-    LOG(INFO) << "GetCompositingPixmapForWindow() returned NONE.";
+  if (!actor->pixmap()) {
+    LOG(INFO) << "No pixmap for actor \"" << actor->name() << "\"";
     return false;
   }
 
@@ -401,20 +387,14 @@ bool OpenGlesEglImageData::Bind(RealCompositor::TexturePixmapActor* actor,
   // Work around broken eglCreateImageKHR that improperly takes a context
   egl_image_ = gl_->EglCreateImageKHR(
       gl_->egl_display(), egl_context, EGL_NATIVE_PIXMAP_KHR,
-      reinterpret_cast<EGLClientBuffer>(pixmap_), egl_image_attribs);
+      reinterpret_cast<EGLClientBuffer>(actor->pixmap()), egl_image_attribs);
   if (egl_image_ == EGL_NO_IMAGE_KHR) {
     egl_image_ = gl_->EglCreateImageKHR(
         gl_->egl_display(), EGL_NO_CONTEXT, EGL_NATIVE_PIXMAP_KHR,
-        reinterpret_cast<EGLClientBuffer>(pixmap_), egl_image_attribs);
+        reinterpret_cast<EGLClientBuffer>(actor->pixmap()), egl_image_attribs);
   }
   if (egl_image_ == EGL_NO_IMAGE_KHR) {
     LOG(INFO) << "eglCreateImageKHR() returned EGL_NO_IMAGE_KHR.";
-    return false;
-  }
-
-  damage_ = x_->CreateDamage(window, XCB_DAMAGE_REPORT_LEVEL_NON_EMPTY);
-  if (damage_ == XCB_NONE) {
-    LOG(INFO) << "CreateDamage() returned NONE.";
     return false;
   }
 
@@ -422,7 +402,8 @@ bool OpenGlesEglImageData::Bind(RealCompositor::TexturePixmapActor* actor,
   return true;
 }
 
-void OpenGlesEglImageData::BindTexture(OpenGlesTextureData* texture_data) {
+void OpenGlesEglImageData::BindTexture(OpenGlesTextureData* texture_data,
+                                       bool has_alpha) {
   CHECK(bound_);
 
   GLuint texture;
@@ -434,18 +415,9 @@ void OpenGlesEglImageData::BindTexture(OpenGlesTextureData* texture_data) {
   gl_->TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
   gl_->TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
   gl_->EGLImageTargetTexture2DOES(GL_TEXTURE_2D,
-                               static_cast<GLeglImageOES>(egl_image_));
-
-  XConnection::WindowGeometry geometry;
-  x_->GetWindowGeometry(pixmap_, &geometry);
-  bool has_alpha = (geometry.depth == 32);
+                                  static_cast<GLeglImageOES>(egl_image_));
 
   texture_data->SetTexture(texture, has_alpha);
-}
-
-void OpenGlesEglImageData::Refresh() {
-  if (damage_)
-    x_->SubtractRegionFromDamage(damage_, XCB_NONE, XCB_NONE);
 }
 
 }  // namespace window_manager

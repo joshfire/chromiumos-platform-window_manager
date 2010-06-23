@@ -929,21 +929,14 @@ bool RealXConnection::UngrabKey(KeyCode keycode, uint32 modifiers) {
   return true;
 }
 
-XDamage RealXConnection::CreateDamage(XDrawable drawable, int level) {
+XDamage RealXConnection::CreateDamage(XDrawable drawable,
+                                      DamageReportLevel level) {
   // TODO: Argh, more functionality that doesn't seem to work (sometimes?)
-  // in XCB.  Damage handles created with the below code (or just with
-  // xcb_damage_create()) don't seem to generate any DamageNotify events;
-  // handles created via the corresponding Xlib function work fine.
-  // Strangely, the XCB version appears to work in conjunction with GDK, so
-  // maybe something else isn't being initialized correctly here.
-#if 0
-  const xcb_damage_damage_t damage = xcb_generate_id(xcb_conn_);
-  xcb_void_cookie_t cookie = xcb_damage_create_checked(
-      xcb_conn_, damage, drawable, level);
-  CheckForXcbError(cookie, "in CreateDamage "
-                   "(damage=0x%x, drawable=0x%x, level=%d)",
-                   damage, drawable, level);
-#endif
+  // in XCB.  Damage handles created with xcb_damage_create() don't seem to
+  // generate any DamageNotify events; handles created via the
+  // corresponding Xlib function work fine.  Strangely, the XCB version
+  // appears to work in conjunction with GDK, so maybe something else isn't
+  // being initialized correctly here.
   TrapErrors();
   XDamage damage = XDamageCreate(display_, drawable, level);
   if (int error = UntrapErrors()) {
@@ -958,10 +951,8 @@ void RealXConnection::DestroyDamage(XDamage damage) {
   xcb_damage_destroy(xcb_conn_, damage);
 }
 
-void RealXConnection::SubtractRegionFromDamage(XDamage damage,
-                                               XServerRegion repair,
-                                               XServerRegion parts) {
-  xcb_damage_subtract(xcb_conn_, damage, repair, parts);
+void RealXConnection::ClearDamage(XDamage damage) {
+  xcb_damage_subtract(xcb_conn_, damage, XCB_NONE, XCB_NONE);
 }
 
 bool RealXConnection::SetDetectableKeyboardAutoRepeat(bool detectable) {

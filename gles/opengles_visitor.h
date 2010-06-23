@@ -103,10 +103,10 @@ class OpenGlesTextureData : public RealCompositor::DrawingData {
 
 class OpenGlesEglImageData : public RealCompositor::DrawingData {
  public:
-  OpenGlesEglImageData(XConnection* x, Gles2Interface* gl);
+  OpenGlesEglImageData(Gles2Interface* gl);
   virtual ~OpenGlesEglImageData();
 
-  // Bind to a window
+  // Bind to a pixmap.
   // HACK: work around broken eglCreateImageKHR calls that need the context
   bool Bind(RealCompositor::TexturePixmapActor* actor, EGLContext egl_context);
 
@@ -114,28 +114,17 @@ class OpenGlesEglImageData : public RealCompositor::DrawingData {
   bool bound() const { return bound_; }
 
   // Create and bind a GL texture
-  void BindTexture(OpenGlesTextureData* texture);
+  void BindTexture(OpenGlesTextureData* texture, bool has_alpha);
 
   // Respond to damage events
-  void Refresh();
+  void Refresh() {}
 
  private:
   // Has Bind() returned successfully
   bool bound_;
 
-  // X Connection to manage the damage region.  Not owned.
-  XConnection* x_;
-
   // Not owned.
   Gles2Interface* gl_;
-
-  // ID of the damage region
-  XID damage_;
-
-  // Named X pixmap
-  // TODO: lift as much as we can of the pixmap allocation and damage
-  // region stuff to the RealCompositor layer
-  XID pixmap_;
 
   // EGLImage
   EGLImageKHR egl_image_;

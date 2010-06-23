@@ -524,9 +524,8 @@ TEST_F(RealCompositorTest, HandleXEvents) {
   RealCompositor::TexturePixmapActor* cast_actor =
       dynamic_cast<RealCompositor::TexturePixmapActor*>(actor.get());
   CHECK(cast_actor);
-  EXPECT_FALSE(cast_actor->HasPixmapDrawingData());
-  actor->SetVisibility(true);
-  compositor()->GetDefaultStage()->AddActor(actor.get());
+  cast_actor->SetVisibility(true);
+  compositor()->GetDefaultStage()->AddActor(cast_actor);
   EXPECT_TRUE(compositor()->dirty());
   compositor()->Draw();
   EXPECT_FALSE(compositor()->dirty());
@@ -540,32 +539,38 @@ TEST_F(RealCompositorTest, HandleXEvents) {
       0);        // event_mask
   MockXConnection::WindowInfo* info =
       x_connection()->GetWindowInfoOrDie(xid);
-  info->compositing_pixmap = 123;  // arbitrary
 
-  // After we bind the actor to our window, the compositor should be marked
-  // dirty.
-  EXPECT_TRUE(actor->SetTexturePixmapWindow(xid));
+  // After we bind the actor to our window, the actor's pixmap should be
+  // updated and the compositor should be marked dirty.
+  cast_actor->SetPixmap(info->compositing_pixmap);
+  EXPECT_EQ(info->compositing_pixmap, cast_actor->pixmap());
+  EXPECT_EQ(info->width, cast_actor->GetWidth());
+  EXPECT_EQ(info->height, cast_actor->GetHeight());
+  EXPECT_FALSE(cast_actor->HasPixmapDrawingData());
   EXPECT_TRUE(compositor()->dirty());
 
-  // We should pick up the window's pixmap the next time we draw.
+  // The visitor should grab the actor's pixmap the next time we draw and
+  // set the 'pixmap_was_reset' flag back to false.
   compositor()->Draw();
   EXPECT_TRUE(cast_actor->HasPixmapDrawingData());
   EXPECT_FALSE(compositor()->dirty());
 
-  // Now resize the window.  The pixmap should be marked dirty.
-  info->width = 640;
-  info->height = 480;
-  actor->SetSize(info->width, info->height);
+  // Now say that the window was resized.  The new pixmap should be loaded.
+  info->compositing_pixmap++;
+  info->width += 20;
+  info->height += 10;
+  actor->SetPixmap(info->compositing_pixmap);
+  EXPECT_EQ(info->compositing_pixmap, cast_actor->pixmap());
+  EXPECT_EQ(info->width, cast_actor->GetWidth());
+  EXPECT_EQ(info->height, cast_actor->GetHeight());
+  EXPECT_FALSE(cast_actor->HasPixmapDrawingData());
   EXPECT_TRUE(compositor()->dirty());
-  EXPECT_TRUE(cast_actor->is_pixmap_invalid());
 
-  // A new pixmap should be loaded the next time we draw.
-  compositor()->Draw();
-  EXPECT_TRUE(cast_actor->HasPixmapDrawingData());
-  EXPECT_FALSE(compositor()->dirty());
-  EXPECT_FALSE(cast_actor->is_pixmap_invalid());
-
-  // TODO: Test that we refresh textures when we see damage events.
+  // Now tell the actor to stop tracking the window.
+  cast_actor->SetPixmap(0);
+  EXPECT_EQ(0, cast_actor->pixmap());
+  EXPECT_FALSE(cast_actor->HasPixmapDrawingData());
+  EXPECT_TRUE(compositor()->dirty());
 
   actor.reset();
   EXPECT_TRUE(compositor()->dirty());

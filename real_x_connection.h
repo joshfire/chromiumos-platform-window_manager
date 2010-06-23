@@ -92,11 +92,9 @@ class RealXConnection : public XConnection {
   std::string GetStringFromKeySym(KeySym keysym);
   bool GrabKey(KeyCode keycode, uint32 modifiers);
   bool UngrabKey(KeyCode keycode, uint32 modifiers);
-  XDamage CreateDamage(XDrawable drawable, int level);
+  XDamage CreateDamage(XDrawable drawable, DamageReportLevel level);
   void DestroyDamage(XDamage damage);
-  void SubtractRegionFromDamage(XDamage damage,
-                                XServerRegion repair,
-                                XServerRegion parts);
+  void ClearDamage(XDamage damage);
 
   bool SetDetectableKeyboardAutoRepeat(bool detectable);
   bool QueryKeyboardState(std::vector<uint8_t>* keycodes_out);

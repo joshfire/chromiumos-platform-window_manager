@@ -239,6 +239,10 @@ class Window {
   void SetCompositedOpacity(double opacity, int anim_ms);
   void ScaleComposited(double scale_x, double scale_y, int anim_ms);
 
+  // Handle a MapNotify event about this window.
+  // We throw away the old pixmap for the window and get the new one.
+  void HandleMapNotify();
+
   // Handle a ConfigureNotify event about this window.
   // Currently, we just pass the window's width and height so we can resize
   // the actor if needed.
@@ -297,6 +301,10 @@ class Window {
   // Update the window's _CHROME_STATE property based on the current
   // contents of 'chrome_state_atoms_'.
   bool UpdateChromeStateProperty();
+
+  // Free 'pixmap_', store a new offscreen pixmap containing the window's
+  // contents in it, and notify 'actor_' that the pixmap has changed.
+  void ResetPixmap();
 
   XWindow xid_;
   std::string xid_str_;  // hex for debugging
@@ -382,6 +390,12 @@ class Window {
   // Chrome window state, as exposed in the window's _CHROME_STATE
   // property.
   std::set<XAtom> chrome_state_xatoms_;
+
+  // Damage object used to track changes to 'xid_'.
+  XID damage_;
+
+  // Offscreen pixmap containing the window's redirected contents.
+  XID pixmap_;
 
   DISALLOW_COPY_AND_ASSIGN(Window);
 };

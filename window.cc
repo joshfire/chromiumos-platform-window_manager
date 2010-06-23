@@ -62,7 +62,9 @@ Window::Window(WindowManager* wm, XWindow xid, bool override_redirect)
       wm_state_maximized_vert_(false),
       wm_state_modal_(false),
       wm_hint_urgent_(false),
-      wm_window_type_(WM_WINDOW_TYPE_NORMAL) {
+      wm_window_type_(WM_WINDOW_TYPE_NORMAL),
+      damage_(0),
+      pixmap_(0) {
   // Listen for property and shape changes on this window.
   wm_->xconn()->SelectInputOnWindow(xid_, PropertyChangeMask, true);
   wm_->xconn()->SelectShapeEventsOnWindow(xid_);
@@ -94,9 +96,10 @@ Window::Window(WindowManager* wm, XWindow xid, bool override_redirect)
              << "at (" << client_x_ << ", " << client_y_ << ") "
              << "with dimensions " << client_width_ << "x" << client_height_;
 
-  actor_->SetTexturePixmapWindow(xid_);
+  damage_ = wm_->xconn()->CreateDamage(
+      xid_, XConnection::DAMAGE_REPORT_LEVEL_NON_EMPTY);
+  ResetPixmap();
   actor_->Move(composited_x_, composited_y_, 0);
-  actor_->SetSize(client_width_, client_height_);
   actor_->SetVisibility(false);
   // This will update the actor's name based on the current title and xid.
   SetTitle(title_);
@@ -127,6 +130,10 @@ Window::Window(WindowManager* wm, XWindow xid, bool override_redirect)
 }
 
 Window::~Window() {
+  if (damage_)
+    wm_->xconn()->DestroyDamage(damage_);
+  if (pixmap_)
+    wm_->xconn()->FreePixmap(pixmap_);
 }
 
 void Window::SetTitle(const string& title) {
@@ -648,19 +655,24 @@ void Window::ScaleComposited(double scale_x, double scale_y, int anim_ms) {
     shadow_->Resize(scale_x * client_width_, scale_y * client_height_, anim_ms);
 }
 
+void Window::HandleMapNotify() {
+  ResetPixmap();
+}
+
 void Window::HandleConfigureNotify(int width, int height) {
   if (actor_->GetWidth() != width || actor_->GetHeight() != height) {
-    actor_->SetSize(width, height);
+    ResetPixmap();
     if (shadow_.get()) {
-      shadow_->Resize(composited_scale_x_ * width,
-                      composited_scale_y_ * height,
+      shadow_->Resize(composited_scale_x_ * actor_->GetWidth(),
+                      composited_scale_y_ * actor_->GetHeight(),
                       0);  // anim_ms
     }
   }
 }
 
 void Window::HandleDamageNotify() {
-  actor_->UpdateContents();
+  wm_->xconn()->ClearDamage(damage_);
+  actor_->UpdateTexture();
 }
 
 void Window::SetShadowOpacity(double opacity, int anim_ms) {
@@ -796,6 +808,14 @@ bool Window::UpdateChromeStateProperty() {
   } else {
     return wm_->xconn()->DeletePropertyIfExists(xid_, state_xatom);
   }
+}
+
+void Window::ResetPixmap() {
+  XID old_pixmap = pixmap_;
+  pixmap_ = wm_->xconn()->GetCompositingPixmapForWindow(xid_);
+  actor_->SetPixmap(pixmap_);
+  if (old_pixmap)
+    wm_->xconn()->FreePixmap(old_pixmap);
 }
 
 }  // namespace window_manager

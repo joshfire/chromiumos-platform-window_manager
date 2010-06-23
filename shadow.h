@@ -32,6 +32,8 @@ class Shadow {
 
   bool is_shown() const { return is_shown_; }
   double opacity() const { return opacity_; }
+  int width() const { return width_; }
+  int height() const { return height_; }
 
   // Get the group containing all of the actors.
   Compositor::Actor* group() const { return group_.get(); }
@@ -87,6 +89,8 @@ class Shadow {
   // These are just used by tests.
   bool is_shown_;
   double opacity_;
+  int width_;
+  int height_;
 
   // Group containing corner and top/bottom/side actors.
   scoped_ptr<Compositor::ContainerActor> group_;

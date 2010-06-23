@@ -864,7 +864,7 @@ TEST_F(WindowManagerTest, RedirectWindows) {
   Window* existing_win = wm_->GetWindowOrDie(existing_xid);
   MockCompositor::TexturePixmapActor* existing_mock_actor =
       GetMockActorForWindow(existing_win);
-  EXPECT_EQ(existing_xid, existing_mock_actor->xid());
+  EXPECT_EQ(existing_info->compositing_pixmap, existing_mock_actor->pixmap());
 
   // Now, create a new window, but don't map it yet.  The window manager
   // should've already told the X server to automatically redirect toplevel
@@ -878,7 +878,7 @@ TEST_F(WindowManagerTest, RedirectWindows) {
   wm_->HandleEvent(&event);
   Window* win = wm_->GetWindowOrDie(xid);
   MockCompositor::TexturePixmapActor* mock_actor = GetMockActorForWindow(win);
-  EXPECT_EQ(xid, mock_actor->xid());
+  EXPECT_EQ(info->compositing_pixmap, mock_actor->pixmap());
 
   // There won't be a MapRequest event for override-redirect windows, but they
   // should still get redirected automatically.
@@ -901,7 +901,8 @@ TEST_F(WindowManagerTest, RedirectWindows) {
   Window* override_redirect_win = wm_->GetWindowOrDie(override_redirect_xid);
   MockCompositor::TexturePixmapActor* override_redirect_mock_actor =
       GetMockActorForWindow(override_redirect_win);
-  EXPECT_EQ(override_redirect_xid, override_redirect_mock_actor->xid());
+  EXPECT_EQ(override_redirect_info->compositing_pixmap,
+            override_redirect_mock_actor->pixmap());
 }
 
 // This tests against a bug where the window manager would fail to handle
@@ -1016,7 +1017,7 @@ TEST_F(WindowManagerTest, HandleMappingNotify) {
 }
 
 // Check that the window manager tells the compositor to discard the pixmap
-// for a window when the window is resized or unmapped.  See
+// for a window when the window is resized or remapped.  See
 // http://crosbug.com/3159.
 TEST_F(WindowManagerTest, DiscardPixmapOnUnmap) {
   XWindow xid = CreateSimpleWindow();
@@ -1025,19 +1026,26 @@ TEST_F(WindowManagerTest, DiscardPixmapOnUnmap) {
 
   Window* win = wm_->GetWindowOrDie(xid);
   MockCompositor::TexturePixmapActor* actor = GetMockActorForWindow(win);
-  int initial_pixmap_discards = actor->num_pixmap_discards();
+  EXPECT_EQ(info->compositing_pixmap, actor->pixmap());
 
-  // Check that the pixmap gets discarded when the window gets resized.
+  // Check that the pixmap gets reset when the window gets resized.
   XEvent event;
   info->width += 10;
+  info->compositing_pixmap++;
   xconn_->InitConfigureNotifyEvent(&event, xid);
   wm_->HandleEvent(&event);
-  EXPECT_EQ(initial_pixmap_discards + 1, actor->num_pixmap_discards());
+  EXPECT_EQ(info->compositing_pixmap, actor->pixmap());
 
-  // We should try to discard it when the window is unmapped, too.
+  // We should reset it when the window is remapped, too (but we should
+  // continue using the old pixmap until we actually see the window get
+  // mapped again).
+  info->compositing_pixmap++;
   xconn_->InitUnmapEvent(&event, xid);
   wm_->HandleEvent(&event);
-  EXPECT_EQ(initial_pixmap_discards + 2, actor->num_pixmap_discards());
+  EXPECT_EQ(info->compositing_pixmap - 1, actor->pixmap());
+  xconn_->InitMapEvent(&event, xid);
+  wm_->HandleEvent(&event);
+  EXPECT_EQ(info->compositing_pixmap, actor->pixmap());
 }
 
 // Test that we switch log files after the user logs in.
