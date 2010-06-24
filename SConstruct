@@ -122,6 +122,11 @@ elif backend == 'opengles':
     gles/shaders.cc
     gles/real_gles2_interface.cc
   '''))
+  # SCons doesn't figure out this dependency on its own, since
+  # opengles_visitor.cc includes "window_manager/gles/shaders.h", while the
+  # shaders builder just provides "gles/shaders.h".
+  Depends('gles/opengles_visitor.o', 'gles/shaders.h')
+
 libwm_core = wm_env.Library('wm_core', srcs)
 
 # Define a library to be used by tests.
