@@ -165,70 +165,38 @@ TEST_F(RealCompositorTestTree, LayerDepth) {
   RealCompositor::LayerVisitor layer_visitor(count);
   stage_->Accept(&layer_visitor);
 
-  EXPECT_FLOAT_EQ(
-      depth,
-      dynamic_cast<RealCompositor::QuadActor*>(rect3_.get())->z());
+  EXPECT_FLOAT_EQ(depth, rect3_->z());
   depth += thickness;
-  EXPECT_FLOAT_EQ(
-      depth,
-      dynamic_cast<RealCompositor::QuadActor*>(rect2_.get())->z());
+  EXPECT_TRUE(rect2_->culled());
+  EXPECT_FLOAT_EQ(depth, group4_->z());
   depth += thickness;
-  EXPECT_FLOAT_EQ(
-      depth,
-      dynamic_cast<RealCompositor::ContainerActor*>(group4_.get())->z());
+  EXPECT_FLOAT_EQ(depth, group3_->z());
   depth += thickness;
-  EXPECT_FLOAT_EQ(
-      depth,
-      dynamic_cast<RealCompositor::ContainerActor*>(group3_.get())->z());
+  EXPECT_TRUE(rect1_->culled());
+  EXPECT_FLOAT_EQ(depth, group2_->z());
   depth += thickness;
-  EXPECT_FLOAT_EQ(
-      depth,
-      dynamic_cast<RealCompositor::QuadActor*>(rect1_.get())->z());
-  depth += thickness;
-  EXPECT_FLOAT_EQ(
-      depth,
-      dynamic_cast<RealCompositor::ContainerActor*>(group2_.get())->z());
-  depth += thickness;
-  EXPECT_FLOAT_EQ(
-      depth,
-      dynamic_cast<RealCompositor::ContainerActor*>(group1_.get())->z());
+  EXPECT_FLOAT_EQ(depth, group1_->z());
 
   // Now we test higher-level layer depth results.
   depth = RealCompositor::LayerVisitor::kMinDepth + thickness;
   compositor()->Draw();
   EXPECT_EQ(8, compositor()->actor_count());
 
-  EXPECT_FLOAT_EQ(
-      depth,
-      dynamic_cast<RealCompositor::QuadActor*>(rect3_.get())->z());
+  EXPECT_FLOAT_EQ(depth, rect3_->z());
   depth += thickness;
-  EXPECT_FLOAT_EQ(
-      depth,
-      dynamic_cast<RealCompositor::QuadActor*>(rect2_.get())->z());
+  EXPECT_TRUE(rect2_->culled());
+  EXPECT_FLOAT_EQ(depth, group4_->z());
   depth += thickness;
-  EXPECT_FLOAT_EQ(
-      depth,
-      dynamic_cast<RealCompositor::ContainerActor*>(group4_.get())->z());
+  EXPECT_FLOAT_EQ(depth, group3_->z());
   depth += thickness;
-  EXPECT_FLOAT_EQ(
-      depth,
-      dynamic_cast<RealCompositor::ContainerActor*>(group3_.get())->z());
+  EXPECT_TRUE(rect1_->culled());
+  EXPECT_FLOAT_EQ(depth, group2_->z());
   depth += thickness;
-  EXPECT_FLOAT_EQ(
-      depth,
-      dynamic_cast<RealCompositor::QuadActor*>(rect1_.get())->z());
-  depth += thickness;
-  EXPECT_FLOAT_EQ(
-      depth,
-      dynamic_cast<RealCompositor::ContainerActor*>(group2_.get())->z());
-  depth += thickness;
-  EXPECT_FLOAT_EQ(
-      depth,
-      dynamic_cast<RealCompositor::ContainerActor*>(group1_.get())->z());
+  EXPECT_FLOAT_EQ(depth, group1_->z());
 }
 
 TEST_F(RealCompositorTestTree, LayerDepthWithOpacity) {
-  rect2_->SetOpacity(0.5f, 0);
+  rect3_->SetOpacity(0.5f, 0);
 
   // Test lower-level layer-setting routines
   int32 count = 0;
@@ -248,66 +216,36 @@ TEST_F(RealCompositorTestTree, LayerDepthWithOpacity) {
   RealCompositor::LayerVisitor layer_visitor(count);
   stage_->Accept(&layer_visitor);
 
-  EXPECT_FLOAT_EQ(
-      depth,
-      dynamic_cast<RealCompositor::QuadActor*>(rect3_.get())->z());
+  EXPECT_FLOAT_EQ(depth, rect3_->z());
   depth += thickness;
-  EXPECT_FLOAT_EQ(
-      depth,
-      dynamic_cast<RealCompositor::QuadActor*>(rect2_.get())->z());
+  EXPECT_FLOAT_EQ(depth, rect2_->z());
   depth += thickness;
-  EXPECT_FLOAT_EQ(
-      depth,
-      dynamic_cast<RealCompositor::ContainerActor*>(group4_.get())->z());
+  EXPECT_FLOAT_EQ(depth, group4_->z());
   depth += thickness;
-  EXPECT_FLOAT_EQ(
-      depth,
-      dynamic_cast<RealCompositor::ContainerActor*>(group3_.get())->z());
+  EXPECT_FLOAT_EQ(depth, group3_->z());
   depth += thickness;
-  EXPECT_FLOAT_EQ(
-      depth,
-      dynamic_cast<RealCompositor::QuadActor*>(rect1_.get())->z());
+  EXPECT_TRUE(rect1_->culled());
+  EXPECT_FLOAT_EQ(depth, group2_->z());
   depth += thickness;
-  EXPECT_FLOAT_EQ(
-      depth,
-      dynamic_cast<RealCompositor::ContainerActor*>(group2_.get())->z());
-  depth += thickness;
-  EXPECT_FLOAT_EQ(
-      depth,
-      dynamic_cast<RealCompositor::ContainerActor*>(group1_.get())->z());
+  EXPECT_FLOAT_EQ(depth, group1_->z());
 
   // Now we test higher-level layer depth results.
   depth = RealCompositor::LayerVisitor::kMinDepth + thickness;
   compositor()->Draw();
   EXPECT_EQ(8, compositor()->actor_count());
 
-  EXPECT_FLOAT_EQ(
-      depth,
-      dynamic_cast<RealCompositor::QuadActor*>(rect3_.get())->z());
+  EXPECT_FLOAT_EQ(depth, rect3_->z());
   depth += thickness;
-  EXPECT_FLOAT_EQ(
-      depth,
-      dynamic_cast<RealCompositor::QuadActor*>(rect2_.get())->z());
+  EXPECT_FLOAT_EQ(depth, rect2_->z());
   depth += thickness;
-  EXPECT_FLOAT_EQ(
-      depth,
-      dynamic_cast<RealCompositor::ContainerActor*>(group4_.get())->z());
+  EXPECT_FLOAT_EQ(depth, group4_->z());
   depth += thickness;
-  EXPECT_FLOAT_EQ(
-      depth,
-      dynamic_cast<RealCompositor::ContainerActor*>(group3_.get())->z());
+  EXPECT_FLOAT_EQ(depth, group3_->z());
   depth += thickness;
-  EXPECT_FLOAT_EQ(
-      depth,
-      dynamic_cast<RealCompositor::QuadActor*>(rect1_.get())->z());
+  EXPECT_TRUE(rect1_->culled());
+  EXPECT_FLOAT_EQ(depth, group2_->z());
   depth += thickness;
-  EXPECT_FLOAT_EQ(
-      depth,
-      dynamic_cast<RealCompositor::ContainerActor*>(group2_.get())->z());
-  depth += thickness;
-  EXPECT_FLOAT_EQ(
-      depth,
-      dynamic_cast<RealCompositor::ContainerActor*>(group1_.get())->z());
+  EXPECT_FLOAT_EQ(depth, group1_->z());
 }
 
 TEST_F(RealCompositorTestTree, ActorVisitor) {
@@ -372,22 +310,20 @@ TEST_F(RealCompositorTestTree, ActorAttributes) {
   rect1_->set_z(14.0f);
   EXPECT_EQ(14.0f, rect1_->z());
 
+  // TODO: add test cases to test the new LayerVisitor implementation.
   // Test opacity setting.
   rect1_->SetOpacity(0.6f, 0);
   // Have to traverse the tree to update is_opaque.
   stage_->Accept(&layer_visitor);
   EXPECT_EQ(0.6f, rect1_->opacity());
-  EXPECT_FALSE(rect1_->is_opaque());
   rect1_->SetOpacity(1.0f, 0);
   stage_->Accept(&layer_visitor);
   EXPECT_EQ(1.0f, rect1_->opacity());
-  EXPECT_TRUE(rect1_->is_opaque());
 
   // Test visibility setting.
   rect1_->SetVisibility(true);
   stage_->Accept(&layer_visitor);
   EXPECT_TRUE(rect1_->IsVisible());
-  EXPECT_TRUE(rect1_->is_opaque());
   rect1_->SetVisibility(false);
   stage_->Accept(&layer_visitor);
   EXPECT_FALSE(rect1_->IsVisible());
@@ -395,7 +331,6 @@ TEST_F(RealCompositorTestTree, ActorAttributes) {
   rect1_->SetOpacity(0.00001f, 0);
   stage_->Accept(&layer_visitor);
   EXPECT_FALSE(rect1_->IsVisible());
-  EXPECT_FALSE(rect1_->is_opaque());
 }
 
 TEST_F(RealCompositorTestTree, ContainerActorAttributes) {
@@ -437,22 +372,19 @@ TEST_F(RealCompositorTestTree, ContainerActorAttributes) {
   group1_->set_z(14.0f);
   EXPECT_EQ(14.0f, group1_->z());
 
+  // TODO: add test cases to test the new LayerVisitor implementation.
   // Test opacity setting.
   group1_->SetOpacity(0.6f, 0);
   stage_->Accept(&layer_visitor);
   EXPECT_EQ(0.6f, group1_->opacity());
-  EXPECT_FALSE(group1_->is_opaque());
   group1_->SetOpacity(1.0f, 0);
   stage_->Accept(&layer_visitor);
   EXPECT_EQ(1.0f, group1_->opacity());
-  EXPECT_TRUE(group1_->is_opaque());
 
   // Test visibility setting.
   group1_->SetVisibility(true);
   stage_->Accept(&layer_visitor);
   EXPECT_TRUE(group1_->IsVisible());
-  EXPECT_TRUE(group1_->is_opaque());
-  EXPECT_TRUE(rect1_->is_opaque());
   group1_->SetVisibility(false);
   stage_->Accept(&layer_visitor);
   EXPECT_FALSE(group1_->IsVisible());
@@ -461,7 +393,6 @@ TEST_F(RealCompositorTestTree, ContainerActorAttributes) {
   group1_->SetOpacity(0.00001f, 0);
   stage_->Accept(&layer_visitor);
   EXPECT_FALSE(group1_->IsVisible());
-  EXPECT_FALSE(group1_->is_opaque());
   EXPECT_TRUE(rect1_->IsVisible());
 }
 

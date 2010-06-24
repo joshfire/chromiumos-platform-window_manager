@@ -145,33 +145,17 @@ TEST_F(OpenGlVisitorTestTree, LayerDepth) {
                      RealCompositor::LayerVisitor::kMinDepth) / max_count;
   float depth = RealCompositor::LayerVisitor::kMinDepth + thickness;
 
-  EXPECT_FLOAT_EQ(
-      depth,
-      dynamic_cast<RealCompositor::QuadActor*>(rect3_.get())->z());
+  EXPECT_FLOAT_EQ(depth, rect3_->z());
   depth += thickness;
-  EXPECT_FLOAT_EQ(
-      depth,
-      dynamic_cast<RealCompositor::QuadActor*>(rect2_.get())->z());
+  EXPECT_TRUE(rect2_->culled());
+  EXPECT_FLOAT_EQ(depth, group4_->z());
   depth += thickness;
-  EXPECT_FLOAT_EQ(
-      depth,
-      dynamic_cast<RealCompositor::ContainerActor*>(group4_.get())->z());
+  EXPECT_FLOAT_EQ(depth, group3_->z());
   depth += thickness;
-  EXPECT_FLOAT_EQ(
-      depth,
-      dynamic_cast<RealCompositor::ContainerActor*>(group3_.get())->z());
+  EXPECT_TRUE(rect1_->culled());
+  EXPECT_FLOAT_EQ(depth, group2_->z());
   depth += thickness;
-  EXPECT_FLOAT_EQ(
-      depth,
-      dynamic_cast<RealCompositor::QuadActor*>(rect1_.get())->z());
-  depth += thickness;
-  EXPECT_FLOAT_EQ(
-      depth,
-      dynamic_cast<RealCompositor::ContainerActor*>(group2_.get())->z());
-  depth += thickness;
-  EXPECT_FLOAT_EQ(
-      depth,
-      dynamic_cast<RealCompositor::ContainerActor*>(group1_.get())->z());
+  EXPECT_FLOAT_EQ(depth, group1_->z());
 }
 
 // Check that the viewport gets resized correctly when the stage is resized.

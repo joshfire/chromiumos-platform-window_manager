@@ -47,6 +47,12 @@ using window_manager::util::XidStr;
 
 namespace window_manager {
 
+enum CullingResult {
+  CULLING_WINDOW_OFFSCREEN,
+  CULLING_WINDOW_ONSCREEN,
+  CULLING_WINDOW_FULLSCREEN
+};
+
 // Struct used for visibility and culling tests.
 // The X and Y axes are the same as in OpenGL. Where positive X is right, and
 // positive Y is top. Both corners are exclusive, so two bounding boxes do not
@@ -65,10 +71,17 @@ const float RealCompositor::LayerVisitor::kMaxDepth =
 // Minimum amount of time in milliseconds between scene redraws.
 static const int64_t kDrawTimeoutMs = 16;
 
-static inline bool IntersectWithScreen(const BoundingBox& a) {
-  // The window has corners top left (-1, 1) and bottom right (1, -1)
-  return !(a.bottom_right_x <= -1.0 || 1.0 <= a.top_left_x ||
-           a.top_left_y <= -1.0 || 1.0 <= a.bottom_right_y);
+static inline bool IsBoxOnScreen(const BoundingBox& a) {
+  // The window has corners top left (-1, 1) and bottom right (1, -1).
+  return !(a.bottom_right_x <= -1.0 || a.top_left_x >= 1.0 ||
+           a.top_left_y <= -1.0 || a.bottom_right_y >= 1.0);
+}
+
+static inline bool IsBoxFullScreen(const BoundingBox& a) {
+  // The bounding box must be equal or greater than the area (-1, 1) - (1, -1)
+  // in case of full screen.
+  return a.bottom_right_x >= 1.0 && a.top_left_x <= -1.0 &&
+         a.top_left_y >= 1.0 && a.bottom_right_y <= -1.0;
 }
 
 static inline float min4(float a, float b, float c, float d) {
@@ -79,8 +92,8 @@ static inline float max4(float a, float b, float c, float d) {
   return max(max(max(a, b), c), d);
 }
 
-static bool IsActorOnScreen(RealCompositor::StageActor* stage,
-                            RealCompositor::QuadActor* actor) {
+static CullingResult PerformActorCullingTest(
+    RealCompositor::StageActor* stage, RealCompositor::QuadActor* actor) {
   static const Vector4 bottom_left(0, 0, 0, 1);
   static const Vector4 top_left(0, 1, 0, 1);
   static const Vector4 top_right(1, 1, 0, 1);
@@ -98,13 +111,13 @@ static bool IsActorOnScreen(RealCompositor::StageActor* stage,
                       max4(tl[0], tr[0], bl[0], br[0]),   // bottom right x
                       min4(tl[1], tr[1], bl[1], br[1]) }; // bottom right y
 
-  const bool intersect = IntersectWithScreen(box);
-#ifdef EXTRA_LOGGING
-  DLOG(INFO) << actor->name() << " " << (intersect ? "in" : "out")
-             << "(" << box.top_left_x << "," << box.top_left_y << ")-("
-             << box.bottom_right_x << "," << box.bottom_right_y << ")";
-#endif
-  return intersect;
+  if (!IsBoxOnScreen(box))
+    return CULLING_WINDOW_OFFSCREEN;
+
+  if (IsBoxFullScreen(box))
+    return CULLING_WINDOW_FULLSCREEN;
+
+  return CULLING_WINDOW_ONSCREEN;
 }
 
 
@@ -147,12 +160,23 @@ void RealCompositor::LayerVisitor::VisitStage(
   // Don't start at the very edge of the z-buffer depth.
   depth_ = kMinDepth + layer_thickness_;
 
+  has_fullscreen_actor_ = false;
+
+  actor->UpdateProjection();
   VisitContainer(actor);
 }
 
 void RealCompositor::LayerVisitor::VisitContainer(
     RealCompositor::ContainerActor* actor) {
   CHECK(actor);
+  if (!actor->IsVisible())
+    return;
+
+  // No culling test for ContainerActor because the container does not bound
+  // its children actors.  No need to set_z first because container doesn't
+  // use z in its model view matrix.
+  actor->UpdateModelView();
+
   ActorVector children = actor->GetChildren();
   RealCompositor::ActorVector::const_iterator iterator = children.begin();
   while (iterator != children.end()) {
@@ -166,25 +190,55 @@ void RealCompositor::LayerVisitor::VisitContainer(
   this->VisitActor(actor);
 }
 
-void RealCompositor::LayerVisitor::VisitQuad(RealCompositor::QuadActor* actor) {
-  // Do all the regular actor stuff.
-  this->VisitActor(actor);
+void RealCompositor::LayerVisitor::VisitTexturedQuadActor(
+    RealCompositor::QuadActor* actor, bool is_texture_opaque) {
+  if (!actor->IsVisible())
+    return;
+
+  if (has_fullscreen_actor_) {
+    actor->set_culled(true);
+    return;
+  }
+
+  VisitActor(actor);
+  actor->set_is_opaque(actor->is_opaque() && is_texture_opaque);
+
+  // Must update model view matrix before culling test.
+  actor->UpdateModelView();
+  CullingResult result =
+      PerformActorCullingTest(actor->compositor()->GetDefaultStage(), actor);
+
+  if (actor->is_opaque() && result == CULLING_WINDOW_FULLSCREEN)
+    has_fullscreen_actor_ = true;
+
+  actor->set_culled(result == CULLING_WINDOW_OFFSCREEN);
+}
+
+// TODO: create a TextureActor that is equivalent of TexturePixmapActor for
+// static GL textures.
+void RealCompositor::LayerVisitor::VisitQuad(
+    RealCompositor::QuadActor* actor) {
+  bool is_texture_opaque = true;
 
 #if defined(COMPOSITOR_OPENGL)
   OpenGlTextureData* data = static_cast<OpenGlTextureData*>(
       actor->GetDrawingData(OpenGlDrawVisitor::TEXTURE_DATA).get());
   if (data)
-    actor->set_is_opaque(actor->is_opaque() && !data->has_alpha());
+    is_texture_opaque = !data->has_alpha();
+#elif defined(COMPOSITOR_OPENGLES)
+  OpenGlesTextureData* data = static_cast<OpenGlesTextureData*>(
+      actor->GetDrawingData(OpenGlesDrawVisitor::kTextureData).get());
+  if (data)
+    is_texture_opaque = !data->has_alpha();
 #endif
+
+  VisitTexturedQuadActor(actor, is_texture_opaque);
 }
 
 void RealCompositor::LayerVisitor::VisitTexturePixmap(
     RealCompositor::TexturePixmapActor* actor) {
-  // Do all the regular Quad stuff.
-  this->VisitQuad(actor);
-  actor->set_is_opaque(actor->is_opaque() && actor->pixmap_is_opaque());
+  VisitTexturedQuadActor(actor, actor->pixmap_is_opaque());
 }
-
 
 RealCompositor::Actor::Actor(RealCompositor* compositor)
     : compositor_(compositor),
@@ -198,6 +252,7 @@ RealCompositor::Actor::Actor(RealCompositor* compositor)
       scale_y_(1.f),
       opacity_(1.f),
       tilt_(0.f),
+      culled_(false),
       model_view_(Matrix4::identity()),
       is_opaque_(false),
       has_children_(false),
@@ -675,7 +730,11 @@ void RealCompositor::TexturePixmapActor::UpdateTexture() {
 #endif
   if (data)
     data->Refresh();
-  if (visible() && IsActorOnScreen(compositor()->GetDefaultStage(), this))
+
+  // Note that culled flag is one frame behind, but it is still valid for the
+  // update here, because the stage will be set dirty if object is moving into
+  // or out of view.
+  if (visible() && !culled())
     SetDirty();
 }
 

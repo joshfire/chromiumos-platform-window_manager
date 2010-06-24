@@ -151,7 +151,8 @@ class RealCompositor : public Compositor {
     explicit LayerVisitor(int32 count)
         : depth_(0.0f),
           layer_thickness_(0.0f),
-          count_(count) {}
+          count_(count),
+          has_fullscreen_actor_(false) {}
     virtual ~LayerVisitor() {}
 
     virtual void VisitActor(RealCompositor::Actor* actor);
@@ -160,10 +161,16 @@ class RealCompositor : public Compositor {
     virtual void VisitQuad(RealCompositor::QuadActor* actor);
     virtual void VisitTexturePixmap(RealCompositor::TexturePixmapActor* actor);
 
+    void VisitTexturedQuadActor(RealCompositor::QuadActor* actor,
+                                bool is_texture_opaque);
+
+    bool has_fullscreen_actor() const { return has_fullscreen_actor_; }
+
    private:
     float depth_;
     float layer_thickness_;
     int32 count_;
+    bool has_fullscreen_actor_;
 
     DISALLOW_COPY_AND_ASSIGN(LayerVisitor);
   };
@@ -247,18 +254,20 @@ class RealCompositor : public Compositor {
     void set_z(float z) { z_ = z; }
     float z() const { return z_; }
 
+    // Note that is_opaque, culled, and model_view are not valid until after
+    // a LayerVisitor has been run over the tree -- that's what calculates the
+    // the opacity flag, updates model view matrix, and performs culling.
+
     // The model view matrix is derived from translation, scaling, rotation,
     // and tilt operations.  All actors should have model view matrices.
     const Matrix4& model_view() const { return model_view_; }
     void set_model_view(const Matrix4& model_view) {
       model_view_ = model_view;
     }
-
-    // Note that is_opaque isn't valid until after a LayerVisitor has
-    // been run over the tree -- that's what calculates the opacity
-    // flag.
     bool is_opaque() const { return is_opaque_; }
     void set_is_opaque(bool opaque) { is_opaque_ = opaque; }
+    bool culled() const { return culled_; }
+    void set_culled(bool culled) { culled_ = culled; }
 
     virtual bool IsVisible() const {
       return visible_ && opacity_ > 0.001f && IsInActiveVisibilityGroup();
@@ -345,6 +354,9 @@ class RealCompositor : public Compositor {
     // perspective effect where the actor is rotated around its left
     // edge.
     float tilt_;
+
+    // Indicates if this actor has passed/failed the culling visibility test.
+    bool culled_;
 
     // Cache model view matrix, so that it is only updated when something
     // changes and it can be reused.

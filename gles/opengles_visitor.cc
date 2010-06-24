@@ -153,17 +153,19 @@ void OpenGlesDrawVisitor::VisitStage(RealCompositor::StageActor* actor) {
     actor->unset_was_resized();
   }
 
-  // TODO: Optimize this by avoiding clearing the color buffer when there's
-  // an actor (e.g. a background image) covering the whole stage.
-  gl_->Clear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-  actor->UpdateProjection();
-  projection_ = actor->projection();
-
-  // Set the z-depths for the actors.
+  // Set the z-depths for the actors, update is_opaque, model view matrices,
+  // projection matrix, and perform culling test.  Also checks if the screen
+  // will be covered by an opaque actor.
   RealCompositor::LayerVisitor layer_visitor(compositor_->actor_count());
   actor->Accept(&layer_visitor);
 
+  // No need to clear color buffer if something will cover up the screen.
+  if (layer_visitor.has_fullscreen_actor())
+    gl_->Clear(GL_DEPTH_BUFFER_BIT);
+  else
+    gl_->Clear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+  projection_ = actor->projection();
   ancestor_opacity_ = actor->opacity();
 
   // Back to front rendering
@@ -209,14 +211,13 @@ void OpenGlesDrawVisitor::VisitTexturePixmap(
 }
 
 void OpenGlesDrawVisitor::VisitQuad(RealCompositor::QuadActor* actor) {
-  if (!actor->IsVisible())
+  if (!actor->IsVisible() || actor->culled())
     return;
 
   // This must live until after the draw call, so it's at the top level
   scoped_array<float> colors;
 
   // mvp matrix
-  actor->UpdateModelView();
   Matrix4 mvp = projection_ * actor->model_view();
 
   // texture
@@ -328,7 +329,6 @@ void OpenGlesDrawVisitor::VisitContainer(
     return;
 
   LOG(INFO) << "Visit container: " << actor->name();
-  actor->UpdateModelView();
 
   const float original_opacity = ancestor_opacity_;
   ancestor_opacity_ *= actor->opacity();

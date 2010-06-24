@@ -360,7 +360,9 @@ void OpenGlDrawVisitor::VisitTexturePixmap(
 }
 
 void OpenGlDrawVisitor::VisitQuad(RealCompositor::QuadActor* actor) {
-  if (!actor->IsVisible()) return;
+  if (!actor->IsVisible() || actor->culled())
+    return;
+
 #ifdef EXTRA_LOGGING
   DLOG(INFO) << "Drawing quad " << actor->name() << ".";
 #endif
@@ -458,7 +460,6 @@ void OpenGlDrawVisitor::VisitQuad(RealCompositor::QuadActor* actor) {
 #endif
 
   gl_interface_->PushMatrix();
-  actor->UpdateModelView();
   // operator[] in Matrix4 returns by value in const version.
   Matrix4 model_view = actor->model_view();
   gl_interface_->LoadMatrixf(&model_view[0][0]);
@@ -512,15 +513,25 @@ void OpenGlDrawVisitor::VisitStage(RealCompositor::StageActor* actor) {
     actor->unset_was_resized();
   }
 
+  // Set the z-depths for the actors, update is_opaque, model view matrices,
+  // projection matrix, and perform culling test.  Also checks if the screen
+  // will be covered by an opaque actor.
+  RealCompositor::LayerVisitor layer_visitor(compositor_->actor_count());
+  actor->Accept(&layer_visitor);
+
+  // No need to clear color buffer if something will cover up the screen.
+  if (layer_visitor.has_fullscreen_actor())
+    gl_interface_->Clear(GL_DEPTH_BUFFER_BIT);
+  else
+    gl_interface_->Clear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
   gl_interface_->MatrixMode(GL_PROJECTION);
   gl_interface_->LoadIdentity();
-  actor->UpdateProjection();
   // operator[] in Matrix4 returns by value in const version.
   Matrix4 projection = actor->projection();
   gl_interface_->LoadMatrixf(&projection[0][0]);
   gl_interface_->MatrixMode(GL_MODELVIEW);
   gl_interface_->LoadIdentity();
-  gl_interface_->Clear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
   gl_interface_->BindBuffer(GL_ARRAY_BUFFER, drawing_data->vertex_buffer());
   gl_interface_->EnableClientState(GL_VERTEX_ARRAY);
   gl_interface_->VertexPointer(2, GL_FLOAT, 0, 0);
@@ -528,10 +539,6 @@ void OpenGlDrawVisitor::VisitStage(RealCompositor::StageActor* actor) {
   gl_interface_->TexCoordPointer(2, GL_FLOAT, 0, 0);
   gl_interface_->DepthMask(GL_TRUE);
   CHECK_GL_ERROR(gl_interface_);
-
-  // Set the z-depths for the actors, update is_opaque.
-  RealCompositor::LayerVisitor layer_visitor(compositor_->actor_count());
-  actor->Accept(&layer_visitor);
 
 #ifdef EXTRA_LOGGING
   DLOG(INFO) << "Starting OPAQUE pass.";
@@ -586,8 +593,6 @@ void OpenGlDrawVisitor::VisitStage(RealCompositor::StageActor* actor) {
 void OpenGlDrawVisitor::VisitContainer(RealCompositor::ContainerActor* actor) {
   if (!actor->IsVisible())
     return;
-
-  actor->UpdateModelView();
 
 #ifdef EXTRA_LOGGING
   DLOG(INFO) << "Drawing container " << actor->name() << ".";
