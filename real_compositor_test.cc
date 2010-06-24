@@ -556,7 +556,6 @@ TEST_F(RealCompositorTest, HandleXEvents) {
   EXPECT_FALSE(compositor()->dirty());
 
   // Now say that the window was resized.  The new pixmap should be loaded.
-  info->compositing_pixmap++;
   info->width += 20;
   info->height += 10;
   actor->SetPixmap(info->compositing_pixmap);
@@ -807,5 +806,5 @@ TEST_F(RealCompositorTest, VisibilityGroups) {
 }  // end namespace window_manager
 
 int main(int argc, char** argv) {
-  window_manager::InitAndRunTests(&argc, argv, &FLAGS_logtostderr);
+  return window_manager::InitAndRunTests(&argc, argv, &FLAGS_logtostderr);
 }

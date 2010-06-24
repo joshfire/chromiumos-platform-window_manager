@@ -220,5 +220,5 @@ TEST_F(OpenGlVisitorTest, StageColor) {
 }  // end namespace window_manager
 
 int main(int argc, char** argv) {
-  window_manager::InitAndRunTests(&argc, argv, &FLAGS_logtostderr);
+  return window_manager::InitAndRunTests(&argc, argv, &FLAGS_logtostderr);
 }
