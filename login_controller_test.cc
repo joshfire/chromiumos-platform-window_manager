@@ -162,6 +162,14 @@ class LoginControllerTest : public BasicWindowManagerTest {
     wm_->HandleEvent(&event);
   }
 
+  // Selects user entry with the specified index by sending IPC message to
+  // wm.
+  void SelectEntry(int index) {
+    WmIpc::Message msg(chromeos::WM_IPC_MESSAGE_WM_SELECT_LOGIN_USER);
+    msg.set_param(0, index);
+    SendWmIpcMessage(msg);
+  }
+
   // A collection of windows for a single login entry.
   struct EntryWindows {
     EntryWindows()
@@ -266,10 +274,7 @@ TEST_F(LoginControllerTest, Focus) {
 
   // Click on the second entry's input window.
   ASSERT_GE(static_cast<int>(login_controller_->entries_.size()), 2);
-  XWindow input_xid = login_controller_->entries_[1].input_window_xid;
-  XEvent event;
-  xconn_->InitButtonPressEvent(&event, input_xid, 0, 0, 1);
-  wm_->HandleEvent(&event);
+  SelectEntry(1);
 
   // The second entry should be focused now.
   EXPECT_EQ(entries_[1].controls_xid, xconn_->focused_xid());
@@ -306,6 +311,7 @@ TEST_F(LoginControllerTest, Focus) {
   // After we click on the background, the second entry's controls window
   // should be refocused and a button grab should be installed on the
   // non-login window.
+  XEvent event;
   xconn_->set_pointer_grab_xid(background_xid_);
   xconn_->InitButtonPressEvent(&event, background_xid_, 0, 0, 1);
   wm_->HandleEvent(&event);
@@ -465,10 +471,7 @@ TEST_F(LoginControllerTest, SelectGuestWindowOldChrome) {
   EXPECT_TRUE(login_controller_->entry_key_bindings_group_->enabled());
 
   // Click on the entry for the guest window.
-  XWindow input_xid = login_controller_->entries_[1].input_window_xid;
-  XEvent event;
-  xconn_->InitButtonPressEvent(&event, input_xid, 0, 0, 1);
-  wm_->HandleEvent(&event);
+  SelectEntry(1);
 
   // The guest window should be focused and the key bindings disabled.
   EXPECT_EQ(guest_xid_, xconn_->focused_xid());
@@ -487,10 +490,7 @@ TEST_F(LoginControllerTest, SelectGuestWindowNewChrome) {
   EXPECT_TRUE(login_controller_->entry_key_bindings_group_->enabled());
 
   // Click on the entry for the guest window.
-  XWindow input_xid = login_controller_->entries_[1].input_window_xid;
-  XEvent event;
-  xconn_->InitButtonPressEvent(&event, input_xid, 0, 0, 1);
-  wm_->HandleEvent(&event);
+  SelectEntry(1);
 
   // The guest entry should be focused and the key bindings
   // should be disabled.
@@ -499,9 +499,7 @@ TEST_F(LoginControllerTest, SelectGuestWindowNewChrome) {
   EXPECT_FALSE(login_controller_->entry_key_bindings_group_->enabled());
 
   // Click on the first entry.
-  input_xid = login_controller_->entries_[0].input_window_xid;
-  xconn_->InitButtonPressEvent(&event, input_xid, 0, 0, 1);
-  wm_->HandleEvent(&event);
+  SelectEntry(0);
 
   // The first entry should be focused and the key bindings
   // should be enabled.
@@ -510,9 +508,7 @@ TEST_F(LoginControllerTest, SelectGuestWindowNewChrome) {
   EXPECT_TRUE(login_controller_->entry_key_bindings_group_->enabled());
 
   // Click on the entry for the guest window again.
-  input_xid = login_controller_->entries_[1].input_window_xid;
-  xconn_->InitButtonPressEvent(&event, input_xid, 0, 0, 1);
-  wm_->HandleEvent(&event);
+  SelectEntry(1);
 
   // The guest entry should be focused and the key bindings
   // should be enabled.
@@ -573,7 +569,7 @@ TEST_F(LoginControllerTest, RemoveUser) {
 // screen.
 TEST_F(LoginControllerTest, ClientOnOffScreen) {
   // Create two entries for new Chrome.
-  CreateLoginWindows(3, true, false, true);  // Only need usual entry windows.
+  CreateLoginWindows(2, true, false, true);  // Only need usual entry windows.
 
   // The first entry is selected. Test that controls, image and label
   // windows are on screen and the rest windows are off screen.
@@ -583,18 +579,16 @@ TEST_F(LoginControllerTest, ClientOnOffScreen) {
   EXPECT_FALSE(WindowIsOffscreen(entries_[0].label_xid));
   EXPECT_TRUE(WindowIsOffscreen(entries_[0].unselected_label_xid));
 
-  // For the second unselected entry, all windows must be offscreen.
+  // For the second unselected entry, only image and unselected label windows
+  // must be on screen.
   EXPECT_TRUE(WindowIsOffscreen(entries_[1].border_xid));
-  EXPECT_TRUE(WindowIsOffscreen(entries_[1].image_xid));
+  EXPECT_FALSE(WindowIsOffscreen(entries_[1].image_xid));
   EXPECT_TRUE(WindowIsOffscreen(entries_[1].controls_xid));
   EXPECT_TRUE(WindowIsOffscreen(entries_[1].label_xid));
-  EXPECT_TRUE(WindowIsOffscreen(entries_[1].unselected_label_xid));
+  EXPECT_FALSE(WindowIsOffscreen(entries_[1].unselected_label_xid));
 
   // Click on the second entry to change the selection.
-  XWindow input_xid = login_controller_->entries_[1].input_window_xid;
-  XEvent event;
-  xconn_->InitButtonPressEvent(&event, input_xid, 0, 0, 1);
-  wm_->HandleEvent(&event);
+  SelectEntry(1);
 
   // Now the same should be checked for both entries but with the second as
   // the selected one.
@@ -605,10 +599,10 @@ TEST_F(LoginControllerTest, ClientOnOffScreen) {
   EXPECT_TRUE(WindowIsOffscreen(entries_[1].unselected_label_xid));
 
   EXPECT_TRUE(WindowIsOffscreen(entries_[0].border_xid));
-  EXPECT_TRUE(WindowIsOffscreen(entries_[0].image_xid));
+  EXPECT_FALSE(WindowIsOffscreen(entries_[0].image_xid));
   EXPECT_TRUE(WindowIsOffscreen(entries_[0].controls_xid));
   EXPECT_TRUE(WindowIsOffscreen(entries_[0].label_xid));
-  EXPECT_TRUE(WindowIsOffscreen(entries_[0].unselected_label_xid));
+  EXPECT_FALSE(WindowIsOffscreen(entries_[0].unselected_label_xid));
 
   // Now check that for both entries windows are hidden when login succeeded
   // and the first Chrome window is shown.

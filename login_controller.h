@@ -123,8 +123,7 @@ class LoginController : public EventConsumer {
   // WINDOW_TYPE_LOGIN_BORDER in a row.
   struct Entry {
     Entry()
-        : input_window_xid(0),
-          border_window(NULL),
+        : border_window(NULL),
           image_window(NULL),
           controls_window(NULL),
           label_window(NULL),
@@ -142,10 +141,6 @@ class LoginController : public EventConsumer {
       return !border_window && !image_window && !controls_window &&
           !label_window && !unselected_label_window;
     }
-
-    // To trap clicks on an entry we place an input window on top of the
-    // windows. This is the input window.
-    XID input_window_xid;
 
     Window* border_window;
     Window* image_window;
@@ -190,7 +185,6 @@ class LoginController : public EventConsumer {
   void Hide();
 
   // Sets whether the user can select other entries.
-  // Moves input windows offscreen if |enable| is false.
   void SetEntrySelectionEnabled(bool enable);
 
   // Returns the origin for |view_count| entries with the entry at
@@ -217,6 +211,9 @@ class LoginController : public EventConsumer {
   // Returns true if |window| is a a login window.
   bool IsLoginWindow(Window* window) const;
 
+  // Returns true if |index| is the index of the guest login window.
+  bool IsGuestEntryIndex(size_t index) const;
+
   // Returns the entry for the specified win. This returns an entry based on the
   // index stored in the window's parameters.
   Entry* GetEntryForWindow(Window* win);
@@ -224,12 +221,6 @@ class LoginController : public EventConsumer {
   // Returns the entry in |entries_| at the specified index, creating one if
   // necessary.
   Entry* GetEntryAt(int index);
-
-  // Creates and registers the input window for the specified entry.
-  void CreateAndRegisterInputWindow(Entry* entry);
-
-  // Undoes the work of CreateAndRegisterInputWindow.
-  void UnregisterInputWindow(Entry* entry);
 
   // Invoked when the selection change completes. |last_selected_index| is the
   // index of the selection before the selection changes.
@@ -265,6 +256,17 @@ class LoginController : public EventConsumer {
   // old behavior for backward compatibility. has_all_windows_ must be true
   // before calling this method.
   bool IsOldChrome();
+
+  // Moves client window of the image window on screen to the right position
+  // depending on whether the entry is selected or not.
+  // If it is, client window matches the corresponding composited window.
+  // Otherwise, its origin matches composited window of entry's border and
+  // input area is cut to cover the border and the space between the border
+  // and the label.
+  void MoveImageClientWindow(bool selected,
+                             const Rect& border_bounds,
+                             const Rect& label_bounds,
+                             Window* image_window);
 
   WindowManager* wm_;
 
@@ -346,6 +348,9 @@ class LoginController : public EventConsumer {
   // in, and when a login entry (as opposed to the guest window) is being
   // displayed.
   scoped_ptr<KeyBindingsGroup> entry_key_bindings_group_;
+
+  // Determines if entry selection is enabled at the moment.
+  bool is_entry_selection_enabled_;
 
   DISALLOW_COPY_AND_ASSIGN(LoginController);
 };

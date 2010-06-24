@@ -55,6 +55,7 @@ class MockXConnection : public XConnection {
   bool AddPointerGrabForWindow(XWindow xid, int event_mask, XTime timestamp);
   bool RemovePointerGrab(bool replay_events, XTime timestamp);
   bool RemoveInputRegionFromWindow(XWindow xid) { return true; }
+  bool SetInputRegionForWindow(XWindow xid, const Rect& rect) { return true; }
   bool GetSizeHintsForWindow(XWindow xid, SizeHints* hints_out);
   bool GetTransientHintForWindow(XWindow xid, XWindow* owner_out);
   bool GetWindowAttributes(XWindow xid, WindowAttributes* attr_out);

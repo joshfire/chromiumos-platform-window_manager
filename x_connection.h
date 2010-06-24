@@ -17,6 +17,7 @@
 namespace window_manager {
 
 class ByteMap;  // from util.h
+struct Rect;
 template<class T> class Stacker;  // from util.h
 
 // This is an abstract base class representing a connection to the X
@@ -235,6 +236,10 @@ class XConnection {
 
   // Remove the input region from a window, so that events fall through it.
   virtual bool RemoveInputRegionFromWindow(XWindow xid) = 0;
+
+  // Sets the input region for a window so that events outside the region
+  // fall through the window.
+  virtual bool SetInputRegionForWindow(XWindow xid, const Rect& region) = 0;
 
   // Get the size hints for a window.
   virtual bool GetSizeHintsForWindow(XWindow xid, SizeHints* hints_out) = 0;

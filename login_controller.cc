@@ -130,11 +130,14 @@ LoginController::LoginController(WindowManager* wm)
       initial_show_timeout_id_(kNoTimer),
       login_window_to_focus_(NULL),
       waiting_to_hide_windows_(false),
-      entry_key_bindings_group_(new KeyBindingsGroup(wm_->key_bindings())) {
+      entry_key_bindings_group_(new KeyBindingsGroup(wm_->key_bindings())),
+      is_entry_selection_enabled_(true) {
   registrar_.RegisterForChromeMessages(
       chromeos::WM_IPC_MESSAGE_WM_HIDE_LOGIN);
   registrar_.RegisterForChromeMessages(
       chromeos::WM_IPC_MESSAGE_WM_SET_LOGIN_STATE);
+  registrar_.RegisterForChromeMessages(
+      chromeos::WM_IPC_MESSAGE_WM_SELECT_LOGIN_USER);
 
   entry_key_bindings_group_->Disable();
   RegisterNavigationKeyBindings();
@@ -148,11 +151,6 @@ LoginController::~LoginController() {
 }
 
 bool LoginController::IsInputWindow(XWindow xid) {
-  for (Entries::const_iterator it = entries_.begin();
-       it != entries_.end(); ++it) {
-    if (xid == it->input_window_xid)
-      return true;
-  }
   return false;
 }
 
@@ -260,8 +258,6 @@ void LoginController::HandleWindowMap(Window* win) {
       if (entry->unselected_label_window)
         LOG(WARNING) << "two unselected labels at index " << GetUserIndex(win);
       entry->unselected_label_window = win;
-      wm_->xconn()->RemoveInputRegionFromWindow(
-          entry->unselected_label_window->xid());
       break;
     }
     case chromeos::WM_IPC_WINDOW_LOGIN_BACKGROUND: {
@@ -390,7 +386,6 @@ void LoginController::HandleWindowUnmap(Window* win) {
       }
 
       if (entry.has_no_windows()) {
-        UnregisterInputWindow(&entry);
         entries_.erase(entries_.begin() + i);
         if (!guest_window_ && !entries_.empty() && selected_entry_index_ == i) {
           // Selected entry was unmapped, switch active entry to next one.
@@ -458,14 +453,6 @@ void LoginController::HandleButtonPress(XWindow xid,
   if (login_xids_.count(xid) == 0)
     return;
 
-  for (Entries::const_iterator it = entries_.begin(); it != entries_.end();
-       ++it) {
-    if (it->input_window_xid == xid) {
-      SelectEntryAt(it - entries_.begin());
-      return;
-    }
-  }
-
   // Otherwise, this was probably just some window that had a button grab
   // as a result of us calling FocusManager::UseClickToFocusForWindow().
   if (login_window_to_focus_)
@@ -481,6 +468,14 @@ void LoginController::HandleChromeMessage(const WmIpc::Message& msg) {
 
     case chromeos::WM_IPC_MESSAGE_WM_SET_LOGIN_STATE: {
       SetEntrySelectionEnabled(msg.param(0) == 1);
+      break;
+    }
+
+    case chromeos::WM_IPC_MESSAGE_WM_SELECT_LOGIN_USER: {
+      if (is_entry_selection_enabled_) {
+        size_t select_entry = static_cast<size_t>(msg.param(0));
+        SelectEntryAt(select_entry);
+      }
       break;
     }
 
@@ -593,19 +588,19 @@ void LoginController::InitialShow() {
                          &controls_bounds, &label_bounds);
 
     if (selected) {
-      // Move the input window off screen.
-      wm_->ConfigureInputWindow(entry.input_window_xid, -1, -1, 1, 1);
       FocusLoginWindow(entry.controls_window, wm_->GetCurrentTimeFromServer());
       entry.unselected_label_window->HideComposited();
+      entry.unselected_label_window->MoveClientOffscreen();
       entry.label_window->ShowComposited();
       entry.label_window->MoveClient(label_bounds.x, label_bounds.y);
       entry.controls_window->MoveClient(controls_bounds.x, controls_bounds.y);
-      entry.image_window->MoveClient(image_bounds.x, image_bounds.y);
     } else {
       ScaleUnselectedEntry(entry, border_bounds, label_bounds, true);
       entry.label_window->HideComposited();
       entry.label_window->MoveClientOffscreen();
       entry.unselected_label_window->ShowComposited();
+      entry.unselected_label_window->MoveClient(label_bounds.x,
+                                                label_bounds.y);
     }
 
     entry.border_window->SetCompositedOpacity(0, 0);
@@ -631,6 +626,11 @@ void LoginController::InitialShow() {
     label_window->MoveComposited(label_bounds.x, label_bounds.y, 0);
     label_window->ShowComposited();
     label_window->SetCompositedOpacity(1, kInitialShowAnimationTimeInMs);
+
+    MoveImageClientWindow(selected,
+                          border_bounds,
+                          label_bounds,
+                          entry.image_window);
   }
 }
 
@@ -659,13 +659,6 @@ void LoginController::StackWindows() {
     wm_->stacking_manager()->StackWindowAtTopOfLayer(
         entry.controls_window, StackingManager::LAYER_LOGIN_WINDOW);
   }
-
-  // Move the input windows to the top of the stack.
-  for (size_t i = 0; i < entries_.size(); ++i) {
-    const Entry& entry = entries_[i];
-    wm_->stacking_manager()->StackXidAtTopOfLayer(
-        entry.input_window_xid, StackingManager::LAYER_LOGIN_WINDOW);
-  }
 }
 
 void LoginController::SelectEntryAt(size_t index) {
@@ -679,7 +672,7 @@ void LoginController::SelectEntryAt(size_t index) {
     selection_changed_manager_.Stop();
   }
 
-  const bool selecting_guest = (index + 1 == entries_.size());
+  const bool selecting_guest = IsGuestEntryIndex(index);
   if (IsOldChrome() && selecting_guest) {
     if (!guest_window_) {
       waiting_for_guest_ = true;
@@ -697,8 +690,7 @@ void LoginController::SelectEntryAt(size_t index) {
 
   // For guest entry navigation bindings should be disabled to allow normal
   // keyboard navigation among controls on guest login dialog.
-  const bool guest_was_selected =
-      (selected_entry_index_ == entries_.size() - 1);
+  const bool guest_was_selected = IsGuestEntryIndex(selected_entry_index_);
   if (selecting_guest)
     entry_key_bindings_group_->Disable();
   else if (guest_was_selected)
@@ -730,13 +722,12 @@ void LoginController::SelectEntryAt(size_t index) {
       if (selecting_guest) {
         // Hide image window and place controls window on its positions.
         entry.image_window->HideComposited();
+        entry.image_window->MoveClientOffscreen();
         entry.controls_window->MoveClient(image_bounds.x, image_bounds.y);
       } else {
-        entry.image_window->MoveClient(image_bounds.x, image_bounds.y);
         entry.image_window->ScaleComposited(1, 1, kAnimationTimeInMs);
         entry.controls_window->MoveClient(controls_bounds.x, controls_bounds.y);
       }
-      wm_->ConfigureInputWindow(entry.input_window_xid, -1, -1, 1, 1);
       FocusLoginWindow(entry.controls_window, wm_->GetCurrentTimeFromServer());
 
       // This item became selected. Move the label window to match the bounds
@@ -755,8 +746,11 @@ void LoginController::SelectEntryAt(size_t index) {
                                          kAnimationTimeInMs);
       entry.label_window->MoveClient(label_bounds.x, label_bounds.y);
       entry.unselected_label_window->HideComposited();
+      entry.unselected_label_window->MoveClientOffscreen();
     } else {
       ScaleUnselectedEntry(entry, border_bounds, label_bounds, false);
+      entry.unselected_label_window->MoveClient(label_bounds.x,
+                                                label_bounds.y);
     }
 
     if (was_selected) {
@@ -766,7 +760,6 @@ void LoginController::SelectEntryAt(size_t index) {
       entry.label_window->MoveComposited(label_bounds.x, label_bounds.y,
                                          kAnimationTimeInMs);
       entry.controls_window->MoveClientOffscreen();
-      entry.image_window->MoveClientOffscreen();
       entry.label_window->MoveClientOffscreen();
       // Show image window if it was hidden for guest entry.
       if (guest_was_selected)
@@ -777,6 +770,22 @@ void LoginController::SelectEntryAt(size_t index) {
                                         kAnimationTimeInMs);
     entry.image_window->MoveComposited(image_bounds.x, image_bounds.y,
                                        kAnimationTimeInMs);
+    if (selected) {
+      entry.image_window->MoveClient(image_bounds.x, image_bounds.y);
+      wm_->xconn()->SetInputRegionForWindow(
+          entry.image_window->xid(),
+          Rect(0, 0, image_bounds.width, image_bounds.height));
+    } else {
+      entry.image_window->MoveClient(
+          entry.border_window->composited_x(),
+          entry.border_window->composited_y());
+      wm_->xconn()->SetInputRegionForWindow(
+          entry.image_window->xid(),
+          Rect(0, 0,
+               entry.border_window->composited_scale_x() *
+                   entry.border_window->client_width(),
+               label_bounds.y - border_bounds.y));
+    }
     if (selecting_guest && is_guest) {
       entry.controls_window->MoveComposited(image_bounds.x, image_bounds.y,
                                             kAnimationTimeInMs);
@@ -791,6 +800,10 @@ void LoginController::SelectEntryAt(size_t index) {
                                                     label_bounds.y,
                                                     kAnimationTimeInMs);
     }
+    MoveImageClientWindow(selected,
+                          border_bounds,
+                          label_bounds,
+                          entry.image_window);
   }
 
   if (last_selected_index != static_cast<size_t>(-1))
@@ -825,6 +838,7 @@ void LoginController::Hide() {
         max_y + (image_bounds.y - border_bounds.y),
         kAnimationTimeInMs);
     entry.image_window->SetCompositedOpacity(0, kAnimationTimeInMs);
+    entry.image_window->MoveClientOffscreen();
 
     if (selected) {
       entry.controls_window->MoveComposited(
@@ -839,7 +853,6 @@ void LoginController::Hide() {
           kAnimationTimeInMs);
       entry.label_window->SetCompositedOpacity(0, kAnimationTimeInMs);
       entry.label_window->MoveClientOffscreen();
-      entry.image_window->MoveClientOffscreen();
     } else {
       entry.unselected_label_window->MoveComposited(
           label_bounds.x,
@@ -847,28 +860,17 @@ void LoginController::Hide() {
           kAnimationTimeInMs);
       entry.unselected_label_window->SetCompositedOpacity(0,
                                                           kAnimationTimeInMs);
+      entry.unselected_label_window->MoveClientOffscreen();
     }
   }
 }
 
 void LoginController::SetEntrySelectionEnabled(bool enable) {
+  is_entry_selection_enabled_ = enable;
   if (enable) {
     entry_key_bindings_group_->Enable();
-    for (size_t i = 0; i < entries_.size(); ++i) {
-      if (i != selected_entry_index_) {
-        wm_->ConfigureInputWindow(entries_[i].input_window_xid,
-                                  entries_[i].border_window->composited_x(),
-                                  entries_[i].border_window->composited_y(),
-                                  unselected_border_width_,
-                                  unselected_border_height_ +
-                                      border_to_controls_gap_ +
-                                      unselected_label_height_);
-      }
-    }
   } else {
     entry_key_bindings_group_->Disable();
-    for (size_t i = 0; i < entries_.size(); ++i)
-      wm_->ConfigureInputWindow(entries_[i].input_window_xid, -1, -1, 1, 1);
   }
 }
 
@@ -940,13 +942,14 @@ void LoginController::SelectGuest() {
     entries_[i].label_window->SetCompositedOpacity(0, kAnimationTimeInMs);
     entries_[i].unselected_label_window->SetCompositedOpacity(
         0, kAnimationTimeInMs);
-    wm_->ConfigureInputWindow(entries_[i].input_window_xid, -1, -1, -1, -1);
+    entries_[i].image_window->MoveClientOffscreen();
+    entries_[i].unselected_label_window->MoveClientOffscreen();
   }
 
   guest_entry.unselected_label_window->SetCompositedOpacity(0,
                                                             kAnimationTimeInMs);
+  guest_entry.unselected_label_window->MoveClientOffscreen();
   guest_entry.label_window->SetCompositedOpacity(0, kAnimationTimeInMs);
-  wm_->ConfigureInputWindow(guest_entry.input_window_xid, -1, -1, -1, -1);
 }
 
 void LoginController::CalculateIdealOrigins(
@@ -1043,15 +1046,14 @@ void LoginController::ScaleUnselectedEntry(const Entry& entry,
   entry.controls_window->ScaleComposited(0, 0, 0);
   if (initial)
     entry.label_window->HideComposited();
-
-  wm_->ConfigureInputWindow(entry.input_window_xid,
-                            border_bounds.x, border_bounds.y,
-                            border_bounds.width, label_bounds.y +
-                            label_bounds.height - border_bounds.y);
 }
 
 bool LoginController::IsLoginWindow(Window* window) const {
   return login_xids_.count(window->xid()) > 0;
+}
+
+bool LoginController::IsGuestEntryIndex(size_t index) const {
+  return index + 1 == entries_.size();
 }
 
 LoginController::Entry* LoginController::GetEntryForWindow(Window* win) {
@@ -1059,34 +1061,10 @@ LoginController::Entry* LoginController::GetEntryForWindow(Window* win) {
 }
 
 LoginController::Entry* LoginController::GetEntryAt(int index) {
-  while (entries_.size() <= static_cast<size_t>(index)) {
-    entries_.push_back(Entry());
-    CreateAndRegisterInputWindow(&entries_.back());
-  }
+  size_t required_size = static_cast<size_t>(index) + 1;
+  if (entries_.size() < required_size)
+    entries_.resize(required_size);
   return &(entries_[index]);
-}
-
-void LoginController::CreateAndRegisterInputWindow(Entry* entry) {
-  // Real bounds is set later on.
-  entry->input_window_xid =
-      wm_->CreateInputWindow(-1, -1, 1, 1, ButtonPressMask);
-  wm_->SetNamePropertiesForXid(
-      entry->input_window_xid, "input window for login entry");
-
-  login_xids_.insert(entry->input_window_xid);
-
-  registrar_.RegisterForWindowEvents(entry->input_window_xid);
-}
-
-void LoginController::UnregisterInputWindow(Entry* entry) {
-  if (entry->input_window_xid == 0)
-    return;
-
-  registrar_.UnregisterForWindowEvents(entry->input_window_xid);
-
-  wm_->xconn()->DestroyWindow(entry->input_window_xid);
-  login_xids_.erase(entry->input_window_xid);
-  entry->input_window_xid = 0;
 }
 
 void LoginController::ProcessSelectionChangeCompleted(
@@ -1100,6 +1078,7 @@ void LoginController::ProcessSelectionChangeCompleted(
       entry.label_window->composited_y(),
       0);
   entry.unselected_label_window->ShowComposited();
+  entry.unselected_label_window->MoveClientToComposited();
   entry.label_window->HideComposited();
 }
 
@@ -1233,6 +1212,34 @@ bool LoginController::IsOldChrome() {
   // HACK(dpolukhin): detect old chrome version to preserve old WM behaviour.
   // Will be removed in couple weeks. It is required for backward compatibility.
   return (controls_height_ == entries_.back().controls_window->client_height());
+}
+
+void LoginController::MoveImageClientWindow(bool selected,
+                                            const Rect& border_bounds,
+                                            const Rect& label_bounds,
+                                            Window* image_window) {
+  int x = image_window->composited_x();
+  int y = image_window->composited_y();
+  int width = image_window->client_width();
+  int height = image_window->client_height();
+
+  if (!selected) {
+    x = border_bounds.x;
+    y = border_bounds.y;
+    width = border_bounds.width;;
+    height = label_bounds.y - border_bounds.y;
+    DCHECK(height > 0) << "Label is above the image.";
+    if (width > image_window->client_width() ||
+        height > image_window->client_height()) {
+      LOG(WARNING) << "Image window is not big enough to hold"
+                      " the border and the label.";
+    }
+  }
+
+  image_window->MoveClient(x, y);
+  wm_->xconn()->SetInputRegionForWindow(
+      image_window->xid(),
+      Rect(0, 0, width, height));
 }
 
 }  // namespace window_manager

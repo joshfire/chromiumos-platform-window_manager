@@ -19,6 +19,7 @@ extern "C" {
 }
 
 #include "base/string_util.h"
+#include "window_manager/geometry.h"
 #include "window_manager/util.h"
 
 using std::map;
@@ -333,6 +334,25 @@ bool RealXConnection::RemoveInputRegionFromWindow(XWindow xid) {
                        0,      // y_offset
                        0,      // rectangles_len
                        NULL);  // rectangles
+  return true;
+}
+
+bool RealXConnection::SetInputRegionForWindow(XWindow xid,
+                                              const Rect& region) {
+  xcb_rectangle_t x_rectangle;
+  x_rectangle.x = region.x;
+  x_rectangle.y = region.y;
+  x_rectangle.width = region.width;
+  x_rectangle.height = region.height;
+  xcb_shape_rectangles(xcb_conn_,
+                       XCB_SHAPE_SO_SET,
+                       XCB_SHAPE_SK_INPUT,
+                       0,              // ordering
+                       xid,
+                       0,              // x_offset
+                       0,              // y_offset
+                       1,              // rectangles_len
+                       &x_rectangle);  // rectangles
   return true;
 }
 
