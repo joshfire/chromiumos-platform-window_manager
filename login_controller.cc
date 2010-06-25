@@ -32,10 +32,6 @@ static const int kAnimationTimeInMs = 200;
 // Time for the initial show animation.
 static const int kInitialShowAnimationTimeInMs = 400;
 
-// Amount of time we delay between when all the windows have been mapped and the
-// animation is started.
-static const int kInitialShowDelayMs = 50;
-
 // Amount of time to take for animations when transitioning from the
 // logged-out state to the logged-in state.
 static const int kLoggedInTransitionAnimMs = 100;
@@ -127,7 +123,6 @@ LoginController::LoginController(WindowManager* wm)
       selection_changed_manager_(this),
       guest_window_(NULL),
       background_window_(NULL),
-      initial_show_timeout_id_(kNoTimer),
       login_window_to_focus_(NULL),
       waiting_to_hide_windows_(false),
       entry_key_bindings_group_(new KeyBindingsGroup(wm_->key_bindings())),
@@ -144,10 +139,6 @@ LoginController::LoginController(WindowManager* wm)
 }
 
 LoginController::~LoginController() {
-  if (initial_show_timeout_id_ != kNoTimer) {
-    wm_->event_loop()->RemoveTimeout(initial_show_timeout_id_);
-    initial_show_timeout_id_ = kNoTimer;
-  }
 }
 
 bool LoginController::IsInputWindow(XWindow xid) {
@@ -568,9 +559,6 @@ void LoginController::InitSizes(int unselected_image_size, int padding) {
 
 
 void LoginController::InitialShow() {
-  wm_->event_loop()->RemoveTimeout(initial_show_timeout_id_);
-  initial_show_timeout_id_ = kNoTimer;
-
   DCHECK(!entries_.empty());
 
   selected_entry_index_ = 0;
@@ -1104,7 +1092,11 @@ bool LoginController::HasAllWindows() {
 }
 
 void LoginController::OnGotNewWindowOrPropertyChange() {
-  if (!has_all_windows_ && HasAllWindows()) {
+  // Bail if we already handled this.
+  if (has_all_windows_)
+    return;
+
+  if (HasAllWindows()) {
     if (!inited_sizes_) {
       if (entries_[0].border_window->type_params().size() != 4) {
         LOG(WARNING) << "first border window must have 4 parameters";
@@ -1122,16 +1114,11 @@ void LoginController::OnGotNewWindowOrPropertyChange() {
     ConfigureBackgroundWindow();
     StackWindows();
 
-    // Don't show initial animation for guest only case.
-    if (initial_show_timeout_id_ == kNoTimer && entries_.size() > 1) {
-      initial_show_timeout_id_ = wm_->event_loop()->AddTimeout(
-          NewPermanentCallback(this, &LoginController::InitialShow),
-          kInitialShowDelayMs,
-          0);
-    }
-  }
+    // Don't show initial animation for guest-only case.
+    if (entries_.size() > 1)
+      InitialShow();
 
-  if (entries_.empty() && guest_window_ && IsBackgroundWindowReady()) {
+  } else if (entries_.empty() && guest_window_ && IsBackgroundWindowReady()) {
     ConfigureBackgroundWindow();
 
     guest_window_->MoveClient(

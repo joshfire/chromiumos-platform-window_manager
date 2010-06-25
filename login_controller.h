@@ -331,10 +331,6 @@ class LoginController : public EventConsumer {
   // Window placed in the background.
   Window* background_window_;
 
-  // We delay the initial show slightly to make sure it appears smoothly. If
-  // this is non-zero we're waiting for the initial show.
-  int initial_show_timeout_id_;
-
   // The controls or guest window that we've most recently focused.  We
   // track this so that if a transient window takes the focus and then gets
   // closed, we can re-focus the window that had the focus before.
