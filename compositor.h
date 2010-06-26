@@ -376,7 +376,9 @@ class MockCompositor : public Compositor {
     DISALLOW_COPY_AND_ASSIGN(TexturePixmapActor);
   };
 
-  explicit MockCompositor(XConnection* xconn) : xconn_(xconn) {}
+  explicit MockCompositor(XConnection* xconn)
+      : xconn_(xconn),
+        num_draws_(0) {}
   ~MockCompositor() {}
 
   // Begin Compositor methods
@@ -401,17 +403,19 @@ class MockCompositor : public Compositor {
       const std::tr1::unordered_set<int>& groups) {
     active_visibility_groups_ = groups;
   }
-  virtual void Draw() {}
+  virtual void Draw() { num_draws_++; }
   // End Compositor methods
 
   const std::tr1::unordered_set<int>& active_visibility_groups() const {
     return active_visibility_groups_;
   }
+  int num_draws() const { return num_draws_; }
 
  private:
   XConnection* xconn_;  // not owned
   StageActor default_stage_;
   std::tr1::unordered_set<int> active_visibility_groups_;
+  int num_draws_;
 
   DISALLOW_COPY_AND_ASSIGN(MockCompositor);
 };

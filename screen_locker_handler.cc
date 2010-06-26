@@ -10,6 +10,7 @@
 #include "cros/chromeos_wm_ipc_enums.h"
 #include "window_manager/window.h"
 #include "window_manager/window_manager.h"
+#include "window_manager/wm_ipc.h"
 
 using std::set;
 using std::tr1::unordered_set;
@@ -50,6 +51,13 @@ void ScreenLockerHandler::HandleWindowMap(Window* win) {
     unordered_set<int> visibility_groups;
     visibility_groups.insert(WindowManager::VISIBILITY_GROUP_SCREEN_LOCKER);
     wm_->compositor()->SetActiveVisibilityGroups(visibility_groups);
+
+    // Redraw and then let Chrome know that we're ready for the system to
+    // be suspended now.
+    wm_->compositor()->Draw();
+    WmIpc::Message msg(
+        chromeos::WM_IPC_MESSAGE_CHROME_NOTIFY_SCREEN_REDRAWN_FOR_LOCK);
+    wm_->wm_ipc()->SendMessage(win->xid(), msg);
   }
 }
 

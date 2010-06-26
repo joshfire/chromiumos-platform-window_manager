@@ -393,6 +393,25 @@ int BasicWindowManagerTest::GetNumDeleteWindowMessagesForWindow(XWindow xid) {
   return num_deletes;
 }
 
+bool BasicWindowManagerTest::GetFirstWmIpcMessageOfType(
+    XWindow xid, chromeos::WmIpcMessageType type, WmIpc::Message* msg_out) {
+  CHECK(msg_out);
+  MockXConnection::WindowInfo* info = xconn_->GetWindowInfoOrDie(xid);
+  for (vector<XClientMessageEvent>::const_iterator it =
+         info->client_messages.begin();
+       it != info->client_messages.end(); ++it) {
+    if (wm_->wm_ipc()->GetMessage(it->window,
+                                  it->message_type,
+                                  it->format,
+                                  it->data.l,
+                                  msg_out)) {
+      if (msg_out->type() == type)
+        return true;
+    }
+  }
+  return false;
+}
+
 bool BasicWindowManagerTest::WindowIsInLayer(Window* win,
                                              StackingManager::Layer layer) {
   const StackingManager::Layer next_layer =

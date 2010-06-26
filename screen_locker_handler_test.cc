@@ -12,6 +12,7 @@
 #include "window_manager/mock_x_connection.h"
 #include "window_manager/test_lib.h"
 #include "window_manager/window_manager.h"
+#include "window_manager/wm_ipc.h"
 
 DEFINE_bool(logtostderr, false,
             "Print debugging messages to stderr (suppressed otherwise)");
@@ -42,7 +43,14 @@ TEST_F(ScreenLockerHandlerTest, Basic) {
       0);     // event mask
   wm_->wm_ipc()->SetWindowType(
       screen_locker_xid, chromeos::WM_IPC_WINDOW_CHROME_SCREEN_LOCKER, NULL);
+  WmIpc::Message msg;
+  EXPECT_FALSE(
+      GetFirstWmIpcMessageOfType(
+          screen_locker_xid,
+          chromeos::WM_IPC_MESSAGE_CHROME_NOTIFY_SCREEN_REDRAWN_FOR_LOCK,
+          &msg));
   ASSERT_TRUE(xconn_->MapWindow(screen_locker_xid));
+  const int initial_num_draws = compositor_->num_draws();
   SendInitialEventsForWindow(screen_locker_xid);
 
   // This window's actor *should* be added to a group, and this should now
@@ -57,6 +65,15 @@ TEST_F(ScreenLockerHandlerTest, Basic) {
             compositor_->active_visibility_groups().size());
   EXPECT_TRUE(compositor_->active_visibility_groups().count(
                 WindowManager::VISIBILITY_GROUP_SCREEN_LOCKER));
+
+  // We should've redrawn the screen and sent the screen locker window a
+  // message letting it know that we did so.
+  EXPECT_GT(compositor_->num_draws(), initial_num_draws);
+  EXPECT_TRUE(
+      GetFirstWmIpcMessageOfType(
+          screen_locker_xid,
+          chromeos::WM_IPC_MESSAGE_CHROME_NOTIFY_SCREEN_REDRAWN_FOR_LOCK,
+          &msg));
 
   // Now unmap the screen locker window and check that the original
   // toplevel window would be drawn again.

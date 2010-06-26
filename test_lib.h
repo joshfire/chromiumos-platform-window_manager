@@ -184,6 +184,12 @@ class BasicWindowManagerTest : public ::testing::Test {
   // window.
   int GetNumDeleteWindowMessagesForWindow(XWindow xid);
 
+  // Get the first WmIpc message of a particular type received by a window.
+  // Returns false if no messages of that type were found.
+  bool GetFirstWmIpcMessageOfType(XWindow xid,
+                                  chromeos::WmIpcMessageType type,
+                                  WmIpc::Message* msg_out);
+
   // Are the passed-in window's composited and client windows stacked
   // between the passed-in layer and the layer underneath it?
   bool WindowIsInLayer(Window* win, StackingManager::Layer layer);
