@@ -12,7 +12,6 @@
 #include "cros/chromeos_wm_ipc_enums.h"
 #include "window_manager/compositor.h"
 #include "window_manager/event_loop.h"
-#include "window_manager/key_bindings.h"
 #include "window_manager/login_controller.h"
 #include "window_manager/mock_x_connection.h"
 #include "window_manager/stacking_manager.h"
@@ -436,85 +435,50 @@ TEST_F(LoginControllerTest, HideAfterLogin) {
   EXPECT_TRUE(WindowIsOffscreen(background_xid_));
 }
 
-// Test that we enable and disable key bindings appropriately.
-TEST_F(LoginControllerTest, KeyBindingsDuringStateChange) {
-  // The key bindings should be initially disabled when we don't have any
-  // login entry windows.
-  EXPECT_FALSE(login_controller_->entry_key_bindings_group_->enabled());
-
-  // Create some entries and check that the bindings are enabled.
-  CreateLoginWindows(2, true, false, true);
-  EXPECT_TRUE(login_controller_->entry_key_bindings_group_->enabled());
-
-  // Tell the WM to make the login entries non-selectable (as if the user
-  // attempted to log in).
-  SendSetLoginStateMessage(false);
-  EXPECT_FALSE(login_controller_->entry_key_bindings_group_->enabled());
-
-  // Now make them selectable again.
-  SendSetLoginStateMessage(true);
-  EXPECT_TRUE(login_controller_->entry_key_bindings_group_->enabled());
-
-  // They should be disabled after login.
-  SetLoggedInState(true);
-  EXPECT_FALSE(login_controller_->entry_key_bindings_group_->enabled());
-}
-
 TEST_F(LoginControllerTest, SelectGuestWindowOldChrome) {
   // Create two entries and a guest window for old Chrome.
   CreateLoginWindows(2, true, true, false);  // create_guest_window=true
 
-  // The first entry should initially be focused and the key bindings
-  // should be enabled.
+  // The first entry should initially be focused.
   EXPECT_EQ(entries_[0].controls_xid, xconn_->focused_xid());
   EXPECT_EQ(entries_[0].controls_xid, GetActiveWindowProperty());
-  EXPECT_TRUE(login_controller_->entry_key_bindings_group_->enabled());
 
   // Click on the entry for the guest window.
   SelectEntry(1);
 
-  // The guest window should be focused and the key bindings disabled.
+  // The guest window should be focused.
   EXPECT_EQ(guest_xid_, xconn_->focused_xid());
   EXPECT_EQ(guest_xid_, GetActiveWindowProperty());
-  EXPECT_FALSE(login_controller_->entry_key_bindings_group_->enabled());
 }
 
 TEST_F(LoginControllerTest, SelectGuestWindowNewChrome) {
   // Create two entries for new Chrome.
   CreateLoginWindows(2, true, false, true);  // create_guest_window=false
 
-  // The first entry should initially be focused and the key bindings
-  // should be enabled.
+  // The first entry should initially be focused.
   EXPECT_EQ(entries_[0].controls_xid, xconn_->focused_xid());
   EXPECT_EQ(entries_[0].controls_xid, GetActiveWindowProperty());
-  EXPECT_TRUE(login_controller_->entry_key_bindings_group_->enabled());
 
   // Click on the entry for the guest window.
   SelectEntry(1);
 
-  // The guest entry should be focused and the key bindings
-  // should be disabled.
+  // The guest entry should be focused.
   EXPECT_EQ(entries_[1].controls_xid, xconn_->focused_xid());
   EXPECT_EQ(entries_[1].controls_xid, GetActiveWindowProperty());
-  EXPECT_FALSE(login_controller_->entry_key_bindings_group_->enabled());
 
   // Click on the first entry.
   SelectEntry(0);
 
-  // The first entry should be focused and the key bindings
-  // should be enabled.
+  // The first entry should be focused.
   EXPECT_EQ(entries_[0].controls_xid, xconn_->focused_xid());
   EXPECT_EQ(entries_[0].controls_xid, GetActiveWindowProperty());
-  EXPECT_TRUE(login_controller_->entry_key_bindings_group_->enabled());
 
   // Click on the entry for the guest window again.
   SelectEntry(1);
 
-  // The guest entry should be focused and the key bindings
-  // should be enabled.
+  // The guest entry should be focused.
   EXPECT_EQ(entries_[1].controls_xid, xconn_->focused_xid());
   EXPECT_EQ(entries_[1].controls_xid, GetActiveWindowProperty());
-  EXPECT_FALSE(login_controller_->entry_key_bindings_group_->enabled());
 
   // Create guest window.
   guest_xid_ = CreateBasicWindow(0, 0, wm_->width() / 2, wm_->height() / 2);
@@ -523,33 +487,27 @@ TEST_F(LoginControllerTest, SelectGuestWindowNewChrome) {
                                NULL);
   SendInitialEventsForWindow(guest_xid_);
 
-  // The guest window should be focused and the key bindings disabled.
+  // The guest window should be focused.
   EXPECT_EQ(guest_xid_, xconn_->focused_xid());
   EXPECT_EQ(guest_xid_, GetActiveWindowProperty());
-  EXPECT_FALSE(login_controller_->entry_key_bindings_group_->enabled());
 }
 
 TEST_F(LoginControllerTest, RemoveUser) {
   // Create 3 entries for new Chrome.
   CreateLoginWindows(3, true, false, true);  // create_guest_window=false
 
-  // The first entry should initially be focused and the key bindings
-  // should be enabled.
+  // The first entry should initially be focused.
   EXPECT_EQ(entries_[0].controls_xid, xconn_->focused_xid());
   EXPECT_EQ(entries_[0].controls_xid, GetActiveWindowProperty());
-  EXPECT_TRUE(login_controller_->entry_key_bindings_group_->enabled());
 
   UnmapLoginEntry(0);
   EXPECT_EQ(entries_[1].controls_xid, xconn_->focused_xid());
   EXPECT_EQ(entries_[1].controls_xid, GetActiveWindowProperty());
-  EXPECT_TRUE(login_controller_->entry_key_bindings_group_->enabled());
 
   UnmapLoginEntry(1);
-  // The guest entry should be focused and the key bindings
-  // should be enabled.
+  // The guest entry should be focused.
   EXPECT_EQ(entries_[2].controls_xid, xconn_->focused_xid());
   EXPECT_EQ(entries_[2].controls_xid, GetActiveWindowProperty());
-  EXPECT_FALSE(login_controller_->entry_key_bindings_group_->enabled());
 
   // Create guest window.
   guest_xid_ = CreateBasicWindow(0, 0, wm_->width() / 2, wm_->height() / 2);
@@ -559,10 +517,9 @@ TEST_F(LoginControllerTest, RemoveUser) {
   SendInitialEventsForWindow(guest_xid_);
   UnmapLoginEntry(2);
 
-  // The guest window should be focused and the key bindings disabled.
+  // The guest window should be focused.
   EXPECT_EQ(guest_xid_, xconn_->focused_xid());
   EXPECT_EQ(guest_xid_, GetActiveWindowProperty());
-  EXPECT_FALSE(login_controller_->entry_key_bindings_group_->enabled());
 }
 
 // Test which windows of selected and unselected entry should be off or on

@@ -12,7 +12,6 @@
 #include "window_manager/event_loop.h"
 #include "window_manager/focus_manager.h"
 #include "window_manager/geometry.h"
-#include "window_manager/key_bindings.h"
 #include "window_manager/stacking_manager.h"
 #include "window_manager/util.h"
 #include "window_manager/window.h"
@@ -125,7 +124,6 @@ LoginController::LoginController(WindowManager* wm)
       background_window_(NULL),
       login_window_to_focus_(NULL),
       waiting_to_hide_windows_(false),
-      entry_key_bindings_group_(new KeyBindingsGroup(wm_->key_bindings())),
       is_entry_selection_enabled_(true) {
   registrar_.RegisterForChromeMessages(
       chromeos::WM_IPC_MESSAGE_WM_HIDE_LOGIN);
@@ -133,9 +131,6 @@ LoginController::LoginController(WindowManager* wm)
       chromeos::WM_IPC_MESSAGE_WM_SET_LOGIN_STATE);
   registrar_.RegisterForChromeMessages(
       chromeos::WM_IPC_MESSAGE_WM_SELECT_LOGIN_USER);
-
-  entry_key_bindings_group_->Disable();
-  RegisterNavigationKeyBindings();
 }
 
 LoginController::~LoginController() {
@@ -167,7 +162,6 @@ void LoginController::HandleScreenResize() {
 void LoginController::HandleLoggedInStateChange() {
   if (wm_->logged_in()) {
     waiting_to_hide_windows_ = true;
-    entry_key_bindings_group_->Disable();
   }
 }
 
@@ -665,7 +659,6 @@ void LoginController::SelectEntryAt(size_t index) {
     if (!guest_window_) {
       waiting_for_guest_ = true;
       // We haven't got the guest window yet, tell chrome to create it.
-      entry_key_bindings_group_->Disable();
       wm_->wm_ipc()->SendMessage(
           entries_[0].border_window->xid(),  // Doesn't matter which window we
                                              // use.
@@ -676,14 +669,8 @@ void LoginController::SelectEntryAt(size_t index) {
     return;
   }
 
-  // For guest entry navigation bindings should be disabled to allow normal
-  // keyboard navigation among controls on guest login dialog.
-  const bool guest_was_selected = IsGuestEntryIndex(selected_entry_index_);
-  if (selecting_guest)
-    entry_key_bindings_group_->Disable();
-  else if (guest_was_selected)
-    entry_key_bindings_group_->Enable();
 
+  const bool guest_was_selected = IsGuestEntryIndex(selected_entry_index_);
   waiting_for_guest_ = selecting_guest;
 
   const size_t last_selected_index = selected_entry_index_;
@@ -855,17 +842,10 @@ void LoginController::Hide() {
 
 void LoginController::SetEntrySelectionEnabled(bool enable) {
   is_entry_selection_enabled_ = enable;
-  if (enable) {
-    entry_key_bindings_group_->Enable();
-  } else {
-    entry_key_bindings_group_->Disable();
-  }
 }
 
 void LoginController::SelectGuest() {
   DCHECK(guest_window_);
-
-  entry_key_bindings_group_->Disable();
 
   waiting_for_guest_ = false;
 
@@ -1109,7 +1089,6 @@ void LoginController::OnGotNewWindowOrPropertyChange() {
 
     DCHECK(!entries_.empty() && entries_[0].border_window);
     has_all_windows_ = true;
-    entry_key_bindings_group_->Enable();
 
     ConfigureBackgroundWindow();
     StackWindows();
@@ -1166,33 +1145,6 @@ void LoginController::HideWindowsAfterLogin() {
   Window* focused_win = wm_->focus_manager()->focused_win();
   if (focused_win && xids.count(focused_win->xid()))
     wm_->FocusWindow(NULL, wm_->GetCurrentTimeFromServer());
-}
-
-void LoginController::RegisterNavigationKeyBindings() {
-  KeyBindings* kb = wm_->key_bindings();
-  kb->AddAction(
-      kSelectLeftAction,
-      NewPermanentCallback(this, &LoginController::CycleSelectedEntry, false),
-      NULL, NULL);
-  entry_key_bindings_group_->AddBinding(
-      KeyBindings::KeyCombo(XK_Left), kSelectLeftAction);
-  entry_key_bindings_group_->AddBinding(
-      KeyBindings::KeyCombo(XK_Tab, KeyBindings::kShiftMask),
-      kSelectLeftAction);
-  kb->AddAction(
-      kSelectRightAction,
-      NewPermanentCallback(this, &LoginController::CycleSelectedEntry, true),
-      NULL, NULL);
-  entry_key_bindings_group_->AddBinding(
-      KeyBindings::KeyCombo(XK_Right), kSelectRightAction);
-  entry_key_bindings_group_->AddBinding(
-      KeyBindings::KeyCombo(XK_Tab), kSelectRightAction);
-}
-
-void LoginController::CycleSelectedEntry(bool to_right) {
-  int index = static_cast<int>(selected_entry_index_) + (to_right ? 1 : -1);
-  if (index >= 0 && index < static_cast<int>(entries_.size()))
-    SelectEntryAt(static_cast<size_t>(index));
 }
 
 bool LoginController::IsOldChrome() {

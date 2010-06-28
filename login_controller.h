@@ -19,7 +19,6 @@ namespace window_manager {
 
 struct Point;
 struct Rect;
-class KeyBindingsGroup;
 class WindowManager;
 
 // LoginController is an EventConsumer responsible for positioning the windows
@@ -246,12 +245,6 @@ class LoginController : public EventConsumer {
   // Invoked after we see the initial non-login Chrome window get mapped.
   void HideWindowsAfterLogin();
 
-  // Registers key bindings for navigation through users.
-  void RegisterNavigationKeyBindings();
-
-  // Navigate through users (left/right). Doesn't wrap around the edge.
-  void CycleSelectedEntry(bool to_right);
-
   // Return true if old version of Chrome is detected and we should preserve
   // old behavior for backward compatibility. has_all_windows_ must be true
   // before calling this method.
@@ -339,11 +332,6 @@ class LoginController : public EventConsumer {
   // Are we waiting for the initial post-login Chrome window to get mapped
   // so we can hide the login windows?
   bool waiting_to_hide_windows_;
-
-  // Key bindings that should only be enabled when the user is not logged
-  // in, and when a login entry (as opposed to the guest window) is being
-  // displayed.
-  scoped_ptr<KeyBindingsGroup> entry_key_bindings_group_;
 
   // Determines if entry selection is enabled at the moment.
   bool is_entry_selection_enabled_;
