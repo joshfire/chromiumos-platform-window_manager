@@ -716,9 +716,9 @@ class RealCompositor : public Compositor {
   int32 actor_count_;
 
 #if defined(COMPOSITOR_OPENGL)
-  OpenGlDrawVisitor* draw_visitor_;
+  scoped_ptr<OpenGlDrawVisitor> draw_visitor_;
 #elif defined(COMPOSITOR_OPENGLES)
-  OpenGlesDrawVisitor* draw_visitor_;
+  scoped_ptr<OpenGlesDrawVisitor> draw_visitor_;
 #endif
 
   // If 0 or positive, the time that will be returned by GetCurrentTimeMs().

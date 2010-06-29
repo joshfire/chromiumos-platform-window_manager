@@ -809,16 +809,16 @@ RealCompositor::RealCompositor(EventLoop* event_loop,
   XConnection::WindowGeometry geometry;
   x_conn()->GetWindowGeometry(root, &geometry);
   default_stage_.reset(new RealCompositor::StageActor(this,
-                                                     geometry.width,
-                                                     geometry.height));
+                                                      geometry.width,
+                                                      geometry.height));
 
+  draw_visitor_.reset(
 #if defined(COMPOSITOR_OPENGL)
-  draw_visitor_ =
-      new OpenGlDrawVisitor(gl_interface, this, default_stage_.get());
+      new OpenGlDrawVisitor(gl_interface, this, default_stage_.get())
 #elif defined(COMPOSITOR_OPENGLES)
-  draw_visitor_ =
-      new OpenGlesDrawVisitor(gl_interface, this, default_stage_.get());
+      new OpenGlesDrawVisitor(gl_interface, this, default_stage_.get())
 #endif
+      );
 
   draw_timeout_id_ = event_loop_->AddTimeout(
       NewPermanentCallback(this, &RealCompositor::Draw), 0, kDrawTimeoutMs);
@@ -826,7 +826,7 @@ RealCompositor::RealCompositor(EventLoop* event_loop,
 }
 
 RealCompositor::~RealCompositor() {
-  delete draw_visitor_;
+  draw_visitor_.reset();
   if (draw_timeout_id_ >= 0) {
     event_loop_->RemoveTimeout(draw_timeout_id_);
     draw_timeout_id_ = -1;
@@ -935,7 +935,7 @@ void RealCompositor::Draw() {
   if (dirty_) {
     last_draw_time_ms_ = now;
     PROFILER_MARKER_BEGIN(RealCompositor_Draw_Render);
-    default_stage_->Accept(draw_visitor_);
+    default_stage_->Accept(draw_visitor_.get());
     PROFILER_MARKER_END(RealCompositor_Draw_Render);
     dirty_ = false;
   }
