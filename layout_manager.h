@@ -54,21 +54,14 @@ class LayoutManager : public EventConsumer,
   int width() const { return width_; }
   int height() const { return height_; }
   int overview_panning_offset() const { return overview_panning_offset_; }
+  int num_toplevels() const { return toplevels_.size(); }
 
   // Begin EventConsumer implementation.
   virtual bool IsInputWindow(XWindow xid);
   virtual void HandleScreenResize();
   virtual void HandleLoggedInStateChange();
-
-  // Handle a window's map request.  In most cases, we just restack the
-  // window, move it offscreen, and map it (info bubbles don't get moved,
-  // though).
   virtual bool HandleWindowMapRequest(Window* win);
-
-  // Handle a new window.  This method takes care of rearranging windows
-  // for the current layout if necessary.
   virtual void HandleWindowMap(Window* win);
-
   virtual void HandleWindowUnmap(Window* win);
   virtual void HandleWindowConfigureRequest(Window* win,
                                             int req_x, int req_y,
@@ -123,6 +116,7 @@ class LayoutManager : public EventConsumer,
   FRIEND_TEST(LayoutManagerTest, Basic);  // uses SetMode()
   FRIEND_TEST(LayoutManagerTest, Focus);
   FRIEND_TEST(LayoutManagerTest, FocusTransient);
+  FRIEND_TEST(LayoutManagerTest, Resize);
   FRIEND_TEST(LayoutManagerTest, OverviewFocus);
   FRIEND_TEST(LayoutManagerTest, ChangeCurrentSnapshot);
   FRIEND_TEST(LayoutManagerTest, StackTransientsAbovePanels);
@@ -132,6 +126,7 @@ class LayoutManager : public EventConsumer,
   FRIEND_TEST(LayoutManagerTest, NestedTransients);
   FRIEND_TEST(LayoutManagerTest, KeyBindings);
   FRIEND_TEST(LayoutManagerTest, ChangeModeWithNoWindows);
+  FRIEND_TEST(LayoutManagerTest, ChangeBackgroundsAfterInitialWindow);
 
   // Internal private class, declared in toplevel_window.h
   class ToplevelWindow;
@@ -202,6 +197,11 @@ class LayoutManager : public EventConsumer,
   // This is the speed that opacity should be animated for some
   // contexts.
   static const int kWindowOpacityAnimMs;
+
+  // This is the factor by which to stretch the background
+  // horizontally so that it will scroll when the tab is changed in
+  // overview mode.
+  static const float kBackgroundExpansionFactor;
 
   // Returns a string containing the name of the given mode.
   static std::string GetModeName(Mode mode);
@@ -377,6 +377,17 @@ class LayoutManager : public EventConsumer,
   // non-fullscreen window again.
   void RestoreFullscreenToplevel(ToplevelWindow* toplevel);
 
+  // Takes ownership of the the passed-in actor and uses it as the
+  // background.  This is just a separate method so that tests can use it.
+  void SetBackground(Compositor::Actor* actor);
+
+  // Resizes and positions the background to account for the image
+  // aspect ratio and for scrolling in overview mode.
+  void ConfigureBackground(int width, int height);
+
+  // Set things up after we see the first toplevel Chrome window get mapped.
+  void HandleFirstToplevelChromeWindowMapped(Window* win);
+
   WindowManager* wm_;            // not owned
   PanelManager* panel_manager_;  // not owned
 
@@ -460,6 +471,9 @@ class LayoutManager : public EventConsumer,
   // at startup.
   bool saw_map_request_;
 
+  // Have we seen a toplevel Chrome window get mapped yet?
+  bool first_toplevel_chrome_window_mapped_;
+
   // Event registrations for the layout manager itself.
   scoped_ptr<EventConsumerRegistrar> event_consumer_registrar_;
 
@@ -469,6 +483,16 @@ class LayoutManager : public EventConsumer,
 
   // Deque of separators for placing between groups of snapshots.
   Separators separators_;
+
+  // Input window at the layer of the background image.  This exists solely
+  // for the purpose of installing button grabs -- we can't install them on
+  // the root window itself since they'd get activated by clicks in any of
+  // the root's subwindows (this is apparently just how button grabs work
+  // -- see the list of conditions in the XGrabButton() man page).
+  XWindow background_xid_;
+
+  // This background is displayed post-login in overview mode.
+  scoped_ptr<Compositor::Actor> background_;
 
   DISALLOW_COPY_AND_ASSIGN(LayoutManager);
 };

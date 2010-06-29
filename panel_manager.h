@@ -52,6 +52,7 @@ class PanelManager : public EventConsumer, public FocusChangeListener {
   ~PanelManager();
 
   WindowManager* wm() { return wm_; }
+  int num_panels() const { return panels_.size(); }
 
   // Begin EventConsumer implementation.
 

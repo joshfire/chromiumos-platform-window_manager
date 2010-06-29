@@ -27,6 +27,8 @@
 DEFINE_bool(logtostderr, false,
             "Print debugging messages to stderr (suppressed otherwise)");
 
+DECLARE_string(background_image);  // from layout_manager.cc
+
 using std::vector;
 using std::tr1::shared_ptr;
 using window_manager::util::FindWithDefault;
@@ -513,14 +515,22 @@ TEST_F(LayoutManagerTest, SetWmStateMaximized) {
 }
 
 TEST_F(LayoutManagerTest, Resize) {
+  const XWindow root_xid = xconn_->GetRootWindow();
+  MockXConnection::WindowInfo* root_info = xconn_->GetWindowInfoOrDie(root_xid);
+
+  // Set up a background Actor.
+  Compositor::Actor* background = compositor_->CreateRectangle(
+      Compositor::Color(0xff, 0xff, 0xff),
+      Compositor::Color(0xff, 0xff, 0xff), 0);
+  background->SetSize(root_info->width, root_info->height);
+  lm_->SetBackground(background);
+
   XWindow xid = CreateSimpleWindow();
   MockXConnection::WindowInfo* info = xconn_->GetWindowInfoOrDie(xid);
   SendInitialEventsForWindow(xid);
 
   Window* win = wm_->GetWindowOrDie(xid);
 
-  const XWindow root_xid = xconn_->GetRootWindow();
-  MockXConnection::WindowInfo* root_info = xconn_->GetWindowInfoOrDie(root_xid);
   EXPECT_EQ(0, lm_->x());
   EXPECT_EQ(0, lm_->y());
   EXPECT_EQ(root_info->width, lm_->width());
@@ -551,6 +561,39 @@ TEST_F(LayoutManagerTest, Resize) {
   EXPECT_EQ(new_height, lm_->height());
   EXPECT_EQ(lm_->width(), info->width);
   EXPECT_EQ(lm_->height(), info->height);
+
+  // The background window should be resized too.
+  MockXConnection::WindowInfo* background_info =
+      xconn_->GetWindowInfoOrDie(lm_->background_xid_);
+  EXPECT_EQ(0, background_info->x);
+  EXPECT_EQ(0, background_info->y);
+  EXPECT_EQ(new_width, background_info->width);
+  EXPECT_EQ(new_height, background_info->height);
+  EXPECT_EQ(
+      static_cast<int>(
+          new_width * LayoutManager::kBackgroundExpansionFactor + 0.5f),
+      background->GetWidth());
+  EXPECT_EQ(
+      static_cast<int>(
+          new_height * LayoutManager::kBackgroundExpansionFactor + 0.5f),
+      background->GetHeight());
+
+  // Now check that background config works with different aspects.
+  background->SetSize(root_info->width * 2, root_info->height);
+  lm_->ConfigureBackground(new_width, new_height);
+  EXPECT_EQ(new_width * 2, background->GetWidth());
+  EXPECT_EQ(new_height, background->GetHeight());
+
+  background->SetSize(root_info->width, root_info->height * 2);
+  lm_->ConfigureBackground(new_width, new_height);
+  EXPECT_EQ(
+      static_cast<int>(
+          new_width * LayoutManager::kBackgroundExpansionFactor + 0.5f),
+      background->GetWidth());
+  EXPECT_EQ(
+      static_cast<int>(
+          new_height * LayoutManager::kBackgroundExpansionFactor * 2 + 0.5f),
+      background->GetHeight());
 }
 
 // Test that we let clients resize toplevel windows after they've been
@@ -834,7 +877,7 @@ TEST_F(LayoutManagerTest, OverviewSpacing) {
       Compositor::Color(0xff, 0xff, 0xff),
       Compositor::Color(0xff, 0xff, 0xff), 0);
   background->SetSize(window_width, window_height);
-  wm_->SetBackgroundActor(background);
+  lm_->SetBackground(background);
 
   // Create and map a toplevel window.
   XWindow toplevel_xid = CreateToplevelWindow(2, 0, 0, 0,
@@ -857,7 +900,7 @@ TEST_F(LayoutManagerTest, OverviewSpacing) {
 
   // This is the vertical offset to center the background.
   int centering_offset = -(MockXConnection::kDisplayHeight *
-                           WindowManager::kBackgroundExpansionFactor -
+                           LayoutManager::kBackgroundExpansionFactor -
                            MockXConnection::kDisplayHeight) / 2;
 
   // The background should not be scrolled horizontally yet.
@@ -920,7 +963,7 @@ TEST_F(LayoutManagerTest, OverviewSpacing) {
   int min_x = kMargin;
   int max_x = lm_->width_ - overview_width_of_snapshots -
               kMargin;
-  int background_overage = wm_->background()->GetWidth() - wm_->width();
+  int background_overage = background->GetWidth() - wm_->width();
   float scroll_percent = static_cast<float>(lm_->overview_panning_offset_ -
                                             min_x)/(max_x - min_x);
   scroll_percent = std::max(0.f, scroll_percent);
@@ -1390,6 +1433,52 @@ TEST_F(LayoutManagerTest, ChangeModeWithNoWindows) {
   EXPECT_EQ(LayoutManager::MODE_OVERVIEW, lm_->mode());
   lm_->SetMode(LayoutManager::MODE_ACTIVE);
   EXPECT_EQ(LayoutManager::MODE_ACTIVE, lm_->mode());
+}
+
+// Check that we switch backgrounds after the initial Chrome window gets
+// mapped.
+TEST_F(LayoutManagerTest, ChangeBackgroundsAfterInitialWindow) {
+  SetLoggedInState(false);
+  // The mock compositor doesn't actually load images.
+  FLAGS_background_image = "bogus_bg.png";
+  CreateAndInitNewWm();
+  lm_ = wm_->layout_manager_.get();
+
+  // We should start out showing just the startup background.
+  ASSERT_TRUE(wm_->startup_background_.get() != NULL);
+  MockCompositor::Actor* cast_startup_background =
+      dynamic_cast<MockCompositor::Actor*>(wm_->startup_background_.get());
+  CHECK(cast_startup_background);
+  EXPECT_TRUE(cast_startup_background->visible());
+  EXPECT_TRUE(lm_->background_.get() == NULL);
+
+  // After the user logs in, we should still show the startup background,
+  // but the layout manager should've also loaded the logged-in background.
+  SetLoggedInState(true);
+  ASSERT_TRUE(wm_->startup_background_.get() != NULL);
+  EXPECT_TRUE(cast_startup_background->visible());
+  ASSERT_TRUE(lm_->background_.get() != NULL);
+  MockCompositor::Actor* cast_lm_background =
+      dynamic_cast<MockCompositor::Actor*>(lm_->background_.get());
+  CHECK(cast_lm_background);
+  EXPECT_FALSE(cast_lm_background->visible());
+
+  // After the first Chrome window gets mapped, we should hide the startup
+  // background and show the layout manager background.
+  XWindow toplevel_xid = CreateToplevelWindow(2, 0, 0, 0, 640, 480);
+  SendInitialEventsForWindow(toplevel_xid);
+  EXPECT_TRUE(wm_->startup_background_.get() == NULL);
+  ASSERT_TRUE(lm_->background_.get() != NULL);
+  EXPECT_TRUE(cast_lm_background->visible());
+
+  // And after the window gets closed, we should hide the layout manager
+  // background.
+  XEvent event;
+  xconn_->InitUnmapEvent(&event, toplevel_xid);
+  wm_->HandleEvent(&event);
+  EXPECT_TRUE(wm_->startup_background_.get() == NULL);
+  ASSERT_TRUE(lm_->background_.get() != NULL);
+  EXPECT_FALSE(cast_lm_background->visible());
 }
 
 }  // namespace window_manager

@@ -72,10 +72,8 @@ class WindowManager : public PanelManagerAreaChangeListener {
   FocusManager* focus_manager() { return focus_manager_.get(); }
 
   XWindow root() const { return root_; }
-  XWindow background_xid() const { return background_xid_; }
 
   Compositor::StageActor* stage() { return stage_; }
-  Compositor::Actor* background() { return background_.get(); }
 
   int width() const { return width_; }
   int height() const { return height_; }
@@ -193,6 +191,13 @@ class WindowManager : public PanelManagerAreaChangeListener {
   // layout manager.
   void UpdateClientWindowDebugging();
 
+  // Get rid of the actor that we display as a background during startup.
+  void DropStartupBackground();
+
+  // Get the total number of "real" windows.  Specifically, this is the
+  // number of toplevel windows plus the number of panels.
+  int GetNumWindows() const;
+
  private:
   friend class BasicWindowManagerTest;
   friend class LayoutManagerTest;         // uses 'layout_manager_'
@@ -205,6 +210,7 @@ class WindowManager : public PanelManagerAreaChangeListener {
   FRIEND_TEST(LayoutManagerTest, OverviewSpacing);
   FRIEND_TEST(LayoutManagerTest, InitialWindowStacking);
   FRIEND_TEST(LayoutManagerTest, KeyBindings);
+  FRIEND_TEST(LayoutManagerTest, ChangeBackgroundsAfterInitialWindow);
   FRIEND_TEST(WindowTest, TransientFor);  // uses TrackWindow()
   FRIEND_TEST(WindowManagerTest, RegisterExistence);
   FRIEND_TEST(WindowManagerTest, EventConsumer);
@@ -218,11 +224,6 @@ class WindowManager : public PanelManagerAreaChangeListener {
       PropertyChangeEventConsumerMap;
   typedef std::map<chromeos::WmIpcMessageType, std::set<EventConsumer*> >
       ChromeMessageEventConsumerMap;
-
-  // This is the factor by which to stretch the background
-  // horizontally so that it will scroll when the tab is changed in
-  // overview mode.
-  static const float kBackgroundExpansionFactor;
 
   // Is this one of our internally-created windows?
   bool IsInternalWindow(XWindow xid) {
@@ -282,14 +283,6 @@ class WindowManager : public PanelManagerAreaChangeListener {
   // we should use NormalState even when drawing a scaled-down version of
   // the window.
   bool SetWmStateProperty(XWindow xid, int state);
-
-  // Resizes and positions the background to account for the image
-  // aspect ratio and for scrolling in overview mode.
-  void ConfigureBackground(int width, int height);
-
-  // Sets and configures actor as the background.  Takes ownership of
-  // given actor.
-  void SetBackgroundActor(Compositor::Actor* actor);
 
   // Update the _NET_CLIENT_LIST and _NET_CLIENT_LIST_STACKING properties
   // on the root window (as described in EWMH).
@@ -368,21 +361,11 @@ class WindowManager : public PanelManagerAreaChangeListener {
   // We copy the root window here.
   XPixmap startup_pixmap_;
 
-  // This background is displayed post-login in overview mode.
-  scoped_ptr<Compositor::Actor> background_;
-
   // Window containing the compositor's stage.
   XWindow stage_xid_;
 
   // XComposite overlay window.
   XWindow overlay_xid_;
-
-  // Input window at the layer of the background image.  This exists solely
-  // for the purpose of installing button grabs -- we can't install them on
-  // the root window itself since they'd get activated by clicks in any of
-  // the root's subwindows (this is apparently just how button grabs work
-  // -- see the list of conditions in the XGrabButton() man page).
-  XWindow background_xid_;
 
   scoped_ptr<StackingManager> stacking_manager_;
   scoped_ptr<FocusManager> focus_manager_;
@@ -456,11 +439,6 @@ class WindowManager : public PanelManagerAreaChangeListener {
   // tracks the _CHROME_LOGGED_IN property that Chrome sets on the root
   // window.
   bool logged_in_;
-
-  // Has a toplevel Chrome window been mapped?  Depending on
-  // --wm_initial_chrome_window_mapped_file, we may create a file when this
-  // happens to help in testing.
-  bool chrome_window_has_been_mapped_;
 
   // Should we initialize the logging code when we switch between logged-in
   // and logged-out mode?  This defaults to off, since we typically don't

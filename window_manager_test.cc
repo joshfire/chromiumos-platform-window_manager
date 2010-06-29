@@ -620,13 +620,6 @@ TEST_F(WindowManagerTest, ResizeScreen) {
   TestIntArrayProperty(root_xid, workarea_atom, 4,
                        0, 0, root_info->width, root_info->height);
 
-  // Set up a background Actor.
-  Compositor::Actor* background = compositor_->CreateRectangle(
-      Compositor::Color(0xff, 0xff, 0xff),
-      Compositor::Color(0xff, 0xff, 0xff), 0);
-  background->SetSize(root_info->width, root_info->height);
-  wm_->SetBackgroundActor(background);
-
   int new_width = root_info->width / 2;
   int new_height = root_info->height / 2;
 
@@ -657,39 +650,6 @@ TEST_F(WindowManagerTest, ResizeScreen) {
   TestIntArrayProperty(root_xid, geometry_atom, 2, new_width, new_height);
   TestIntArrayProperty(root_xid, workarea_atom, 4,
                        0, 0, new_width, new_height);
-
-  // The background window should be resized too.
-  MockXConnection::WindowInfo* background_info =
-      xconn_->GetWindowInfoOrDie(wm_->background_xid());
-  EXPECT_EQ(0, background_info->x);
-  EXPECT_EQ(0, background_info->y);
-  EXPECT_EQ(new_width, background_info->width);
-  EXPECT_EQ(new_height, background_info->height);
-  EXPECT_EQ(
-      static_cast<int>(
-          new_width * WindowManager::kBackgroundExpansionFactor + 0.5f),
-      wm_->background_->GetWidth());
-  EXPECT_EQ(
-      static_cast<int>(
-          new_height * WindowManager::kBackgroundExpansionFactor + 0.5f),
-      wm_->background_->GetHeight());
-
-  // Now check that background config works with different aspects.
-  background->SetSize(root_info->width * 2, root_info->height);
-  wm_->ConfigureBackground(new_width, new_height);
-  EXPECT_EQ(new_width * 2, wm_->background_->GetWidth());
-  EXPECT_EQ(new_height, wm_->background_->GetHeight());
-
-  background->SetSize(root_info->width, root_info->height * 2);
-  wm_->ConfigureBackground(new_width, new_height);
-  EXPECT_EQ(
-      static_cast<int>(
-          new_width * WindowManager::kBackgroundExpansionFactor + 0.5f),
-      wm_->background_->GetWidth());
-  EXPECT_EQ(
-      static_cast<int>(
-          new_height * WindowManager::kBackgroundExpansionFactor * 2 + 0.5f),
-      wm_->background_->GetHeight());
 }
 
 // Test that the _NET_WORKAREA property on the root window excludes areas

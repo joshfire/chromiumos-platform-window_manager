@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdio>
 #include <tr1/memory>
 
 #include <gflags/gflags.h>
@@ -28,11 +29,13 @@
 #include "window_manager/window_manager.h"
 #include "window_manager/x_connection.h"
 
-DEFINE_bool(lm_honor_window_size_hints, false,
-            "When maximizing a client window, constrain its size according to "
-            "the size hints that the client app has provided (e.g. max size, "
-            "size increment, etc.) instead of automatically making it fill the "
-            "screen");
+DEFINE_string(background_image, "", "Background image to display");
+
+DEFINE_string(initial_chrome_window_mapped_file,
+              "", "When we first see a toplevel Chrome window get mapped, "
+              "we write its ID as an ASCII decimal number to this file.  "
+              "Tests can watch for the file to know when the user is fully "
+              "logged in.  Leave empty to disable.");
 
 using std::map;
 using std::max;
@@ -64,6 +67,7 @@ const int LayoutManager::kWindowAnimMs = 200;
 const double LayoutManager::kOverviewNotSelectedScale = 0.9;
 const int LayoutManager::kWindowOpacityAnimMs =
     LayoutManager::kWindowAnimMs / 2;
+const float LayoutManager::kBackgroundExpansionFactor = 1.3;
 
 LayoutManager::LayoutManager(WindowManager* wm, PanelManager* panel_manager)
     : wm_(wm),
@@ -89,10 +93,13 @@ LayoutManager::LayoutManager(WindowManager* wm, PanelManager* panel_manager)
               kOverviewDragUpdateMs)),
       overview_drag_last_x_(-1),
       saw_map_request_(false),
+      first_toplevel_chrome_window_mapped_(false),
       event_consumer_registrar_(new EventConsumerRegistrar(wm, this)),
       active_mode_key_bindings_group_(new KeyBindingsGroup(wm->key_bindings())),
       overview_mode_key_bindings_group_(
-          new KeyBindingsGroup(wm->key_bindings())) {
+          new KeyBindingsGroup(wm->key_bindings())),
+      background_xid_(
+          wm_->CreateInputWindow(0, 0, wm_->width(), wm_->height(), 0)) {
   wm_->focus_manager()->RegisterFocusChangeListener(this);
   panel_manager_->RegisterAreaChangeListener(this);
   panel_manager_->GetArea(&panel_manager_left_width_,
@@ -106,10 +113,14 @@ LayoutManager::LayoutManager(WindowManager* wm, PanelManager* panel_manager)
 
   MoveAndResizeForAvailableArea();
 
+  wm_->stacking_manager()->StackXidAtTopOfLayer(
+      background_xid_, StackingManager::LAYER_BACKGROUND);
+  wm_->SetNamePropertiesForXid(background_xid_, "background input window");
+
   int event_mask = ButtonPressMask | ButtonReleaseMask | PointerMotionMask;
   wm_->xconn()->AddButtonGrabOnWindow(
-      wm_->background_xid(), 1, event_mask, false);
-  event_consumer_registrar_->RegisterForWindowEvents(wm_->background_xid());
+      background_xid_, 1, event_mask, false);
+  event_consumer_registrar_->RegisterForWindowEvents(background_xid_);
 
   KeyBindings* kb = wm_->key_bindings();
 
@@ -262,7 +273,6 @@ LayoutManager::LayoutManager(WindowManager* wm, PanelManager* panel_manager)
 LayoutManager::~LayoutManager() {
   wm_->focus_manager()->UnregisterFocusChangeListener(this);
   panel_manager_->UnregisterAreaChangeListener(this);
-  wm_->xconn()->RemoveButtonGrabOnWindow(wm_->background_xid(), 1);
 
   KeyBindings* kb = wm_->key_bindings();
   kb->RemoveAction("switch-to-overview-mode");
@@ -287,6 +297,10 @@ LayoutManager::~LayoutManager() {
   current_toplevel_ = NULL;
   current_snapshot_ = NULL;
   fullscreen_toplevel_ = NULL;
+
+  wm_->xconn()->RemoveButtonGrabOnWindow(background_xid_, 1);
+  wm_->xconn()->DestroyWindow(background_xid_);
+  background_xid_ = 0;
 }
 
 bool LayoutManager::IsInputWindow(XWindow xid) {
@@ -295,13 +309,21 @@ bool LayoutManager::IsInputWindow(XWindow xid) {
 
 void LayoutManager::HandleScreenResize() {
   MoveAndResizeForAvailableArea();
+  ConfigureBackground(wm_->width(), wm_->height());
+  if (background_xid_)
+    wm_->xconn()->ResizeWindow(background_xid_, wm_->width(), wm_->height());
 }
 
 void LayoutManager::HandleLoggedInStateChange() {
-  if (wm_->logged_in())
+  if (wm_->logged_in()) {
     EnableKeyBindingsForMode(mode_);
-  else
+    if (!background_.get() && !FLAGS_background_image.empty())
+      SetBackground(wm_->compositor()->CreateImage(FLAGS_background_image));
+  } else {  // not logged in
     DisableKeyBindingsForMode(mode_);
+    if (background_.get())
+      background_->SetVisibility(false);
+  }
 }
 
 bool LayoutManager::HandleWindowMapRequest(Window* win) {
@@ -372,6 +394,10 @@ void LayoutManager::HandleWindowMap(Window* win) {
       // Register to get property changes for toplevel windows.
       event_consumer_registrar_->RegisterForPropertyChanges(
           win->xid(), wm_->GetXAtom(ATOM_CHROME_WINDOW_TYPE));
+      if (!first_toplevel_chrome_window_mapped_) {
+        first_toplevel_chrome_window_mapped_ = true;
+        HandleFirstToplevelChromeWindowMapped(win);
+      }
       // FALL THROUGH...
     case chromeos::WM_IPC_WINDOW_CHROME_INFO_BUBBLE:
     case chromeos::WM_IPC_WINDOW_UNKNOWN: {
@@ -498,6 +524,8 @@ void LayoutManager::HandleWindowUnmap(Window* win) {
             win->xid(), wm_->GetXAtom(ATOM_CHROME_WINDOW_TYPE));
 
       RemoveToplevel(toplevel);
+      if (background_.get() && wm_->GetNumWindows() == 0)
+        background_->SetVisibility(false);
       AddOrRemoveSeparatorsAsNeeded();
       LayoutWindows(true);
     }
@@ -535,7 +563,7 @@ void LayoutManager::HandleButtonPress(XWindow xid,
                                       int x_root, int y_root,
                                       int button,
                                       XTime timestamp) {
-  if (xid == wm_->background_xid() && button == 1) {
+  if (xid == background_xid_ && button == 1) {
     overview_drag_last_x_ = x;
     overview_background_event_coalescer_->Start();
     return;
@@ -571,7 +599,7 @@ void LayoutManager::HandleButtonRelease(XWindow xid,
     return;
   }
 
-  if (xid != wm_->background_xid() || button != 1)
+  if (xid != background_xid_ || button != 1)
     return;
 
   // The X server automatically removes our asynchronous pointer grab when
@@ -589,7 +617,7 @@ void LayoutManager::HandlePointerMotion(XWindow xid,
                                         int x, int y,
                                         int x_root, int y_root,
                                         XTime timestamp) {
-  if (xid == wm_->background_xid())
+  if (xid == background_xid_)
     overview_background_event_coalescer_->StorePosition(x, y);
 }
 
@@ -794,9 +822,9 @@ void LayoutManager::LayoutWindows(bool animate) {
     (*it)->UpdateLayout(animate);
   }
 
-  if (wm_->background())
-    wm_->background()->MoveX(overview_background_offset_,
-                             animate ? kWindowAnimMs : 0);
+  if (background_.get())
+    background_->MoveX(overview_background_offset_,
+                       animate ? kWindowAnimMs : 0);
 
   if (wm_->client_window_debugging_enabled())
     wm_->UpdateClientWindowDebugging();
@@ -1012,8 +1040,6 @@ void LayoutManager::MoveAndResizeForAvailableArea() {
        it != toplevels_.end(); ++it) {
     int width = width_;
     int height = height_;
-    if (FLAGS_lm_honor_window_size_hints)
-      (*it)->win()->GetMaxSize(width_, height_, &width, &height);
     (*it)->win()->ResizeClient(width, height, resize_gravity);
     if (mode_ == MODE_OVERVIEW) {
       // Make sure the toplevel windows are offscreen still if we're
@@ -1205,12 +1231,12 @@ void LayoutManager::CalculatePositionsForOverviewMode() {
     overview_width_of_snapshots_ = running_width - kOverviewSelectedPadding;
   }
 
-  if (wm_->background()) {
+  if (background_.get()) {
     // Now we scroll the background to the right location.
     const float kMargin = width_ * kSideMarginRatio;
     int min_x = kMargin;
     int max_x = width_ - overview_width_of_snapshots_ - kMargin;
-    int background_overage = wm_->background()->GetWidth() - wm_->width();
+    int background_overage = background_->GetWidth() - wm_->width();
     float scroll_percent =
         static_cast<float>(overview_panning_offset_ - min_x) / (max_x - min_x);
     scroll_percent = max(0.f, scroll_percent);
@@ -1623,6 +1649,95 @@ void LayoutManager::RestoreFullscreenToplevel(ToplevelWindow* toplevel) {
   toplevel->SetFullscreenState(false);
   if (fullscreen_toplevel_ == toplevel)
     fullscreen_toplevel_ = NULL;
+}
+
+void LayoutManager::SetBackground(Compositor::Actor* actor) {
+  DCHECK(actor);
+  background_.reset(actor);
+  background_->SetName("overview mode background");
+  background_->SetVisibility(first_toplevel_chrome_window_mapped_);
+  ConfigureBackground(wm_->width(), wm_->height());
+  wm_->stage()->AddActor(background_.get());
+  wm_->stacking_manager()->StackActorAtTopOfLayer(
+      background_.get(), StackingManager::LAYER_BACKGROUND);
+}
+
+void LayoutManager::ConfigureBackground(int width, int height) {
+  if (!background_.get())
+    return;
+
+  // Calculate the expansion of the background image.  It should be
+  // zoomed to preserve aspect ratio and fill the screen, and then
+  // scaled up by kBackgroundExpansionFactor so that it is wider
+  // than the physical display so that we can scroll it horizontally
+  // when the user switches tabs in overview mode.
+  double image_aspect = static_cast<double>(background_->GetWidth()) /
+                        static_cast<double>(background_->GetHeight());
+  double display_aspect = static_cast<double>(width) /
+                          static_cast<double>(height);
+  int background_height, background_width;
+  if (image_aspect > display_aspect) {
+    // Image is wider than the display, scale image height to match
+    // the height of the display, and the image width to preserve
+    // the image ratio, and then expand them both to make it wide
+    // enough for scrolling.  The "+.5"'s are for proper rounding.
+    background_height = height;
+    background_width = height * image_aspect + 0.5f;
+
+    if (background_width < width * kBackgroundExpansionFactor) {
+      // Even with the tall aspect ratio we have, the width still
+      // isn't wide enough, so we scale up the image some more so it
+      // is wide enough, preserving the aspect.
+      float extra_expansion =
+          width * kBackgroundExpansionFactor / background_width;
+      background_width = background_width * extra_expansion + 0.5f;
+      background_height = background_height * extra_expansion + 0.5f;
+    }
+  } else {
+    // Image is narrower than the display, scale image width to
+    // match the width of the display, and the image height to
+    // preserve the image ratio, and then expand them both to make
+    // it wide enough for scrolling.
+    background_width = 0.5f + kBackgroundExpansionFactor * width;
+    background_height = 0.5f + kBackgroundExpansionFactor * width /
+                        image_aspect;
+  }
+
+  DLOG(INFO) << "Configuring background image of size "
+             << background_->GetWidth() << "x" << background_->GetHeight()
+             << " as " << background_width << "x" << background_height
+             << " for " << width << "x" << height << " display";
+
+  background_->SetSize(background_width, background_height);
+
+  // Center the image vertically.
+  background_->Move(0, (height - background_height) / 2, 0);
+}
+
+void LayoutManager::HandleFirstToplevelChromeWindowMapped(Window* win) {
+  DCHECK(win);
+
+  if (!wm_->logged_in())
+    LOG(WARNING) << "Toplevel Chrome window got mapped while not logged in";
+
+  // Start drawing our background when we see the first Chrome window, and tell
+  // WindowManager to stop drawing its startup background.
+  if (background_.get())
+    background_->SetVisibility(true);
+  wm_->DropStartupBackground();
+
+  if (!FLAGS_initial_chrome_window_mapped_file.empty()) {
+    DLOG(INFO) << "Writing initial Chrome window's ID to file "
+               << FLAGS_initial_chrome_window_mapped_file;
+    FILE* file = fopen(FLAGS_initial_chrome_window_mapped_file.c_str(), "w+");
+    if (!file) {
+      PLOG(ERROR) << "Unable to open file "
+                  << FLAGS_initial_chrome_window_mapped_file;
+    } else {
+      fprintf(file, "%lu", win->xid());
+      fclose(file);
+    }
+  }
 }
 
 }  // namespace window_manager

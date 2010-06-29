@@ -33,9 +33,6 @@
 #undef EXTRA_LOGGING
 #endif
 
-// Defined in layout_manager.cc
-DECLARE_bool(lm_honor_window_size_hints);
-
 using std::list;
 using std::make_pair;
 using std::map;
@@ -74,8 +71,6 @@ LayoutManager::ToplevelWindow::ToplevelWindow(Window* win,
 
   int width = layout_manager_->width();
   int height = layout_manager_->height();
-  if (FLAGS_lm_honor_window_size_hints)
-    win->GetMaxSize(width, height, &width, &height);
   win->ResizeClient(width, height, GRAVITY_NORTHWEST);
 
   // Let the window know that it's maximized.

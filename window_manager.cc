@@ -4,11 +4,7 @@
 
 #include "window_manager/window_manager.h"
 
-#include <unistd.h>
-
-#include <cerrno>
-#include <cstdio>
-#include <cstdlib>
+#include <cstring>
 #include <ctime>
 #include <list>
 #include <queue>
@@ -43,8 +39,7 @@ extern "C" {
 #include "window_manager/x_connection.h"
 
 DEFINE_string(xterm_command, "xterm", "Command for hotkey xterm spawn.");
-DEFINE_string(background_color, "#4279d6", "Background color to use");
-DEFINE_string(background_image, "", "Background image to display");
+DEFINE_string(background_color, "#000", "Background color to use");
 DEFINE_string(lock_screen_command, "powerd_lock_screen",
               "Command to lock the screen");
 DEFINE_string(configure_monitor_command,
@@ -57,11 +52,6 @@ DEFINE_string(logged_in_screenshot_output_dir,
               ".", "Output directory for screenshots when logged in");
 DEFINE_string(logged_out_screenshot_output_dir,
               ".", "Output directory for screenshots when not logged in");
-DEFINE_string(initial_chrome_window_mapped_file,
-              "", "When we first see a toplevel Chrome window get mapped, "
-              "we write its ID as an ASCII decimal number to this file.  "
-              "Tests can watch for the file to know when the user is fully "
-              "logged in.  Leave empty to disable.");
 DEFINE_string(logged_in_log_dir,
               ".", "Directory to write logs to when logged in.");
 DEFINE_string(logged_out_log_dir,
@@ -90,10 +80,6 @@ static const int kHotkeyOverlayAnimMs = 100;
 // Interval with which we query the keyboard state from the X server to
 // update the hotkey overlay (when it's being shown).
 static const int kHotkeyOverlayPollMs = 100;
-
-// This is the factor by which to stretch the background horizontally
-// so that it will scroll when the tab is changed in overview mode.
-const float WindowManager::kBackgroundExpansionFactor = 1.3;
 
 // Invoke 'function_call' for each event consumer in 'consumers' (a set).
 #define FOR_EACH_EVENT_CONSUMER(consumers, function_call)                      \
@@ -179,7 +165,6 @@ WindowManager::WindowManager(EventLoop* event_loop,
       stage_(NULL),
       stage_xid_(0),
       overlay_xid_(0),
-      background_xid_(0),
       mapped_xids_(new Stacker<XWindow>),
       stacked_xids_(new Stacker<XWindow>),
       active_window_xid_(0),
@@ -187,7 +172,6 @@ WindowManager::WindowManager(EventLoop* event_loop,
       showing_hotkey_overlay_(false),
       wm_ipc_version_(1),
       logged_in_(false),
-      chrome_window_has_been_mapped_(false),
       initialize_logging_(false) {
   CHECK(event_loop_);
   CHECK(xconn_);
@@ -197,8 +181,6 @@ WindowManager::WindowManager(EventLoop* event_loop,
 WindowManager::~WindowManager() {
   if (wm_xid_)
     xconn_->DestroyWindow(wm_xid_);
-  if (background_xid_)
-    xconn_->DestroyWindow(background_xid_);
   if (startup_pixmap_)
     xconn_->FreePixmap(startup_pixmap_);
   if (query_keyboard_state_timeout_id_ >= 0)
@@ -252,13 +234,6 @@ bool WindowManager::Init() {
       new StackingManager(xconn_, compositor_, atom_cache_.get()));
   focus_manager_.reset(new FocusManager(this));
 
-  if (!FLAGS_background_image.empty()) {
-    Compositor::Actor* background =
-        compositor_->CreateImage(FLAGS_background_image);
-    background->SetVisibility(logged_in_);
-    SetBackgroundActor(background);
-  }
-
   if (!logged_in_) {
     startup_pixmap_ = xconn_->CreatePixmap(root_, width_, height_,
                                            root_geometry.depth);
@@ -286,11 +261,6 @@ bool WindowManager::Init() {
     CHECK(xconn_->RemoveInputRegionFromWindow(overlay_xid_));
     CHECK(xconn_->RemoveInputRegionFromWindow(stage_xid_));
   }
-
-  background_xid_ = CreateInputWindow(0, 0, width_, height_, 0);  // no events
-  stacking_manager_->StackXidAtTopOfLayer(
-      background_xid_, StackingManager::LAYER_BACKGROUND);
-  SetNamePropertiesForXid(background_xid_, "background input window");
 
   key_bindings_.reset(new KeyBindings(xconn()));
   logged_in_key_bindings_group_.reset(
@@ -372,9 +342,6 @@ void WindowManager::SetLoggedInState(bool logged_in, bool initial) {
     else
       logged_in_key_bindings_group_->Disable();
   }
-
-  if (background_.get() && !logged_in_)
-    background_->SetVisibility(false);
 
   FOR_EACH_EVENT_CONSUMER(event_consumers_, HandleLoggedInStateChange());
 }
@@ -700,6 +667,23 @@ void WindowManager::UpdateClientWindowDebugging() {
   }
 
   client_window_debugging_actors_.swap(new_actors);
+}
+
+void WindowManager::DropStartupBackground() {
+  if (startup_background_.get()) {
+    startup_background_.reset();
+    xconn_->FreePixmap(startup_pixmap_);
+    startup_pixmap_ = 0;
+  }
+}
+
+int WindowManager::GetNumWindows() const {
+  int num_windows = 0;
+  if (panel_manager_.get())
+    num_windows += panel_manager_->num_panels();
+  if (layout_manager_.get())
+    num_windows += layout_manager_->num_toplevels();
+  return num_windows;
 }
 
 bool WindowManager::GetManagerSelection(
@@ -1033,37 +1017,6 @@ void WindowManager::HandleMappedWindow(Window* win) {
   }
 
   SetWmStateProperty(win->xid(), 1);  // NormalState
-
-  if (win->type() == chromeos::WM_IPC_WINDOW_CHROME_TOPLEVEL &&
-      !chrome_window_has_been_mapped_) {
-    chrome_window_has_been_mapped_ = true;
-
-    if (!logged_in_) {
-      LOG(WARNING) << "Toplevel Chrome window " << win->xid_str()
-                   << " got mapped while not logged in";
-    }
-
-    if (background_.get())
-      background_->SetVisibility(true);
-    if (startup_background_.get()) {
-      startup_background_.reset();
-      xconn_->FreePixmap(startup_pixmap_);
-      startup_pixmap_ = 0;
-    }
-
-    if (!FLAGS_initial_chrome_window_mapped_file.empty()) {
-      DLOG(INFO) << "Writing initial Chrome window's ID to file "
-                 << FLAGS_initial_chrome_window_mapped_file;
-      FILE* file = fopen(FLAGS_initial_chrome_window_mapped_file.c_str(), "w+");
-      if (!file) {
-        PLOG(ERROR) << "Unable to open file "
-                    << FLAGS_initial_chrome_window_mapped_file;
-      } else {
-        fprintf(file, "%lu", win->xid());
-        fclose(file);
-      }
-    }
-  }
 }
 
 void WindowManager::HandleScreenResize(int new_width, int new_height) {
@@ -1071,7 +1024,6 @@ void WindowManager::HandleScreenResize(int new_width, int new_height) {
   height_ = new_height;
   SetEwmhSizeProperties();
   stage_->SetSize(width_, height_);
-  ConfigureBackground(width_, height_);
   hotkey_overlay_->group()->Move(width_ / 2, height_ / 2, 0);
 
   FOR_EACH_EVENT_CONSUMER(event_consumers_, HandleScreenResize());
@@ -1083,70 +1035,6 @@ bool WindowManager::SetWmStateProperty(XWindow xid, int state) {
   values.push_back(0);  // we don't use icons
   XAtom xatom = GetXAtom(ATOM_WM_STATE);
   return xconn_->SetIntArrayProperty(xid, xatom, xatom, values);
-}
-
-void WindowManager::ConfigureBackground(int width, int height) {
-  if (background_xid_)
-    xconn_->ResizeWindow(background_xid_, width_, height_);
-
-  if (!background_.get())
-    return;
-
-  // Calculate the expansion of the background image.  It should be
-  // zoomed to preserve aspect ratio and fill the screen, and then
-  // scaled up by kBackgroundExpansionFactor so that it is wider
-  // than the physical display so that we can scroll it horizontally
-  // when the user switches tabs in overview mode.
-  double image_aspect = static_cast<double>(background_->GetWidth()) /
-                        static_cast<double>(background_->GetHeight());
-  double display_aspect = static_cast<double>(width) /
-                          static_cast<double>(height);
-  int background_height, background_width;
-  if (image_aspect > display_aspect) {
-    // Image is wider than the display, scale image height to match
-    // the height of the display, and the image width to preserve
-    // the image ratio, and then expand them both to make it wide
-    // enough for scrolling.  The "+.5"'s are for proper rounding.
-    background_height = height;
-    background_width = height * image_aspect + 0.5f;
-
-    if (background_width < width * kBackgroundExpansionFactor) {
-      // Even with the tall aspect ratio we have, the width still
-      // isn't wide enough, so we scale up the image some more so it
-      // is wide enough, preserving the aspect.
-      float extra_expansion =
-          width * kBackgroundExpansionFactor / background_width;
-      background_width = background_width * extra_expansion + 0.5f;
-      background_height = background_height * extra_expansion + 0.5f;
-    }
-  } else {
-    // Image is narrower than the display, scale image width to
-    // match the width of the display, and the image height to
-    // preserve the image ratio, and then expand them both to make
-    // it wide enough for scrolling.
-    background_width = 0.5f + kBackgroundExpansionFactor * width;
-    background_height = 0.5f + kBackgroundExpansionFactor * width /
-                        image_aspect;
-  }
-
-  DLOG(INFO) << "Configuring background image of size "
-             << background_->GetWidth() << "x" << background_->GetHeight()
-             << " as " << background_width << "x" << background_height
-             << " for " << width << "x" << height << " display";
-
-  background_->SetSize(background_width, background_height);
-
-  // Center the image vertically.
-  background_->Move(0, (height - background_height) / 2, 0);
-}
-
-void WindowManager::SetBackgroundActor(Compositor::Actor* actor) {
-  background_.reset(actor);
-  background_->SetName("background");
-  ConfigureBackground(width_, height_);
-  stage_->AddActor(background_.get());
-  stacking_manager_->StackActorAtTopOfLayer(
-      background_.get(), StackingManager::LAYER_BACKGROUND);
 }
 
 bool WindowManager::UpdateClientListProperty() {
