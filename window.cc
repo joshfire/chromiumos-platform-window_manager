@@ -31,7 +31,8 @@ using window_manager::util::XidStr;
 
 namespace window_manager {
 
-Window::Window(WindowManager* wm, XWindow xid, bool override_redirect)
+Window::Window(WindowManager* wm, XWindow xid, bool override_redirect,
+               const XConnection::WindowGeometry& geometry)
     : xid_(xid),
       xid_str_(XidStr(xid_)),
       wm_(wm),
@@ -42,14 +43,14 @@ Window::Window(WindowManager* wm, XWindow xid, bool override_redirect)
       mapped_(false),
       shaped_(false),
       type_(chromeos::WM_IPC_WINDOW_UNKNOWN),
-      client_x_(-1),
-      client_y_(-1),
-      client_width_(1),
-      client_height_(1),
+      client_x_(geometry.x),
+      client_y_(geometry.y),
+      client_width_(geometry.width),
+      client_height_(geometry.height),
       client_opacity_(1.0),
       composited_shown_(false),
-      composited_x_(-1),
-      composited_y_(-1),
+      composited_x_(geometry.x),
+      composited_y_(geometry.y),
       composited_scale_x_(1.0),
       composited_scale_y_(1.0),
       composited_opacity_(1.0),
@@ -69,24 +70,16 @@ Window::Window(WindowManager* wm, XWindow xid, bool override_redirect)
   wm_->xconn()->SelectInputOnWindow(xid_, PropertyChangeMask, true);
   wm_->xconn()->SelectShapeEventsOnWindow(xid_);
 
-  // We update 'mapped_' when we get the MapNotify event instead of doing
-  // it here; things get tricky otherwise since there's a race as to
-  // whether override-redirect windows are mapped or not at this point.
+  // We update 'mapped_' when we get the MapNotify event instead of
+  // fetching it here; things get tricky otherwise since there's a race as
+  // to whether override-redirect windows are mapped or not at this point.
 
-  XConnection::WindowGeometry geometry;
-  if (wm_->xconn()->GetWindowGeometry(xid_, &geometry)) {
-    client_x_ = composited_x_ = geometry.x;
-    client_y_ = composited_y_ = geometry.y;
-    client_width_ = geometry.width;
-    client_height_ = geometry.height;
-
-    // If the window has a border, remove it -- they make things more confusing
-    // (we need to include the border when telling the compositor the
-    // window's size, but it's not included when telling X to resize the
-    // window, etc.).
-    if (geometry.border_width > 0)
-      wm_->xconn()->SetWindowBorderWidth(xid_, 0);
-  }
+  // If the window has a border, remove it -- they make things more
+  // confusing (we need to include the border when telling the compositor
+  // the window's size, but it's not included when telling X to resize the
+  // window, etc.).
+  if (geometry.border_width > 0)
+    wm_->xconn()->SetWindowBorderWidth(xid_, 0);
 
   // We don't need to redirect the window for compositing; the compositor
   // already does it for us.

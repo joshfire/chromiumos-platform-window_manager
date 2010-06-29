@@ -50,7 +50,9 @@ TEST_F(LayoutManagerTest, Basic) {
       false,     // override redirect
       false,     // input only
       0);        // event mask
-  wm_->TrackWindow(xid1, false);  // override_redirect=false
+  XConnection::WindowGeometry geometry;
+  ASSERT_TRUE(xconn_->GetWindowGeometry(xid1, &geometry));
+  wm_->TrackWindow(xid1, false, geometry);  // override_redirect=false
 
   Window* win1 = wm_->GetWindowOrDie(xid1);
   win1->MapClient();
@@ -75,7 +77,8 @@ TEST_F(LayoutManagerTest, Basic) {
       false,     // override redirect
       false,     // input only
       0);        // event mask
-  wm_->TrackWindow(xid2, false);  // override_redirect=false
+  ASSERT_TRUE(xconn_->GetWindowGeometry(xid2, &geometry));
+  wm_->TrackWindow(xid2, false, geometry);  // override_redirect=false
   Window* win2 = wm_->GetWindowOrDie(xid2);
   win2->MapClient();
   lm_->HandleWindowMap(win2);
@@ -87,7 +90,8 @@ TEST_F(LayoutManagerTest, Basic) {
       false,     // override redirect
       false,     // input only
       0);        // event mask
-  wm_->TrackWindow(xid3, false);  // override_redirect=false
+  ASSERT_TRUE(xconn_->GetWindowGeometry(xid3, &geometry));
+  wm_->TrackWindow(xid3, false, geometry);  // override_redirect=false
   Window* win3 = wm_->GetWindowOrDie(xid3);
   win3->MapClient();
   lm_->HandleWindowMap(win3);

@@ -81,9 +81,12 @@ TEST_F(StackingManagerTest, StackActorAtTopOfLayer) {
 TEST_F(StackingManagerTest, StackWindowAtTopOfLayer) {
   // Create two windows.
   XWindow xid = CreateSimpleWindow();
-  Window win(wm_.get(), xid, false);
+  XConnection::WindowGeometry geometry;
+  ASSERT_TRUE(xconn_->GetWindowGeometry(xid, &geometry));
+  Window win(wm_.get(), xid, false, geometry);
   XWindow xid2 = CreateSimpleWindow();
-  Window win2(wm_.get(), xid2, false);
+  ASSERT_TRUE(xconn_->GetWindowGeometry(xid2, &geometry));
+  Window win2(wm_.get(), xid2, false, geometry);
 
   // Stack both of the windows in the same layer and make sure that their
   // relative positions are correct.

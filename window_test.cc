@@ -32,7 +32,9 @@ class WindowTest : public BasicWindowManagerTest {};
 
 TEST_F(WindowTest, WindowType) {
   XWindow xid = CreateSimpleWindow();
-  Window win(wm_.get(), xid, false);
+  XConnection::WindowGeometry geometry;
+  ASSERT_TRUE(xconn_->GetWindowGeometry(xid, &geometry));
+  Window win(wm_.get(), xid, false, geometry);
 
   // Without a window type, we should have a shadow.
   EXPECT_EQ(chromeos::WM_IPC_WINDOW_UNKNOWN, win.type());
@@ -56,8 +58,9 @@ TEST_F(WindowTest, WindowType) {
 TEST_F(WindowTest, ChangeClient) {
   XWindow xid = CreateBasicWindow(10, 20, 30, 40);
   MockXConnection::WindowInfo* info = xconn_->GetWindowInfoOrDie(xid);
-
-  Window window(wm_.get(), xid, false);
+  XConnection::WindowGeometry geometry;
+  ASSERT_TRUE(xconn_->GetWindowGeometry(xid, &geometry));
+  Window window(wm_.get(), xid, false, geometry);
 
   // Make sure that the window's initial attributes are loaded correctly.
   EXPECT_EQ(xid, window.xid());
@@ -97,7 +100,9 @@ TEST_F(WindowTest, ChangeClient) {
 
 TEST_F(WindowTest, ChangeComposited) {
   XWindow xid = CreateBasicWindow(10, 20, 30, 40);
-  Window window(wm_.get(), xid, false);
+  XConnection::WindowGeometry geometry;
+  ASSERT_TRUE(xconn_->GetWindowGeometry(xid, &geometry));
+  Window window(wm_.get(), xid, false, geometry);
   xconn_->MapWindow(xid);
   window.HandleMapNotify();
 
@@ -136,7 +141,9 @@ TEST_F(WindowTest, TransientFor) {
 
   XWindow owner_xid = 1234;  // arbitrary ID
   info->transient_for = owner_xid;
-  Window win(wm_.get(), xid, false);
+  XConnection::WindowGeometry geometry;
+  ASSERT_TRUE(xconn_->GetWindowGeometry(xid, &geometry));
+  Window win(wm_.get(), xid, false, geometry);
   EXPECT_EQ(owner_xid, win.transient_for_xid());
 
   XWindow new_owner_xid = 5678;
@@ -158,7 +165,9 @@ TEST_F(WindowTest, GetMaxSize) {
   info->size_hints.base_width = 40;
   info->size_hints.base_width = 30;
 
-  Window win(wm_.get(), xid, false);
+  XConnection::WindowGeometry geometry;
+  ASSERT_TRUE(xconn_->GetWindowGeometry(xid, &geometry));
+  Window win(wm_.get(), xid, false, geometry);
   ASSERT_TRUE(win.FetchAndApplySizeHints());
   int width = 0, height = 0;
 
@@ -196,7 +205,9 @@ TEST_F(WindowTest, WmProtocols) {
                               wm_->GetXAtom(ATOM_ATOM),          // type
                               values);
 
-  Window win(wm_.get(), xid, false);
+  XConnection::WindowGeometry geometry;
+  ASSERT_TRUE(xconn_->GetWindowGeometry(xid, &geometry));
+  Window win(wm_.get(), xid, false, geometry);
 
   // Send a WM_DELETE_WINDOW message to the window and check that its
   // contents are correct.
@@ -246,7 +257,9 @@ TEST_F(WindowTest, WmHints) {
                          wm_hints_atom,  // atom
                          wm_hints_atom,  // type
                          256);  // UrgencyHint flag from ICCCM 4.1.2.4
-  Window win(wm_.get(), xid, false);
+  XConnection::WindowGeometry geometry;
+  ASSERT_TRUE(xconn_->GetWindowGeometry(xid, &geometry));
+  Window win(wm_.get(), xid, false, geometry);
   EXPECT_TRUE(win.wm_hint_urgent());
 
   // Now clear the UrgencyHint flag and set another flag that we don't care
@@ -279,7 +292,9 @@ TEST_F(WindowTest, WmState) {
                          wm_state_atom,             // atom
                          wm_->GetXAtom(ATOM_ATOM),  // type
                          modal_atom);
-  Window win(wm_.get(), xid, false);
+  XConnection::WindowGeometry geometry;
+  ASSERT_TRUE(xconn_->GetWindowGeometry(xid, &geometry));
+  Window win(wm_.get(), xid, false, geometry);
   EXPECT_FALSE(win.wm_state_fullscreen());
   EXPECT_TRUE(win.wm_state_modal());
 
@@ -360,7 +375,9 @@ TEST_F(WindowTest, WmWindowType) {
                          combo_atom);  // combo type
 
   // Attach our Window to the X window
-  Window win(wm_.get(), xid, true);
+  XConnection::WindowGeometry geometry;
+  ASSERT_TRUE(xconn_->GetWindowGeometry(xid, &geometry));
+  Window win(wm_.get(), xid, true, geometry);
   EXPECT_TRUE(win.using_shadow());  // use shadow for combo
 
   xconn_->SetIntProperty(xid,
@@ -410,7 +427,9 @@ TEST_F(WindowTest, ChromeState) {
                          state_atom,                // atom
                          wm_->GetXAtom(ATOM_ATOM),  // type
                          collapsed_atom);
-  Window win(wm_.get(), xid, false);
+  XConnection::WindowGeometry geometry;
+  ASSERT_TRUE(xconn_->GetWindowGeometry(xid, &geometry));
+  Window win(wm_.get(), xid, false, geometry);
 
   // Tell the window to set the other atom.
   map<XAtom, bool> states;
@@ -451,7 +470,9 @@ TEST_F(WindowTest, Shape) {
   info->shape->Clear(0xff);
   info->shape->SetRectangle(0, 0, 3, 3, 0x0);
 
-  Window win(wm_.get(), xid, false);
+  XConnection::WindowGeometry geometry;
+  ASSERT_TRUE(xconn_->GetWindowGeometry(xid, &geometry));
+  Window win(wm_.get(), xid, false, geometry);
   EXPECT_TRUE(info->shape_events_selected);
   EXPECT_TRUE(win.shaped());
   EXPECT_FALSE(win.using_shadow());
@@ -501,7 +522,8 @@ TEST_F(WindowTest, OverrideRedirectForDestroyedWindow) {
   // non-override-redirect.
   // TODO: Remove this once we're able to grab the server while
   // constructing Window objects (see comments in window_manager.cc).
-  Window win(wm_.get(), 43241, true);
+  XConnection::WindowGeometry geometry;
+  Window win(wm_.get(), 43241, true, geometry);
   EXPECT_TRUE(win.override_redirect());
 }
 
@@ -511,7 +533,9 @@ TEST_F(WindowTest, RemoveBorder) {
   MockXConnection::WindowInfo* info = xconn_->GetWindowInfoOrDie(xid);
   info->border_width = 1;
 
-  Window win(wm_.get(), xid, false);
+  XConnection::WindowGeometry geometry;
+  ASSERT_TRUE(xconn_->GetWindowGeometry(xid, &geometry));
+  Window win(wm_.get(), xid, false, geometry);
   EXPECT_EQ(0, info->border_width);
 }
 
@@ -522,7 +546,9 @@ TEST_F(WindowTest, RemoveBorder) {
 TEST_F(WindowTest, DeferResizingActor) {
   const int orig_width = 300, orig_height = 200;
   XWindow xid = CreateToplevelWindow(2, 0, 0, 0, orig_width, orig_height);
-  Window win(wm_.get(), xid, false);
+  XConnection::WindowGeometry geometry;
+  ASSERT_TRUE(xconn_->GetWindowGeometry(xid, &geometry));
+  Window win(wm_.get(), xid, false, geometry);
   xconn_->MapWindow(xid);
   win.HandleMapNotify();
 
@@ -550,7 +576,9 @@ TEST_F(WindowTest, UpdatePixmapAndShadowSizes) {
   const int orig_width = 300, orig_height = 200;
   XWindow xid = CreateToplevelWindow(2, 0, 0, 0, orig_width, orig_height);
   MockXConnection::WindowInfo* info = xconn_->GetWindowInfoOrDie(xid);
-  Window win(wm_.get(), xid, false);
+  XConnection::WindowGeometry geometry;
+  ASSERT_TRUE(xconn_->GetWindowGeometry(xid, &geometry));
+  Window win(wm_.get(), xid, false, geometry);
 
   // Resize the window once before it gets mapped, to make sure that we get
   // the updated size later after the window is mapped.

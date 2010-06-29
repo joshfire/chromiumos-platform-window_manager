@@ -38,13 +38,16 @@ class PanelTest : public BasicWindowManagerTest {
 
 TEST_F(PanelTest, InputWindows) {
   XWindow titlebar_xid = CreatePanelTitlebarWindow(200, 20);
-  Window titlebar_win(wm_.get(), titlebar_xid, false);
+  XConnection::WindowGeometry geometry;
+  ASSERT_TRUE(xconn_->GetWindowGeometry(titlebar_xid, &geometry));
+  Window titlebar_win(wm_.get(), titlebar_xid, false, geometry);
   MockXConnection::WindowInfo* titlebar_info =
       xconn_->GetWindowInfoOrDie(titlebar_xid);
 
   XWindow content_xid = CreatePanelContentWindow(
       200, 400, titlebar_xid, true, true, 0);
-  Window content_win(wm_.get(), content_xid, false);
+  ASSERT_TRUE(xconn_->GetWindowGeometry(content_xid, &geometry));
+  Window content_win(wm_.get(), content_xid, false, geometry);
   MockXConnection::WindowInfo* content_info =
       xconn_->GetWindowInfoOrDie(content_xid);
 
@@ -147,14 +150,17 @@ TEST_F(PanelTest, Resize) {
   int orig_titlebar_height = 20;
   XWindow titlebar_xid =
       CreatePanelTitlebarWindow(orig_width, orig_titlebar_height);
-  Window titlebar_win(wm_.get(), titlebar_xid, false);
+  XConnection::WindowGeometry geometry;
+  ASSERT_TRUE(xconn_->GetWindowGeometry(titlebar_xid, &geometry));
+  Window titlebar_win(wm_.get(), titlebar_xid, false, geometry);
   MockXConnection::WindowInfo* titlebar_info =
       xconn_->GetWindowInfoOrDie(titlebar_xid);
 
   int orig_content_height = 400;
   XWindow content_xid = CreatePanelContentWindow(
       orig_width, orig_content_height, titlebar_xid, true, true, 0);
-  Window content_win(wm_.get(), content_xid, false);
+  ASSERT_TRUE(xconn_->GetWindowGeometry(content_xid, &geometry));
+  Window content_win(wm_.get(), content_xid, false, geometry);
   MockXConnection::WindowInfo* content_info =
       xconn_->GetWindowInfoOrDie(content_xid);
 
@@ -233,12 +239,15 @@ TEST_F(PanelTest, ChromeState) {
 
   // Create a collapsed panel.
   XWindow titlebar_xid = CreatePanelTitlebarWindow(200, 20);
-  Window titlebar_win(wm_.get(), titlebar_xid, false);
+  XConnection::WindowGeometry geometry;
+  ASSERT_TRUE(xconn_->GetWindowGeometry(titlebar_xid, &geometry));
+  Window titlebar_win(wm_.get(), titlebar_xid, false, geometry);
   XWindow content_xid = CreatePanelContentWindow(
       200, 400, titlebar_xid, false, false, 0);
   MockXConnection::WindowInfo* content_info =
       xconn_->GetWindowInfoOrDie(content_xid);
-  Window content_win(wm_.get(), content_xid, false);
+  ASSERT_TRUE(xconn_->GetWindowGeometry(content_xid, &geometry));
+  Window content_win(wm_.get(), content_xid, false, geometry);
   Panel panel(panel_manager_, &content_win, &titlebar_win, false);
   panel.Move(0, 0, true, 0);
 
@@ -286,10 +295,13 @@ TEST_F(PanelTest, ChromeState) {
 TEST_F(PanelTest, Shadows) {
   // Create a collapsed panel.
   XWindow titlebar_xid = CreatePanelTitlebarWindow(200, 20);
-  Window titlebar_win(wm_.get(), titlebar_xid, false);
+  XConnection::WindowGeometry geometry;
+  ASSERT_TRUE(xconn_->GetWindowGeometry(titlebar_xid, &geometry));
+  Window titlebar_win(wm_.get(), titlebar_xid, false, geometry);
   XWindow content_xid = CreatePanelContentWindow(
       200, 400, titlebar_xid, false, false, 0);
-  Window content_win(wm_.get(), content_xid, false);
+  ASSERT_TRUE(xconn_->GetWindowGeometry(content_xid, &geometry));
+  Window content_win(wm_.get(), content_xid, false, geometry);
   Panel panel(panel_manager_, &content_win, &titlebar_win, true);
   panel.Move(0, 0, true, 0);
 
@@ -312,10 +324,13 @@ TEST_F(PanelTest, Shadows) {
 TEST_F(PanelTest, MinimumSize) {
   // Create a panel with a really small (20x20) content window.
   XWindow titlebar_xid = CreatePanelTitlebarWindow(200, 20);
-  Window titlebar_win(wm_.get(), titlebar_xid, false);
+  XConnection::WindowGeometry geometry;
+  ASSERT_TRUE(xconn_->GetWindowGeometry(titlebar_xid, &geometry));
+  Window titlebar_win(wm_.get(), titlebar_xid, false, geometry);
   XWindow content_xid = CreatePanelContentWindow(
       20, 20, titlebar_xid, false, false, 0);
-  Window content_win(wm_.get(), content_xid, false);
+  ASSERT_TRUE(xconn_->GetWindowGeometry(content_xid, &geometry));
+  Window content_win(wm_.get(), content_xid, false, geometry);
 
   // The content window should've been resized to the minimum size.
   Panel panel(panel_manager_, &content_win, &titlebar_win, true);

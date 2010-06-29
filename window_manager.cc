@@ -953,11 +953,14 @@ bool WindowManager::ManageExistingWindows() {
   for (size_t i = 0; i < windows.size(); ++i) {
     XWindow xid = windows[i];
     XConnection::WindowAttributes attr;
-    if (!xconn_->GetWindowAttributes(xid, &attr))
+    XConnection::WindowGeometry geometry;
+    if (!xconn_->GetWindowAttributes(xid, &attr) ||
+        !xconn_->GetWindowGeometry(xid, &geometry))
       continue;
+
     // XQueryTree() returns child windows in bottom-to-top stacking order.
     stacked_xids_->AddOnTop(xid);
-    Window* win = TrackWindow(xid, attr.override_redirect);
+    Window* win = TrackWindow(xid, attr.override_redirect, geometry);
     if (win && win->FetchMapState()) {
       if (win->type() == chromeos::WM_IPC_WINDOW_CHROME_PANEL_CONTENT ||
           win->type() == chromeos::WM_IPC_WINDOW_CHROME_TAB_SNAPSHOT)
@@ -976,7 +979,8 @@ bool WindowManager::ManageExistingWindows() {
   return true;
 }
 
-Window* WindowManager::TrackWindow(XWindow xid, bool override_redirect) {
+Window* WindowManager::TrackWindow(XWindow xid, bool override_redirect,
+                                   XConnection::WindowGeometry& geometry) {
   // Don't manage our internal windows.
   if (IsInternalWindow(xid) || stacking_manager_->IsInternalWindow(xid))
     return NULL;
@@ -1000,7 +1004,8 @@ Window* WindowManager::TrackWindow(XWindow xid, bool override_redirect) {
   if (win) {
     LOG(WARNING) << "Window " << XidStr(xid) << " is already being managed";
   } else {
-    shared_ptr<Window> win_ref(new Window(this, xid, override_redirect));
+    shared_ptr<Window> win_ref(
+        new Window(this, xid, override_redirect, geometry));
     client_windows_.insert(make_pair(xid, win_ref));
     win = win_ref.get();
   }
@@ -1446,11 +1451,20 @@ void WindowManager::HandleCreateNotify(const XCreateWindowEvent& e) {
   DCHECK(!stacked_xids_->Contains(e.window));
   stacked_xids_->AddOnTop(e.window);
 
+  XConnection::WindowGeometry geometry;
+  geometry.x = e.x;
+  geometry.y = e.y;
+  geometry.width = e.width;
+  geometry.height = e.height;
+  geometry.border_width = e.border_width;
+  // We don't get the depth in the event, but at least for now, Window's
+  // constructor doesn't need it.
+
   // override-redirect means that the window manager isn't going to
   // intercept this window's structure events, but we still need to
   // composite the window, so we'll create a Window object for it
   // regardless.
-  TrackWindow(e.window, e.override_redirect);
+  TrackWindow(e.window, e.override_redirect, geometry);
 }
 
 void WindowManager::HandleDamageNotify(const XDamageNotifyEvent& e) {

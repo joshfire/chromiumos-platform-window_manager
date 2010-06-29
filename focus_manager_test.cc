@@ -51,7 +51,9 @@ TEST_F(FocusManagerTest, Basic) {
 
   XTime timestamp = 123;  // arbitrary
   XWindow xid = CreateSimpleWindow();
-  Window win(wm_.get(), xid, false);
+  XConnection::WindowGeometry geometry;
+  ASSERT_TRUE(xconn_->GetWindowGeometry(xid, &geometry));
+  Window win(wm_.get(), xid, false, geometry);
 
   focus_manager_->FocusWindow(&win, timestamp++);
   EXPECT_EQ(xid, xconn_->focused_xid());
@@ -69,7 +71,9 @@ TEST_F(FocusManagerTest, ClickToFocus) {
   XTime timestamp = 123;  // arbitrary
   XWindow xid = CreateSimpleWindow();
   MockXConnection::WindowInfo* info = xconn_->GetWindowInfoOrDie(xid);
-  Window win(wm_.get(), xid, false);
+  XConnection::WindowGeometry geometry;
+  ASSERT_TRUE(xconn_->GetWindowGeometry(xid, &geometry));
+  Window win(wm_.get(), xid, false, geometry);
 
   // After we tell the focus manager that we want to use click-to-focus, it
   // should install a button grab on the window.
@@ -85,7 +89,8 @@ TEST_F(FocusManagerTest, ClickToFocus) {
   // Create a second window and focus it.
   XWindow xid2 = CreateSimpleWindow();
   MockXConnection::WindowInfo* info2 = xconn_->GetWindowInfoOrDie(xid2);
-  Window win2(wm_.get(), xid2, false);
+  ASSERT_TRUE(xconn_->GetWindowGeometry(xid2, &geometry));
+  Window win2(wm_.get(), xid2, false, geometry);
   focus_manager_->FocusWindow(&win2, timestamp++);
   ASSERT_EQ(xid2, xconn_->focused_xid());
 
@@ -110,7 +115,9 @@ TEST_F(FocusManagerTest, ClickToFocus) {
 TEST_F(FocusManagerTest, FocusChangeListener) {
   XTime timestamp = 123;  // arbitrary
   XWindow xid = CreateSimpleWindow();
-  Window win(wm_.get(), xid, false);
+  XConnection::WindowGeometry geometry;
+  ASSERT_TRUE(xconn_->GetWindowGeometry(xid, &geometry));
+  Window win(wm_.get(), xid, false, geometry);
 
   TestFocusChangeListener listener;
   focus_manager_->RegisterFocusChangeListener(&listener);
@@ -135,9 +142,12 @@ TEST_F(FocusManagerTest, AdjustTimestamp) {
   // We need two windows, since FocusManager will ignore attempts to
   // focus the already-focused window.
   XWindow xid = CreateSimpleWindow();
-  Window win(wm_.get(), xid, false);
+  XConnection::WindowGeometry geometry;
+  ASSERT_TRUE(xconn_->GetWindowGeometry(xid, &geometry));
+  Window win(wm_.get(), xid, false, geometry);
   XWindow xid2 = CreateSimpleWindow();
-  Window win2(wm_.get(), xid2, false);
+  ASSERT_TRUE(xconn_->GetWindowGeometry(xid2, &geometry));
+  Window win2(wm_.get(), xid2, false, geometry);
 
   focus_manager_->FocusWindow(&win, timestamp);
   EXPECT_EQ(xid, xconn_->focused_xid());
@@ -161,7 +171,9 @@ TEST_F(FocusManagerTest, Modality) {
   // Create a modal window and focus it.
   XTime timestamp = 123;  // arbitrary
   XWindow xid = CreateSimpleWindow();
-  Window win(wm_.get(), xid, false);
+  XConnection::WindowGeometry geometry;
+  ASSERT_TRUE(xconn_->GetWindowGeometry(xid, &geometry));
+  Window win(wm_.get(), xid, false, geometry);
   focus_manager_->UseClickToFocusForWindow(&win);
   win.wm_state_modal_ = true;
   focus_manager_->FocusWindow(&win, timestamp++);
@@ -169,7 +181,8 @@ TEST_F(FocusManagerTest, Modality) {
 
   // Create a second window.
   XWindow xid2 = CreateSimpleWindow();
-  Window win2(wm_.get(), xid2, false);
+  ASSERT_TRUE(xconn_->GetWindowGeometry(xid2, &geometry));
+  Window win2(wm_.get(), xid2, false, geometry);
   focus_manager_->UseClickToFocusForWindow(&win2);
 
   // When the focus manager sees a button press in the second window, it

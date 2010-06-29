@@ -59,7 +59,8 @@ class Window {
     WM_WINDOW_TYPE_COMBO,       // _NET_WM_WINDOW_TYPE_COMBO
   };
 
-  Window(WindowManager* wm, XWindow xid, bool override_redirect);
+  Window(WindowManager* wm, XWindow xid, bool override_redirect,
+         const XConnection::WindowGeometry& geometry);
   ~Window();
 
   XWindow xid() const { return xid_; }

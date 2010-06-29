@@ -29,6 +29,7 @@ extern "C" {
 #include "window_manager/compositor.h"
 #include "window_manager/panel_manager.h"
 #include "window_manager/wm_ipc.h"
+#include "window_manager/x_connection.h"
 #include "window_manager/x_types.h"
 
 namespace window_manager {
@@ -45,7 +46,6 @@ class ScreenLockerHandler;
 class StackingManager;
 class Window;
 class WmIpc;
-class XConnection;
 template<class T> class Stacker;
 
 class WindowManager : public PanelManagerAreaChangeListener {
@@ -264,7 +264,8 @@ class WindowManager : public PanelManagerAreaChangeListener {
   // for it and register it in 'client_windows_').  Returns NULL for
   // windows that we specifically shouldn't track (e.g. the compositor's
   // stage or the compositing overlay window).
-  Window* TrackWindow(XWindow xid, bool override_redirect);
+  Window* TrackWindow(XWindow xid, bool override_redirect,
+                      XConnection::WindowGeometry& geometry);
 
   // Handle a window getting mapped.  This is primarily used by
   // HandleMapNotify(), but is abstracted out into a separate method so
