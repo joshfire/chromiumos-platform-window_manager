@@ -959,7 +959,6 @@ bool WindowManager::ManageExistingWindows() {
     stacked_xids_->AddOnTop(xid);
     Window* win = TrackWindow(xid, attr.override_redirect);
     if (win && win->FetchMapState()) {
-      win->set_mapped(true);
       if (win->type() == chromeos::WM_IPC_WINDOW_CHROME_PANEL_CONTENT ||
           win->type() == chromeos::WM_IPC_WINDOW_CHROME_TAB_SNAPSHOT)
         deferred_mapped_windows.push_back(win);
@@ -1009,20 +1008,26 @@ Window* WindowManager::TrackWindow(XWindow xid, bool override_redirect) {
 }
 
 void WindowManager::HandleMappedWindow(Window* win) {
-  if (!win->override_redirect()) {
-    if (mapped_xids_->Contains(win->xid())) {
-      LOG(WARNING) << "Handling " << win->xid_str() << ", which is "
-                   << "already listed in 'mapped_xids_'";
-    } else {
-      mapped_xids_->AddOnTop(win->xid());
-      UpdateClientListProperty();
-      // This only includes mapped windows, so we need to update it now.
-      UpdateClientListStackingProperty();
-    }
+  // We need to get a new pixmap for the window.
+  win->HandleMapNotify();
+  FOR_EACH_EVENT_CONSUMER(event_consumers_, HandleWindowMap(win));
+
+  if (win->override_redirect()) {
+    win->ShowComposited();
+    return;
+  }
+
+  if (mapped_xids_->Contains(win->xid())) {
+    LOG(WARNING) << "Handling mapped window " << win->xid_str()
+                 << ", which is already listed in 'mapped_xids_'";
+  } else {
+    mapped_xids_->AddOnTop(win->xid());
+    UpdateClientListProperty();
+    // This only includes mapped windows, so we need to update it now.
+    UpdateClientListStackingProperty();
   }
 
   SetWmStateProperty(win->xid(), 1);  // NormalState
-  FOR_EACH_EVENT_CONSUMER(event_consumers_, HandleWindowMap(win));
 
   if (win->type() == chromeos::WM_IPC_WINDOW_CHROME_TOPLEVEL &&
       !chrome_window_has_been_mapped_) {
@@ -1512,16 +1517,8 @@ void WindowManager::HandleLeaveNotify(const XLeaveWindowEvent& e) {
 void WindowManager::HandleMapNotify(const XMapEvent& e) {
   DLOG(INFO) << "Handling map notify for " << XidStr(e.window);
   Window* win = GetWindow(e.window);
-  if (!win)
+  if (!win || win->mapped())
     return;
-
-  // We need to get a new pixmap for the window.
-  win->HandleMapNotify();
-
-  if (win->mapped())
-    return;
-
-  win->set_mapped(true);
   HandleMappedWindow(win);
 }
 
@@ -1559,7 +1556,6 @@ void WindowManager::HandleMapRequest(const XMapRequestEvent& e) {
       // make it to the X server) and avoids races where we can get
       // messages from Chrome about windows before we've received MapNotify
       // events about them.
-      win->set_mapped(true);
       HandleMappedWindow(win);
       return;
     }
@@ -1708,11 +1704,15 @@ void WindowManager::HandleUnmapNotify(const XUnmapEvent& e) {
   if (!win)
     return;
 
-  SetWmStateProperty(e.window, 0);  // WithdrawnState
-  win->set_mapped(false);
-  win->HideComposited();
-
+  win->HandleUnmapNotify();
   FOR_EACH_EVENT_CONSUMER(event_consumers_, HandleWindowUnmap(win));
+
+  if (win->override_redirect()) {
+    win->HideComposited();
+    return;
+  }
+
+  SetWmStateProperty(e.window, 0);  // WithdrawnState
 
   // Notify the focus manager last in case any event consumers need to do
   // something special when they see the focused window getting unmapped.

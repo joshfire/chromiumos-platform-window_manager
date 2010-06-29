@@ -73,7 +73,6 @@ class Window {
   chromeos::WmIpcWindowType type() const { return type_; }
   const std::vector<int>& type_params() const { return type_params_; }
   bool mapped() const { return mapped_; }
-  void set_mapped(bool mapped) { mapped_ = mapped; }
   bool shaped() const { return shaped_; }
 
   int client_x() const { return client_x_; }
@@ -242,6 +241,8 @@ class Window {
   // Handle a MapNotify event about this window.
   // We throw away the old pixmap for the window and get the new one.
   void HandleMapNotify();
+
+  void HandleUnmapNotify();
 
   // Handle a ConfigureNotify event about this window.
   // Currently, we just pass the window's width and height so we can resize

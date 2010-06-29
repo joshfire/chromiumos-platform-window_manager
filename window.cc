@@ -98,7 +98,6 @@ Window::Window(WindowManager* wm, XWindow xid, bool override_redirect)
 
   damage_ = wm_->xconn()->CreateDamage(
       xid_, XConnection::DAMAGE_REPORT_LEVEL_NON_EMPTY);
-  ResetPixmap();
   actor_->Move(composited_x_, composited_y_, 0);
   actor_->SetVisibility(false);
   // This will update the actor's name based on the current title and xid.
@@ -656,18 +655,17 @@ void Window::ScaleComposited(double scale_x, double scale_y, int anim_ms) {
 }
 
 void Window::HandleMapNotify() {
+  mapped_ = true;
   ResetPixmap();
 }
 
+void Window::HandleUnmapNotify() {
+  mapped_ = false;
+}
+
 void Window::HandleConfigureNotify(int width, int height) {
-  if (actor_->GetWidth() != width || actor_->GetHeight() != height) {
+  if (actor_->GetWidth() != width || actor_->GetHeight() != height)
     ResetPixmap();
-    if (shadow_.get()) {
-      shadow_->Resize(composited_scale_x_ * actor_->GetWidth(),
-                      composited_scale_y_ * actor_->GetHeight(),
-                      0);  // anim_ms
-    }
-  }
 }
 
 void Window::HandleDamageNotify() {
@@ -811,9 +809,17 @@ bool Window::UpdateChromeStateProperty() {
 }
 
 void Window::ResetPixmap() {
+  if (!mapped_)
+    return;
+
   XID old_pixmap = pixmap_;
   pixmap_ = wm_->xconn()->GetCompositingPixmapForWindow(xid_);
   actor_->SetPixmap(pixmap_);
+  if (shadow_.get()) {
+    shadow_->Resize(composited_scale_x_ * actor_->GetWidth(),
+                    composited_scale_y_ * actor_->GetHeight(),
+                    0);  // anim_ms
+  }
   if (old_pixmap)
     wm_->xconn()->FreePixmap(old_pixmap);
 }

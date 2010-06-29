@@ -98,6 +98,8 @@ TEST_F(WindowTest, ChangeClient) {
 TEST_F(WindowTest, ChangeComposited) {
   XWindow xid = CreateBasicWindow(10, 20, 30, 40);
   Window window(wm_.get(), xid, false);
+  xconn_->MapWindow(xid);
+  window.HandleMapNotify();
 
   MockCompositor::TexturePixmapActor* actor = GetMockActorForWindow(&window);
 
@@ -521,6 +523,8 @@ TEST_F(WindowTest, DeferResizingActor) {
   const int orig_width = 300, orig_height = 200;
   XWindow xid = CreateToplevelWindow(2, 0, 0, 0, orig_width, orig_height);
   Window win(wm_.get(), xid, false);
+  xconn_->MapWindow(xid);
+  win.HandleMapNotify();
 
   // Check that the actor's initial dimensions match that of the client window.
   EXPECT_EQ(orig_width, win.actor()->GetWidth());
@@ -547,43 +551,51 @@ TEST_F(WindowTest, UpdatePixmapAndShadowSizes) {
   XWindow xid = CreateToplevelWindow(2, 0, 0, 0, orig_width, orig_height);
   MockXConnection::WindowInfo* info = xconn_->GetWindowInfoOrDie(xid);
   Window win(wm_.get(), xid, false);
-  MockCompositor::TexturePixmapActor* actor = GetMockActorForWindow(&win);
 
-  // Check that everything starts out at the right size.
-  EXPECT_EQ(orig_width, actor->GetWidth());
-  EXPECT_EQ(orig_height, actor->GetHeight());
-  EXPECT_EQ(orig_width, win.shadow()->width());
-  EXPECT_EQ(orig_height, win.shadow()->height());
+  // Resize the window once before it gets mapped, to make sure that we get
+  // the updated size later after the window is mapped.
+  const int second_width = orig_width + 10, second_height = orig_height + 10;
+  ASSERT_TRUE(xconn_->ResizeWindow(xid, second_width, second_height));
+  win.HandleConfigureNotify(info->width, info->height);
+
+  // Now map the window and check that everything starts out at the right size.
+  ASSERT_TRUE(xconn_->MapWindow(xid));
+  win.HandleMapNotify();
+  MockCompositor::TexturePixmapActor* actor = GetMockActorForWindow(&win);
+  EXPECT_EQ(second_width, actor->GetWidth());
+  EXPECT_EQ(second_height, actor->GetHeight());
+  EXPECT_EQ(second_width, win.shadow()->width());
+  EXPECT_EQ(second_height, win.shadow()->height());
 
   // We shouldn't reload the pixmap in response to a non-resize
   // ConfigureNotify event (like what we'll receive whenever the window
   // gets moved).
   info->compositing_pixmap++;
-  win.HandleConfigureNotify(orig_width, orig_height);
+  win.HandleConfigureNotify(info->width, info->height);
   EXPECT_EQ(info->compositing_pixmap - 1, actor->pixmap());
   info->compositing_pixmap--;
 
-  // Now act as if the window gets resized twice, but the second resize has
-  // already happened in the X server by the time that the window manager
-  // receives the ConfigureNotify for the first resize.
-  const int second_width = orig_width + 10, second_height = orig_height + 10;
-  const int third_width = orig_width - 10, third_height = orig_height - 10;
-  xconn_->ResizeWindow(xid, third_width, third_height);
-  win.HandleConfigureNotify(second_width, second_height);
+  // Now act as if the window gets resized two more times, but the second
+  // resize has already happened in the X server by the time that the
+  // window manager receives the ConfigureNotify for the first resize.
+  const int third_width = second_width + 10, third_height = second_height + 10;
+  const int fourth_width = third_width + 10, fourth_height = third_height + 10;
+  xconn_->ResizeWindow(xid, fourth_width, fourth_height);
+  win.HandleConfigureNotify(third_width, third_height);
 
   // We should load the pixmap now and resize the shadow to the dimensions
   // from the final pixmap instead of the ones supplied in the event.
-  EXPECT_EQ(third_width, actor->GetWidth());
-  EXPECT_EQ(third_height, actor->GetHeight());
-  EXPECT_EQ(third_width, win.shadow()->width());
-  EXPECT_EQ(third_height, win.shadow()->height());
+  EXPECT_EQ(fourth_width, actor->GetWidth());
+  EXPECT_EQ(fourth_height, actor->GetHeight());
+  EXPECT_EQ(fourth_width, win.shadow()->width());
+  EXPECT_EQ(fourth_height, win.shadow()->height());
 
   // Nothing should change after we get the second ConfigureNotify.
-  win.HandleConfigureNotify(third_width, third_height);
-  EXPECT_EQ(third_width, actor->GetWidth());
-  EXPECT_EQ(third_height, actor->GetHeight());
-  EXPECT_EQ(third_width, win.shadow()->width());
-  EXPECT_EQ(third_height, win.shadow()->height());
+  win.HandleConfigureNotify(fourth_width, fourth_height);
+  EXPECT_EQ(fourth_width, actor->GetWidth());
+  EXPECT_EQ(fourth_height, actor->GetHeight());
+  EXPECT_EQ(fourth_width, win.shadow()->width());
+  EXPECT_EQ(fourth_height, win.shadow()->height());
 }
 
 }  // namespace window_manager

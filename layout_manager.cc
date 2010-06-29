@@ -334,21 +334,9 @@ bool LayoutManager::HandleWindowMapRequest(Window* win) {
 
 void LayoutManager::HandleWindowMap(Window* win) {
   DCHECK(win);
-  if (!wm_->logged_in())
+  if (!wm_->logged_in() || win->override_redirect() ||
+      !IsHandledWindowType(win->type()))
     return;
-
-  if (!IsHandledWindowType(win->type()))
-    return;
-
-  // Just show override-redirect windows; they're already positioned
-  // according to client apps' wishes.
-  if (win->override_redirect()) {
-    win->ShowComposited();
-    return;
-  }
-
-  DLOG(INFO) << "Handling window map for " << win->xid_str()
-             << " of type " << win->type();
 
   const size_t initial_num_toplevels = toplevels_.size();
 
@@ -475,16 +463,9 @@ void LayoutManager::HandleWindowMap(Window* win) {
 }
 
 void LayoutManager::HandleWindowUnmap(Window* win) {
-  // Note that we sometimes get spurious double unmap notifications
-  // for the same window.  We ignore these by checking to see if we
-  // can find the given window in our lists of toplevel and snapshot
-  // windows (and if we've removed it already, we won't find it).
   DCHECK(win);
 
-  DLOG(INFO) << "Unmapping window " << win->xid_str()
-             << " of type " << win->type();
-
-  if (!IsHandledWindowType(win->type()))
+  if (win->override_redirect() || !IsHandledWindowType(win->type()))
     return;
 
   if (win->type() == chromeos::WM_IPC_WINDOW_CHROME_TAB_SNAPSHOT) {

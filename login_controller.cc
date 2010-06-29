@@ -193,6 +193,9 @@ bool LoginController::HandleWindowMapRequest(Window* win) {
 }
 
 void LoginController::HandleWindowMap(Window* win) {
+  if (win->override_redirect())
+    return;
+
   switch (win->type()) {
     case chromeos::WM_IPC_WINDOW_LOGIN_GUEST: {
       if (guest_window_)
@@ -275,24 +278,24 @@ void LoginController::HandleWindowMap(Window* win) {
           return;
         }
         registrar_.RegisterForWindowEvents(win->xid());
-        if (!win->override_redirect()) {
-          // Restack the window again in case it was mapped before the
-          // window manager started.
-          wm_->stacking_manager()->StackWindowAtTopOfLayer(
-              win, StackingManager::LAYER_LOGIN_OTHER_WINDOW);
 
-          // If this is a transient window, center it over its owner
-          // (unless it's an infobubble, which we just let Chrome position
-          // wherever it wants).
-          if (win->transient_for_xid() &&
-              win->type() != chromeos::WM_IPC_WINDOW_CHROME_INFO_BUBBLE) {
-            Window* owner_win = wm_->GetWindow(win->transient_for_xid());
-            if (owner_win)
-              win->CenterClientOverWindow(owner_win);
-          }
-          wm_->focus_manager()->UseClickToFocusForWindow(win);
-          wm_->FocusWindow(win, wm_->GetCurrentTimeFromServer());
+        // Restack the window again in case it was mapped before the
+        // window manager started.
+        wm_->stacking_manager()->StackWindowAtTopOfLayer(
+            win, StackingManager::LAYER_LOGIN_OTHER_WINDOW);
+
+        // If this is a transient window, center it over its owner
+        // (unless it's an infobubble, which we just let Chrome position
+        // wherever it wants).
+        if (win->transient_for_xid() &&
+            win->type() != chromeos::WM_IPC_WINDOW_CHROME_INFO_BUBBLE) {
+          Window* owner_win = wm_->GetWindow(win->transient_for_xid());
+          if (owner_win)
+            win->CenterClientOverWindow(owner_win);
         }
+
+        wm_->focus_manager()->UseClickToFocusForWindow(win);
+        wm_->FocusWindow(win, wm_->GetCurrentTimeFromServer());
         win->MoveCompositedToClient();
         win->ShowComposited();
       }
@@ -316,10 +319,14 @@ void LoginController::HandleWindowMap(Window* win) {
 }
 
 void LoginController::HandleWindowUnmap(Window* win) {
+  if (win->override_redirect())
+    return;
+
   set<XWindow>::iterator non_login_it = non_login_xids_.find(win->xid());
   if (non_login_it != non_login_xids_.end()) {
     non_login_xids_.erase(*non_login_it);
     registrar_.UnregisterForWindowEvents(win->xid());
+
     if (win->IsFocused()) {
       // If the window was transient, pass the focus to its owner (as long
       // as it's not the background window, which we never want to receive

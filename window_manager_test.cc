@@ -878,6 +878,11 @@ TEST_F(WindowManagerTest, RedirectWindows) {
   wm_->HandleEvent(&event);
   Window* win = wm_->GetWindowOrDie(xid);
   MockCompositor::TexturePixmapActor* mock_actor = GetMockActorForWindow(win);
+  EXPECT_EQ(0, mock_actor->pixmap());
+
+  xconn_->InitMapRequestEvent(&event, xid);
+  wm_->HandleEvent(&event);
+  EXPECT_TRUE(win->mapped());
   EXPECT_EQ(info->compositing_pixmap, mock_actor->pixmap());
 
   // There won't be a MapRequest event for override-redirect windows, but they
@@ -901,6 +906,12 @@ TEST_F(WindowManagerTest, RedirectWindows) {
   Window* override_redirect_win = wm_->GetWindowOrDie(override_redirect_xid);
   MockCompositor::TexturePixmapActor* override_redirect_mock_actor =
       GetMockActorForWindow(override_redirect_win);
+  EXPECT_EQ(0, override_redirect_mock_actor->pixmap());
+  EXPECT_FALSE(override_redirect_win->mapped());
+
+  xconn_->InitMapEvent(&event, override_redirect_xid);
+  wm_->HandleEvent(&event);
+  EXPECT_TRUE(override_redirect_win->mapped());
   EXPECT_EQ(override_redirect_info->compositing_pixmap,
             override_redirect_mock_actor->pixmap());
 }
