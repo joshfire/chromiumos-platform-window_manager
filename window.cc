@@ -730,6 +730,8 @@ void Window::UpdateShadowIfNecessary() {
       type_ != chromeos::WM_IPC_WINDOW_LOGIN_UNSELECTED_LABEL &&
       type_ != chromeos::WM_IPC_WINDOW_LOGIN_GUEST &&
       type_ != chromeos::WM_IPC_WINDOW_CHROME_TAB_SNAPSHOT &&
+      type_ != chromeos::WM_IPC_WINDOW_CHROME_TAB_TITLE &&
+      type_ != chromeos::WM_IPC_WINDOW_CHROME_TAB_FAV_ICON &&
       type_ != chromeos::WM_IPC_WINDOW_CHROME_TOPLEVEL &&
       !shaped_;
 

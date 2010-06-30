@@ -164,6 +164,32 @@ void BasicWindowManagerTest::ChangeTabInfo(XWindow toplevel_xid,
       toplevel_xid, chromeos::WM_IPC_WINDOW_CHROME_TOPLEVEL, &params);
 }
 
+XWindow BasicWindowManagerTest::CreateFavIconWindow(XWindow snapshot_xid,
+                                                    int width, int height) {
+  return CreateDecorationWindow(snapshot_xid,
+                                chromeos::WM_IPC_WINDOW_CHROME_TAB_FAV_ICON,
+                                width, height);
+}
+
+XWindow BasicWindowManagerTest::CreateTitleWindow(XWindow snapshot_xid,
+                                                  int width, int height) {
+  return CreateDecorationWindow(snapshot_xid,
+                                chromeos::WM_IPC_WINDOW_CHROME_TAB_TITLE,
+                                width, height);
+}
+
+XWindow BasicWindowManagerTest::CreateDecorationWindow(
+    XWindow snapshot_xid,
+    chromeos::WmIpcWindowType type,
+    int width, int height) {
+  XWindow xid = CreateBasicWindow(0, 0, width, height);
+  std::vector<int> params;
+  params.push_back(snapshot_xid);
+  wm_->wm_ipc()->SetWindowType(xid, type, &params);
+
+  return xid;
+}
+
 XWindow BasicWindowManagerTest::CreateSnapshotWindow(XWindow parent_xid,
                                                      int index,
                                                      int x, int y,

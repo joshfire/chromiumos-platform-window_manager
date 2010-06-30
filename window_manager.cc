@@ -930,7 +930,8 @@ bool WindowManager::ManageExistingWindows() {
   // that the titlebars be mapped before the content windows, and the
   // snapshot code requires that the toplevel windows are mapped before
   // their snapshots.
-  vector<Window*> deferred_mapped_windows;
+  vector<Window*> first_deferred_mapped_windows;
+  vector<Window*> second_deferred_mapped_windows;
 
   LOG(INFO) << "Taking ownership of " << windows.size() << " window"
             << (windows.size() == 1 ? "" : "s");
@@ -947,15 +948,24 @@ bool WindowManager::ManageExistingWindows() {
     Window* win = TrackWindow(xid, attr.override_redirect, geometry);
     if (win && win->FetchMapState()) {
       if (win->type() == chromeos::WM_IPC_WINDOW_CHROME_PANEL_CONTENT ||
-          win->type() == chromeos::WM_IPC_WINDOW_CHROME_TAB_SNAPSHOT)
-        deferred_mapped_windows.push_back(win);
-      else
+          win->type() == chromeos::WM_IPC_WINDOW_CHROME_TAB_SNAPSHOT) {
+        first_deferred_mapped_windows.push_back(win);
+      } else if (win->type() == chromeos::WM_IPC_WINDOW_CHROME_TAB_TITLE ||
+                 win->type() == chromeos::WM_IPC_WINDOW_CHROME_TAB_FAV_ICON) {
+        second_deferred_mapped_windows.push_back(win);
+      } else {
         HandleMappedWindow(win);
+      }
     }
   }
 
-  for (vector<Window*>::iterator it = deferred_mapped_windows.begin();
-       it != deferred_mapped_windows.end(); ++it) {
+  for (vector<Window*>::iterator it = first_deferred_mapped_windows.begin();
+       it != first_deferred_mapped_windows.end(); ++it) {
+    HandleMappedWindow(*it);
+  }
+
+  for (vector<Window*>::iterator it = second_deferred_mapped_windows.begin();
+       it != second_deferred_mapped_windows.end(); ++it) {
     HandleMappedWindow(*it);
   }
 

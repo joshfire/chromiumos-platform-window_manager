@@ -29,10 +29,10 @@ echo "1..."
 sleep 1
 echo "Starting wm!"
 
-export LD_LIBRARY_PATH=/lib32:/usr/lib32:$chroot_dir/lib:$chroot_dir/usr/lib:$chroot_dir/build/x86-generic/lib:$chroot_dir/build/x86-generic/usr/lib:$chroot_dir/build/x86-generic/opt/google/chrome/chromeos:$LD_LIBRARY_PATH
+xprop -display :1 -root -f _CHROME_LOGGED_IN 32i -set _CHROME_LOGGED_IN 1
+
+export LD_LIBRARY_PATH=/lib32:/usr/lib32:$script_dir/../../../chroot/build/x86-generic/lib:$script_dir/../../../chroot/build/x86-generic/usr/lib:$LD_LIBRARY_PATH
 export DISPLAY=:1.0
 export IMAGES=$script_dir/../assets/images
 
-$script_dir/wm --logtostderr                                            \
-  --wm_background_image="${IMAGES}/background_1024x600.png"             \
-  "$@"
+$script_dir/wm --logged_in_log_dir=$PWD --logged_out_log_dir=$PWD --background_image="$IMAGES/background_1024x600.png" "$@"

@@ -84,6 +84,8 @@ class Window {
   bool composited_shown() const { return composited_shown_; }
   int composited_x() const { return composited_x_; }
   int composited_y() const { return composited_y_; }
+  int composited_width() const { return client_width_ * composited_scale_x_; }
+  int composited_height() const { return client_height_ * composited_scale_y_; }
   double composited_scale_x() const { return composited_scale_x_; }
   double composited_scale_y() const { return composited_scale_y_; }
   double composited_opacity() const { return composited_opacity_; }

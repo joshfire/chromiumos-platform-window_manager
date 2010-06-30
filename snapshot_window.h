@@ -20,6 +20,12 @@ class LayoutManager::SnapshotWindow {
   // snapshot.
   static const float kUnselectedTilt;
 
+  // Padding between the fav icon and the title in pixels.
+  static const int kFavIconPadding;
+
+  // Padding between the bottom of the snapshot and the title in pixels.
+  static const int kTitlePadding;
+
   SnapshotWindow(Window* win, LayoutManager* layout_manager);
   ~SnapshotWindow();
 
@@ -51,6 +57,10 @@ class LayoutManager::SnapshotWindow {
     }
     return toplevel_;
   }
+  Window* title() const { return title_; }
+  Window* fav_icon() const { return fav_icon_; }
+  void clear_title() { title_ = NULL; }
+  void clear_fav_icon() { fav_icon_ = NULL; }
   int overview_x() const { return overview_x_; }
   int overview_y() const { return overview_y_; }
   int overview_width() const { return overview_width_; }
@@ -69,6 +79,12 @@ class LayoutManager::SnapshotWindow {
   // this to update the layout to match.
   void SetState(State state);
 
+  // Adds a decoration to this snapshot.  A decoration is a
+  // Chrome-rendered window that contains the title or fav icon of the
+  // snapshot.  This sets title_ or fav_icon_, depending the window
+  // type.
+  void AddDecoration(Window* decoration);
+
   // Updates the layout of this window based on its current state.  If
   // animate is true, then animate the window into its new state,
   // otherwise just jump to the new state.
@@ -79,6 +95,10 @@ class LayoutManager::SnapshotWindow {
   // properties have changed.  If internal state changed, returns
   // true.
   bool PropertiesChanged();
+
+  // Handles a resize of the screen or layout manager by making sure
+  // that client windows are still offscreen.
+  void HandleManagerResize();
 
   // Comparison function used when sorting snapshot windows by tab index.
   static bool CompareTabIndex(std::tr1::shared_ptr<SnapshotWindow> first,
@@ -152,6 +172,14 @@ class LayoutManager::SnapshotWindow {
   // doesn't have to mean "mapped").
   ToplevelWindow* toplevel_;
   XWindow toplevel_xid_;
+
+  // This is the window associated with the snapshot title rendered by
+  // Chrome.
+  Window* title_;
+
+  // This is the window associated with the snapshot fav icon rendered by
+  // Chrome.
+  Window* fav_icon_;
 
   // The invisible input window that represents the client window in
   // overview mode.

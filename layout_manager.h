@@ -312,8 +312,9 @@ class LayoutManager : public EventConsumer,
   void CenterCurrentSnapshot(int x, int y);
 
   // Calculate the position and scaling of all snapshots for overview
-  // mode and record it in 'snapshots_'.
-  void CalculatePositionsForOverviewMode();
+  // mode and record it in 'snapshots_'.  If |enforce_bounds| is true,
+  // then the bounds of dragging are enforced.
+  void CalculatePositionsForOverviewMode(bool enforce_bounds);
 
   // Cycle the current toplevel window.  Only makes sense in active mode.
   void CycleCurrentToplevelWindow(bool forward);

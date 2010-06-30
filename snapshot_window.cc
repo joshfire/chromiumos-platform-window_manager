@@ -31,12 +31,16 @@
 namespace window_manager {
 
 using std::string;
+using window_manager::util::XidStr;
 
 const float LayoutManager::SnapshotWindow::kUnselectedTilt = 0.8;
+const int LayoutManager::SnapshotWindow::kFavIconPadding = 5;
+const int LayoutManager::SnapshotWindow::kTitlePadding = 8;
 
 // If the difference between the scale of the snapshot and 1.0 is
 // below this threshold, then it will be considered to be 1.0.
 static const float kMinScaleThreshold = 0.01;
+
 
 LayoutManager::SnapshotWindow::SnapshotWindow(Window* win,
                                               LayoutManager* layout_manager)
@@ -45,6 +49,8 @@ LayoutManager::SnapshotWindow::SnapshotWindow(Window* win,
       tab_index_(-1),
       toplevel_(NULL),
       toplevel_xid_(0),
+      title_(NULL),
+      fav_icon_(NULL),
       input_xid_(wm()->CreateInputWindow(-1, -1, 1, 1,
                                          ButtonPressMask | ButtonReleaseMask)),
       state_(STATE_NEW),
@@ -124,6 +130,37 @@ void LayoutManager::SnapshotWindow::SetState(State state) {
   state_ = state;
 }
 
+void LayoutManager::SnapshotWindow::AddDecoration(Window* decoration) {
+  if (!decoration)
+    return;
+
+  DLOG(INFO) << "Adding Decoration " << decoration->xid_str()
+             << " of type "
+             << ((decoration->type() ==
+                  chromeos::WM_IPC_WINDOW_CHROME_TAB_TITLE) ?
+                 "TITLE" : "FAV_ICON")
+             << " on snapshot " << win_->xid_str();
+
+  decoration->SetCompositedOpacity(0.0, 0);
+  decoration->ShowComposited();
+
+  // Move the client offscreen -- it doesn't need to receive any
+  // input.
+  decoration->MoveClientOffscreen();
+
+  switch (decoration->type()) {
+    case chromeos::WM_IPC_WINDOW_CHROME_TAB_FAV_ICON:
+      fav_icon_ = decoration;
+      break;
+    case chromeos::WM_IPC_WINDOW_CHROME_TAB_TITLE:
+      title_ = decoration;
+      break;
+    default:
+      NOTREACHED();
+      break;
+  }
+}
+
 void LayoutManager::SnapshotWindow::UpdateLayout(bool animate) {
 #if defined(EXTRA_LOGGING)
   DLOG(INFO) << "Updating layout for snapshot "
@@ -162,6 +199,14 @@ bool LayoutManager::SnapshotWindow::PropertiesChanged() {
   return changed;
 }
 
+void LayoutManager::SnapshotWindow::HandleManagerResize() {
+    win_->MoveClientOffscreen();
+    if (title_)
+      title_->MoveClientOffscreen();
+    if (fav_icon_)
+      fav_icon_->MoveClientOffscreen();
+}
+
 int LayoutManager::SnapshotWindow::CalculateOverallIndex() const {
   if (toplevel()) {
     return layout_manager_->GetPreceedingTabCount(*(toplevel())) +
@@ -176,6 +221,7 @@ void LayoutManager::SnapshotWindow::ConfigureForActiveMode(bool animate) {
   DLOG(INFO) << "Configuring snapshot " << win_->xid_str()
             << " for " << GetStateName(state_);
 #endif
+
   if (last_state_ == STATE_OVERVIEW_MODE_SELECTED) {
     // The selected snapshot should be stretched to cover the layout
     // manager region.
@@ -187,7 +233,26 @@ void LayoutManager::SnapshotWindow::ConfigureForActiveMode(bool animate) {
     win_->actor()->ShowDimmed(false, anim_ms);
     win_->actor()->SetTilt(0.0, anim_ms);
     win_->MoveComposited(layout_manager_->x(), layout_manager_->y(), anim_ms);
+    if (fav_icon_) {
+      fav_icon_->MoveComposited(layout_manager_->x(),
+                                kTitlePadding + layout_manager_->y() +
+                                win_->client_height() * snapshot_scale_y,
+                                anim_ms);
+    }
+    if (title_) {
+      title_->SetCompositedOpacity(1.0f, 0);
+      int x_position = layout_manager_->x();
+      if (fav_icon_) {
+        x_position += fav_icon_->composited_width() +
+                      kFavIconPadding;
+      }
+      title_->MoveComposited(x_position,
+                             kTitlePadding + layout_manager_->y() +
+                             win_->client_height() * snapshot_scale_y, anim_ms);
+
+    }
   }
+
 
   // TODO: Maybe just unmap input windows.
   wm()->xconn()->ConfigureWindowOffscreen(input_xid_);
@@ -205,6 +270,7 @@ void LayoutManager::SnapshotWindow::ConfigureForOverviewMode(bool animate) {
     animate = false;
 
   const int anim_ms = animate ? LayoutManager::kWindowAnimMs : 0;
+  const int opacity_anim_ms = animate ? LayoutManager::kWindowOpacityAnimMs : 0;
 
   if (switched_to_overview) {
 #if defined(EXTRA_LOGGING)
@@ -222,6 +288,25 @@ void LayoutManager::SnapshotWindow::ConfigureForOverviewMode(bool animate) {
 
     win_->ScaleComposited(snapshot_scale_x, snapshot_scale_y, 0);
     win_->MoveComposited(layout_manager_->x(), layout_manager_->y(), 0);
+    if (state_ == STATE_OVERVIEW_MODE_SELECTED) {
+      if (fav_icon_) {
+        fav_icon_->MoveComposited(layout_manager_->x(),
+                                  kTitlePadding + layout_manager_->y() +
+                                  win_->client_height() * snapshot_scale_y, 0);
+      }
+
+      if (title_) {
+        title_->SetCompositedOpacity(1.0f, 0);
+        int x_position = layout_manager_->x();
+        if (fav_icon_) {
+          x_position += fav_icon_->composited_width() +
+                        kFavIconPadding;
+        }
+        title_->MoveComposited(x_position,
+                               kTitlePadding + layout_manager_->y() +
+                               win_->client_height() * snapshot_scale_y, 0);
+      }
+    }
   }
 
   SnapshotWindow* snapshot_to_stack_under =
@@ -267,6 +352,25 @@ void LayoutManager::SnapshotWindow::ConfigureForOverviewMode(bool animate) {
   win_->actor()->SetTilt(new_tilt, anim_ms);
   win_->ScaleComposited(overview_scale_, overview_scale_, anim_ms);
   win_->MoveComposited(absolute_overview_x, absolute_overview_y, anim_ms);
+
+  int title_y = kTitlePadding + absolute_overview_y +
+                win_->client_height() * overview_scale_;
+  if (fav_icon_)
+    fav_icon_->MoveComposited(absolute_overview_x, title_y, anim_ms);
+
+  if (title_) {
+    if (state_ == STATE_OVERVIEW_MODE_SELECTED) {
+      title_->SetCompositedOpacity(1.0f, opacity_anim_ms);
+    } else {
+      title_->SetCompositedOpacity(0.0f, opacity_anim_ms);
+    }
+    int x_position = absolute_overview_x;
+    if (fav_icon_) {
+      x_position += fav_icon_->composited_width() +
+                    kFavIconPadding;
+    }
+    title_->MoveComposited(x_position, title_y, anim_ms);
+  }
 }
 
 void LayoutManager::SnapshotWindow::SetSize(int max_width, int max_height) {
@@ -277,18 +381,16 @@ void LayoutManager::SnapshotWindow::SetSize(int max_width, int max_height) {
     overview_scale_ = static_cast<double>(max_width) / client_width;
     // If we're really close to 1.0, then just snap to it to keep the
     // image from blurring.
-    if (fabs(1.0 - overview_scale_) < kMinScaleThreshold) {
+    if (fabs(1.0 - overview_scale_) < kMinScaleThreshold)
       overview_scale_ = 1.0;
-    }
     overview_width_ = max_width;
     overview_height_ = client_height * overview_scale_ + 0.5;
   } else {
     overview_scale_ = static_cast<double>(max_height) / client_height;
     // If we're really close to 1.0, then just snap to it to keep the
     // image from blurring.
-    if (fabs(1.0 - overview_scale_) < kMinScaleThreshold) {
+    if (fabs(1.0 - overview_scale_) < kMinScaleThreshold)
       overview_scale_ = 1.0;
-    }
     overview_width_ = client_width * overview_scale_ + 0.5;
     overview_height_ = max_height;
   }

@@ -85,6 +85,20 @@ class BasicWindowManagerTest : public ::testing::Test {
                                int x, int y,
                                int width, int height);
 
+  // Creates a fav icon window for the associated snapshot.
+  XWindow CreateFavIconWindow(XWindow snapshot_xid,
+                              int width, int height);
+
+  // Creates a title window for the associated snapshot.
+  XWindow CreateTitleWindow(XWindow snapshot_xid,
+                            int width, int height);
+
+  // Creates a decoration window (favicon or title) for the associated
+  // snapshot window.
+  XWindow CreateDecorationWindow(XWindow snapshot_xid,
+                                 chromeos::WmIpcWindowType type,
+                                 int width, int height);
+
   // Creates a toplevel client window with an arbitrary size.
   XWindow CreateSimpleWindow();
 

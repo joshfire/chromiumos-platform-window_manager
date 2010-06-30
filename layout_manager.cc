@@ -61,13 +61,13 @@ static const int kSeparatorWidth = 2;
 const double LayoutManager::kOverviewGroupSpacing = 0.03;
 const double LayoutManager::kOverviewSelectedPadding = 4.0;
 const double LayoutManager::kOverviewWindowMaxSizeRatio = 0.7;
-const double LayoutManager::kSideMarginRatio = 0.4;
+const double LayoutManager::kSideMarginRatio = 0.7;
 const double LayoutManager::kOverviewExposedWindowRatio = 0.06;
 const int LayoutManager::kWindowAnimMs = 200;
-const double LayoutManager::kOverviewNotSelectedScale = 0.9;
+const double LayoutManager::kOverviewNotSelectedScale = 0.95;
 const int LayoutManager::kWindowOpacityAnimMs =
     LayoutManager::kWindowAnimMs / 2;
-const float LayoutManager::kBackgroundExpansionFactor = 1.3;
+const float LayoutManager::kBackgroundExpansionFactor = 1.5;
 
 LayoutManager::LayoutManager(WindowManager* wm, PanelManager* panel_manager)
     : wm_(wm),
@@ -335,7 +335,9 @@ bool LayoutManager::HandleWindowMapRequest(Window* win) {
   if (!IsHandledWindowType(win->type()))
     return false;
 
-  if (win->type() == chromeos::WM_IPC_WINDOW_CHROME_TAB_SNAPSHOT) {
+  if (win->type() == chromeos::WM_IPC_WINDOW_CHROME_TAB_FAV_ICON ||
+      win->type() == chromeos::WM_IPC_WINDOW_CHROME_TAB_SNAPSHOT ||
+      win->type() == chromeos::WM_IPC_WINDOW_CHROME_TAB_TITLE) {
     wm_->stacking_manager()->StackWindowAtTopOfLayer(
         win, StackingManager::LAYER_SNAPSHOT_WINDOW);
   } else {
@@ -363,6 +365,23 @@ void LayoutManager::HandleWindowMap(Window* win) {
   const size_t initial_num_toplevels = toplevels_.size();
 
   switch (win->type()) {
+    case chromeos::WM_IPC_WINDOW_CHROME_TAB_FAV_ICON:
+    case chromeos::WM_IPC_WINDOW_CHROME_TAB_TITLE: {
+      if (!saw_map_request_)
+        wm_->stacking_manager()->StackWindowAtTopOfLayer(
+            win, StackingManager::LAYER_SNAPSHOT_WINDOW);
+      LOG_IF(WARNING, win->type_params().empty()) << "Missing type parameters.";
+      if (!win->type_params().empty()) {
+        SnapshotWindow* snapshot = GetSnapshotWindowByXid(
+            static_cast<XWindow>(win->type_params()[0]));
+        LOG_IF(WARNING, !snapshot)
+            << "Attempting to add decoration to nonexistent snapshot";
+        if (!snapshot)
+          return;
+        snapshot->AddDecoration(win);
+      }
+      break;
+    }
     case chromeos::WM_IPC_WINDOW_CHROME_TAB_SNAPSHOT: {
       // Register to get property changes for snapshot windows.
       event_consumer_registrar_->RegisterForPropertyChanges(
@@ -494,40 +513,57 @@ void LayoutManager::HandleWindowUnmap(Window* win) {
   if (win->override_redirect() || !IsHandledWindowType(win->type()))
     return;
 
-  if (win->type() == chromeos::WM_IPC_WINDOW_CHROME_TAB_SNAPSHOT) {
-    SnapshotWindow* snapshot = GetSnapshotWindowByWindow(*win);
-    if (snapshot) {
-      event_consumer_registrar_->UnregisterForPropertyChanges(
-          win->xid(), wm_->GetXAtom(ATOM_CHROME_WINDOW_TYPE));
-
-      RemoveSnapshot(GetSnapshotWindowByWindow(*win));
-      LayoutWindows(true);
+  switch (win->type()) {
+    case chromeos::WM_IPC_WINDOW_CHROME_TAB_FAV_ICON:
+    case chromeos::WM_IPC_WINDOW_CHROME_TAB_TITLE: {
+      for (size_t i = 0; i < snapshots_.size(); ++i) {
+        if (snapshots_[i]->title() == win)
+          snapshots_[i]->clear_title();
+        if (snapshots_[i]->fav_icon() == win)
+          snapshots_[i]->clear_fav_icon();
+      }
+      break;
     }
-  } else {
-    ToplevelWindow* toplevel_owner =
-        GetToplevelWindowOwningTransientWindow(*win);
-
-    if (toplevel_owner) {
-      bool transient_had_focus = win->IsFocused();
-      toplevel_owner->HandleTransientWindowUnmap(win);
-      if (transient_to_toplevel_.erase(win->xid()) != 1)
-        LOG(WARNING) << "No transient-to-toplevel mapping for "
-                     << win->xid_str();
-      if (transient_had_focus)
-        toplevel_owner->TakeFocus(wm_->GetCurrentTimeFromServer());
-    }
-
-    ToplevelWindow* toplevel = GetToplevelWindowByWindow(*win);
-    if (toplevel) {
-      if (win->type() == chromeos::WM_IPC_WINDOW_CHROME_TOPLEVEL)
+    case chromeos::WM_IPC_WINDOW_CHROME_TAB_SNAPSHOT: {
+      SnapshotWindow* snapshot = GetSnapshotWindowByWindow(*win);
+      if (snapshot) {
         event_consumer_registrar_->UnregisterForPropertyChanges(
             win->xid(), wm_->GetXAtom(ATOM_CHROME_WINDOW_TYPE));
 
-      RemoveToplevel(toplevel);
-      if (background_.get() && wm_->GetNumWindows() == 0)
-        background_->SetVisibility(false);
-      AddOrRemoveSeparatorsAsNeeded();
-      LayoutWindows(true);
+        RemoveSnapshot(GetSnapshotWindowByWindow(*win));
+        LayoutWindows(true);
+      }
+      break;
+    }
+    default: {
+      ToplevelWindow* toplevel_owner =
+          GetToplevelWindowOwningTransientWindow(*win);
+
+      if (toplevel_owner) {
+        bool transient_had_focus = win->IsFocused();
+        toplevel_owner->HandleTransientWindowUnmap(win);
+        if (transient_to_toplevel_.erase(win->xid()) != 1)
+          LOG(WARNING) << "No transient-to-toplevel mapping for "
+                       << win->xid_str();
+        if (transient_had_focus) {
+          toplevel_owner->TakeFocus(wm_->GetCurrentTimeFromServer());
+          break;
+        }
+      }
+
+      ToplevelWindow* toplevel = GetToplevelWindowByWindow(*win);
+      if (toplevel) {
+        if (win->type() == chromeos::WM_IPC_WINDOW_CHROME_TOPLEVEL)
+          event_consumer_registrar_->UnregisterForPropertyChanges(
+              win->xid(), wm_->GetXAtom(ATOM_CHROME_WINDOW_TYPE));
+
+        RemoveToplevel(toplevel);
+        if (background_.get() && wm_->GetNumWindows() == 0)
+          background_->SetVisibility(false);
+        AddOrRemoveSeparatorsAsNeeded();
+        LayoutWindows(true);
+      }
+      break;
     }
   }
 }
@@ -538,8 +574,10 @@ void LayoutManager::HandleWindowConfigureRequest(
     SnapshotWindow* snapshot = GetSnapshotWindowByWindow(*win);
     if (snapshot)
       if (req_width != win->client_width() ||
-          req_height != win->client_height())
+          req_height != win->client_height()) {
         win->ResizeClient(req_width, req_height, GRAVITY_NORTHWEST);
+        LayoutWindows(false);
+      }
   } else {
     ToplevelWindow* toplevel_owner =
         GetToplevelWindowOwningTransientWindow(*win);
@@ -552,8 +590,10 @@ void LayoutManager::HandleWindowConfigureRequest(
     ToplevelWindow* toplevel = GetToplevelWindowByWindow(*win);
     if (toplevel) {
       if (req_width != win->client_width() ||
-          req_height != win->client_height())
+          req_height != win->client_height()) {
         win->ResizeClient(req_width, req_height, GRAVITY_NORTHWEST);
+        LayoutWindows(false);
+      }
     }
   }
 }
@@ -774,32 +814,10 @@ void LayoutManager::LayoutWindows(bool animate) {
   DLOG(INFO) << "Laying out windows for " << GetModeName(mode_) << " mode.";
 
   if (mode_ == MODE_OVERVIEW) {
-    CalculatePositionsForOverviewMode();
     // Unless we're doing a layout in "immediate" mode (i.e. no
     // animation, which usually means we're dragging), we want to
     // enforce the bounds of scrolling.
-    if (animate) {
-      const float kMargin = width_ * kSideMarginRatio;
-      int min_x = kMargin;
-      int max_x = width_ - overview_width_of_snapshots_ - kMargin;
-      if (max_x < min_x) {
-        std::swap(max_x, min_x);
-      }
-      // There's two modes here: one where the snapshots are too wide
-      // to fit, and one where they aren't.  Just so happens that we
-      // want to do similar things in both cases.
-      if (overview_panning_offset_ < min_x) {
-        overview_panning_offset_ = min_x;
-      } else {
-        if (snapshots_.size() > 0) {
-          if (overview_panning_offset_ > max_x)
-            overview_panning_offset_ = max_x;
-        } else {
-          // If there are no snapshots, might as well center it all.
-          overview_panning_offset_ = width_ / 2;
-        }
-      }
-    }
+    CalculatePositionsForOverviewMode(animate);
   }
 
   // We iterate through the snapshot windows in descending stacking
@@ -921,7 +939,9 @@ void LayoutManager::SetMode(Mode mode) {
 // static
 bool LayoutManager::IsHandledWindowType(chromeos::WmIpcWindowType type) {
   return (type == chromeos::WM_IPC_WINDOW_CHROME_INFO_BUBBLE ||
+          type == chromeos::WM_IPC_WINDOW_CHROME_TAB_FAV_ICON ||
           type == chromeos::WM_IPC_WINDOW_CHROME_TAB_SNAPSHOT ||
+          type == chromeos::WM_IPC_WINDOW_CHROME_TAB_TITLE ||
           type == chromeos::WM_IPC_WINDOW_CHROME_TOPLEVEL ||
           type == chromeos::WM_IPC_WINDOW_UNKNOWN);
 }
@@ -1051,7 +1071,7 @@ void LayoutManager::MoveAndResizeForAvailableArea() {
   // Make sure the snapshot windows are offscreen still.
   for (SnapshotWindows::iterator it = snapshots_.begin();
        it != snapshots_.end(); ++it) {
-    (*it)->win()->MoveClientOffscreen();
+    (*it)->HandleManagerResize();
   }
 
   LayoutWindows(true);
@@ -1139,7 +1159,7 @@ void LayoutManager::CenterCurrentSnapshot(int x, int y) {
   }
 }
 
-void LayoutManager::CalculatePositionsForOverviewMode() {
+void LayoutManager::CalculatePositionsForOverviewMode(bool enforce_bounds) {
   if (toplevels_.empty() || snapshots_.empty() || mode_ != MODE_OVERVIEW)
     return;
 
@@ -1160,8 +1180,9 @@ void LayoutManager::CalculatePositionsForOverviewMode() {
 
     double scale = is_selected ? 1.0 : kOverviewNotSelectedScale;
     snapshot->SetSize(snapshot_width * scale, snapshot_height * scale);
-    snapshot->SetPosition(running_width,
-                          (height_ - snapshot->overview_height()) / 2);
+    int vertical_position = (height_ - snapshot->overview_height()) / 2 +
+                            (snapshot_height * scale) * ((1.0 - scale) / 2.0);
+    snapshot->SetPosition(running_width, vertical_position);
 
     // Here we see if we need a separator.
     if (snapshot->toplevel() != last_toplevel) {
@@ -1231,14 +1252,38 @@ void LayoutManager::CalculatePositionsForOverviewMode() {
     overview_width_of_snapshots_ = running_width - kOverviewSelectedPadding;
   }
 
-  if (background_.get()) {
-    // Now we scroll the background to the right location.
+  if (enforce_bounds) {
     const float kMargin = width_ * kSideMarginRatio;
     int min_x = kMargin;
     int max_x = width_ - overview_width_of_snapshots_ - kMargin;
+    if (max_x < min_x)
+      std::swap(max_x, min_x);
+
+    // There's two modes here: one where the snapshots are too wide
+    // to fit, and one where they aren't.  Just so happens that we
+    // want to do similar things in both cases.
+    if (overview_panning_offset_ < min_x) {
+      overview_panning_offset_ = min_x;
+    } else {
+      if (snapshots_.size() > 0) {
+        if (overview_panning_offset_ > max_x)
+          overview_panning_offset_ = max_x;
+      } else {
+        // If there are no snapshots, might as well center it all.
+        overview_panning_offset_ = width_ / 2;
+      }
+    }
+  }
+
+  if (background_.get()) {
+    // Now we scroll the background to the right location.
+    const float kMargin = width_;
+    int panning_min_x = -overview_width_of_snapshots_;
+    int panning_max_x = kMargin;
     int background_overage = background_->GetWidth() - wm_->width();
-    float scroll_percent =
-        static_cast<float>(overview_panning_offset_ - min_x) / (max_x - min_x);
+    float scroll_percent = 1.0f -
+        static_cast<float>(overview_panning_offset_ - panning_min_x) /
+        (panning_max_x - panning_min_x);
     scroll_percent = max(0.f, scroll_percent);
     scroll_percent = min(scroll_percent, 1.f);
     overview_background_offset_ = -background_overage * scroll_percent;
@@ -1355,7 +1400,7 @@ void LayoutManager::SetCurrentSnapshotWithClick(SnapshotWindow* snapshot,
                                                 timestamp);
     }
 
-    CalculatePositionsForOverviewMode();
+    CalculatePositionsForOverviewMode(false);
     CenterCurrentSnapshot(x, y);
   }
 }

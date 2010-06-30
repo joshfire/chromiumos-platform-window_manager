@@ -278,9 +278,9 @@ TEST_F(LayoutManagerTest, ConfigureTransient) {
       false,     // input only
       0);        // event mask
   ASSERT_TRUE(wm_->wm_ipc()->SetWindowType(
-                  bubble_xid,
-                  chromeos::WM_IPC_WINDOW_CHROME_INFO_BUBBLE,
-                  NULL));
+      bubble_xid,
+      chromeos::WM_IPC_WINDOW_CHROME_INFO_BUBBLE,
+      NULL));
   MockXConnection::WindowInfo* bubble_info =
       xconn_->GetWindowInfoOrDie(bubble_xid);
   bubble_info->transient_for = owner_xid;
@@ -508,7 +508,7 @@ TEST_F(LayoutManagerTest, SetWmStateMaximized) {
 
   vector<int> atoms;
   ASSERT_TRUE(xconn_->GetIntArrayProperty(
-                  xid, wm_->GetXAtom(ATOM_NET_WM_STATE), &atoms));
+      xid, wm_->GetXAtom(ATOM_NET_WM_STATE), &atoms));
   ASSERT_EQ(2, atoms.size());
   EXPECT_EQ(wm_->GetXAtom(ATOM_NET_WM_STATE_MAXIMIZED_HORZ), atoms[0]);
   EXPECT_EQ(wm_->GetXAtom(ATOM_NET_WM_STATE_MAXIMIZED_VERT), atoms[1]);
@@ -625,10 +625,12 @@ TEST_F(LayoutManagerTest, ConfigureToplevel) {
       &event, xid, new_x, new_y, new_width, new_height);
   wm_->HandleEvent(&event);
 
-  // The position change should be ignored, but the window should be
-  // resized.
-  EXPECT_EQ(lm_->x(), info->x);
-  EXPECT_EQ(lm_->y(), info->y);
+  // The window should still be centered, but have the new width.
+  EXPECT_EQ(lm_->x() + std::max(0, (lm_->width() - info->width)) / 2,
+            info->x);
+  EXPECT_EQ(lm_->y() + std::max(0, (lm_->height() - info->height)) / 2,
+            info->y);
+
   EXPECT_EQ(new_width, info->width);
   EXPECT_EQ(new_height, info->height);
 }
@@ -894,9 +896,13 @@ TEST_F(LayoutManagerTest, OverviewSpacing) {
   // is using to make the snapshots, they're just reasonable values.)
   const int snapshot_height = MockXConnection::kDisplayHeight / 2;
   const int snapshot_width = snapshot_height * 1024 / 1280;
-  XWindow xid = CreateSnapshotWindow(toplevel_xid, 0, 0, 0,
-                                     snapshot_width, snapshot_height);
-  SendInitialEventsForWindow(xid);
+  XWindow snapshot = CreateSnapshotWindow(toplevel_xid, 0, 0, 0,
+                                          snapshot_width, snapshot_height);
+  SendInitialEventsForWindow(snapshot);
+  XWindow snapshot_title = CreateTitleWindow(snapshot, snapshot_width, 16);
+  SendInitialEventsForWindow(snapshot_title);
+  XWindow snapshot_fav_icon = CreateFavIconWindow(snapshot, 16, 16);
+  SendInitialEventsForWindow(snapshot_fav_icon);
 
   // This is the vertical offset to center the background.
   int centering_offset = -(MockXConnection::kDisplayHeight *
@@ -911,17 +917,25 @@ TEST_F(LayoutManagerTest, OverviewSpacing) {
   lm_->SetMode(LayoutManager::MODE_OVERVIEW);
 
   // Now create and map a second snapshot window.
-  XWindow xid2 = CreateSnapshotWindow(toplevel_xid, 1, 0, 0,
-                                      snapshot_width, snapshot_height);
-  SendInitialEventsForWindow(xid2);
+  XWindow snapshot2 = CreateSnapshotWindow(toplevel_xid, 1, 0, 0,
+                                           snapshot_width, snapshot_height);
+  SendInitialEventsForWindow(snapshot2);
+  XWindow snapshot2_title = CreateTitleWindow(snapshot2, snapshot_width, 16);
+  SendInitialEventsForWindow(snapshot2_title);
+  XWindow snapshot2_fav_icon = CreateFavIconWindow(snapshot2, 16, 16);
+  SendInitialEventsForWindow(snapshot2_fav_icon);
   ChangeTabInfo(toplevel_xid, 2, 1, wm_->GetCurrentTimeFromServer());
   SendWindowTypeEvent(toplevel_xid);
 
   // Now create and map a third snapshot window, with the second
   // toplevel as its parent.
-  XWindow xid3 = CreateSnapshotWindow(toplevel_xid2, 0, 0, 0,
-                                      snapshot_width, snapshot_height);
-  SendInitialEventsForWindow(xid3);
+  XWindow snapshot3 = CreateSnapshotWindow(toplevel_xid2, 0, 0, 0,
+                                           snapshot_width, snapshot_height);
+  SendInitialEventsForWindow(snapshot3);
+  XWindow snapshot3_title = CreateTitleWindow(snapshot3, snapshot_width, 16);
+  SendInitialEventsForWindow(snapshot3_title);
+  XWindow snapshot3_fav_icon = CreateFavIconWindow(snapshot3, 16, 16);
+  SendInitialEventsForWindow(snapshot3_fav_icon);
   ChangeTabInfo(toplevel_xid2, 1, 0, wm_->GetCurrentTimeFromServer());
   SendWindowTypeEvent(toplevel_xid2);
 
@@ -930,8 +944,32 @@ TEST_F(LayoutManagerTest, OverviewSpacing) {
                lm_->width_) / 2),
             lm_->overview_panning_offset_);
 
+  // Make sure the fav icon and title got hooked up correctly.
+  EXPECT_EQ(lm_->current_snapshot_->fav_icon(),
+            wm_->GetWindow(snapshot3_fav_icon));
+  EXPECT_EQ(lm_->current_snapshot_->title(),
+            wm_->GetWindow(snapshot3_title));
+
+  // Make sure the title and fav icon ended up in the right place.
+  EXPECT_EQ(lm_->current_snapshot_->win()->composited_x(),
+            lm_->current_snapshot_->fav_icon()->composited_x());
+  EXPECT_EQ(lm_->current_snapshot_->win()->composited_y() +
+            lm_->current_snapshot_->win()->composited_height() +
+            LayoutManager::SnapshotWindow::kTitlePadding,
+            lm_->current_snapshot_->fav_icon()->composited_y());
+  EXPECT_EQ(lm_->current_snapshot_->fav_icon()->composited_x() +
+            lm_->current_snapshot_->fav_icon()->composited_width() +
+            LayoutManager::SnapshotWindow::kFavIconPadding,
+            lm_->current_snapshot_->title()->composited_x());
+  EXPECT_EQ(lm_->current_snapshot_->overview_y() +
+            lm_->current_snapshot_->win()->composited_height() +
+            LayoutManager::SnapshotWindow::kTitlePadding,
+            lm_->current_snapshot_->title()->composited_y());
+
+  // Now click on the second window and make sure things move appropriately.
   XEvent event;
-  XWindow input_xid = lm_->GetInputXidForWindow(*(wm_->GetWindowOrDie(xid2)));
+  XWindow input_xid = lm_->GetInputXidForWindow(
+      *(wm_->GetWindowOrDie(snapshot2)));
   xconn_->InitButtonPressEvent(&event, input_xid, 0, 0, 1);
   wm_->HandleEvent(&event);
   xconn_->InitButtonReleaseEvent(&event, input_xid, 0, 0, 1);
@@ -954,21 +992,20 @@ TEST_F(LayoutManagerTest, OverviewSpacing) {
                              LayoutManager::kOverviewNotSelectedScale),
             lm_->snapshots_.front()->overview_width());
 
-  const float kMargin = MockXConnection::kDisplayWidth *
-                        LayoutManager::kSideMarginRatio;
+  // Now make sure the background moved appropriately.
   const int overview_width_of_snapshots =
       third_snapshot_x +
       lm_->snapshots_.back()->overview_tilted_width();
   EXPECT_EQ(overview_width_of_snapshots, lm_->overview_width_of_snapshots_);
-  int min_x = kMargin;
-  int max_x = lm_->width_ - overview_width_of_snapshots -
-              kMargin;
+  int min_x = -overview_width_of_snapshots;
+  int max_x = MockXConnection::kDisplayWidth;
   int background_overage = background->GetWidth() - wm_->width();
-  float scroll_percent = static_cast<float>(lm_->overview_panning_offset_ -
+  float scroll_percent = 1.0f -
+                         static_cast<float>(lm_->overview_panning_offset_ -
                                             min_x)/(max_x - min_x);
   scroll_percent = std::max(0.f, scroll_percent);
   scroll_percent = std::min(scroll_percent, 1.f);
-  EXPECT_EQ(static_cast<int>(-scroll_percent * background_overage),
+  EXPECT_EQ(static_cast<int>(-background_overage * scroll_percent),
             background->GetX());
   EXPECT_EQ(centering_offset, background->GetY());
 }
@@ -1271,7 +1308,7 @@ TEST_F(LayoutManagerTest, NestedTransients) {
   EXPECT_EQ(initial_width, transient_info->width);
   EXPECT_EQ(initial_height, transient_info->height);
   EXPECT_TRUE(lm_->GetToplevelWindowOwningTransientWindow(
-                  *(wm_->GetWindowOrDie(transient_xid))) == toplevel);;
+      *(wm_->GetWindowOrDie(transient_xid))) == toplevel);;
 
   // Now create a second transient window that says it's transient for the
   // first transient window.
@@ -1288,7 +1325,7 @@ TEST_F(LayoutManagerTest, NestedTransients) {
   EXPECT_EQ(initial_width, nested_transient_info->width);
   EXPECT_EQ(initial_height, nested_transient_info->height);
   EXPECT_TRUE(lm_->GetToplevelWindowOwningTransientWindow(
-                  *(wm_->GetWindowOrDie(nested_transient_xid))) == toplevel);;
+      *(wm_->GetWindowOrDie(nested_transient_xid))) == toplevel);;
 
   // For good measure, do it all again with another transient window nested
   // one level deeper.
@@ -1301,7 +1338,7 @@ TEST_F(LayoutManagerTest, NestedTransients) {
   EXPECT_EQ(initial_width, another_transient_info->width);
   EXPECT_EQ(initial_height, another_transient_info->height);
   EXPECT_TRUE(lm_->GetToplevelWindowOwningTransientWindow(
-                  *(wm_->GetWindowOrDie(another_transient_xid))) == toplevel);;
+      *(wm_->GetWindowOrDie(another_transient_xid))) == toplevel);;
 }
 
 // Check that the initial Chrome window appears onscreen immediately
