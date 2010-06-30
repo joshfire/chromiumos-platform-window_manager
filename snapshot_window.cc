@@ -99,6 +99,7 @@ LayoutManager::SnapshotWindow::~SnapshotWindow() {
 #if defined(EXTRA_LOGGING)
   DLOG(INFO) << "Deleting snapshot window " << win_->xid_str();
 #endif
+  win_->HideComposited();
   wm()->xconn()->DestroyWindow(input_xid_);
   win_ = NULL;
   layout_manager_ = NULL;

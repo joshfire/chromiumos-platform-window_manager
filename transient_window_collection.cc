@@ -140,6 +140,7 @@ void TransientWindowCollection::RemoveWindow(Window* transient_win) {
     return;
   }
 
+  transient_win->HideComposited();
   wm()->UnregisterEventConsumerForWindowEvents(transient_win->xid(),
                                                event_consumer_);
   stacked_transients_->Remove(transient);

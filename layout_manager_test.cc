@@ -267,6 +267,14 @@ TEST_F(LayoutManagerTest, ConfigureTransient) {
   xconn_->InitConfigureNotifyEvent(&event, owner_xid);
   wm_->HandleEvent(&event);
 
+  // The transient window's actor should be hidden after the window is
+  // unmapped.
+  xconn_->InitUnmapEvent(&event, transient_xid);
+  wm_->HandleEvent(&event);
+  MockCompositor::TexturePixmapActor* transient_actor =
+      GetMockActorForWindow(wm_->GetWindowOrDie(transient_xid));
+  EXPECT_FALSE(transient_actor->visible());
+
   // Create and map an info bubble window.
   int bubble_x = owner_info->x + 40;
   int bubble_y = owner_info->y + 30;

@@ -284,6 +284,7 @@ void LoginController::HandleWindowUnmap(Window* win) {
 
   set<XWindow>::iterator non_login_it = non_login_xids_.find(win->xid());
   if (non_login_it != non_login_xids_.end()) {
+    win->HideComposited();
     non_login_xids_.erase(*non_login_it);
     registrar_.UnregisterForWindowEvents(win->xid());
 

@@ -255,6 +255,7 @@ TEST_F(LoginControllerTest, OtherWindows) {
 
   xconn_->InitUnmapEvent(&event, xid);
   wm_->HandleEvent(&event);
+  EXPECT_FALSE(actor->visible());
 }
 
 // Test that the login controller assigns the focus correctly in a few cases.

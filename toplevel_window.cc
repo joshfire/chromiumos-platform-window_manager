@@ -95,6 +95,7 @@ LayoutManager::ToplevelWindow::~ToplevelWindow() {
 #if defined(EXTRA_LOGGING)
   DLOG(INFO) << "Deleting toplevel window " << win_->xid_str();
 #endif
+  win_->HideComposited();
   transients_.reset(NULL);
   win_ = NULL;
   layout_manager_ = NULL;
