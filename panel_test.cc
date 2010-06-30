@@ -44,8 +44,7 @@ TEST_F(PanelTest, InputWindows) {
   MockXConnection::WindowInfo* titlebar_info =
       xconn_->GetWindowInfoOrDie(titlebar_xid);
 
-  XWindow content_xid = CreatePanelContentWindow(
-      200, 400, titlebar_xid, true, true, 0);
+  XWindow content_xid = CreatePanelContentWindow(200, 400, titlebar_xid);
   ASSERT_TRUE(xconn_->GetWindowGeometry(content_xid, &geometry));
   Window content_win(wm_.get(), content_xid, false, geometry);
   MockXConnection::WindowInfo* content_info =
@@ -158,7 +157,7 @@ TEST_F(PanelTest, Resize) {
 
   int orig_content_height = 400;
   XWindow content_xid = CreatePanelContentWindow(
-      orig_width, orig_content_height, titlebar_xid, true, true, 0);
+      orig_width, orig_content_height, titlebar_xid);
   ASSERT_TRUE(xconn_->GetWindowGeometry(content_xid, &geometry));
   Window content_win(wm_.get(), content_xid, false, geometry);
   MockXConnection::WindowInfo* content_info =
@@ -248,8 +247,9 @@ TEST_F(PanelTest, ChromeState) {
   XConnection::WindowGeometry geometry;
   ASSERT_TRUE(xconn_->GetWindowGeometry(titlebar_xid, &geometry));
   Window titlebar_win(wm_.get(), titlebar_xid, false, geometry);
-  XWindow content_xid = CreatePanelContentWindow(
-      200, 400, titlebar_xid, false, false, 0);
+  new_panels_should_be_expanded_ = false;
+  new_panels_should_take_focus_ = false;
+  XWindow content_xid = CreatePanelContentWindow(200, 400, titlebar_xid);
   MockXConnection::WindowInfo* content_info =
       xconn_->GetWindowInfoOrDie(content_xid);
   ASSERT_TRUE(xconn_->GetWindowGeometry(content_xid, &geometry));
@@ -304,8 +304,9 @@ TEST_F(PanelTest, Shadows) {
   XConnection::WindowGeometry geometry;
   ASSERT_TRUE(xconn_->GetWindowGeometry(titlebar_xid, &geometry));
   Window titlebar_win(wm_.get(), titlebar_xid, false, geometry);
-  XWindow content_xid = CreatePanelContentWindow(
-      200, 400, titlebar_xid, false, false, 0);
+  new_panels_should_be_expanded_ = false;
+  new_panels_should_take_focus_ = false;
+  XWindow content_xid = CreatePanelContentWindow(200, 400, titlebar_xid);
   ASSERT_TRUE(xconn_->GetWindowGeometry(content_xid, &geometry));
   Window content_win(wm_.get(), content_xid, false, geometry);
   Panel panel(panel_manager_, &content_win, &titlebar_win, true);
@@ -333,8 +334,7 @@ TEST_F(PanelTest, MinimumSize) {
   XConnection::WindowGeometry geometry;
   ASSERT_TRUE(xconn_->GetWindowGeometry(titlebar_xid, &geometry));
   Window titlebar_win(wm_.get(), titlebar_xid, false, geometry);
-  XWindow content_xid = CreatePanelContentWindow(
-      20, 20, titlebar_xid, false, false, 0);
+  XWindow content_xid = CreatePanelContentWindow(20, 20, titlebar_xid);
   ASSERT_TRUE(xconn_->GetWindowGeometry(content_xid, &geometry));
   Window content_win(wm_.get(), content_xid, false, geometry);
 
@@ -363,6 +363,60 @@ TEST_F(PanelTest, MinimumSize) {
   panel.ResizeContent(20, 20, GRAVITY_SOUTHEAST);
   EXPECT_EQ(Panel::kMinWidth, content_win.client_width());
   EXPECT_EQ(Panel::kMinHeight, content_win.client_height());
+}
+
+// Check that the resize input windows get configured correctly depending
+// on the the panel's user-resizable parameter.
+TEST_F(PanelTest, ResizeParameter) {
+  // If we create a panel that's only vertically-resizable, the top input
+  // window should cover the width of the panel and all of the other
+  // windows should be offscreen.
+  resize_type_for_new_panels_ = chromeos::WM_IPC_PANEL_USER_RESIZE_VERTICALLY;
+  Panel* panel = CreatePanel(200, 20, 300);
+
+  MockXConnection::WindowInfo* top_info =
+      xconn_->GetWindowInfoOrDie(panel->top_input_xid_);
+  EXPECT_EQ(panel->content_x(), top_info->x);
+  EXPECT_EQ(panel->titlebar_y() - Panel::kResizeBorderWidth, top_info->y);
+  EXPECT_EQ(panel->width(), top_info->width);
+  EXPECT_EQ(Panel::kResizeBorderWidth, top_info->height);
+
+  EXPECT_TRUE(WindowIsOffscreen(panel->top_left_input_xid_));
+  EXPECT_TRUE(WindowIsOffscreen(panel->top_right_input_xid_));
+  EXPECT_TRUE(WindowIsOffscreen(panel->left_input_xid_));
+  EXPECT_TRUE(WindowIsOffscreen(panel->right_input_xid_));
+
+  // Horizontally-resizable panels should have input windows along their
+  // sides, with all of the other windows offscreen.
+  resize_type_for_new_panels_ = chromeos::WM_IPC_PANEL_USER_RESIZE_HORIZONTALLY;
+  panel = CreatePanel(200, 20, 300);
+
+  MockXConnection::WindowInfo* left_info =
+      xconn_->GetWindowInfoOrDie(panel->left_input_xid_);
+  EXPECT_EQ(panel->content_x() - Panel::kResizeBorderWidth, left_info->x);
+  EXPECT_EQ(panel->titlebar_y(), left_info->y);
+  EXPECT_EQ(Panel::kResizeBorderWidth, left_info->width);
+  EXPECT_EQ(panel->total_height(), left_info->height);
+
+  MockXConnection::WindowInfo* right_info =
+      xconn_->GetWindowInfoOrDie(panel->right_input_xid_);
+  EXPECT_EQ(panel->right(), right_info->x);
+  EXPECT_EQ(panel->titlebar_y(), right_info->y);
+  EXPECT_EQ(Panel::kResizeBorderWidth, right_info->width);
+  EXPECT_EQ(panel->total_height(), right_info->height);
+
+  EXPECT_TRUE(WindowIsOffscreen(panel->top_input_xid_));
+  EXPECT_TRUE(WindowIsOffscreen(panel->top_left_input_xid_));
+  EXPECT_TRUE(WindowIsOffscreen(panel->top_right_input_xid_));
+
+  // Non-user-resizable panels should have all of their input windows offscreen.
+  resize_type_for_new_panels_ = chromeos::WM_IPC_PANEL_USER_RESIZE_NONE;
+  panel = CreatePanel(200, 20, 300);
+  EXPECT_TRUE(WindowIsOffscreen(panel->top_input_xid_));
+  EXPECT_TRUE(WindowIsOffscreen(panel->top_left_input_xid_));
+  EXPECT_TRUE(WindowIsOffscreen(panel->top_right_input_xid_));
+  EXPECT_TRUE(WindowIsOffscreen(panel->left_input_xid_));
+  EXPECT_TRUE(WindowIsOffscreen(panel->right_input_xid_));
 }
 
 }  // namespace window_manager

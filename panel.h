@@ -160,9 +160,10 @@ class Panel {
  private:
   FRIEND_TEST(PanelBarTest, PackPanelsAfterPanelResize);
   FRIEND_TEST(PanelManagerTest, ChromeInitiatedPanelResize);
-  FRIEND_TEST(PanelTest, InputWindows);  // uses '*_input_xid_'
-  FRIEND_TEST(PanelTest, Resize);        // uses '*_input_xid_'
-  FRIEND_TEST(PanelTest, MinimumSize);   // uses 'kMinWidth' and 'kMinHeight'
+  FRIEND_TEST(PanelTest, InputWindows);
+  FRIEND_TEST(PanelTest, Resize);
+  FRIEND_TEST(PanelTest, MinimumSize);
+  FRIEND_TEST(PanelTest, ResizeParameter);
 
   WindowManager* wm();
 
@@ -247,8 +248,17 @@ class Panel {
   XWindow right_input_xid_;
 
   // Should we configure handles around the panel that can be dragged to
-  // resize it?
+  // resize it?  This is something that can be turned on and off by
+  // containers.
   bool resizable_;
+
+  // Does Chrome want the user to be able to resize the panel horizontally
+  // or vertically?  These are harder limits than 'resizable_'; Chrome can
+  // use these to entirely disallow user-initiated resizing for a panel
+  // even if 'resizable_' is true (but note that these have no effect when
+  // 'resizable_' is false).
+  bool horizontal_resize_allowed_;
+  bool vertical_resize_allowed_;
 
   // Have the composited windows been scaled and shown?  We defer doing
   // this until the first time that Move() is called.

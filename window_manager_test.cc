@@ -667,7 +667,7 @@ TEST_F(WindowManagerTest, SubtractPanelDocksFromNetWorkareaProperty) {
   // Create a panel and drag it to the left so it's attached to the left
   // dock.  The workarea property should leave room on the left side of the
   // screen for the dock.
-  Panel* panel = CreateSimplePanel(200, 20, 400);
+  Panel* panel = CreatePanel(200, 20, 400);
   SendPanelDraggedMessage(panel, 0, 0);
   SendPanelDragCompleteMessage(panel);
   TestIntArrayProperty(root_xid, workarea_atom, 4,
@@ -880,7 +880,7 @@ TEST_F(WindowManagerTest, RedirectWindows) {
 // existing panel windows at startup -- see http://crosbug.com/1591.
 TEST_F(WindowManagerTest, KeepPanelsAfterRestart) {
   // Create a panel and check that the window manager handles it.
-  Panel* panel = CreateSimplePanel(200, 20, 400);
+  Panel* panel = CreatePanel(200, 20, 400);
   const XWindow titlebar_xid = panel->titlebar_xid();
   const XWindow content_xid = panel->content_xid();
   const Window* win = wm_->GetWindow(content_xid);

@@ -73,6 +73,8 @@ Panel::Panel(PanelManager* panel_manager,
       left_input_xid_(wm()->CreateInputWindow(-1, -1, 1, 1, 0)),
       right_input_xid_(wm()->CreateInputWindow(-1, -1, 1, 1, 0)),
       resizable_(false),
+      horizontal_resize_allowed_(true),
+      vertical_resize_allowed_(true),
       composited_windows_set_up_(false),
       drag_xid_(0),
       drag_start_x_(0),
@@ -151,6 +153,33 @@ Panel::Panel(PanelManager* panel_manager,
       right_input_xid_, string("right input window for panel ") + xid_str());
 
   wm()->focus_manager()->UseClickToFocusForWindow(content_win_);
+
+  if (content_win_->type_params().size() >= 5) {
+    chromeos::WmIpcPanelUserResizeType resize_type =
+        static_cast<chromeos::WmIpcPanelUserResizeType>(
+            content_win_->type_params().at(4));
+    switch (resize_type) {
+      case chromeos::WM_IPC_PANEL_USER_RESIZE_HORIZONTALLY_AND_VERTICALLY:
+        horizontal_resize_allowed_ = true;
+        vertical_resize_allowed_ = true;
+        break;
+      case chromeos::WM_IPC_PANEL_USER_RESIZE_HORIZONTALLY:
+        horizontal_resize_allowed_ = true;
+        vertical_resize_allowed_ = false;
+        break;
+      case chromeos::WM_IPC_PANEL_USER_RESIZE_VERTICALLY:
+        horizontal_resize_allowed_ = false;
+        vertical_resize_allowed_ = true;
+        break;
+      case chromeos::WM_IPC_PANEL_USER_RESIZE_NONE:
+        horizontal_resize_allowed_ = false;
+        vertical_resize_allowed_ = false;
+        break;
+      default:
+        LOG(WARNING) << "Unhandled user-resize settings " << resize_type
+                     << " for panel " << xid_str();
+    }
+  }
 
   // Notify Chrome about the panel's state.  If we crash and get restarted,
   // we want to make sure that Chrome thinks it's in the same state that we do.
@@ -520,7 +549,8 @@ void Panel::HandleTransientWindowConfigureRequest(
 }
 
 void Panel::ConfigureInputWindows() {
-  if (!resizable_) {
+  if (!resizable_ ||
+      (!horizontal_resize_allowed_ && !vertical_resize_allowed_)) {
     wm()->xconn()->ConfigureWindowOffscreen(top_input_xid_);
     wm()->xconn()->ConfigureWindowOffscreen(top_left_input_xid_);
     wm()->xconn()->ConfigureWindowOffscreen(top_right_input_xid_);
@@ -529,48 +559,57 @@ void Panel::ConfigureInputWindows() {
     return;
   }
 
-  if (content_width() + 2 * (kResizeBorderWidth - kResizeCornerSize) <= 0) {
+  const int top_resize_edge_width =
+      content_width() + (!horizontal_resize_allowed_ ? 0 :
+                         2 * (kResizeBorderWidth - kResizeCornerSize));
+  if (!vertical_resize_allowed_ || top_resize_edge_width <= 0) {
     wm()->xconn()->ConfigureWindowOffscreen(top_input_xid_);
   } else {
     wm()->xconn()->ConfigureWindow(
         top_input_xid_,
-        content_x() - kResizeBorderWidth + kResizeCornerSize,
+        content_x() - (top_resize_edge_width - content_width()) / 2,
         titlebar_y() - kResizeBorderWidth,
-        content_width() + 2 * (kResizeBorderWidth - kResizeCornerSize),
+        top_resize_edge_width,
         kResizeBorderWidth);
   }
 
-  wm()->xconn()->ConfigureWindow(
-      top_left_input_xid_,
-      content_x() - kResizeBorderWidth,
-      titlebar_y() - kResizeBorderWidth,
-      kResizeCornerSize,
-      kResizeCornerSize);
-  wm()->xconn()->ConfigureWindow(
-      top_right_input_xid_,
-      right() + kResizeBorderWidth - kResizeCornerSize,
-      titlebar_y() - kResizeBorderWidth,
-      kResizeCornerSize,
-      kResizeCornerSize);
+  if (!(vertical_resize_allowed_ && horizontal_resize_allowed_)) {
+    wm()->xconn()->ConfigureWindowOffscreen(top_left_input_xid_);
+    wm()->xconn()->ConfigureWindowOffscreen(top_right_input_xid_);
+  } else {
+    wm()->xconn()->ConfigureWindow(
+        top_left_input_xid_,
+        content_x() - kResizeBorderWidth,
+        titlebar_y() - kResizeBorderWidth,
+        kResizeCornerSize,
+        kResizeCornerSize);
+    wm()->xconn()->ConfigureWindow(
+        top_right_input_xid_,
+        right() + kResizeBorderWidth - kResizeCornerSize,
+        titlebar_y() - kResizeBorderWidth,
+        kResizeCornerSize,
+        kResizeCornerSize);
+  }
 
-  int resize_edge_height =
-      total_height() + kResizeBorderWidth - kResizeCornerSize;
-  if (resize_edge_height <= 0) {
+  const int side_resize_edge_height =
+      total_height() + (!vertical_resize_allowed_ ? 0 :
+                        kResizeBorderWidth - kResizeCornerSize);
+  if (!horizontal_resize_allowed_ || side_resize_edge_height <= 0) {
     wm()->xconn()->ConfigureWindowOffscreen(left_input_xid_);
     wm()->xconn()->ConfigureWindowOffscreen(right_input_xid_);
   } else {
     wm()->xconn()->ConfigureWindow(
         left_input_xid_,
         content_x() - kResizeBorderWidth,
-        titlebar_y() - kResizeBorderWidth + kResizeCornerSize,
+        titlebar_y() + total_height() - side_resize_edge_height,
         kResizeBorderWidth,
-        resize_edge_height);
+        side_resize_edge_height);
     wm()->xconn()->ConfigureWindow(
         right_input_xid_,
         right(),
-        titlebar_y() - kResizeBorderWidth + kResizeCornerSize,
+        titlebar_y() + total_height() - side_resize_edge_height,
         kResizeBorderWidth,
-        resize_edge_height);
+        side_resize_edge_height);
   }
 }
 

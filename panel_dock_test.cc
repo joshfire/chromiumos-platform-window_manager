@@ -36,7 +36,7 @@ class PanelDockTest : public BasicWindowManagerTest {
 
 // Test that panels can be attached and detached from docks.
 TEST_F(PanelDockTest, AttachAndDetach) {
-  Panel* panel = CreateSimplePanel(200, 20, 400);
+  Panel* panel = CreatePanel(200, 20, 400);
 
   // Drag the panel up first, to get it out of the panel bar.
   SendPanelDraggedMessage(panel, 500, 100);
@@ -90,8 +90,8 @@ TEST_F(PanelDockTest, AttachAndDetach) {
 // a dock.
 TEST_F(PanelDockTest, ReorderPanels) {
   const int initial_width = 200;
-  Panel* panel1 = CreateSimplePanel(initial_width, 20, 300);
-  Panel* panel2 = CreateSimplePanel(initial_width, 20, 200);
+  Panel* panel1 = CreatePanel(initial_width, 20, 300);
+  Panel* panel2 = CreatePanel(initial_width, 20, 200);
 
   // Drag the first panel into the left dock.
   int drag_right = initial_width + PanelDock::kAttachThresholdPixels - 10;
@@ -156,9 +156,9 @@ TEST_F(PanelDockTest, HandleResizeRequests) {
   const int initial_width = 300;
   const int initial_height = 400;
   const int initial_title_height = 20;
-  Panel* panel1 = CreateSimplePanel(
+  Panel* panel1 = CreatePanel(
       initial_width, initial_title_height, initial_height);
-  Panel* panel2 = CreateSimplePanel(
+  Panel* panel2 = CreatePanel(
       initial_width, initial_title_height, initial_height);
 
   // Drag both panels into the dock.

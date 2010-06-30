@@ -56,8 +56,7 @@ TEST_F(PanelBarTest, Basic) {
   const int initial_content_width = 250;
   const int initial_content_height = 400;
   XWindow content_xid = CreatePanelContentWindow(
-      initial_content_width, initial_content_height, titlebar_xid,
-      true, true, 0);
+      initial_content_width, initial_content_height, titlebar_xid);
   MockXConnection::WindowInfo* content_info =
       xconn_->GetWindowInfoOrDie(content_xid);
   SendInitialEventsForWindow(content_xid);
@@ -147,7 +146,9 @@ TEST_F(PanelBarTest, Basic) {
             stage->GetStackingIndex(toplevel_win2->actor()));
 
   // Create a second, collapsed panel.
-  CreatePanel(200, 20, 400, false, false, 0);
+  new_panels_should_be_expanded_ = false;
+  new_panels_should_take_focus_ = false;
+  CreatePanel(200, 20, 400);
 
   // The collapsed panel shouldn't have taken the focus.
   EXPECT_EQ(toplevel_xid2, xconn_->focused_xid());
@@ -158,7 +159,9 @@ TEST_F(PanelBarTest, Basic) {
 // client messages.
 TEST_F(PanelBarTest, ActiveWindowMessage) {
   // Create a collapsed panel.
-  Panel* panel = CreatePanel(200, 20, 400, false, false, 0);
+  new_panels_should_be_expanded_ = false;
+  new_panels_should_take_focus_ = false;
+  Panel* panel = CreatePanel(200, 20, 400);
 
   // Make sure that it starts out collapsed.
   EXPECT_FALSE((panel)->is_expanded());
@@ -189,7 +192,7 @@ TEST_F(PanelBarTest, ActiveWindowMessage) {
 // refocus the partially-destroyed panel.
 TEST_F(PanelBarTest, FocusNewPanel) {
   // Create an expanded panel.
-  Panel* panel = CreateSimplePanel(200, 20, 400);
+  Panel* panel = CreatePanel(200, 20, 400);
 
   // It should be focused initially.
   EXPECT_EQ(panel->content_xid(), xconn_->focused_xid());
@@ -214,7 +217,9 @@ TEST_F(PanelBarTest, FocusNewPanel) {
 TEST_F(PanelBarTest, HideCollapsedPanels) {
   // Move the pointer to the top of the screen and create a collapsed panel.
   xconn_->SetPointerPosition(0, 0);
-  Panel* panel = CreatePanel(200, 20, 400, false, false, 0);
+  new_panels_should_be_expanded_ = false;
+  new_panels_should_take_focus_ = false;
+  Panel* panel = CreatePanel(200, 20, 400);
 
   // Check that some constants make sense in light of our titlebar's height.
   ASSERT_LT(PanelBar::kHiddenCollapsedPanelHeightPixels,
@@ -371,7 +376,9 @@ TEST_F(PanelBarTest, HideCollapsedPanels) {
 // Test that we defer hiding collapsed panels if we're in the middle of a
 // drag.
 TEST_F(PanelBarTest, DeferHidingDraggedCollapsedPanel) {
-  Panel* panel = CreatePanel(200, 20, 400, false, false, 0);
+  new_panels_should_be_expanded_ = false;
+  new_panels_should_take_focus_ = false;
+  Panel* panel = CreatePanel(200, 20, 400);
 
   const int hidden_panel_y =
       wm_->height() - PanelBar::kHiddenCollapsedPanelHeightPixels;
@@ -476,8 +483,10 @@ TEST_F(PanelBarTest, DeferHidingDraggedCollapsedPanel) {
 TEST_F(PanelBarTest, ReorderPanels) {
   // Create two 200-pixel-wide panels.
   const int width = 200;
-  Panel* panel1 = CreatePanel(width, 20, 400, false, false, 0);
-  Panel* panel2 = CreatePanel(width, 20, 400, false, false, 0);
+  new_panels_should_be_expanded_ = false;
+  new_panels_should_take_focus_ = false;
+  Panel* panel1 = CreatePanel(width, 20, 400);
+  Panel* panel2 = CreatePanel(width, 20, 400);
 
   // Initially, panel1 should be on the right and panel2 to its left.
   const int rightmost_right_edge =
@@ -522,10 +531,12 @@ TEST_F(PanelBarTest, ReorderPanels) {
 // Check that we do something at least halfway reasonable when reordering
 // differently-sized panels.
 TEST_F(PanelBarTest, ReorderDifferentlySizedPanels) {
+  new_panels_should_be_expanded_ = false;
+  new_panels_should_take_focus_ = false;
   const int small_width = 200;
-  Panel* small_panel = CreatePanel(small_width, 20, 400, false, false, 0);
+  Panel* small_panel = CreatePanel(small_width, 20, 400);
   const int big_width = 500;
-  Panel* big_panel = CreatePanel(big_width, 20, 400, false, false, 0);
+  Panel* big_panel = CreatePanel(big_width, 20, 400);
 
   const int rightmost_right_edge =
       wm_->width() - PanelBar::kPixelsBetweenPanels;
@@ -605,9 +616,11 @@ TEST_F(PanelBarTest, ReorderDifferentlySizedPanels) {
 
 TEST_F(PanelBarTest, PackPanelsAfterPanelResize) {
   // Create three 200-pixel-wide panels.
-  Panel* panel1 = CreatePanel(200, 20, 400, false, false, 0);
-  Panel* panel2 = CreatePanel(200, 20, 400, false, false, 0);
-  Panel* panel3 = CreatePanel(200, 20, 400, false, false, 0);
+  new_panels_should_be_expanded_ = false;
+  new_panels_should_take_focus_ = false;
+  Panel* panel1 = CreatePanel(200, 20, 400);
+  Panel* panel2 = CreatePanel(200, 20, 400);
+  Panel* panel3 = CreatePanel(200, 20, 400);
 
   // The panels should be crammed together on the right initially.
   EXPECT_EQ(wm_->width() - PanelBar::kPixelsBetweenPanels, panel1->right());
@@ -641,7 +654,9 @@ TEST_F(PanelBarTest, PackPanelsAfterPanelResize) {
 TEST_F(PanelBarTest, UrgentPanel) {
   // Move the pointer to the top of the screen and create a collapsed panel.
   xconn_->SetPointerPosition(0, 0);
-  Panel* panel = CreatePanel(200, 20, 400, false, false, 0);
+  new_panels_should_be_expanded_ = false;
+  new_panels_should_take_focus_ = false;
+  Panel* panel = CreatePanel(200, 20, 400);
 
   // Figure out where the top of the panel should be in various states.
   const int hidden_panel_y =
@@ -695,7 +710,7 @@ TEST_F(PanelBarTest, UrgentPanel) {
 
 TEST_F(PanelBarTest, DragPanelVertically) {
   // Create an expanded panel.
-  Panel* panel = CreatePanel(200, 20, 400, true, true, 0);
+  Panel* panel = CreatePanel(200, 20, 400);
 
   const int right_edge = wm_->width() - PanelBar::kPixelsBetweenPanels;
   EXPECT_EQ(right_edge, panel->right());
@@ -762,18 +777,20 @@ TEST_F(PanelBarTest, DragPanelVertically) {
 TEST_F(PanelBarTest, AvoidInitialFocus) {
   // If there are no other windows present, the panel should be focused
   // even if it asks not to be.
-  Panel* initial_panel = CreatePanel(200, 20, 300, true, false, 0);
+  new_panels_should_take_focus_ = false;
+  Panel* initial_panel = CreatePanel(200, 20, 300);
   EXPECT_EQ(initial_panel->content_xid(), xconn_->focused_xid());
   EXPECT_EQ(initial_panel->content_xid(), GetActiveWindowProperty());
 
   // Create a second panel that also asks not to be focused and check that
   // it isn't.
-  CreatePanel(200, 20, 300, true, false, 0);
+  CreatePanel(200, 20, 300);
   EXPECT_EQ(initial_panel->content_xid(), xconn_->focused_xid());
   EXPECT_EQ(initial_panel->content_xid(), GetActiveWindowProperty());
 
   // Now create one that asks for the focus and check that it gets it.
-  Panel* new_panel = CreatePanel(200, 20, 300, true, true, 0);
+  new_panels_should_take_focus_ = true;
+  Panel* new_panel = CreatePanel(200, 20, 300);
   EXPECT_EQ(new_panel->content_xid(), xconn_->focused_xid());
   EXPECT_EQ(new_panel->content_xid(), GetActiveWindowProperty());
 }
@@ -785,25 +802,22 @@ TEST_F(PanelBarTest, OpenPanelNextToCreator) {
   const int kSpacing = PanelBar::kPixelsBetweenPanels;
 
   // Create a few panels, which will be arranged as: 3 2 1.
-  Panel* panel1 = CreateSimplePanel(
-      kPanelWidth, kTitlebarHeight, kContentHeight);
-  Panel* panel2 = CreateSimplePanel(
-      kPanelWidth, kTitlebarHeight, kContentHeight);
-  Panel* panel3 = CreateSimplePanel(
-      kPanelWidth, kTitlebarHeight, kContentHeight);
+  Panel* panel1 = CreatePanel(kPanelWidth, kTitlebarHeight, kContentHeight);
+  Panel* panel2 = CreatePanel(kPanelWidth, kTitlebarHeight, kContentHeight);
+  Panel* panel3 = CreatePanel(kPanelWidth, kTitlebarHeight, kContentHeight);
 
   // Now create a panel that asks to be to the immediate left of 'panel1'
   // and check that it ends up there: 3 2 4 1.
-  Panel* panel4 = CreatePanel(kPanelWidth, kTitlebarHeight, kContentHeight,
-                              true, true, panel1->content_xid());
+  creator_content_xid_for_new_panels_ = panel1->content_xid();
+  Panel* panel4 = CreatePanel(kPanelWidth, kTitlebarHeight, kContentHeight);
   EXPECT_EQ(wm_->width() - kSpacing, panel1->right());
   EXPECT_EQ(panel1->content_x() - kSpacing, panel4->right());
   EXPECT_EQ(panel4->content_x() - kSpacing, panel2->right());
   EXPECT_EQ(panel2->content_x() - kSpacing, panel3->right());
 
   // Now create a panel to the left of 2: 3 5 2 3 1.
-  Panel* panel5 = CreatePanel(kPanelWidth, kTitlebarHeight, kContentHeight,
-                              true, true, panel2->content_xid());
+  creator_content_xid_for_new_panels_ = panel2->content_xid();
+  Panel* panel5 = CreatePanel(kPanelWidth, kTitlebarHeight, kContentHeight);
   EXPECT_EQ(wm_->width() - kSpacing, panel1->right());
   EXPECT_EQ(panel1->content_x() - kSpacing, panel4->right());
   EXPECT_EQ(panel4->content_x() - kSpacing, panel2->right());
@@ -811,8 +825,8 @@ TEST_F(PanelBarTest, OpenPanelNextToCreator) {
   EXPECT_EQ(panel5->content_x() - kSpacing, panel3->right());
 
   // Create one that asks to be to the left of 3: 6 3 5 2 3 1.
-  Panel* panel6 = CreatePanel(kPanelWidth, kTitlebarHeight, kContentHeight,
-                              true, true, panel3->content_xid());
+  creator_content_xid_for_new_panels_ = panel3->content_xid();
+  Panel* panel6 = CreatePanel(kPanelWidth, kTitlebarHeight, kContentHeight);
   EXPECT_EQ(wm_->width() - kSpacing, panel1->right());
   EXPECT_EQ(panel1->content_x() - kSpacing, panel4->right());
   EXPECT_EQ(panel4->content_x() - kSpacing, panel2->right());
@@ -822,8 +836,8 @@ TEST_F(PanelBarTest, OpenPanelNextToCreator) {
 
   // Finally, create one with a bogus creator XID and check that it just
   // gets placed on the left: 7 6 3 5 2 3 1.
-  Panel* panel7 = CreatePanel(kPanelWidth, kTitlebarHeight, kContentHeight,
-                              true, true, 4324322);  // bogus creator XID
+  creator_content_xid_for_new_panels_ = 4324322;  // bogus creator XID
+  Panel* panel7 = CreatePanel(kPanelWidth, kTitlebarHeight, kContentHeight);
   EXPECT_EQ(wm_->width() - kSpacing, panel1->right());
   EXPECT_EQ(panel1->content_x() - kSpacing, panel4->right());
   EXPECT_EQ(panel4->content_x() - kSpacing, panel2->right());

@@ -85,6 +85,12 @@ BasicWindowManagerTest::ScopedTempDirectory::~ScopedTempDirectory() {
 
 
 void BasicWindowManagerTest::SetUp() {
+  new_panels_should_be_expanded_ = true;
+  new_panels_should_take_focus_ = true;
+  creator_content_xid_for_new_panels_ = 0;
+  resize_type_for_new_panels_ =
+      chromeos::WM_IPC_PANEL_USER_RESIZE_HORIZONTALLY_AND_VERTICALLY;
+
   event_loop_.reset(new EventLoop);
   xconn_.reset(new MockXConnection);
 
@@ -155,7 +161,7 @@ XWindow BasicWindowManagerTest::CreateToplevelWindow(int tab_count,
 void BasicWindowManagerTest::ChangeTabInfo(XWindow toplevel_xid,
                                            int tab_count,
                                            int selected_tab,
-                                           uint32 timestamp) {
+                                           uint32_t timestamp) {
   std::vector<int> params;
   params.push_back(tab_count);
   params.push_back(selected_tab);
@@ -218,33 +224,25 @@ XWindow BasicWindowManagerTest::CreatePanelTitlebarWindow(
 }
 
 XWindow BasicWindowManagerTest::CreatePanelContentWindow(
-    int width, int height,
-    XWindow titlebar_xid,
-    bool expanded,
-    bool take_focus,
-    XWindow creator_content_xid) {
+    int width, int height, XWindow titlebar_xid) {
   XWindow xid = CreateBasicWindow(0, 0, width, height);
   std::vector<int> params;
   params.push_back(titlebar_xid);
-  params.push_back(expanded ? 1 : 0);
-  params.push_back(take_focus ? 1 : 0);
-  params.push_back(creator_content_xid);
+  params.push_back(new_panels_should_be_expanded_ ? 1 : 0);
+  params.push_back(new_panels_should_take_focus_ ? 1 : 0);
+  params.push_back(creator_content_xid_for_new_panels_);
+  params.push_back(resize_type_for_new_panels_);
   wm_->wm_ipc()->SetWindowType(
       xid, chromeos::WM_IPC_WINDOW_CHROME_PANEL_CONTENT, &params);
   return xid;
 }
 
-Panel* BasicWindowManagerTest::CreatePanel(int width,
-                                           int titlebar_height,
-                                           int content_height,
-                                           bool expanded,
-                                           bool take_focus,
-                                           XWindow creator_content_xid) {
+Panel* BasicWindowManagerTest::CreatePanel(
+    int width, int titlebar_height, int content_height) {
   XWindow titlebar_xid = CreatePanelTitlebarWindow(width, titlebar_height);
   SendInitialEventsForWindow(titlebar_xid);
   XWindow content_xid = CreatePanelContentWindow(
-      width, content_height, titlebar_xid, expanded, take_focus,
-      creator_content_xid);
+      width, content_height, titlebar_xid);
   SendInitialEventsForWindow(content_xid);
   Panel* panel = wm_->panel_manager_->panel_bar_->GetPanelByWindow(
       *(wm_->GetWindow(content_xid)));

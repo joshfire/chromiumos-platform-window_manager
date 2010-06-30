@@ -1097,7 +1097,7 @@ TEST_F(LayoutManagerTest, StackTransientsAbovePanels) {
 
   // Open a panel.  The transient windows should be stacked above the
   // panel, but the panel should be stacked above the toplevel.
-  Panel* panel = CreateSimplePanel(200, 20, 400);
+  Panel* panel = CreatePanel(200, 20, 400);
   MockCompositor::StageActor* stage = compositor_->GetDefaultStage();
   EXPECT_LT(stage->GetStackingIndex(second_transient_win->actor()),
             stage->GetStackingIndex(first_transient_win->actor()));
@@ -1438,7 +1438,7 @@ TEST_F(LayoutManagerTest, Fullscreen) {
 
   // Now open a panel that'll take the focus and check that the toplevel
   // window is again unfullscreened.
-  CreateSimplePanel(200, 20, 400);
+  CreatePanel(200, 20, 400);
   EXPECT_FALSE(win->wm_state_fullscreen());
   EXPECT_TRUE(WindowIsInLayer(win, StackingManager::LAYER_TOPLEVEL_WINDOW));
 

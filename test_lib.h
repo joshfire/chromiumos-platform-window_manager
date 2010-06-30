@@ -15,6 +15,7 @@ extern "C" {
 #include "base/file_path.h"
 #include "base/scoped_ptr.h"
 #include "base/logging.h"
+#include "cros/chromeos_wm_ipc_enums.h"
 #include "window_manager/stacking_manager.h"
 #include "window_manager/key_bindings.h"
 #include "window_manager/wm_ipc.h"
@@ -108,37 +109,21 @@ class BasicWindowManagerTest : public ::testing::Test {
   // window.
   XWindow CreateSimpleSnapshotWindow(XWindow toplevel_xid, int index);
 
-  // Create a panel titlebar or content window.
+  // Create a panel titlebar or content window.  Muck around with the
+  // '*new_panel*' members below to change content window parameters.
   XWindow CreatePanelTitlebarWindow(int width, int height);
-  XWindow CreatePanelContentWindow(int width, int height,
-                                   XWindow titlebar_xid,
-                                   bool expanded,
-                                   bool take_focus,
-                                   XWindow creator_content_xid);
-
-  // Invoke CreatePanel() with some default parameters to open an expanded
-  // panel.
-  Panel* CreateSimplePanel(int width,
-                           int titlebar_height,
-                           int content_height) {
-    return CreatePanel(width, titlebar_height, content_height, true, true, 0);
-  }
+  XWindow CreatePanelContentWindow(int width, int height, XWindow titlebar_xid);
 
   // Create titlebar and content windows for a panel, show them, and return
   // a pointer to the Panel object.
-  Panel* CreatePanel(int width,
-                     int titlebar_height,
-                     int content_height,
-                     bool expanded,
-                     bool take_focus,
-                     XWindow creator_content_xid);
+  Panel* CreatePanel(int width, int titlebar_height, int content_height);
 
   // Simulates a change in the selected tab and tab count in a chrome
   // toplevel window.
   void ChangeTabInfo(XWindow toplevel_xid,
                      int tab_count,
                      int selected_tab,
-                     uint32 timestamp);
+                     uint32_t timestamp);
 
   // Make the window manager handle a CreateNotify event and, if the window
   // isn't override-redirect, a MapRequest.  If it's mapped after this
@@ -231,6 +216,16 @@ class BasicWindowManagerTest : public ::testing::Test {
   scoped_ptr<MockXConnection> xconn_;
   scoped_ptr<MockCompositor> compositor_;
   scoped_ptr<WindowManager> wm_;
+
+  // Settings used for subsequent windows created by
+  // CreatePanelContentWindow() and CreatePanel().  These are here so that
+  // new parameters can be added without having to update a bunch of
+  // testing code (tests for the new parameters can change these settings,
+  // while existing tests can just use reasonably-chosen defaults).
+  bool new_panels_should_be_expanded_;
+  bool new_panels_should_take_focus_;
+  XWindow creator_content_xid_for_new_panels_;
+  chromeos::WmIpcPanelUserResizeType resize_type_for_new_panels_;
 };
 
 // Simple class that can be used to test callback invocation.
