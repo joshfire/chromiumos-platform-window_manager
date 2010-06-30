@@ -185,15 +185,21 @@ TEST_F(PanelTest, Resize) {
       panel.top_left_input_xid_,
       0, 0,  // relative x, y
       1,     // button
-      1);    // timestamp
-
-  // Release the button immediately.
-  xconn_->set_pointer_grab_xid(None);
-  panel.HandleInputWindowButtonRelease(
-      panel.top_left_input_xid_,
-      0, 0,  // relative x, y
-      1,     // button
       CurrentTime);
+
+  // Pretend like the second button is pressed and the first button is
+  // released.  We should explicitly ungrab the pointer when we see the
+  // first button get released; X will only automatically remove the
+  // pointer grab when *all* buttons are released.
+  panel.HandleInputWindowButtonPress(
+      panel.top_left_input_xid_, 0, 0, 2, CurrentTime);
+  panel.HandleInputWindowButtonRelease(
+      panel.top_left_input_xid_, 0, 0, 1, CurrentTime);
+  EXPECT_EQ(0, xconn_->pointer_grab_xid());
+
+  // Release the second button too, not that it really matters to us.
+  panel.HandleInputWindowButtonRelease(
+      panel.top_left_input_xid_, 0, 0, 2, CurrentTime);
 
   // Check that the panel's dimensions are unchanged.
   EXPECT_EQ(orig_width, titlebar_info->width);

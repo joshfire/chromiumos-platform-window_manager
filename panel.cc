@@ -235,7 +235,11 @@ void Panel::HandleInputWindowButtonRelease(
     return;
   }
   // GrabButton-initiated asynchronous pointer grabs are automatically removed
-  // by the X server on button release.
+  // by the X server when *all* buttons are released, but we specifically
+  // want the grab to end when the first button is released, to prevent the
+  // user from essentially transferring the grab from one button to
+  // another: see http://crosbug.com/4267.
+  wm()->xconn()->RemovePointerGrab(false, timestamp);
   resize_event_coalescer_.StorePosition(x, y);
   resize_event_coalescer_.Stop();
   drag_xid_ = 0;
