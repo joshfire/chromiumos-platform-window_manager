@@ -6,6 +6,7 @@
 #define WINDOW_MANAGER_LOGIN_CONTROLLER_H_
 
 #include <set>
+#include <tr1/memory>
 #include <vector>
 
 #include <gtest/gtest_prod.h>  // for FRIEND_TEST() macro
@@ -14,6 +15,7 @@
 #include "base/scoped_ptr.h"
 #include "window_manager/event_consumer.h"
 #include "window_manager/event_consumer_registrar.h"
+#include "window_manager/login_entry.h"
 
 namespace window_manager {
 
@@ -73,8 +75,7 @@ class LoginController : public EventConsumer {
   friend class LoginControllerTest;  // runs InitialShow() manually
   FRIEND_TEST(LoginControllerTest, Focus);
   FRIEND_TEST(LoginControllerTest, KeyBindingsDuringStateChange);
-  FRIEND_TEST(LoginControllerTest, SelectGuestWindowOldChrome);
-  FRIEND_TEST(LoginControllerTest, SelectGuestWindowNewChrome);
+  FRIEND_TEST(LoginControllerTest, SelectGuest);
   FRIEND_TEST(LoginControllerTest, RemoveUser);
   FRIEND_TEST(LoginControllerTest, ClientOnOffScreen);
 
@@ -114,41 +115,7 @@ class LoginController : public EventConsumer {
     DISALLOW_COPY_AND_ASSIGN(SelectionChangedManager);
   };
 
-  // All windows associated with a particular user are grouped in an Entry.
-  //
-  // NOTE: LoginController assumes all the windows for an entry are created,
-  // then the windows in the next entry. For example, LoginController hits
-  // an assert if chrome were to create two windows of type
-  // WINDOW_TYPE_LOGIN_BORDER in a row.
-  struct Entry {
-    Entry()
-        : border_window(NULL),
-          image_window(NULL),
-          controls_window(NULL),
-          label_window(NULL),
-          unselected_label_window(NULL) {
-    }
-
-    // Have all the windows been assigned?
-    bool has_all_windows() const {
-      return border_window && image_window && controls_window &&
-          label_window && unselected_label_window;
-    }
-
-    // Are all the windows null?
-    bool has_no_windows() const {
-      return !border_window && !image_window && !controls_window &&
-          !label_window && !unselected_label_window;
-    }
-
-    Window* border_window;
-    Window* image_window;
-    Window* controls_window;
-    Window* label_window;
-    Window* unselected_label_window;
-  };
-
-  typedef std::vector<Entry> Entries;
+  typedef std::vector<std::tr1::shared_ptr<LoginEntry> > Entries;
 
   // Copies login_xids_ and non_login_xids_ into the passed-in set.
   void get_all_xids(std::set<XWindow>* xids_out) {
@@ -157,10 +124,6 @@ class LoginController : public EventConsumer {
     xids_out->insert(login_xids_.begin(), login_xids_.end());
     xids_out->insert(non_login_xids_.begin(), non_login_xids_.end());
   }
-
-  // Caches size information. This is invoked when all the windows have been
-  // created but not shown.
-  void InitSizes(int unselected_image_size, int padding);
 
   // Invoked to handle the initial show.
   void InitialShow();
@@ -186,26 +149,8 @@ class LoginController : public EventConsumer {
   // Sets whether the user can select other entries.
   void SetEntrySelectionEnabled(bool enable);
 
-  // Returns the origin for |view_count| entries with the entry at
-  // |selected_index| selected.
-  void CalculateIdealOrigins(size_t view_count,
-                             size_t selected_index,
-                             std::vector<Point>* bounds);
-
-  // Returns the bounds for the various windows given an origin at |origin|.
-  void CalculateEntryBounds(const Point& origin,
-                            bool selected,
-                            Rect* border_bounds,
-                            Rect* image_bounds,
-                            Rect* controls_bounds,
-                            Rect* label_bounds);
-
-  // Used by both InitialShow and SelectEntryAt to scale the windows of an
-  // unselected entry.
-  void ScaleUnselectedEntry(const Entry& entry,
-                            const Rect& border_bounds,
-                            const Rect& label_bounds,
-                            bool initial);
+  // Calculate and returns the origin for entries.
+  void CalculateIdealOrigins(std::vector<Point>* bounds);
 
   // Returns true if |window| is a a login window.
   bool IsLoginWindow(Window* window) const;
@@ -215,11 +160,11 @@ class LoginController : public EventConsumer {
 
   // Returns the entry for the specified win. This returns an entry based on the
   // index stored in the window's parameters.
-  Entry* GetEntryForWindow(Window* win);
+  LoginEntry* GetEntryForWindow(Window* win);
 
   // Returns the entry in |entries_| at the specified index, creating one if
   // necessary.
-  Entry* GetEntryAt(int index);
+  LoginEntry* GetEntryAt(size_t index);
 
   // Invoked when the selection change completes. |last_selected_index| is the
   // index of the selection before the selection changes.
@@ -239,27 +184,11 @@ class LoginController : public EventConsumer {
   bool IsBackgroundWindowReady();
 
   // Focus a window and save it to login_window_to_focus_.
-  void FocusLoginWindow(Window* win, XTime timestamp);
+  void FocusLoginWindow(Window* win);
 
   // Hide all of our windows and give up the focus if we have it.
   // Invoked after we see the initial non-login Chrome window get mapped.
   void HideWindowsAfterLogin();
-
-  // Return true if old version of Chrome is detected and we should preserve
-  // old behavior for backward compatibility. has_all_windows_ must be true
-  // before calling this method.
-  bool IsOldChrome();
-
-  // Moves client window of the image window on screen to the right position
-  // depending on whether the entry is selected or not.
-  // If it is, client window matches the corresponding composited window.
-  // Otherwise, its origin matches composited window of entry's border and
-  // input area is cut to cover the border and the space between the border
-  // and the label.
-  void MoveImageClientWindow(bool selected,
-                             const Rect& border_bounds,
-                             const Rect& label_bounds,
-                             Window* image_window);
 
   WindowManager* wm_;
 
@@ -275,38 +204,8 @@ class LoginController : public EventConsumer {
 
   Entries entries_;
 
-  // Have the sizes been calculated yet?
-  bool inited_sizes_;
-
   // Did we get all the windows and show them?
   bool has_all_windows_;
-
-  // Padding between the entries.
-  int padding_;
-
-  // Size of the border window.
-  int border_width_;
-  int border_height_;
-  int unselected_border_width_;
-  int unselected_border_height_;
-
-  // Gap between border and image.
-  int border_to_controls_gap_;
-
-  // Height of the controls window.
-  int controls_height_;
-
-  // Size of the label window.
-  int label_height_;
-  int unselected_label_height_;
-
-  // Various scales.
-  float unselected_border_scale_x_;
-  float unselected_border_scale_y_;
-  float unselected_image_scale_x_;
-  float unselected_image_scale_y_;
-  float unselected_label_scale_x_;
-  float unselected_label_scale_y_;
 
   // Are we waiting for the guest to load? This is set to true if the user
   // clicks the guest entry and the guest_window_ has not been loaded.

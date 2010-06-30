@@ -44,19 +44,13 @@ static const int kNoTimer = -1;
 static const char kSelectLeftAction[] = "login-select-left";
 static const char kSelectRightAction[] = "login-select-right";
 
-// Returns the index of the user the window belongs to or -1 if the window does
-// not have a parameter specifying the index.
-static int GetUserIndex(Window* win) {
-  return win->type_params().empty() ? -1 : win->type_params()[0];
-}
-
 // Macro that returns from current function if the specified window doesn't
 // have a parameter identifying the index.
-#define FAIL_IF_INDEX_MISSING(win, type) \
-  if (GetUserIndex(win) == -1) {                                 \
-    LOG(WARNING) << "index missing for window " << win->xid_str() << \
-        " of type " << type; \
-    return; \
+#define FAIL_IF_INDEX_MISSING(win, type)                                       \
+  if (LoginEntry::GetUserIndex(win) == kNoSelection) {                         \
+    LOG(WARNING) << "index missing for window " << win->xid_str() <<           \
+        " of type " << type;                                                   \
+    return;                                                                    \
   }
 
 LoginController::SelectionChangedManager::SelectionChangedManager(
@@ -100,23 +94,7 @@ void LoginController::SelectionChangedManager::Run() {
 LoginController::LoginController(WindowManager* wm)
     : wm_(wm),
       registrar_(wm, this),
-      inited_sizes_(false),
       has_all_windows_(false),
-      padding_(0),
-      border_width_(0),
-      border_height_(0),
-      unselected_border_width_(0),
-      unselected_border_height_(0),
-      border_to_controls_gap_(0),
-      controls_height_(0),
-      label_height_(0),
-      unselected_label_height_(0),
-      unselected_border_scale_x_(0),
-      unselected_border_scale_y_(0),
-      unselected_image_scale_x_(0),
-      unselected_image_scale_y_(0),
-      unselected_label_scale_x_(0),
-      unselected_label_scale_y_(0),
       waiting_for_guest_(false),
       selected_entry_index_(kNoSelection),
       selection_changed_manager_(this),
@@ -207,45 +185,27 @@ void LoginController::HandleWindowMap(Window* win) {
     }
     case chromeos::WM_IPC_WINDOW_LOGIN_BORDER: {
       FAIL_IF_INDEX_MISSING(win, "border");
-      Entry* entry = GetEntryForWindow(win);
-      if (entry->border_window)
-        LOG(WARNING) << "two borders at index " << GetUserIndex(win);
-      entry->border_window = win;
-      wm_->xconn()->RemoveInputRegionFromWindow(entry->border_window->xid());
+      GetEntryForWindow(win)->SetBorderWindow(win);
       break;
     }
     case chromeos::WM_IPC_WINDOW_LOGIN_IMAGE: {
       FAIL_IF_INDEX_MISSING(win, "image");
-      Entry* entry = GetEntryForWindow(win);
-      if (entry->image_window)
-        LOG(WARNING) << "two images at index " << GetUserIndex(win);
-      entry->image_window = win;
+      GetEntryForWindow(win)->SetImageWindow(win);
       break;
     }
     case chromeos::WM_IPC_WINDOW_LOGIN_CONTROLS: {
       FAIL_IF_INDEX_MISSING(win, "controls");
-      Entry* entry = GetEntryForWindow(win);
-      if (entry->controls_window)
-        LOG(WARNING) << "two controls at index " << GetUserIndex(win);
-      entry->controls_window = win;
-      wm_->focus_manager()->UseClickToFocusForWindow(entry->controls_window);
-      registrar_.RegisterForWindowEvents(entry->controls_window->xid());
+      GetEntryForWindow(win)->SetControlsWindow(win);
       break;
     }
     case chromeos::WM_IPC_WINDOW_LOGIN_LABEL: {
       FAIL_IF_INDEX_MISSING(win, "label");
-      Entry* entry = GetEntryForWindow(win);
-      if (entry->label_window)
-        LOG(WARNING) << "two labels at index " << GetUserIndex(win);
-      entry->label_window = win;
+      GetEntryForWindow(win)->SetLabelWindow(win);
       break;
     }
     case chromeos::WM_IPC_WINDOW_LOGIN_UNSELECTED_LABEL: {
-      FAIL_IF_INDEX_MISSING(win, "unselectedlabel");
-      Entry* entry = GetEntryForWindow(win);
-      if (entry->unselected_label_window)
-        LOG(WARNING) << "two unselected labels at index " << GetUserIndex(win);
-      entry->unselected_label_window = win;
+      FAIL_IF_INDEX_MISSING(win, "unselected label");
+      GetEntryForWindow(win)->SetUnselectedLabelWindow(win);
       break;
     }
     case chromeos::WM_IPC_WINDOW_LOGIN_BACKGROUND: {
@@ -347,8 +307,6 @@ void LoginController::HandleWindowUnmap(Window* win) {
   if (!IsLoginWindow(win))
     return;
 
-  has_all_windows_ = false;
-
   if (win == background_window_) {
     registrar_.UnregisterForPropertyChanges(
         background_window_->xid(),
@@ -360,39 +318,32 @@ void LoginController::HandleWindowUnmap(Window* win) {
     guest_window_ = NULL;
     waiting_for_guest_ = false;
   } else {
-    for (size_t i = 0; i < entries_.size(); ++i) {
-      Entry& entry = entries_[i];
-      if (entry.border_window == win) {
-        entry.border_window = NULL;
-      } else if (entry.image_window == win) {
-        entry.image_window = NULL;
-      } else if (entry.controls_window == win) {
-        registrar_.UnregisterForWindowEvents(entry.controls_window->xid());
-        entry.controls_window = NULL;
-      } else if (entry.label_window == win) {
-        entry.label_window = NULL;
-      } else if (entry.unselected_label_window == win) {
-        entry.unselected_label_window = NULL;
-      } else {
-        continue;
-      }
-
-      if (entry.has_no_windows()) {
-        entries_.erase(entries_.begin() + i);
-        if (!guest_window_ && !entries_.empty() && selected_entry_index_ == i) {
-          // Selected entry was unmapped, switch active entry to next one.
-          // If next is a guest entry, select previous one.
-          selected_entry_index_ = -1;
-          size_t active_entry = i;
-          if (active_entry == (entries_.size() - 1) && entries_.size() > 1)
-            active_entry--;
-          SelectEntryAt(active_entry);
+    for (Entries::iterator it = entries_.begin(); it < entries_.end(); ++it) {
+      if ((*it)->HandleWindowUnmap(win)) {
+        has_all_windows_ = false;
+        if ((*it)->has_no_windows()) {
+          size_t deleted_index = it - entries_.begin();
+          size_t active_index = selected_entry_index_;
+          selected_entry_index_ = kNoSelection;
+          entries_.erase(it);
+          if (!guest_window_ && !entries_.empty()) {
+            // Update other entries positions on screen.
+            if (deleted_index < active_index ||
+                (deleted_index == active_index &&
+                 IsGuestEntryIndex(active_index) &&
+                 entries_.size() > 1)) {
+              // If selected entry was unmapped and next entry is a guest,
+              // select previous one.
+              --active_index;
+              DCHECK_LT(active_index, entries_.size());
+            }
+            SelectEntryAt(active_index);
+          }
         }
+        // Only one entry can possibly contain a window, no need to continue
+        // through other entries.
+        break;
       }
-
-      // Only one entry can possibly contain a window, no need to continue
-      // through other entries.
-      break;
     }
   }
 
@@ -508,118 +459,20 @@ void LoginController::HandleWindowPropertyChange(XWindow xid, XAtom xatom) {
   OnGotNewWindowOrPropertyChange();
 }
 
-void LoginController::InitSizes(int unselected_image_size, int padding) {
-  if (inited_sizes_)
-    return;
-
-  DCHECK(!entries_.empty());
-
-  inited_sizes_ = true;
-
-  padding_ = padding;
-
-  const Entry& entry = entries_[0];
-  controls_height_ = entry.controls_window->client_height();
-  label_height_ = entry.label_window->client_height();
-  unselected_label_height_ = entry.unselected_label_window->client_height();
-  border_width_ = entry.border_window->client_width();
-  border_to_controls_gap_ = (border_width_ -
-                             entry.image_window->client_width()) / 2;
-  border_height_ = entry.border_window->client_height();
-
-  unselected_border_width_ = border_width_ -
-      (entry.image_window->client_width() - unselected_image_size);
-  unselected_border_height_ = border_height_ -
-      (entry.image_window->client_height() - unselected_image_size) -
-      entry.controls_window->client_height() - border_to_controls_gap_;
-
-  unselected_border_scale_x_ = static_cast<double>(unselected_border_width_) /
-      static_cast<double>(border_width_);
-  unselected_border_scale_y_ = static_cast<double>(unselected_border_height_) /
-      static_cast<double>(border_height_);
-
-  unselected_image_scale_x_ =
-      static_cast<double>(unselected_border_width_ - border_to_controls_gap_ -
-                          border_to_controls_gap_) /
-      static_cast<double>(border_width_ - border_to_controls_gap_ -
-                          border_to_controls_gap_);
-  unselected_image_scale_y_ =
-      static_cast<double>(unselected_border_height_ - border_to_controls_gap_ -
-                          border_to_controls_gap_) /
-      static_cast<double>(border_height_ - border_to_controls_gap_ -
-                          border_to_controls_gap_ - controls_height_ -
-                          border_to_controls_gap_);
-
-  unselected_label_scale_x_ =
-      static_cast<double>(entry.unselected_label_window->client_width()) /
-      static_cast<double>(entry.label_window->client_width());
-  unselected_label_scale_y_ =
-      static_cast<double>(entry.unselected_label_window->client_height()) /
-      static_cast<double>(entry.label_window->client_height());
-}
-
-
 void LoginController::InitialShow() {
   DCHECK(!entries_.empty());
 
   selected_entry_index_ = 0;
 
   vector<Point> origins;
-  CalculateIdealOrigins(entries_.size(), selected_entry_index_, &origins);
-
+  CalculateIdealOrigins(&origins);
   for (size_t i = 0; i < entries_.size(); ++i) {
-    const Entry& entry = entries_[i];
-    const bool selected = (i == selected_entry_index_);
-
-    Rect border_bounds, image_bounds, controls_bounds, label_bounds;
-    CalculateEntryBounds(origins[i], selected,
-                         &border_bounds, &image_bounds,
-                         &controls_bounds, &label_bounds);
-
-    if (selected) {
-      FocusLoginWindow(entry.controls_window, wm_->GetCurrentTimeFromServer());
-      entry.unselected_label_window->HideComposited();
-      entry.unselected_label_window->MoveClientOffscreen();
-      entry.label_window->ShowComposited();
-      entry.label_window->MoveClient(label_bounds.x, label_bounds.y);
-      entry.controls_window->MoveClient(controls_bounds.x, controls_bounds.y);
-    } else {
-      ScaleUnselectedEntry(entry, border_bounds, label_bounds, true);
-      entry.label_window->HideComposited();
-      entry.label_window->MoveClientOffscreen();
-      entry.unselected_label_window->ShowComposited();
-      entry.unselected_label_window->MoveClient(label_bounds.x,
-                                                label_bounds.y);
-    }
-
-    entry.border_window->SetCompositedOpacity(0, 0);
-    entry.border_window->MoveComposited(border_bounds.x, border_bounds.y, 0);
-    entry.border_window->ShowComposited();
-    entry.border_window->SetCompositedOpacity(1, kInitialShowAnimationTimeInMs);
-
-    entry.image_window->SetCompositedOpacity(0, 0);
-    entry.image_window->MoveComposited(image_bounds.x, image_bounds.y, 0);
-    entry.image_window->ShowComposited();
-    entry.image_window->SetCompositedOpacity(1, kInitialShowAnimationTimeInMs);
-
-    entry.controls_window->SetCompositedOpacity(0, 0);
-    entry.controls_window->MoveComposited(
-        controls_bounds.x, controls_bounds.y, 0);
-    entry.controls_window->ShowComposited();
-    entry.controls_window->SetCompositedOpacity(
-        1, kInitialShowAnimationTimeInMs);
-
-    Window* label_window =
-        selected ? entry.label_window : entry.unselected_label_window;
-    label_window->SetCompositedOpacity(0, 0);
-    label_window->MoveComposited(label_bounds.x, label_bounds.y, 0);
-    label_window->ShowComposited();
-    label_window->SetCompositedOpacity(1, kInitialShowAnimationTimeInMs);
-
-    MoveImageClientWindow(selected,
-                          border_bounds,
-                          label_bounds,
-                          entry.image_window);
+    const bool is_selected = (i == selected_entry_index_);
+    entries_[i]->UpdatePositionAndScale(origins[i], is_selected, 0);
+    entries_[i]->FadeOut(0);
+    entries_[i]->FadeIn(origins[i], is_selected, kInitialShowAnimationTimeInMs);
+    if (is_selected)
+      FocusLoginWindow(entries_[i]->controls_window());
   }
 }
 
@@ -635,25 +488,11 @@ void LoginController::ConfigureBackgroundWindow() {
 }
 
 void LoginController::StackWindows() {
-  for (size_t i = 0; i < entries_.size(); ++i) {
-    const Entry& entry = entries_[i];
-    wm_->stacking_manager()->StackWindowAtTopOfLayer(
-        entry.unselected_label_window, StackingManager::LAYER_LOGIN_WINDOW);
-    wm_->stacking_manager()->StackWindowAtTopOfLayer(
-        entry.label_window, StackingManager::LAYER_LOGIN_WINDOW);
-    wm_->stacking_manager()->StackWindowAtTopOfLayer(
-        entry.border_window, StackingManager::LAYER_LOGIN_WINDOW);
-    wm_->stacking_manager()->StackWindowAtTopOfLayer(
-        entry.image_window, StackingManager::LAYER_LOGIN_WINDOW);
-    wm_->stacking_manager()->StackWindowAtTopOfLayer(
-        entry.controls_window, StackingManager::LAYER_LOGIN_WINDOW);
-  }
+  for (Entries::iterator it = entries_.begin(); it < entries_.end(); ++it)
+    (*it)->StackWindows();
 }
 
 void LoginController::SelectEntryAt(size_t index) {
-  if (index == selected_entry_index_)
-    return;
-
   // Process any pending selection change.
   if (selection_changed_manager_.is_scheduled()) {
     ProcessSelectionChangeCompleted(
@@ -661,190 +500,34 @@ void LoginController::SelectEntryAt(size_t index) {
     selection_changed_manager_.Stop();
   }
 
-  const bool selecting_guest = IsGuestEntryIndex(index);
-  if (IsOldChrome() && selecting_guest) {
-    if (!guest_window_) {
-      waiting_for_guest_ = true;
-      // We haven't got the guest window yet, tell chrome to create it.
-      wm_->wm_ipc()->SendMessage(
-          entries_[0].border_window->xid(),  // Doesn't matter which window we
-                                             // use.
-          WmIpc::Message(chromeos::WM_IPC_MESSAGE_CHROME_CREATE_GUEST_WINDOW));
-      return;
-    }
-    SelectGuest();
-    return;
-  }
-
-
-  const bool guest_was_selected = IsGuestEntryIndex(selected_entry_index_);
-  waiting_for_guest_ = selecting_guest;
+  waiting_for_guest_ = IsGuestEntryIndex(index);
 
   const size_t last_selected_index = selected_entry_index_;
 
   selected_entry_index_ = index;
 
   vector<Point> origins;
-  CalculateIdealOrigins(entries_.size(), selected_entry_index_, &origins);
-
+  CalculateIdealOrigins(&origins);
   for (size_t i = 0; i < entries_.size(); ++i) {
-    const Entry& entry = entries_[i];
-    const bool selected = (i == selected_entry_index_);
-    const bool was_selected = (i == last_selected_index);
-    const bool is_guest = (i + 1 == entries_.size());
-
-    Rect border_bounds, image_bounds, controls_bounds, label_bounds;
-    CalculateEntryBounds(origins[i], selected,
-                         &border_bounds, &image_bounds,
-                         &controls_bounds, &label_bounds);
-
-    if (selected) {
-      entry.border_window->ScaleComposited(1, 1, kAnimationTimeInMs);
-      entry.controls_window->ScaleComposited(1, 1, kAnimationTimeInMs);
-      if (selecting_guest) {
-        // Hide image window and place controls window on its positions.
-        entry.image_window->HideComposited();
-        entry.image_window->MoveClientOffscreen();
-        entry.controls_window->MoveClient(image_bounds.x, image_bounds.y);
-      } else {
-        entry.image_window->ScaleComposited(1, 1, kAnimationTimeInMs);
-        entry.controls_window->MoveClient(controls_bounds.x, controls_bounds.y);
-      }
-      FocusLoginWindow(entry.controls_window, wm_->GetCurrentTimeFromServer());
-
-      // This item became selected. Move the label window to match the bounds
-      // of the unselected label and scale it up.
-      entry.label_window->ScaleComposited(unselected_label_scale_x_,
-                                          unselected_label_scale_y_,
-                                          0);
-      entry.label_window->MoveComposited(
-          entry.unselected_label_window->composited_x(),
-          entry.unselected_label_window->composited_y(),
-          0);
-      entry.label_window->ShowComposited();
-      entry.label_window->ScaleComposited(1, 1, kAnimationTimeInMs);
-      entry.label_window->MoveComposited(label_bounds.x,
-                                         label_bounds.y,
-                                         kAnimationTimeInMs);
-      entry.label_window->MoveClient(label_bounds.x, label_bounds.y);
-      entry.unselected_label_window->HideComposited();
-      entry.unselected_label_window->MoveClientOffscreen();
+    if (i == selected_entry_index_) {
+      entries_[i]->Select(origins[i], kAnimationTimeInMs);
+      FocusLoginWindow(entries_[i]->controls_window());
+    } else if (i == last_selected_index) {
+      entries_[i]->Deselect(origins[i], kAnimationTimeInMs);
     } else {
-      ScaleUnselectedEntry(entry, border_bounds, label_bounds, false);
-      entry.unselected_label_window->MoveClient(label_bounds.x,
-                                                label_bounds.y);
-    }
-
-    if (was_selected) {
-      entry.label_window->ScaleComposited(unselected_label_scale_x_,
-                                          unselected_label_scale_y_,
+      entries_[i]->UpdatePositionAndScale(origins[i], false,
                                           kAnimationTimeInMs);
-      entry.label_window->MoveComposited(label_bounds.x, label_bounds.y,
-                                         kAnimationTimeInMs);
-      entry.controls_window->MoveClientOffscreen();
-      entry.label_window->MoveClientOffscreen();
-      // Show image window if it was hidden for guest entry.
-      if (guest_was_selected)
-        entry.image_window->ShowComposited();
     }
-
-    entry.border_window->MoveComposited(border_bounds.x, border_bounds.y,
-                                        kAnimationTimeInMs);
-    entry.image_window->MoveComposited(image_bounds.x, image_bounds.y,
-                                       kAnimationTimeInMs);
-    if (selected) {
-      entry.image_window->MoveClient(image_bounds.x, image_bounds.y);
-      wm_->xconn()->SetInputRegionForWindow(
-          entry.image_window->xid(),
-          Rect(0, 0, image_bounds.width, image_bounds.height));
-    } else {
-      entry.image_window->MoveClient(
-          entry.border_window->composited_x(),
-          entry.border_window->composited_y());
-      wm_->xconn()->SetInputRegionForWindow(
-          entry.image_window->xid(),
-          Rect(0, 0,
-               entry.border_window->composited_scale_x() *
-                   entry.border_window->client_width(),
-               label_bounds.y - border_bounds.y));
-    }
-    if (selecting_guest && is_guest) {
-      entry.controls_window->MoveComposited(image_bounds.x, image_bounds.y,
-                                            kAnimationTimeInMs);
-    } else {
-      entry.controls_window->MoveComposited(controls_bounds.x,
-                                            controls_bounds.y,
-                                            kAnimationTimeInMs);
-    }
-
-    if (!selected && !was_selected) {
-      entry.unselected_label_window->MoveComposited(label_bounds.x,
-                                                    label_bounds.y,
-                                                    kAnimationTimeInMs);
-    }
-    MoveImageClientWindow(selected,
-                          border_bounds,
-                          label_bounds,
-                          entry.image_window);
   }
 
-  if (last_selected_index != static_cast<size_t>(-1))
+  if (last_selected_index != kNoSelection)
     selection_changed_manager_.Schedule(last_selected_index);
 }
 
 void LoginController::Hide() {
   selection_changed_manager_.Stop();
-
-  if (IsOldChrome() && selected_entry_index_ + 1 == entries_.size())
-    return;  // Guest entry is selected and all the windows are already
-             // offscreen.
-
-  vector<Point> origins;
-  CalculateIdealOrigins(entries_.size(), selected_entry_index_, &origins);
-
-  const int max_y = wm_->height();
-
-  for (size_t i = 0; i < entries_.size(); ++i) {
-    const Entry& entry = entries_[i];
-    const bool selected = (i == selected_entry_index_);
-
-    Rect border_bounds, image_bounds, controls_bounds, label_bounds;
-    CalculateEntryBounds(origins[i], selected,
-                         &border_bounds, &image_bounds,
-                         &controls_bounds, &label_bounds);
-    entry.border_window->MoveComposited(border_bounds.x,
-                                        max_y, kAnimationTimeInMs);
-    entry.border_window->SetCompositedOpacity(0, kAnimationTimeInMs);
-    entry.image_window->MoveComposited(
-        image_bounds.x,
-        max_y + (image_bounds.y - border_bounds.y),
-        kAnimationTimeInMs);
-    entry.image_window->SetCompositedOpacity(0, kAnimationTimeInMs);
-    entry.image_window->MoveClientOffscreen();
-
-    if (selected) {
-      entry.controls_window->MoveComposited(
-          controls_bounds.x,
-          max_y + (controls_bounds.y - border_bounds.y),
-          kAnimationTimeInMs);
-      entry.controls_window->SetCompositedOpacity(0, kAnimationTimeInMs);
-      entry.controls_window->MoveClientOffscreen();
-      entry.label_window->MoveComposited(
-          label_bounds.x,
-          max_y + (label_bounds.y - border_bounds.y),
-          kAnimationTimeInMs);
-      entry.label_window->SetCompositedOpacity(0, kAnimationTimeInMs);
-      entry.label_window->MoveClientOffscreen();
-    } else {
-      entry.unselected_label_window->MoveComposited(
-          label_bounds.x,
-          max_y + (label_bounds.y - border_bounds.y),
-          kAnimationTimeInMs);
-      entry.unselected_label_window->SetCompositedOpacity(0,
-                                                          kAnimationTimeInMs);
-      entry.unselected_label_window->MoveClientOffscreen();
-    }
-  }
+  for (Entries::iterator it = entries_.begin(); it < entries_.end(); ++it)
+    (*it)->FadeOut(kAnimationTimeInMs);
 }
 
 void LoginController::SetEntrySelectionEnabled(bool enable) {
@@ -856,23 +539,26 @@ void LoginController::SelectGuest() {
 
   waiting_for_guest_ = false;
 
-  const Entry& guest_entry = entries_.back();
+  DCHECK(!entries_.empty());
+  LoginEntry* guest_entry = entries_.back().get();
+  DCHECK(guest_entry);
 
   // Move the guest window to its original location of guest border.
+  // TODO(dpolukhin): create GuestEntry class to encapsulate guest animation.
   const int guest_width = guest_window_->client_width();
   const int guest_height = guest_window_->client_height();
-  const float x_scale = (static_cast<float>(unselected_border_width_) /
+  const float x_scale = (static_cast<float>(guest_entry->selected_width()) /
                          static_cast<float>(guest_width));
-  const float y_scale = (static_cast<float>(unselected_border_height_) /
+  const float y_scale = (static_cast<float>(guest_entry->selected_height()) /
                          static_cast<float>(guest_height));
   guest_window_->ScaleComposited(x_scale, y_scale, 0);
   guest_window_->SetCompositedOpacity(0, 0);
-  guest_window_->MoveComposited(guest_entry.border_window->composited_x(),
-                                guest_entry.border_window->composited_y(),
+  guest_window_->MoveComposited(guest_entry->border_window()->composited_x(),
+                                guest_entry->border_window()->composited_y(),
                                 0);
-  guest_window_->StackCompositedBelow(guest_entry.border_window->actor(), NULL,
-                                      true);
-  guest_window_->StackClientBelow(guest_entry.border_window->xid());
+  guest_window_->StackCompositedBelow(guest_entry->border_window()->actor(),
+                                      NULL, true);
+  guest_window_->StackClientBelow(guest_entry->border_window()->xid());
   guest_window_->ShowComposited();
 
   // Move the guest window to its target location and focus it.
@@ -882,145 +568,36 @@ void LoginController::SelectGuest() {
                                 (wm_->height() - guest_height) / 2,
                                 kAnimationTimeInMs);
   guest_window_->MoveClientToComposited();
-  FocusLoginWindow(guest_window_, wm_->GetCurrentTimeFromServer());
+  FocusLoginWindow(guest_window_);
 
-  // Move the guest entry to the center of the window, expanding it to normal
-  // size and fading out.
-  Rect guest_border_target_bounds;
-  Rect guest_image_target_bounds;
-  Rect guest_label_target_bounds;
-  Rect guest_controls_target_bounds;
-  Point guest_origin((wm_->width() - border_width_) / 2,
-                     (wm_->height() - border_height_ - label_height_) / 2);
-  CalculateEntryBounds(guest_origin, true, &guest_border_target_bounds,
-                       &guest_image_target_bounds,
-                       &guest_controls_target_bounds,
-                       &guest_label_target_bounds);
-  guest_entry.border_window->MoveComposited(guest_border_target_bounds.x,
-                                            guest_border_target_bounds.y,
-                                            kAnimationTimeInMs);
-  guest_entry.border_window->ScaleComposited(1, 1, kAnimationTimeInMs);
-  guest_entry.border_window->SetCompositedOpacity(0, kAnimationTimeInMs);
-  guest_entry.controls_window->HideComposited();
-  guest_entry.image_window->ShowComposited();
-  guest_entry.image_window->MoveComposited(guest_image_target_bounds.x,
-                                           guest_image_target_bounds.y,
-                                           kAnimationTimeInMs);
-  guest_entry.image_window->ScaleComposited(1, 1, kAnimationTimeInMs);
-  guest_entry.image_window->SetCompositedOpacity(0, kAnimationTimeInMs);
-
-  // Fade out the rest of the entries.
-  for (size_t i = 0; i < entries_.size() - 1; ++i) {
-    entries_[i].border_window->SetCompositedOpacity(0, kAnimationTimeInMs);
-    entries_[i].image_window->SetCompositedOpacity(0, kAnimationTimeInMs);
-    entries_[i].controls_window->SetCompositedOpacity(0, kAnimationTimeInMs);
-    entries_[i].label_window->SetCompositedOpacity(0, kAnimationTimeInMs);
-    entries_[i].unselected_label_window->SetCompositedOpacity(
-        0, kAnimationTimeInMs);
-    entries_[i].image_window->MoveClientOffscreen();
-    entries_[i].unselected_label_window->MoveClientOffscreen();
-  }
-
-  guest_entry.unselected_label_window->SetCompositedOpacity(0,
-                                                            kAnimationTimeInMs);
-  guest_entry.unselected_label_window->MoveClientOffscreen();
-  guest_entry.label_window->SetCompositedOpacity(0, kAnimationTimeInMs);
+  for (Entries::iterator it = entries_.begin(); it < entries_.end(); ++it)
+    (*it)->FadeOut(kAnimationTimeInMs);
 }
 
-void LoginController::CalculateIdealOrigins(
-    size_t entry_count,
-    size_t selected_index,
-    vector<Point>* origins) {
-  const int selected_width = border_width_;
-  const int selected_height = border_height_ + label_height_;
+void LoginController::CalculateIdealOrigins(vector<Point>* origins) {
+  const LoginEntry* entry = entries_[0].get();
 
-  const int unselected_width = unselected_border_width_;
-  const int unselected_height = unselected_border_height_;
+  const int selected_y = (wm_->height() - entry->selected_height()) / 2;
+  const int unselected_y = (wm_->height() - entry->unselected_height()) / 2;
 
-  const int selected_y = (wm_->height() - selected_height) / 2;
-  const int unselected_y = (wm_->height() - unselected_height) / 2;
-
-  int width = entry_count * unselected_width + (entry_count - 1) * padding_;
-  if (selected_index != string::npos)
-    width += selected_width - unselected_width;
+  int width = entries_.size() * entry->unselected_width() +
+              (entries_.size() - 1) * entry->padding();
+  if (selected_entry_index_ != kNoSelection)
+    width += entry->selected_width() - entry->unselected_width();
   int x = (wm_->width() - width) / 2;
-  for (size_t i = 0; i < entry_count; ++i) {
+  for (size_t i = 0; i < entries_.size(); ++i) {
     int y;
     int w;
-    if (selected_index == i) {
+    if (selected_entry_index_ == i) {
       y = selected_y;
-      w = selected_width;
+      w = entry->selected_width();
     } else {
       y = unselected_y;
-      w = unselected_width;
+      w = entry->unselected_width();
     }
     origins->push_back(Point(x, y));
-    x += w + padding_;
+    x += w + entry->padding();
   }
-}
-
-void LoginController::CalculateEntryBounds(const Point& origin,
-                                           bool selected,
-                                           Rect* border_bounds,
-                                           Rect* image_bounds,
-                                           Rect* controls_bounds,
-                                           Rect* label_bounds) {
-  DCHECK(inited_sizes_);
-  if (selected) {
-    *border_bounds = Rect(origin.x, origin.y, border_width_,
-                          border_height_);
-    *image_bounds = Rect(origin.x + border_to_controls_gap_,
-                         origin.y + border_to_controls_gap_,
-                         border_bounds->width - border_to_controls_gap_ -
-                         border_to_controls_gap_,
-                         border_bounds->height - border_to_controls_gap_ -
-                         border_to_controls_gap_ - controls_height_ -
-                         border_to_controls_gap_);
-    *controls_bounds = Rect(image_bounds->x,
-                            image_bounds->y + image_bounds->height +
-                            border_to_controls_gap_,
-                            image_bounds->width,
-                            controls_height_);
-    *label_bounds = Rect(image_bounds->x,
-                         border_bounds->y + border_bounds->height +
-                         border_to_controls_gap_,
-                         image_bounds->width,
-                         label_height_);
-  } else {
-    *border_bounds = Rect(origin.x, origin.y, unselected_border_width_,
-                          unselected_border_height_);
-    *image_bounds = Rect(origin.x + border_to_controls_gap_,
-                         origin.y + border_to_controls_gap_,
-                         border_bounds->width - border_to_controls_gap_ -
-                         border_to_controls_gap_,
-                         border_bounds->height - border_to_controls_gap_ -
-                         border_to_controls_gap_);
-    *controls_bounds = Rect(image_bounds->x,
-                            image_bounds->y + image_bounds->height +
-                            border_to_controls_gap_,
-                            0, 0);
-    *label_bounds = Rect(image_bounds->x,
-                         border_bounds->y + border_bounds->height +
-                         border_to_controls_gap_,
-                         image_bounds->width,
-                         unselected_label_height_);
-  }
-}
-
-void LoginController::ScaleUnselectedEntry(const Entry& entry,
-                                           const Rect& border_bounds,
-                                           const Rect& label_bounds,
-                                           bool initial) {
-  const int animation_time = initial ? 0 : kAnimationTimeInMs;
-  entry.border_window->ScaleComposited(unselected_border_scale_x_,
-                                       unselected_border_scale_y_,
-                                       animation_time);
-  entry.image_window->ScaleComposited(unselected_image_scale_x_,
-                                      unselected_image_scale_y_,
-                                      animation_time);
-  entry.controls_window->ScaleComposited(0, 0, 0);
-  if (initial)
-    entry.label_window->HideComposited();
 }
 
 bool LoginController::IsLoginWindow(Window* window) const {
@@ -1031,15 +608,16 @@ bool LoginController::IsGuestEntryIndex(size_t index) const {
   return index + 1 == entries_.size();
 }
 
-LoginController::Entry* LoginController::GetEntryForWindow(Window* win) {
-  return GetEntryAt(GetUserIndex(win));
+LoginEntry* LoginController::GetEntryForWindow(Window* win) {
+  return GetEntryAt(LoginEntry::GetUserIndex(win));
 }
 
-LoginController::Entry* LoginController::GetEntryAt(int index) {
-  size_t required_size = static_cast<size_t>(index) + 1;
-  if (entries_.size() < required_size)
-    entries_.resize(required_size);
-  return &(entries_[index]);
+LoginEntry* LoginController::GetEntryAt(size_t index) {
+  while (entries_.size() <= index) {
+    entries_.push_back(Entries::value_type(new LoginEntry(wm_, &registrar_)));
+    has_all_windows_ = false;
+  }
+  return entries_[index].get();
 }
 
 void LoginController::ProcessSelectionChangeCompleted(
@@ -1047,34 +625,24 @@ void LoginController::ProcessSelectionChangeCompleted(
   if (last_selected_index >= entries_.size())
     return;
 
-  Entry& entry = entries_[last_selected_index];
-  entry.unselected_label_window->MoveComposited(
-      entry.label_window->composited_x(),
-      entry.label_window->composited_y(),
-      0);
-  entry.unselected_label_window->ShowComposited();
-  entry.unselected_label_window->MoveClientToComposited();
-  entry.label_window->HideComposited();
+  entries_[last_selected_index]->ProcessSelectionChangeCompleted(false);
+  if (selected_entry_index_ != kNoSelection)
+    entries_[selected_entry_index_]->ProcessSelectionChangeCompleted(true);
 }
 
 bool LoginController::HasAllWindows() {
   if (!IsBackgroundWindowReady())
     return false;
 
-  if (entries_.empty())
+  if (entries_.empty() || entries_[0]->GetUserCount() != entries_.size())
     return false;
 
-  if (!entries_[0].border_window)
-    return false;
-
-  int user_count = entries_[0].border_window->type_params()[1];
-  if (entries_.size() != static_cast<size_t>(user_count))
-    return false;
-
-  for (size_t i = 0; i < entries_.size(); ++i) {
-    if (!entries_[i].has_all_windows())
+  for (Entries::const_iterator it = entries_.begin(); it != entries_.end();
+       ++it) {
+    if (!(*it)->has_all_windows())
       return false;
   }
+
   return true;
 }
 
@@ -1084,26 +652,11 @@ void LoginController::OnGotNewWindowOrPropertyChange() {
     return;
 
   if (HasAllWindows()) {
-    if (!inited_sizes_) {
-      if (entries_[0].border_window->type_params().size() != 4) {
-        LOG(WARNING) << "first border window must have 4 parameters";
-        return;
-      }
-
-      InitSizes(entries_[0].border_window->type_params()[2],
-                entries_[0].border_window->type_params()[3]);
-    }
-
-    DCHECK(!entries_.empty() && entries_[0].border_window);
     has_all_windows_ = true;
 
     ConfigureBackgroundWindow();
     StackWindows();
-
-    // Don't show initial animation for guest-only case.
-    if (entries_.size() > 1)
-      InitialShow();
-
+    InitialShow();
   } else if (entries_.empty() && guest_window_ && IsBackgroundWindowReady()) {
     ConfigureBackgroundWindow();
 
@@ -1116,7 +669,7 @@ void LoginController::OnGotNewWindowOrPropertyChange() {
     guest_window_->SetCompositedOpacity(0, 0);
     guest_window_->ShowComposited();
     guest_window_->SetCompositedOpacity(1, kInitialShowAnimationTimeInMs);
-    FocusLoginWindow(guest_window_, wm_->GetCurrentTimeFromServer());
+    FocusLoginWindow(guest_window_);
   }
 }
 
@@ -1126,9 +679,9 @@ bool LoginController::IsBackgroundWindowReady() {
   return background_window_ && background_window_->type_params()[0] == 1;
 }
 
-void LoginController::FocusLoginWindow(Window* win, XTime timestamp) {
+void LoginController::FocusLoginWindow(Window* win) {
   DCHECK(win);
-  wm_->FocusWindow(win, timestamp);
+  wm_->FocusWindow(win, wm_->GetCurrentTimeFromServer());
   login_window_to_focus_ = win;
 }
 
@@ -1152,40 +705,6 @@ void LoginController::HideWindowsAfterLogin() {
   Window* focused_win = wm_->focus_manager()->focused_win();
   if (focused_win && xids.count(focused_win->xid()))
     wm_->FocusWindow(NULL, wm_->GetCurrentTimeFromServer());
-}
-
-bool LoginController::IsOldChrome() {
-  // HACK(dpolukhin): detect old chrome version to preserve old WM behaviour.
-  // Will be removed in couple weeks. It is required for backward compatibility.
-  return (controls_height_ == entries_.back().controls_window->client_height());
-}
-
-void LoginController::MoveImageClientWindow(bool selected,
-                                            const Rect& border_bounds,
-                                            const Rect& label_bounds,
-                                            Window* image_window) {
-  int x = image_window->composited_x();
-  int y = image_window->composited_y();
-  int width = image_window->client_width();
-  int height = image_window->client_height();
-
-  if (!selected) {
-    x = border_bounds.x;
-    y = border_bounds.y;
-    width = border_bounds.width;;
-    height = label_bounds.y - border_bounds.y;
-    DCHECK(height > 0) << "Label is above the image.";
-    if (width > image_window->client_width() ||
-        height > image_window->client_height()) {
-      LOG(WARNING) << "Image window is not big enough to hold"
-                      " the border and the label.";
-    }
-  }
-
-  image_window->MoveClient(x, y);
-  wm_->xconn()->SetInputRegionForWindow(
-      image_window->xid(),
-      Rect(0, 0, width, height));
 }
 
 }  // namespace window_manager

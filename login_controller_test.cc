@@ -32,6 +32,8 @@ class LoginControllerTest : public BasicWindowManagerTest {
  protected:
   static const int kUnselectedImageSize;
   static const int kGapBetweenImageAndControls;
+  static const int kImageSize;
+  static const int kControlsSize;
 
   virtual void SetUp() {
     BasicWindowManagerTest::SetUp();
@@ -50,8 +52,7 @@ class LoginControllerTest : public BasicWindowManagerTest {
   // Create the set of windows expected by LoginController.
   void CreateLoginWindows(int num_entries,
                           bool background_is_ready,
-                          bool create_guest_window,
-                          bool create_new_guest_entry) {
+                          bool create_guest_window) {
     CHECK(num_entries == 0 || num_entries >= 2);
 
     if (!background_xid_) {
@@ -74,21 +75,14 @@ class LoginControllerTest : public BasicWindowManagerTest {
 
     for (int i = 0; i < num_entries; ++i) {
       EntryWindows entry;
-      entry.border_xid = CreateSimpleWindow();
-      entry.image_xid = CreateSimpleWindow();
-      if (create_new_guest_entry && (i + 1) == num_entries) {
-        const int guest_controls_width = 260;
-        const int guest_controls_height = 290;
-        entry.controls_xid = CreateBasicWindow(0, 0, guest_controls_width,
-                                               guest_controls_height);
-      } else {
-        const int guest_controls_width = 260;
-        const int guest_controls_height = 30;
-        entry.controls_xid = CreateBasicWindow(0, 0, guest_controls_width,
-                                               guest_controls_height);
-      }
-      entry.label_xid = CreateSimpleWindow();
-      entry.unselected_label_xid = CreateSimpleWindow();
+      entry.border_xid = CreateBasicWindow(0, 0,
+          kImageSize + 2 * kGapBetweenImageAndControls,
+          kImageSize + kControlsSize + 3 * kGapBetweenImageAndControls);
+      entry.image_xid = CreateBasicWindow(0, 0, kImageSize, kImageSize);
+      entry.controls_xid = CreateBasicWindow(0, 0, kImageSize, kControlsSize);
+      entry.label_xid = CreateBasicWindow(0, 0, kImageSize, kControlsSize);
+      entry.unselected_label_xid = CreateBasicWindow(0, 0, kImageSize,
+                                                     kControlsSize);
 
       vector<int> params;
       params.push_back(i);  // entry index
@@ -109,12 +103,10 @@ class LoginControllerTest : public BasicWindowManagerTest {
           chromeos::WM_IPC_WINDOW_LOGIN_UNSELECTED_LABEL,
           &params);
 
-      // The first border window stores some additional parameters.
-      if (i == 0) {
-        params.push_back(num_entries);
-        params.push_back(kUnselectedImageSize);
-        params.push_back(kGapBetweenImageAndControls);
-      }
+      // The border window stores some additional parameters.
+      params.push_back(num_entries);
+      params.push_back(kUnselectedImageSize);
+      params.push_back(kGapBetweenImageAndControls);
       wm_->wm_ipc()->SetWindowType(
           entry.border_xid,
           chromeos::WM_IPC_WINDOW_LOGIN_BORDER,
@@ -195,6 +187,8 @@ class LoginControllerTest : public BasicWindowManagerTest {
 
 const int LoginControllerTest::kUnselectedImageSize = 100;
 const int LoginControllerTest::kGapBetweenImageAndControls = 5;
+const int LoginControllerTest::kImageSize = 260;
+const int LoginControllerTest::kControlsSize = 30;
 
 // Check that LoginController does some half-baked handling of any other
 // windows that get mapped before Chrome is in a logged-in state.
@@ -265,7 +259,7 @@ TEST_F(LoginControllerTest, OtherWindows) {
 
 // Test that the login controller assigns the focus correctly in a few cases.
 TEST_F(LoginControllerTest, Focus) {
-  CreateLoginWindows(3, true, false, true);
+  CreateLoginWindows(3, true, false);
 
   // Initially, the first entry's controls window should be focused.
   EXPECT_EQ(entries_[0].controls_xid, xconn_->focused_xid());
@@ -323,13 +317,13 @@ TEST_F(LoginControllerTest, Focus) {
 // Test that the login controller focuses the guest window when no entries
 // are created.
 TEST_F(LoginControllerTest, FocusInitialGuestWindow) {
-  CreateLoginWindows(0, true, true, true);
+  CreateLoginWindows(0, true, true);
   EXPECT_EQ(guest_xid_, xconn_->focused_xid());
   EXPECT_EQ(guest_xid_, GetActiveWindowProperty());
 }
 
 TEST_F(LoginControllerTest, FocusTransientParent) {
-  CreateLoginWindows(2, true, false, true);
+  CreateLoginWindows(2, true, false);
 
   // When we open a transient dialog, it should get the focus.
   const XWindow transient_xid = CreateSimpleWindow();
@@ -382,7 +376,7 @@ TEST_F(LoginControllerTest, FocusTransientParent) {
 }
 
 TEST_F(LoginControllerTest, Modality) {
-  CreateLoginWindows(2, true, false, true);
+  CreateLoginWindows(2, true, false);
   const XWindow controls_xid = entries_[0].controls_xid;
   MockXConnection::WindowInfo* controls_info =
       xconn_->GetWindowInfoOrDie(controls_xid);
@@ -421,7 +415,7 @@ TEST_F(LoginControllerTest, Modality) {
 
 TEST_F(LoginControllerTest, HideAfterLogin) {
   // We should show the windows after they're mapped.
-  CreateLoginWindows(2, true, false, true);
+  CreateLoginWindows(2, true, false);
   EXPECT_FALSE(WindowIsOffscreen(background_xid_));
 
   // They should still be shown even after the user logs in.
@@ -435,25 +429,9 @@ TEST_F(LoginControllerTest, HideAfterLogin) {
   EXPECT_TRUE(WindowIsOffscreen(background_xid_));
 }
 
-TEST_F(LoginControllerTest, SelectGuestWindowOldChrome) {
-  // Create two entries and a guest window for old Chrome.
-  CreateLoginWindows(2, true, true, false);  // create_guest_window=true
-
-  // The first entry should initially be focused.
-  EXPECT_EQ(entries_[0].controls_xid, xconn_->focused_xid());
-  EXPECT_EQ(entries_[0].controls_xid, GetActiveWindowProperty());
-
-  // Click on the entry for the guest window.
-  SelectEntry(1);
-
-  // The guest window should be focused.
-  EXPECT_EQ(guest_xid_, xconn_->focused_xid());
-  EXPECT_EQ(guest_xid_, GetActiveWindowProperty());
-}
-
-TEST_F(LoginControllerTest, SelectGuestWindowNewChrome) {
+TEST_F(LoginControllerTest, SelectGuest) {
   // Create two entries for new Chrome.
-  CreateLoginWindows(2, true, false, true);  // create_guest_window=false
+  CreateLoginWindows(2, true, false);  // create_guest_window=false
 
   // The first entry should initially be focused.
   EXPECT_EQ(entries_[0].controls_xid, xconn_->focused_xid());
@@ -494,7 +472,7 @@ TEST_F(LoginControllerTest, SelectGuestWindowNewChrome) {
 
 TEST_F(LoginControllerTest, RemoveUser) {
   // Create 3 entries for new Chrome.
-  CreateLoginWindows(3, true, false, true);  // create_guest_window=false
+  CreateLoginWindows(3, true, false);  // create_guest_window=false
 
   // The first entry should initially be focused.
   EXPECT_EQ(entries_[0].controls_xid, xconn_->focused_xid());
@@ -526,7 +504,7 @@ TEST_F(LoginControllerTest, RemoveUser) {
 // screen.
 TEST_F(LoginControllerTest, ClientOnOffScreen) {
   // Create two entries for new Chrome.
-  CreateLoginWindows(2, true, false, true);  // Only need usual entry windows.
+  CreateLoginWindows(2, true, false);  // Only need usual entry windows.
 
   // The first entry is selected. Test that controls, image and label
   // windows are on screen and the rest windows are off screen.

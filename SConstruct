@@ -91,6 +91,7 @@ srcs = Split('''\
   key_bindings.cc
   layout_manager.cc
   login_controller.cc
+  login_entry.cc
   mock_compositor.cc
   motion_event_coalescer.cc
   panel.cc
