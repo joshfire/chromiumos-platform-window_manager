@@ -528,7 +528,7 @@ void LoginController::SelectEntryAt(size_t index) {
 void LoginController::Hide() {
   selection_changed_manager_.Stop();
   for (Entries::iterator it = entries_.begin(); it < entries_.end(); ++it)
-    (*it)->FadeOut(kAnimationTimeInMs);
+    (*it)->FadeOut(kLoggedInTransitionAnimMs);
 }
 
 void LoginController::SetEntrySelectionEnabled(bool enable) {
