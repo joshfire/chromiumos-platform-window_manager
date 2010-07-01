@@ -26,6 +26,7 @@ extern "C" {
 #include "window_manager/event_consumer.h"
 #include "window_manager/event_loop.h"
 #include "window_manager/focus_manager.h"
+#include "window_manager/geometry.h"
 #include "window_manager/hotkey_overlay.h"
 #include "window_manager/key_bindings.h"
 #include "window_manager/layout_manager.h"
@@ -69,6 +70,7 @@ using std::tr1::shared_ptr;
 using std::vector;
 using window_manager::util::FindWithDefault;
 using window_manager::util::GetTimeAsString;
+using window_manager::util::GetCurrentTimeSec;
 using window_manager::util::SetUpLogSymlink;
 using window_manager::util::XidStr;
 
@@ -80,6 +82,8 @@ static const int kHotkeyOverlayAnimMs = 100;
 // Interval with which we query the keyboard state from the X server to
 // update the hotkey overlay (when it's being shown).
 static const int kHotkeyOverlayPollMs = 100;
+
+const int WindowManager::kVideoTimePropertyUpdateSec = 5;
 
 // Invoke 'function_call' for each event consumer in 'consumers' (a set).
 #define FOR_EACH_EVENT_CONSUMER(consumers, function_call)                      \
@@ -172,7 +176,8 @@ WindowManager::WindowManager(EventLoop* event_loop,
       showing_hotkey_overlay_(false),
       wm_ipc_version_(1),
       logged_in_(false),
-      initialize_logging_(false) {
+      initialize_logging_(false),
+      last_video_time_(-1) {
   CHECK(event_loop_);
   CHECK(xconn_);
   CHECK(compositor_);
@@ -318,7 +323,7 @@ void WindowManager::SetLoggedInState(bool logged_in, bool initial) {
 
     const string log_basename = StringPrintf(
         "%s.%s", WindowManager::GetWmName(),
-        GetTimeAsString(::time(NULL)).c_str());
+        GetTimeAsString(GetCurrentTimeSec()).c_str());
     if (!file_util::CreateDirectory(FilePath(log_dir))) {
       LOG(ERROR) << "Unable to create logging directory " << log_dir;
     } else {
@@ -508,6 +513,16 @@ bool WindowManager::SetNamePropertiesForXid(XWindow xid, const string& name) {
   success &= xconn_->SetStringProperty(
       xid, atom_cache_->GetXAtom(ATOM_NET_WM_NAME), name);
   return success;
+}
+
+bool WindowManager::SetVideoTimeProperty(time_t video_time) {
+  if (video_time >= last_video_time_ + kVideoTimePropertyUpdateSec) {
+    last_video_time_ = video_time;
+    XAtom atom = atom_cache_->GetXAtom(ATOM_CHROME_VIDEO_TIME);
+    return xconn_->SetIntProperty(
+        root_, atom, atom, static_cast<int>(video_time));
+  }
+  return true;
 }
 
 void WindowManager::RegisterEventConsumerForWindowEvents(
@@ -1369,7 +1384,8 @@ void WindowManager::HandleDamageNotify(const XDamageNotifyEvent& e) {
   Window* win = GetWindow(e.drawable);
   if (!win)
     return;
-  win->HandleDamageNotify();
+  win->HandleDamageNotify(
+      Rect(e.area.x, e.area.y, e.area.width, e.area.height));
 }
 
 void WindowManager::HandleDestroyNotify(const XDestroyWindowEvent& e) {
@@ -1712,7 +1728,7 @@ void WindowManager::TakeScreenshot(bool use_active_window) {
   }
 
   string filename = StringPrintf("%s/screenshot-%s.png", dir.c_str(),
-                                 GetTimeAsString(::time(NULL)).c_str());
+                                 GetTimeAsString(GetCurrentTimeSec()).c_str());
   command += " " + filename;
 
   if (system(command.c_str()) < 0) {

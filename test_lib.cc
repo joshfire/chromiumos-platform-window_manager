@@ -20,11 +20,13 @@
 #include "window_manager/panel.h"
 #include "window_manager/panel_bar.h"
 #include "window_manager/panel_manager.h"
+#include "window_manager/util.h"
 #include "window_manager/window_manager.h"
 #include "window_manager/wm_ipc.h"
 
 using std::string;
 using std::vector;
+using window_manager::util::SetCurrentTimeForTest;
 
 namespace window_manager {
 
@@ -91,6 +93,7 @@ void BasicWindowManagerTest::SetUp() {
   resize_type_for_new_panels_ =
       chromeos::WM_IPC_PANEL_USER_RESIZE_HORIZONTALLY_AND_VERTICALLY;
 
+  SetCurrentTimeForTest(-1, 0);
   event_loop_.reset(new EventLoop);
   xconn_.reset(new MockXConnection);
 

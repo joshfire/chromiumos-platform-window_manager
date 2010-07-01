@@ -152,6 +152,13 @@ class WindowManager : public PanelManagerAreaChangeListener {
   // Set the WM_NAME and NET_WM_NAME properties on a window.
   bool SetNamePropertiesForXid(XWindow xid, const std::string& name);
 
+  // Update the _CHROME_VIDEO_TIME property on the root window, which
+  // contains the last time that we believed a video was playing in a
+  // window.  Note that updates may be rate-limited (see
+  // kVideoTimePropertyUpdateSec).  Returns false if we attempted to set
+  // the property but failed and true otherwise.
+  bool SetVideoTimeProperty(time_t video_time);
+
   // Register an event consumer as being interested in non-property-change
   // events on a particular window.
   void RegisterEventConsumerForWindowEvents(
@@ -218,12 +225,17 @@ class WindowManager : public PanelManagerAreaChangeListener {
   FRIEND_TEST(WindowManagerTest, KeepPanelsAfterRestart);
   FRIEND_TEST(WindowManagerTest, LoggedIn);
   FRIEND_TEST(WindowManagerTest, ConfigureBackground);
+  FRIEND_TEST(WindowManagerTest, VideoTimeProperty);
 
   typedef std::map<XWindow, std::set<EventConsumer*> > WindowEventConsumerMap;
   typedef std::map<std::pair<XWindow, XAtom>, std::set<EventConsumer*> >
       PropertyChangeEventConsumerMap;
   typedef std::map<chromeos::WmIpcMessageType, std::set<EventConsumer*> >
       ChromeMessageEventConsumerMap;
+
+  // Minimum number of seconds between updates to the
+  // _CHROME_VIDEO_TIME property on the root window.
+  static const int kVideoTimePropertyUpdateSec;
 
   // Is this one of our internally-created windows?
   bool IsInternalWindow(XWindow xid) {
@@ -445,6 +457,9 @@ class WindowManager : public PanelManagerAreaChangeListener {
   // want to write log files when called by tests, but main.cc sets it to
   // true.
   bool initialize_logging_;
+
+  // Last time that we saved to the _CHROME_VIDEO_TIME property.
+  time_t last_video_time_;
 
   DISALLOW_COPY_AND_ASSIGN(WindowManager);
 };

@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <cstring>
+#include <ctime>
 
 #include <sys/time.h>
 #include <unistd.h>
@@ -17,6 +18,10 @@ using std::min;
 using std::string;
 
 namespace window_manager {
+
+// If non-negative, contains a hardcoded time to be returned by
+// GetCurrentTimeSecs() and GetCurrentTimeMs().
+static int64_t current_time_ms_for_test = -1;
 
 ByteMap::ByteMap(int width, int height)
     : width_(width),
@@ -72,10 +77,23 @@ string GetTimeAsString(time_t utime) {
   return string(str);
 }
 
+time_t GetCurrentTimeSec() {
+  if (current_time_ms_for_test >= 0)
+    return static_cast<time_t>(current_time_ms_for_test / 1000);
+  return time(NULL);
+}
+
 int64_t GetCurrentTimeMs() {
+  if (current_time_ms_for_test >= 0)
+    return current_time_ms_for_test;
   struct timeval tv;
   gettimeofday(&tv, NULL);
   return 1000ULL * tv.tv_sec + tv.tv_usec / 1000ULL;
+}
+
+void SetCurrentTimeForTest(time_t sec, int ms) {
+  current_time_ms_for_test =
+      (sec < 0) ? -1 : static_cast<int64_t>(sec) * 1000 + ms;
 }
 
 bool SetUpLogSymlink(const std::string& symlink_path,

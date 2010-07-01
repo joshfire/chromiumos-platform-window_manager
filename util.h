@@ -219,8 +219,15 @@ inline uint32 NextPowerOfTwo(uint32 x) {
 // string of the form "YYYYMMDD-HHMMSS" in the local time zone.
 std::string GetTimeAsString(time_t utime);
 
+// Get the number of seconds since the epoch.
+time_t GetCurrentTimeSec();
+
 // Get the number of milliseconds since the epoch.
 int64_t GetCurrentTimeMs();
+
+// Set the time returned by GetCurrentTimeSecs() and GetCurrentTimeMs().
+// A negative 'sec' value makes us revert to the real time.  Used by tests.
+void SetCurrentTimeForTest(time_t sec, int ms);
 
 // Helper function to create a symlink pointing from 'symlink_path' (a full
 // path) to 'log_basename' (the name of a file that should be in the same

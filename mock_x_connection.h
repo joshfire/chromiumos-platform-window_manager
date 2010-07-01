@@ -14,6 +14,7 @@
 #include <vector>
 
 extern "C" {
+#include <X11/extensions/Xdamage.h>
 #include <X11/Xlib.h>
 }
 
@@ -288,6 +289,8 @@ class MockXConnection : public XConnection {
   void InitConfigureRequestEvent(
       XEvent* event, XWindow xid, int x, int y, int width, int height) const;
   void InitCreateWindowEvent(XEvent* event, XWindow xid) const;
+  void InitDamageNotifyEvent(XEvent* event, XWindow drawable,
+                             int x, int y, int width, int height) const;
   void InitDestroyWindowEvent(XEvent* event, XWindow xid) const;
   // 'x' and 'y' are relative to the window.
   void InitEnterOrLeaveWindowEvent(XEvent* event, XWindow xid,

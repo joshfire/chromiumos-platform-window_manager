@@ -27,9 +27,14 @@ using std::min;
 using std::set;
 using std::string;
 using std::vector;
+using window_manager::util::GetCurrentTimeSec;
 using window_manager::util::XidStr;
 
 namespace window_manager {
+
+const int Window::kVideoMinWidth = 300;
+const int Window::kVideoMinHeight = 225;
+const int Window::kVideoMinFramerate = 15;
 
 Window::Window(WindowManager* wm, XWindow xid, bool override_redirect,
                const XConnection::WindowGeometry& geometry)
@@ -65,7 +70,9 @@ Window::Window(WindowManager* wm, XWindow xid, bool override_redirect,
       wm_hint_urgent_(false),
       wm_window_type_(WM_WINDOW_TYPE_NORMAL),
       damage_(0),
-      pixmap_(0) {
+      pixmap_(0),
+      num_video_damage_events_(0),
+      video_damage_start_time_(-1) {
   // Listen for property and shape changes on this window.
   wm_->xconn()->SelectInputOnWindow(xid_, PropertyChangeMask, true);
   wm_->xconn()->SelectShapeEventsOnWindow(xid_);
@@ -90,7 +97,7 @@ Window::Window(WindowManager* wm, XWindow xid, bool override_redirect,
              << "with dimensions " << client_width_ << "x" << client_height_;
 
   damage_ = wm_->xconn()->CreateDamage(
-      xid_, XConnection::DAMAGE_REPORT_LEVEL_NON_EMPTY);
+      xid_, XConnection::DAMAGE_REPORT_LEVEL_BOUNDING_BOX);
   actor_->Move(composited_x_, composited_y_, 0);
   actor_->SetVisibility(false);
   // This will update the actor's name based on the current title and xid.
@@ -661,9 +668,22 @@ void Window::HandleConfigureNotify(int width, int height) {
     ResetPixmap();
 }
 
-void Window::HandleDamageNotify() {
+void Window::HandleDamageNotify(const Rect& bounding_box) {
   wm_->xconn()->ClearDamage(damage_);
   actor_->UpdateTexture();
+
+  // Check if this update could indicate that a video is playing.
+  if (bounding_box.width >= kVideoMinWidth &&
+      bounding_box.height >= kVideoMinHeight) {
+    const time_t now = GetCurrentTimeSec();
+    if (now != video_damage_start_time_) {
+      video_damage_start_time_ = now;
+      num_video_damage_events_ = 0;
+    }
+    num_video_damage_events_++;
+    if (num_video_damage_events_ == kVideoMinFramerate)
+      wm_->SetVideoTimeProperty(now);
+  }
 }
 
 void Window::SetShadowOpacity(double opacity, int anim_ms) {

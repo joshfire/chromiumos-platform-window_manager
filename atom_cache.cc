@@ -33,6 +33,7 @@ static const AtomInfo kAtomInfos[] = {
   { ATOM_CHROME_LOGGED_IN,             "_CHROME_LOGGED_IN" },
   { ATOM_CHROME_STATE,                 "_CHROME_STATE" },
   { ATOM_CHROME_STATE_COLLAPSED_PANEL, "_CHROME_STATE_COLLAPSED_PANEL" },
+  { ATOM_CHROME_VIDEO_TIME,            "_CHROME_VIDEO_TIME" },
   { ATOM_CHROME_WINDOW_TYPE,           "_CHROME_WINDOW_TYPE" },
   { ATOM_CHROME_WM_MESSAGE,            "_CHROME_WM_MESSAGE" },
   { ATOM_MANAGER,                      "MANAGER" },

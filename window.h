@@ -5,6 +5,7 @@
 #ifndef WINDOW_MANAGER_WINDOW_H_
 #define WINDOW_MANAGER_WINDOW_H_
 
+#include <ctime>
 #include <map>
 #include <set>
 #include <string>
@@ -253,7 +254,7 @@ class Window {
   void HandleConfigureNotify(int width, int height);
 
   // Handle the window's contents being changed.
-  void HandleDamageNotify();
+  void HandleDamageNotify(const Rect& bounding_box);
 
   // Change the opacity of the window's shadow, overriding any previous
   // setting from SetCompositedOpacity().  This just temporarily changes
@@ -289,6 +290,13 @@ class Window {
 
  private:
   FRIEND_TEST(FocusManagerTest, Modality);  // sets 'wm_state_modal_'
+  FRIEND_TEST(WindowManagerTest, VideoTimeProperty);
+
+  // Minimum dimensions and rate per second for damage events at which we
+  // conclude that a video is currently playing in this window.
+  static const int kVideoMinWidth;
+  static const int kVideoMinHeight;
+  static const int kVideoMinFramerate;
 
   // Hide or show the window's shadow if necessary.
   void UpdateShadowIfNecessary();
@@ -400,6 +408,13 @@ class Window {
 
   // Offscreen pixmap containing the window's redirected contents.
   XID pixmap_;
+
+  // Number of "video-sized" or larger damage events that we've seen for
+  // this window during the second beginning at 'video_damage_start_time_'.
+  // We use this as a rough heuristic to try to detect when the user is
+  // watching a video.
+  int num_video_damage_events_;
+  time_t video_damage_start_time_;
 
   DISALLOW_COPY_AND_ASSIGN(Window);
 };

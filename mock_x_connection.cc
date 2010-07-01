@@ -778,6 +778,21 @@ void MockXConnection::InitCreateWindowEvent(XEvent* event, XWindow xid) const {
   create_event->override_redirect = info->override_redirect ? True : False;
 }
 
+void MockXConnection::InitDamageNotifyEvent(XEvent* event, XWindow drawable,
+                                            int x, int y,
+                                            int width, int height) const {
+  CHECK(event);
+  XDamageNotifyEvent* damage_event =
+      reinterpret_cast<XDamageNotifyEvent*>(event);
+  memset(damage_event, 0, sizeof(*damage_event));
+  damage_event->type = damage_event_base_ + XDamageNotify;
+  damage_event->drawable = drawable;
+  damage_event->area.x = x;
+  damage_event->area.y = y;
+  damage_event->area.width = width;
+  damage_event->area.height = height;
+}
+
 void MockXConnection::InitDestroyWindowEvent(XEvent* event, XWindow xid) const {
   CHECK(event);
   XDestroyWindowEvent* destroy_event = &(event->xdestroywindow);

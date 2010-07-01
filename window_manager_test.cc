@@ -41,6 +41,7 @@ using file_util::FileEnumerator;
 using std::find;
 using std::string;
 using std::vector;
+using window_manager::util::SetCurrentTimeForTest;
 
 namespace window_manager {
 
@@ -1062,6 +1063,80 @@ TEST_F(WindowManagerTest, StartNewLogAfterLogin) {
   EXPECT_GT(GetTotalFileSizeInDirectory(logged_in_dir.path()), logged_in_size);
   EXPECT_EQ(logged_out_size,
             GetTotalFileSizeInDirectory(logged_out_dir.path()));
+}
+
+// Check that we try to guess when is a video is playing by looking at the
+// rate and size of damage events, and that we set the _CHROME_VIDEO_TIME
+// property on the root window accordingly.
+TEST_F(WindowManagerTest, VideoTimeProperty) {
+  const time_t start_time = 1000;
+  SetCurrentTimeForTest(start_time, 0);
+  XWindow xid = CreateSimpleWindow();
+  SendInitialEventsForWindow(xid);
+
+  const XAtom atom = wm_->GetXAtom(ATOM_CHROME_VIDEO_TIME);
+  int video_time = 0;
+  EXPECT_FALSE(xconn_->GetIntProperty(xconn_->GetRootWindow(),
+                                      atom, &video_time));
+
+  // First send damage events at a high-enough framerate, but for regions
+  // that are too small to trigger the code.
+  XEvent event;
+  xconn_->InitDamageNotifyEvent(
+      &event, xid, 0, 0,
+      Window::kVideoMinWidth - 1, Window::kVideoMinHeight - 1);
+  for (int i = 0; i < Window::kVideoMinFramerate + 3; ++i)
+    wm_->HandleEvent(&event);
+  EXPECT_FALSE(xconn_->GetIntProperty(xconn_->GetRootWindow(),
+                                      atom, &video_time));
+
+  // Now send events with larger regions, but send one fewer than the
+  // required number of frames.
+  xconn_->InitDamageNotifyEvent(
+      &event, xid, 0, 0, Window::kVideoMinWidth, Window::kVideoMinHeight);
+  for (int i = 0; i < Window::kVideoMinFramerate - 1; ++i)
+    wm_->HandleEvent(&event);
+  EXPECT_FALSE(xconn_->GetIntProperty(xconn_->GetRootWindow(),
+                                      atom, &video_time));
+
+  // After one more frame, we should set the property.
+  wm_->HandleEvent(&event);
+  EXPECT_TRUE(xconn_->GetIntProperty(xconn_->GetRootWindow(),
+                                     atom, &video_time));
+  EXPECT_EQ(start_time, video_time);
+
+  // Send a bunch more frames the next second.  We should leave the
+  // property alone, since not enough time has passed for us to update it.
+  ASSERT_GT(WindowManager::kVideoTimePropertyUpdateSec, 1);
+  SetCurrentTimeForTest(start_time + 1, 0);
+  for (int i = 0; i < Window::kVideoMinFramerate + 10; ++i)
+    wm_->HandleEvent(&event);
+  EXPECT_TRUE(xconn_->GetIntProperty(xconn_->GetRootWindow(),
+                                     atom, &video_time));
+  EXPECT_EQ(start_time, video_time);
+
+  // Wait the minimum required time to update the property and send more
+  // frames, but spread them out across two seconds so that the per-second
+  // rate isn't high enough.  We should still leave the property alone.
+  SetCurrentTimeForTest(
+      start_time + WindowManager::kVideoTimePropertyUpdateSec, 0);
+  for (int i = 0; i < Window::kVideoMinFramerate - 5; ++i)
+    wm_->HandleEvent(&event);
+  SetCurrentTimeForTest(
+      start_time + WindowManager::kVideoTimePropertyUpdateSec + 1, 0);
+  for (int i = 0; i < Window::kVideoMinFramerate - 5; ++i)
+    wm_->HandleEvent(&event);
+  EXPECT_TRUE(xconn_->GetIntProperty(xconn_->GetRootWindow(),
+                                     atom, &video_time));
+  EXPECT_EQ(start_time, video_time);
+
+  // Now send some more frames and check that the property is updated.
+  for (int i = 0; i < 5; ++i)
+    wm_->HandleEvent(&event);
+  EXPECT_TRUE(xconn_->GetIntProperty(xconn_->GetRootWindow(),
+                                     atom, &video_time));
+  EXPECT_EQ(start_time + WindowManager::kVideoTimePropertyUpdateSec + 1,
+            video_time);
 }
 
 }  // namespace window_manager
