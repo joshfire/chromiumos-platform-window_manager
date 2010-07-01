@@ -61,14 +61,14 @@ Shadow::Shadow(Compositor* compositor)
   bl_actor_->SetName("shadow bl");
   br_actor_->SetName("shadow br");
 
-  top_actor_->SetVisibility(true);
-  bottom_actor_->SetVisibility(true);
-  left_actor_->SetVisibility(true);
-  right_actor_->SetVisibility(true);
-  tl_actor_->SetVisibility(true);
-  tr_actor_->SetVisibility(true);
-  bl_actor_->SetVisibility(true);
-  br_actor_->SetVisibility(true);
+  top_actor_->Show();
+  bottom_actor_->Show();
+  left_actor_->Show();
+  right_actor_->Show();
+  tl_actor_->Show();
+  tr_actor_->Show();
+  bl_actor_->Show();
+  br_actor_->Show();
 
   // Resize the shadow arbitrarily to initialize the positions of the actors.
   Resize(10, 10, 0);
@@ -86,12 +86,12 @@ Shadow::Shadow(Compositor* compositor)
 
 void Shadow::Show() {
   is_shown_ = true;
-  group_->SetVisibility(true);
+  group_->Show();
 }
 
 void Shadow::Hide() {
   is_shown_ = false;
-  group_->SetVisibility(false);
+  group_->Hide();
 }
 
 void Shadow::Move(int x, int y, int anim_ms) {
@@ -163,7 +163,7 @@ Compositor::Actor* Shadow::InitTexture(const string& filename) {
   // actor to the default stage; otherwise the compositor complains that
   // actors that are cloned from it are unmappable.
   // TODO: This used to be the case with Clutter; is it still true?
-  actor->SetVisibility(false);
+  actor->Hide();
   compositor_->GetDefaultStage()->AddActor(actor);
   return actor;
 }

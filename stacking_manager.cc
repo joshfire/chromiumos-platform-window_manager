@@ -39,7 +39,7 @@ StackingManager::StackingManager(XConnection* xconn,
 
     shared_ptr<Compositor::Actor> actor(compositor->CreateGroup());
     actor->SetName(StringPrintf("%s %s", name.c_str(), XidStr(xid).c_str()));
-    actor->SetVisibility(false);
+    actor->Hide();
     compositor->GetDefaultStage()->AddActor(actor.get());
     actor->RaiseToTop();
     layer_to_actor_[layer] = actor;

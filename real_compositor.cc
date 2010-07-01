@@ -192,6 +192,9 @@ void RealCompositor::LayerVisitor::VisitContainer(
 
 void RealCompositor::LayerVisitor::VisitTexturedQuadActor(
     RealCompositor::QuadActor* actor, bool is_texture_opaque) {
+  // Reset culled_ state so that IsVisible will not use the state from
+  // previous frame.
+  actor->set_culled(false);
   if (!actor->IsVisible())
     return;
 
@@ -256,7 +259,7 @@ RealCompositor::Actor::Actor(RealCompositor* compositor)
       model_view_(Matrix4::identity()),
       is_opaque_(false),
       has_children_(false),
-      visible_(true),
+      is_shown_(true),
       dimmed_opacity_(0.f) {
   compositor_->AddActor(this);
 }
@@ -287,7 +290,7 @@ void RealCompositor::Actor::CloneImpl(RealCompositor::Actor* clone) {
   clone->tilt_ = tilt_;
   clone->is_opaque_ = is_opaque_;
   clone->has_children_ = has_children_;
-  clone->visible_ = visible_;
+  clone->is_shown_ = is_shown_;
   clone->name_ = name_;
 
   // This copies all the drawing data, but they're all tr1::shared_ptr's,
@@ -391,7 +394,7 @@ string RealCompositor::Actor::GetDebugStringInternal(const string& type_name,
                         "scale=(%.2f, %.2f) %.2f%% tilt=%0.2f\n",
                       !name_.empty() ? name_.c_str() : "",
                       this,
-                      visible_ ? "" : "inv ",
+                      is_shown_ ? "" : "hidden ",
                       type_name.c_str(),
                       x_, y_,
                       width_, height_,
@@ -734,7 +737,7 @@ void RealCompositor::TexturePixmapActor::UpdateTexture() {
   // Note that culled flag is one frame behind, but it is still valid for the
   // update here, because the stage will be set dirty if object is moving into
   // or out of view.
-  if (visible() && !culled())
+  if (is_shown() && !culled())
     SetDirty();
 }
 

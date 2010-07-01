@@ -61,13 +61,14 @@ class Compositor {
     virtual double GetXScale() = 0;
     virtual double GetYScale() = 0;
 
-    virtual void SetVisibility(bool visible) = 0;
     virtual void SetSize(int width, int height) = 0;
     virtual void Move(int x, int y, int anim_ms) = 0;
     virtual void MoveX(int x, int anim_ms) = 0;
     virtual void MoveY(int y, int anim_ms) = 0;
     virtual void Scale(double scale_x, double scale_y, int anim_ms) = 0;
     virtual void SetOpacity(double opacity, int anim_ms) = 0;
+    virtual void Show() = 0;
+    virtual void Hide() = 0;
 
     // Tilt is the amount of perspective to show, from 0.0 to
     // 1.0.  For 1.0, the actor is collapsed to a line.  For 0.0, the
@@ -200,8 +201,8 @@ class MockCompositor : public Compositor {
           scale_x_(1.0),
           scale_y_(1.0),
           opacity_(1.0),
-          visible_(true),
           is_dimmed_(false),
+          is_shown_(true),
           num_moves_(0),
           position_was_animated_(false),
           parent_(NULL) {
@@ -213,8 +214,8 @@ class MockCompositor : public Compositor {
     double scale_x() const { return scale_x_; }
     double scale_y() const { return scale_y_; }
     double opacity() const { return opacity_; }
-    bool visible() const { return visible_; }
     bool is_dimmed() const { return is_dimmed_; }
+    bool is_shown() const { return is_shown_; }
     int num_moves() const { return num_moves_; }
     bool position_was_animated() const { return position_was_animated_; }
     const std::set<int>& visibility_groups() const {
@@ -234,7 +235,6 @@ class MockCompositor : public Compositor {
     virtual int GetY() { return y_; }
     virtual double GetXScale() { return scale_x_; }
     virtual double GetYScale() { return scale_y_; }
-    virtual void SetVisibility(bool visible) { visible_ = visible; }
     virtual void SetSize(int width, int height) {
       width_ = width;
       height_ = height;
@@ -252,6 +252,8 @@ class MockCompositor : public Compositor {
       scale_y_ = scale_y;
     }
     virtual void SetOpacity(double opacity, int anim_ms) { opacity_ = opacity; }
+    virtual void Show() { is_shown_ = true; }
+    virtual void Hide() { is_shown_ = false; }
     virtual void SetTilt(double tilt, int anim_ms) { tilt_ = tilt; }
     virtual double GetTilt() const { return tilt_; }
     virtual void SetClip(int x, int y, int width, int height) {}
@@ -276,8 +278,8 @@ class MockCompositor : public Compositor {
     double scale_x_, scale_y_;
     double opacity_;
     double tilt_;
-    bool visible_;
     bool is_dimmed_;
+    bool is_shown_;
 
     // Number of times that the actor has been moved.
     int num_moves_;

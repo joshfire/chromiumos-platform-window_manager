@@ -81,7 +81,7 @@ PanelDock::PanelDock(PanelManager* panel_manager, DockType type, int width)
   wm()->stage()->AddActor(bg_actor_.get());
   bg_actor_->SetSize(width_, height_);
   bg_actor_->Move(bg_x, y_, 0);
-  bg_actor_->SetVisibility(true);
+  bg_actor_->Show();
   wm()->stacking_manager()->StackActorAtTopOfLayer(
       bg_actor_.get(), StackingManager::LAYER_PANEL_DOCK);
 }

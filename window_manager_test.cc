@@ -213,7 +213,7 @@ TEST_F(WindowManagerTest, ExistingWindows) {
   CreateAndInitNewWm();
   Window* win = wm_->GetWindowOrDie(xid);
   EXPECT_TRUE(win->mapped());
-  EXPECT_TRUE(GetMockActorForWindow(win)->visible());
+  EXPECT_TRUE(GetMockActorForWindow(win)->is_shown());
 
   // Now test the case where the window starts out unmapped and
   // WindowManager misses the CreateNotify event but receives the
@@ -229,7 +229,7 @@ TEST_F(WindowManagerTest, ExistingWindows) {
   EXPECT_FALSE(info->mapped);
   win = wm_->GetWindowOrDie(xid);
   EXPECT_FALSE(win->mapped());
-  EXPECT_FALSE(GetMockActorForWindow(win)->visible());
+  EXPECT_FALSE(GetMockActorForWindow(win)->is_shown());
 
   XEvent event;
   xconn_->InitMapRequestEvent(&event, xid);
@@ -239,7 +239,7 @@ TEST_F(WindowManagerTest, ExistingWindows) {
   xconn_->InitMapEvent(&event, xid);
   wm_->HandleEvent(&event);
   EXPECT_TRUE(win->mapped());
-  EXPECT_TRUE(GetMockActorForWindow(win)->visible());
+  EXPECT_TRUE(GetMockActorForWindow(win)->is_shown());
 
   // Finally, test the typical case where a window is created after
   // WindowManager has been initialized.
@@ -260,7 +260,7 @@ TEST_F(WindowManagerTest, ExistingWindows) {
   EXPECT_FALSE(info->mapped);
   win = wm_->GetWindowOrDie(xid);
   EXPECT_FALSE(win->mapped());
-  EXPECT_FALSE(GetMockActorForWindow(win)->visible());
+  EXPECT_FALSE(GetMockActorForWindow(win)->is_shown());
 
   xconn_->InitMapRequestEvent(&event, xid);
   wm_->HandleEvent(&event);
@@ -269,7 +269,7 @@ TEST_F(WindowManagerTest, ExistingWindows) {
 
   xconn_->InitMapEvent(&event, xid);
   wm_->HandleEvent(&event);
-  EXPECT_TRUE(GetMockActorForWindow(win)->visible());
+  EXPECT_TRUE(GetMockActorForWindow(win)->is_shown());
 }
 
 // Test that we display override-redirect windows onscreen regardless of
@@ -299,7 +299,7 @@ TEST_F(WindowManagerTest, OverrideRedirectMapping) {
   // Now test the other possibility, where the window isn't mapped on the X
   // server yet when we receive the CreateNotify event.
   Window* win = wm_->GetWindowOrDie(xid);
-  EXPECT_TRUE(GetMockActorForWindow(win)->visible());
+  EXPECT_TRUE(GetMockActorForWindow(win)->is_shown());
 
   XWindow xid2 = xconn_->CreateWindow(
         xconn_->GetRootWindow(),
@@ -318,7 +318,7 @@ TEST_F(WindowManagerTest, OverrideRedirectMapping) {
   wm_->HandleEvent(&event);
 
   Window* win2 = wm_->GetWindowOrDie(xid2);
-  EXPECT_TRUE(GetMockActorForWindow(win2)->visible());
+  EXPECT_TRUE(GetMockActorForWindow(win2)->is_shown());
 }
 
 TEST_F(WindowManagerTest, InputWindows) {

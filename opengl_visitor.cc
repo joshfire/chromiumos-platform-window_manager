@@ -360,7 +360,7 @@ void OpenGlDrawVisitor::VisitTexturePixmap(
 }
 
 void OpenGlDrawVisitor::VisitQuad(RealCompositor::QuadActor* actor) {
-  if (!actor->IsVisible() || actor->culled())
+  if (!actor->IsVisible())
     return;
 
 #ifdef EXTRA_LOGGING

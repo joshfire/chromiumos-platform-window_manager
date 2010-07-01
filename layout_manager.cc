@@ -322,7 +322,7 @@ void LayoutManager::HandleLoggedInStateChange() {
   } else {  // not logged in
     DisableKeyBindingsForMode(mode_);
     if (background_.get())
-      background_->SetVisibility(false);
+      background_->Hide();
   }
 }
 
@@ -559,7 +559,7 @@ void LayoutManager::HandleWindowUnmap(Window* win) {
 
         RemoveToplevel(toplevel);
         if (background_.get() && wm_->GetNumWindows() == 0)
-          background_->SetVisibility(false);
+          background_->Hide();
         AddOrRemoveSeparatorsAsNeeded();
         LayoutWindows(true);
       }
@@ -1700,7 +1700,10 @@ void LayoutManager::SetBackground(Compositor::Actor* actor) {
   DCHECK(actor);
   background_.reset(actor);
   background_->SetName("overview mode background");
-  background_->SetVisibility(first_toplevel_chrome_window_mapped_);
+  if (first_toplevel_chrome_window_mapped_)
+    background_->Show();
+  else
+    background_->Hide();
   ConfigureBackground(wm_->width(), wm_->height());
   wm_->stage()->AddActor(background_.get());
   wm_->stacking_manager()->StackActorAtTopOfLayer(
@@ -1768,7 +1771,7 @@ void LayoutManager::HandleFirstToplevelChromeWindowMapped(Window* win) {
   // Start drawing our background when we see the first Chrome window, and tell
   // WindowManager to stop drawing its startup background.
   if (background_.get())
-    background_->SetVisibility(true);
+    background_->Show();
   wm_->DropStartupBackground();
 
   if (!FLAGS_initial_chrome_window_mapped_file.empty()) {

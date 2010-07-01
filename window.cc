@@ -99,7 +99,7 @@ Window::Window(WindowManager* wm, XWindow xid, bool override_redirect,
   damage_ = wm_->xconn()->CreateDamage(
       xid_, XConnection::DAMAGE_REPORT_LEVEL_BOUNDING_BOX);
   actor_->Move(composited_x_, composited_y_, 0);
-  actor_->SetVisibility(false);
+  actor_->Hide();
   // This will update the actor's name based on the current title and xid.
   SetTitle(title_);
   wm_->stage()->AddActor(actor_.get());
@@ -611,7 +611,7 @@ void Window::MoveCompositedToClient() {
 
 void Window::ShowComposited() {
   DLOG(INFO) << "Showing " << xid_str() << "'s composited window";
-  actor_->SetVisibility(true);
+  actor_->Show();
   composited_shown_ = true;
   if (shadow_.get() && using_shadow_)
     shadow_->Show();
@@ -619,7 +619,7 @@ void Window::ShowComposited() {
 
 void Window::HideComposited() {
   DLOG(INFO) << "Hiding " << xid_str() << "'s composited window";
-  actor_->SetVisibility(false);
+  actor_->Hide();
   composited_shown_ = false;
   if (shadow_.get() && using_shadow_)
     shadow_->Hide();

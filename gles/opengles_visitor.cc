@@ -211,7 +211,7 @@ void OpenGlesDrawVisitor::VisitTexturePixmap(
 }
 
 void OpenGlesDrawVisitor::VisitQuad(RealCompositor::QuadActor* actor) {
-  if (!actor->IsVisible() || actor->culled())
+  if (!actor->IsVisible())
     return;
 
   // This must live until after the draw call, so it's at the top level

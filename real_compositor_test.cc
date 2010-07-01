@@ -321,13 +321,13 @@ TEST_F(RealCompositorTestTree, ActorAttributes) {
   EXPECT_EQ(1.0f, rect1_->opacity());
 
   // Test visibility setting.
-  rect1_->SetVisibility(true);
-  stage_->Accept(&layer_visitor);
-  EXPECT_TRUE(rect1_->IsVisible());
-  rect1_->SetVisibility(false);
+  rect1_->Show();
   stage_->Accept(&layer_visitor);
   EXPECT_FALSE(rect1_->IsVisible());
-  rect1_->SetVisibility(true);
+  rect1_->Hide();
+  stage_->Accept(&layer_visitor);
+  EXPECT_FALSE(rect1_->IsVisible());
+  rect1_->Show();
   rect1_->SetOpacity(0.00001f, 0);
   stage_->Accept(&layer_visitor);
   EXPECT_FALSE(rect1_->IsVisible());
@@ -382,18 +382,16 @@ TEST_F(RealCompositorTestTree, ContainerActorAttributes) {
   EXPECT_EQ(1.0f, group1_->opacity());
 
   // Test visibility setting.
-  group1_->SetVisibility(true);
+  group1_->Show();
   stage_->Accept(&layer_visitor);
   EXPECT_TRUE(group1_->IsVisible());
-  group1_->SetVisibility(false);
+  group1_->Hide();
   stage_->Accept(&layer_visitor);
   EXPECT_FALSE(group1_->IsVisible());
-  EXPECT_TRUE(rect1_->IsVisible());
-  group1_->SetVisibility(true);
+  group1_->Show();
   group1_->SetOpacity(0.00001f, 0);
   stage_->Accept(&layer_visitor);
   EXPECT_FALSE(group1_->IsVisible());
-  EXPECT_TRUE(rect1_->IsVisible());
 }
 
 TEST_F(RealCompositorTest, FloatAnimation) {
@@ -455,7 +453,7 @@ TEST_F(RealCompositorTest, HandleXEvents) {
   RealCompositor::TexturePixmapActor* cast_actor =
       dynamic_cast<RealCompositor::TexturePixmapActor*>(actor.get());
   CHECK(cast_actor);
-  cast_actor->SetVisibility(true);
+  cast_actor->Show();
   compositor()->GetDefaultStage()->AddActor(cast_actor);
   EXPECT_TRUE(compositor()->dirty());
   compositor()->Draw();

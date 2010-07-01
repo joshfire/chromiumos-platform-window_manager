@@ -230,7 +230,7 @@ TEST_F(LoginControllerTest, OtherWindows) {
   EXPECT_EQ(initial_y, actor->y());
   EXPECT_EQ(initial_width, actor->GetWidth());
   EXPECT_EQ(initial_height, actor->GetHeight());
-  EXPECT_TRUE(actor->visible());
+  EXPECT_TRUE(actor->is_shown());
   EXPECT_DOUBLE_EQ(1, actor->opacity());
 
   // Check that the client is able to move and resize itself.
@@ -255,7 +255,7 @@ TEST_F(LoginControllerTest, OtherWindows) {
 
   xconn_->InitUnmapEvent(&event, xid);
   wm_->HandleEvent(&event);
-  EXPECT_FALSE(actor->visible());
+  EXPECT_FALSE(actor->is_shown());
 }
 
 // Test that the login controller assigns the focus correctly in a few cases.

@@ -196,10 +196,8 @@ class RealCompositor : public Compositor {
     int GetY() { return y_; }
     double GetXScale() { return scale_x_; }
     double GetYScale() { return scale_y_; }
-    void SetVisibility(bool visible) {
-      visible_ = visible;
-      SetDirty();
-    }
+    virtual void Show() { SetIsShown(true); }
+    virtual void Hide() { SetIsShown(false); }
     void SetSize(int width, int height) {
       width_ = width;
       height_ = height;
@@ -269,8 +267,10 @@ class RealCompositor : public Compositor {
     bool culled() const { return culled_; }
     void set_culled(bool culled) { culled_ = culled; }
 
+    // Checks if the actor is visible on screen and should be rendered.
     virtual bool IsVisible() const {
-      return visible_ && opacity_ > 0.001f && IsInActiveVisibilityGroup();
+      return is_shown_ && !culled_ && opacity_ > 0.001f &&
+             IsInActiveVisibilityGroup();
     }
     float opacity() const { return opacity_; }
     float tilt() const { return tilt_; }
@@ -297,7 +297,13 @@ class RealCompositor : public Compositor {
     friend class RealCompositor::LayerVisitor;
 
     RealCompositor* compositor() { return compositor_; }
-    bool visible() const { return visible_; }
+    bool is_shown() const { return is_shown_; }
+    void SetIsShown(bool is_shown) {
+      if (is_shown_ == is_shown)
+        return;
+      is_shown_ = is_shown;
+      SetDirty();
+    }
 
     void CloneImpl(Actor* clone);
 
@@ -372,7 +378,7 @@ class RealCompositor : public Compositor {
     bool has_children_;
 
     // This says whether or not to show this actor.
-    bool visible_;
+    bool is_shown_;
 
     // The opacity of the dimming quad.
     float dimmed_opacity_;
@@ -571,7 +577,7 @@ class RealCompositor : public Compositor {
     // Begin RealCompositor::Actor methods.
     // We don't want to bother with things like visibility groups or
     // opacity for the stage.
-    virtual bool IsVisible() const { return visible(); }
+    virtual bool IsVisible() const { return is_shown(); }
 
     // StageActor does not update model view matrix, it updates projection.
     virtual void UpdateModelView() {}

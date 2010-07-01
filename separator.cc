@@ -43,11 +43,11 @@ LayoutManager::Separator::Separator(LayoutManager* layout_manager)
 }
 
 void LayoutManager::Separator::Show() {
-  actor_->SetVisibility(true);
+  actor_->Show();
 }
 
 void LayoutManager::Separator::Hide() {
-  actor_->SetVisibility(false);
+  actor_->Hide();
 }
 
 void LayoutManager::Separator::Move(int x, int y, int anim_ms) {
@@ -108,7 +108,7 @@ void LayoutManager::Separator::Init() {
   // the texture_ to the default stage; otherwise the compositor
   // complains that actors that are cloned from it are unmappable.
   // TODO: This used to be the case with Clutter; is it still true?
-  texture_->SetVisibility(false);
+  texture_->Hide();
   compositor_->GetDefaultStage()->AddActor(texture_);
 }
 

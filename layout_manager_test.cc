@@ -273,7 +273,7 @@ TEST_F(LayoutManagerTest, ConfigureTransient) {
   wm_->HandleEvent(&event);
   MockCompositor::TexturePixmapActor* transient_actor =
       GetMockActorForWindow(wm_->GetWindowOrDie(transient_xid));
-  EXPECT_FALSE(transient_actor->visible());
+  EXPECT_FALSE(transient_actor->is_shown());
 
   // Create and map an info bubble window.
   int bubble_x = owner_info->x + 40;
@@ -1494,19 +1494,19 @@ TEST_F(LayoutManagerTest, ChangeBackgroundsAfterInitialWindow) {
   MockCompositor::Actor* cast_startup_background =
       dynamic_cast<MockCompositor::Actor*>(wm_->startup_background_.get());
   CHECK(cast_startup_background);
-  EXPECT_TRUE(cast_startup_background->visible());
+  EXPECT_TRUE(cast_startup_background->is_shown());
   EXPECT_TRUE(lm_->background_.get() == NULL);
 
   // After the user logs in, we should still show the startup background,
   // but the layout manager should've also loaded the logged-in background.
   SetLoggedInState(true);
   ASSERT_TRUE(wm_->startup_background_.get() != NULL);
-  EXPECT_TRUE(cast_startup_background->visible());
+  EXPECT_TRUE(cast_startup_background->is_shown());
   ASSERT_TRUE(lm_->background_.get() != NULL);
   MockCompositor::Actor* cast_lm_background =
       dynamic_cast<MockCompositor::Actor*>(lm_->background_.get());
   CHECK(cast_lm_background);
-  EXPECT_FALSE(cast_lm_background->visible());
+  EXPECT_FALSE(cast_lm_background->is_shown());
 
   // After the first Chrome window gets mapped, we should hide the startup
   // background and show the layout manager background.
@@ -1514,7 +1514,7 @@ TEST_F(LayoutManagerTest, ChangeBackgroundsAfterInitialWindow) {
   SendInitialEventsForWindow(toplevel_xid);
   EXPECT_TRUE(wm_->startup_background_.get() == NULL);
   ASSERT_TRUE(lm_->background_.get() != NULL);
-  EXPECT_TRUE(cast_lm_background->visible());
+  EXPECT_TRUE(cast_lm_background->is_shown());
 
   // And after the window gets closed, we should hide the layout manager
   // background.
@@ -1523,7 +1523,7 @@ TEST_F(LayoutManagerTest, ChangeBackgroundsAfterInitialWindow) {
   wm_->HandleEvent(&event);
   EXPECT_TRUE(wm_->startup_background_.get() == NULL);
   ASSERT_TRUE(lm_->background_.get() != NULL);
-  EXPECT_FALSE(cast_lm_background->visible());
+  EXPECT_FALSE(cast_lm_background->is_shown());
 }
 
 }  // namespace window_manager

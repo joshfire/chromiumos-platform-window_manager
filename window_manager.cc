@@ -231,7 +231,7 @@ bool WindowManager::Init() {
   stage_->SetName("stage");
   stage_->SetSize(width_, height_);
   stage_->SetStageColor(Compositor::Color(FLAGS_background_color));
-  stage_->SetVisibility(true);
+  stage_->Show();
 
   wm_ipc_.reset(new WmIpc(xconn_, atom_cache_.get()));
 
@@ -246,7 +246,7 @@ bool WindowManager::Init() {
     startup_background_.reset(compositor_->CreateTexturePixmap());
     startup_background_->SetName("startup background");
     startup_background_->SetPixmap(startup_pixmap_);
-    startup_background_->SetVisibility(true);
+    startup_background_->Show();
     stage_->AddActor(startup_background_.get());
     stacking_manager_->StackActorAtTopOfLayer(
         startup_background_.get(), StackingManager::LAYER_BACKGROUND);
@@ -653,7 +653,7 @@ void WindowManager::UpdateClientWindowDebugging() {
     group->SetName("debug group");
     group->Move(geometry.x, geometry.y, 0);
     group->SetSize(geometry.width, geometry.height);
-    group->SetVisibility(true);
+    group->Show();
     group->SetClip(0, 0, geometry.width, geometry.height);
 
     Compositor::Actor* rect =
@@ -664,7 +664,7 @@ void WindowManager::UpdateClientWindowDebugging() {
     rect->SetSize(geometry.width, geometry.height);
     rect->SetOpacity(0, 0);
     rect->SetOpacity(0.3, kDebugFadeMs);
-    rect->SetVisibility(true);
+    rect->Show();
 
     Compositor::Actor* text =
         compositor_->CreateText("Sans 10pt", XidStr(*it), kFgColor);
@@ -673,7 +673,7 @@ void WindowManager::UpdateClientWindowDebugging() {
     text->Move(3, 3, 0);
     text->SetOpacity(0, 0);
     text->SetOpacity(1, kDebugFadeMs);
-    text->SetVisibility(true);
+    text->Show();
     text->Raise(rect);
 
     new_actors.push_back(shared_ptr<Compositor::Actor>(group));
@@ -1691,7 +1691,7 @@ void WindowManager::ToggleHotkeyOverlay() {
   if (showing_hotkey_overlay_) {
     QueryKeyboardState();
     group->SetOpacity(0, 0);
-    group->SetVisibility(true);
+    group->Show();
     group->SetOpacity(1, kHotkeyOverlayAnimMs);
     DCHECK_EQ(query_keyboard_state_timeout_id_, -1);
     query_keyboard_state_timeout_id_ =
