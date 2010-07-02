@@ -235,6 +235,7 @@ void LayoutManager::SnapshotWindow::ConfigureForActiveMode(bool animate) {
     win_->actor()->SetTilt(0.0, anim_ms);
     win_->MoveComposited(layout_manager_->x(), layout_manager_->y(), anim_ms);
     if (fav_icon_) {
+      fav_icon_->SetCompositedOpacity(1.0f, 0);
       fav_icon_->MoveComposited(layout_manager_->x(),
                                 kTitlePadding + layout_manager_->y() +
                                 win_->client_height() * snapshot_scale_y,
@@ -291,6 +292,7 @@ void LayoutManager::SnapshotWindow::ConfigureForOverviewMode(bool animate) {
     win_->MoveComposited(layout_manager_->x(), layout_manager_->y(), 0);
     if (state_ == STATE_OVERVIEW_MODE_SELECTED) {
       if (fav_icon_) {
+        fav_icon_->SetCompositedOpacity(1.0f, 0);
         fav_icon_->MoveComposited(layout_manager_->x(),
                                   kTitlePadding + layout_manager_->y() +
                                   win_->client_height() * snapshot_scale_y, 0);
@@ -356,8 +358,10 @@ void LayoutManager::SnapshotWindow::ConfigureForOverviewMode(bool animate) {
 
   int title_y = kTitlePadding + absolute_overview_y +
                 win_->client_height() * overview_scale_;
-  if (fav_icon_)
+  if (fav_icon_) {
+    fav_icon_->SetCompositedOpacity(1.0f, opacity_anim_ms);
     fav_icon_->MoveComposited(absolute_overview_x, title_y, anim_ms);
+  }
 
   if (title_) {
     if (state_ == STATE_OVERVIEW_MODE_SELECTED) {

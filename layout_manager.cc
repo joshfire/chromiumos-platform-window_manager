@@ -82,7 +82,7 @@ LayoutManager::LayoutManager(WindowManager* wm, PanelManager* panel_manager)
       current_toplevel_(NULL),
       current_snapshot_(NULL),
       fullscreen_toplevel_(NULL),
-      overview_panning_offset_(0),
+      overview_panning_offset_(INT_MAX),
       overview_background_offset_(0),
       overview_width_of_snapshots_(0),
       overview_background_event_coalescer_(
@@ -849,9 +849,11 @@ void LayoutManager::LayoutWindows(bool animate) {
 }
 
 void LayoutManager::SetMode(Mode mode) {
-  // Just treat the active-cancelled state as regular active mode; we're
-  // really just using it to pass an extra bit of information into this
-  // method so we can notify Chrome that overview mode was cancelled.
+  // Just treat the active-cancelled state as regular active mode;
+  // we're really just using it to pass an extra bit of information
+  // into this method so we can notify Chrome that overview mode was
+  // cancelled.  Cancelling actually happens on the Chrome side, since
+  // it knows what tabs used to be selected.
   bool was_cancelled = false;
   if (mode == MODE_ACTIVE_CANCELLED) {
     was_cancelled = true;
@@ -869,9 +871,6 @@ void LayoutManager::SetMode(Mode mode) {
 
   switch (mode_) {
     case MODE_ACTIVE:
-      // Cancelling actually happens on the Chrome side, since it
-      // knows what tabs used to be selected.  It knows to cancel
-      // because it's a different layout mode.
       if (current_toplevel_)
         current_toplevel_->TakeFocus(wm_->GetCurrentTimeFromServer());
       for (ToplevelWindows::iterator it = toplevels_.begin();
@@ -893,6 +892,7 @@ void LayoutManager::SetMode(Mode mode) {
       break;
     case MODE_OVERVIEW: {
       UpdateCurrentSnapshot();
+
       if (current_toplevel_ &&
           current_toplevel_->IsWindowOrTransientFocused()) {
         // We need to give the input focus away here; otherwise the
@@ -1258,6 +1258,11 @@ void LayoutManager::CalculatePositionsForOverviewMode(bool enforce_bounds) {
     int max_x = width_ - overview_width_of_snapshots_ - kMargin;
     if (max_x < min_x)
       std::swap(max_x, min_x);
+
+    // If we haven't set the panning offset before, center the current
+    // snapshot.
+    if (overview_panning_offset_ == INT_MAX)
+      CenterCurrentSnapshot(-1, -1);
 
     // There's two modes here: one where the snapshots are too wide
     // to fit, and one where they aren't.  Just so happens that we
