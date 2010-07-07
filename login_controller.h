@@ -207,10 +207,6 @@ class LoginController : public EventConsumer {
   // Did we get all the windows and show them?
   bool has_all_windows_;
 
-  // Are we waiting for the guest to load? This is set to true if the user
-  // clicks the guest entry and the guest_window_ has not been loaded.
-  bool waiting_for_guest_;
-
   // Index of the selected entry.
   size_t selected_entry_index_;
 

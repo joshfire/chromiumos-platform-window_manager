@@ -95,7 +95,6 @@ LoginController::LoginController(WindowManager* wm)
     : wm_(wm),
       registrar_(wm, this),
       has_all_windows_(false),
-      waiting_for_guest_(false),
       selected_entry_index_(kNoSelection),
       selection_changed_manager_(this),
       guest_window_(NULL),
@@ -274,7 +273,11 @@ void LoginController::HandleWindowMap(Window* win) {
   // Chrome to keep the current state as a parameter on one of the windows so
   // that we know what state it was in.
 
-  if (win == guest_window_ && waiting_for_guest_)
+  // If guest entry is present and selected and guest window is created, do
+  // the animation for switching between entry and screen windows.
+  if (win == guest_window_ &&
+      !entries_.empty() &&
+      IsGuestEntryIndex(selected_entry_index_))
     SelectGuest();
 }
 
@@ -317,7 +320,6 @@ void LoginController::HandleWindowUnmap(Window* win) {
   } else if (win == guest_window_) {
     registrar_.UnregisterForWindowEvents(guest_window_->xid());
     guest_window_ = NULL;
-    waiting_for_guest_ = false;
   } else {
     for (Entries::iterator it = entries_.begin(); it < entries_.end(); ++it) {
       if ((*it)->HandleWindowUnmap(win)) {
@@ -501,8 +503,6 @@ void LoginController::SelectEntryAt(size_t index) {
     selection_changed_manager_.Stop();
   }
 
-  waiting_for_guest_ = IsGuestEntryIndex(index);
-
   const size_t last_selected_index = selected_entry_index_;
 
   selected_entry_index_ = index;
@@ -537,8 +537,6 @@ void LoginController::SetEntrySelectionEnabled(bool enable) {
 
 void LoginController::SelectGuest() {
   DCHECK(guest_window_);
-
-  waiting_for_guest_ = false;
 
   DCHECK(!entries_.empty());
   LoginEntry* guest_entry = entries_.back().get();
