@@ -117,6 +117,18 @@ class OpenGlDrawVisitor : virtual public RealCompositor::ActorVisitor {
   virtual void VisitQuad(RealCompositor::QuadActor* actor);
 
  private:
+  class OpenGlStateCache {
+   public:
+    OpenGlStateCache();
+    void Invalidate();
+    bool ColorStateChanged(float actor_opacity, float dimmed_transparency,
+                           float red, float green, float blue);
+   private:
+    float actor_opacity_;
+    float dimmed_transparency_;
+    float red_, green_, blue_;
+  };
+
   // So it can get access to the config data.
   friend class OpenGlPixmapData;
 
@@ -155,6 +167,12 @@ class OpenGlDrawVisitor : virtual public RealCompositor::ActorVisitor {
   // This keeps track of the number of frames drawn so we can draw the
   // debugging needle.
   int num_frames_drawn_;
+
+  // Use this struct to store OpenGl states from the previous quad. The stored
+  // states can be used to compare against states of the current quad, and we
+  // only need to reset OpenGl states that are changed to avoid unnecessary GL
+  // state changes.
+  OpenGlStateCache state_cache_;
 
   DISALLOW_COPY_AND_ASSIGN(OpenGlDrawVisitor);
 };

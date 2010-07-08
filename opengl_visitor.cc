@@ -46,6 +46,34 @@ using window_manager::util::XidStr;
 
 namespace window_manager {
 
+OpenGlDrawVisitor::OpenGlStateCache::OpenGlStateCache() {
+  Invalidate();
+}
+
+void OpenGlDrawVisitor::OpenGlStateCache::Invalidate() {
+  actor_opacity_ = -1.f;
+  dimmed_transparency_ = -1.f;
+  red_ = -1.f;
+  green_ = -1.f;
+  blue_ = -1.f;
+}
+
+bool OpenGlDrawVisitor::OpenGlStateCache::ColorStateChanged(
+    float actor_opacity, float dimmed_transparency,
+    float red, float green, float blue) {
+  if (actor_opacity != actor_opacity_ ||
+      dimmed_transparency != dimmed_transparency_ ||
+      red != red_ || green != green_ || blue != blue_) {
+    actor_opacity_ = actor_opacity;
+    dimmed_transparency_ = dimmed_transparency;
+    red_ = red;
+    green_ = green;
+    blue_ = blue;
+    return true;
+  }
+  return false;
+}
+
 OpenGlQuadDrawingData::OpenGlQuadDrawingData(GLInterface* gl_interface)
     : gl_interface_(gl_interface) {
   gl_interface_->GenBuffers(1, &vertex_buffer_);
@@ -398,28 +426,31 @@ void OpenGlDrawVisitor::VisitQuad(RealCompositor::QuadActor* actor) {
   DCHECK(blue <= 1.f);
   DCHECK(blue >= 0.f);
 
-  // Scale the vertex colors on the right by the transparency, since
-  // we want it to fade to black as transparency of the dimming
-  // overlay goes to zero. (note that the dimming is not *really* an
-  // overlay -- it's just multiplied in here to simulate that).
-  float dim_red = red * dimmed_transparency;
-  float dim_green = green * dimmed_transparency;
-  float dim_blue = blue * dimmed_transparency;
+  if (state_cache_.ColorStateChanged(actor_opacity, dimmed_transparency,
+                                     red, green, blue)) {
+    // Scale the vertex colors on the right by the transparency, since
+    // we want it to fade to black as transparency of the dimming
+    // overlay goes to zero. (note that the dimming is not *really* an
+    // overlay -- it's just multiplied in here to simulate that).
+    float dim_red = red * dimmed_transparency;
+    float dim_green = green * dimmed_transparency;
+    float dim_blue = blue * dimmed_transparency;
 
-  drawing_data->set_vertex_color(
-      0, red, green, blue, actor_opacity);
-  drawing_data->set_vertex_color(
-      1, red, green, blue, actor_opacity);
-  drawing_data->set_vertex_color(
-      2, dim_red, dim_green, dim_blue, actor_opacity);
-  drawing_data->set_vertex_color(
-      3, dim_red, dim_green, dim_blue, actor_opacity);
+    drawing_data->set_vertex_color(
+        0, red, green, blue, actor_opacity);
+    drawing_data->set_vertex_color(
+        1, red, green, blue, actor_opacity);
+    drawing_data->set_vertex_color(
+        2, dim_red, dim_green, dim_blue, actor_opacity);
+    drawing_data->set_vertex_color(
+        3, dim_red, dim_green, dim_blue, actor_opacity);
 
-  gl_interface_->EnableClientState(GL_COLOR_ARRAY);
-  // Have to un-bind the array buffer to set the color pointer so that
-  // it uses the color buffer instead of the vertex buffer memory.
-  gl_interface_->BindBuffer(GL_ARRAY_BUFFER, 0);
-  gl_interface_->ColorPointer(4, GL_FLOAT, 0, drawing_data->color_buffer());
+    // Have to un-bind the array buffer to set the color pointer so that
+    // it uses the color buffer instead of the vertex buffer memory.
+    gl_interface_->BindBuffer(GL_ARRAY_BUFFER, 0);
+    gl_interface_->ColorPointer(4, GL_FLOAT, 0, drawing_data->color_buffer());
+  }
+
   gl_interface_->BindBuffer(GL_ARRAY_BUFFER, drawing_data->vertex_buffer());
   CHECK_GL_ERROR(gl_interface_);
 
@@ -464,7 +495,6 @@ void OpenGlDrawVisitor::VisitQuad(RealCompositor::QuadActor* actor) {
   Matrix4 model_view = actor->model_view();
   gl_interface_->LoadMatrixf(&model_view[0][0]);
   gl_interface_->DrawArrays(GL_TRIANGLE_STRIP, 0, 4);
-  gl_interface_->DisableClientState(GL_COLOR_ARRAY);
   gl_interface_->PopMatrix();
   CHECK_GL_ERROR(gl_interface_);
   PROFILER_DYNAMIC_MARKER_END();
@@ -513,6 +543,8 @@ void OpenGlDrawVisitor::VisitStage(RealCompositor::StageActor* actor) {
     actor->unset_was_resized();
   }
 
+  state_cache_.Invalidate();
+
   // Set the z-depths for the actors, update is_opaque, model view matrices,
   // projection matrix, and perform culling test.  Also checks if the screen
   // will be covered by an opaque actor.
@@ -538,6 +570,7 @@ void OpenGlDrawVisitor::VisitStage(RealCompositor::StageActor* actor) {
   gl_interface_->EnableClientState(GL_TEXTURE_COORD_ARRAY);
   gl_interface_->TexCoordPointer(2, GL_FLOAT, 0, 0);
   gl_interface_->DepthMask(GL_TRUE);
+  gl_interface_->EnableClientState(GL_COLOR_ARRAY);
   CHECK_GL_ERROR(gl_interface_);
 
 #ifdef EXTRA_LOGGING
