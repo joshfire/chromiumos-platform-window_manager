@@ -825,6 +825,12 @@ void RealXConnection::GetNextEvent(void* event) {
   XNextEvent(display_, xevent);
 }
 
+void RealXConnection::PeekNextEvent(void* event) {
+  DCHECK(event);
+  XEvent* xevent = reinterpret_cast<XEvent*>(event);
+  XPeekEvent(display_, xevent);
+}
+
 bool RealXConnection::SendClientMessageEvent(XWindow dest_xid,
                                              XWindow xid,
                                              XAtom message_type,

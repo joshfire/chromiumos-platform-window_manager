@@ -91,7 +91,12 @@ class MockXConnection : public XConnection {
   bool DeletePropertyIfExists(XWindow xid, XAtom xatom);
   int GetConnectionFileDescriptor() { return connection_pipe_fds_[0]; }
   bool IsEventPending();
-  void GetNextEvent(void* event);
+  void GetNextEvent(void* event) {
+    GetEventInternal(reinterpret_cast<XEvent*>(event), true);
+  }
+  void PeekNextEvent(void* event) {
+    GetEventInternal(reinterpret_cast<XEvent*>(event), false);
+  }
   bool SendClientMessageEvent(XWindow dest_xid,
                               XWindow xid,
                               XAtom message_type,
@@ -116,7 +121,10 @@ class MockXConnection : public XConnection {
   }
   void DestroyDamage(XDamage damage) {}
   void ClearDamage(XDamage damage) {}
-  bool SetDetectableKeyboardAutoRepeat(bool detectable) { return true; }
+  bool SetDetectableKeyboardAutoRepeat(bool detectable) {
+    using_detectable_keyboard_auto_repeat_ = detectable;
+    return true;
+  }
   bool QueryKeyboardState(std::vector<uint8_t>* keycodes_out) { return true; }
   bool QueryPointerPosition(int* x_root, int* y_root);
 
@@ -204,6 +212,9 @@ class MockXConnection : public XConnection {
   XTime last_focus_timestamp() const { return last_focus_timestamp_; }
   XWindow pointer_grab_xid() const { return pointer_grab_xid_; }
   int num_keymap_refreshes() const { return num_keymap_refreshes_; }
+  bool using_detectable_keyboard_auto_repeat() const {
+    return using_detectable_keyboard_auto_repeat_;
+  }
   int num_pointer_ungrabs_with_replayed_events() const {
     return num_pointer_ungrabs_with_replayed_events_;
   }
@@ -313,6 +324,13 @@ class MockXConnection : public XConnection {
   bool GrabServerImpl() { return true; }
   bool UngrabServerImpl() { return true; }
 
+  // Helper method used by GetNextEvent() and PeekNextEvent().
+  // Copies the first event in 'queued_events_' to 'event', reads from
+  // 'connection_pipe_fds_' if possible to simulate draining the connection
+  // to the X server, and removes the event from 'queued_events_' if
+  // 'remove_from_queue' is true.
+  void GetEventInternal(XEvent* event, bool remove_from_queue);
+
   // Map from window ID to info about the window.
   std::map<XWindow, std::tr1::shared_ptr<WindowInfo> > windows_;
 
@@ -366,6 +384,9 @@ class MockXConnection : public XConnection {
   // Current position of the mouse pointer for QueryPointerPosition().
   int pointer_x_;
   int pointer_y_;
+
+  // Value set by SetDetectableKeyboardAutoRepeat().
+  bool using_detectable_keyboard_auto_repeat_;
 
   // Read and write ends of a pipe that we use to simulate events arriving
   // on an X connection.  We don't actually write any events here --

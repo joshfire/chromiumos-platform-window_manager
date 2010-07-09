@@ -83,6 +83,7 @@ class RealXConnection : public XConnection {
   int GetConnectionFileDescriptor();
   bool IsEventPending();
   void GetNextEvent(void* event);
+  void PeekNextEvent(void* event);
   bool SendClientMessageEvent(XWindow dest_xid,
                               XWindow xid,
                               XAtom message_type,

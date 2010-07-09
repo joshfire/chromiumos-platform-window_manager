@@ -270,9 +270,10 @@ void KeyBindings::RefreshKeyMappings() {
   keysyms_to_grabbed_keycodes_.swap(new_keysyms_to_grabbed_keycodes_);
 }
 
-bool KeyBindings::HandleKeyPress(KeySym keysym,
+bool KeyBindings::HandleKeyPress(KeyCode keycode,
                                  uint32 modifiers,
                                  XTime event_time) {
+  const KeySym keysym = xconn_->GetKeySymFromKeyCode(keycode);
   AutoResetXTime reset(&current_event_time_, event_time);
   KeyCombo combo(keysym, modifiers);
   BindingsMap::const_iterator bindings_iter = bindings_.find(combo);
@@ -298,9 +299,10 @@ bool KeyBindings::HandleKeyPress(KeySym keysym,
   return false;
 }
 
-bool KeyBindings::HandleKeyRelease(KeySym keysym,
+bool KeyBindings::HandleKeyRelease(KeyCode keycode,
                                    uint32 modifiers,
                                    XTime event_time) {
+  const KeySym keysym = xconn_->GetKeySymFromKeyCode(keycode);
   AutoResetXTime reset(&current_event_time_, event_time);
   KeyCombo combo(keysym, modifiers);
 

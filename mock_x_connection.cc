@@ -45,6 +45,7 @@ MockXConnection::MockXConnection()
       num_keymap_refreshes_(0),
       pointer_x_(0),
       pointer_y_(0),
+      using_detectable_keyboard_auto_repeat_(false),
       connection_pipe_has_data_(false),
       num_pointer_ungrabs_with_replayed_events_(0) {
   PCHECK(HANDLE_EINTR(pipe(connection_pipe_fds_)) != -1);
@@ -485,20 +486,6 @@ bool MockXConnection::WaitForPropertyChange(XWindow xid, XTime* timestamp_out) {
   return true;
 }
 
-void MockXConnection::GetNextEvent(void* event) {
-  CHECK(event);
-  CHECK(!queued_events_.empty())
-      << "GetNextEvent() called while no events are queued in single-threaded "
-      << "testing code -- we would block forever";
-  *(reinterpret_cast<XEvent*>(event)) = queued_events_.front();
-  queued_events_.pop();
-  if (connection_pipe_has_data_) {
-    unsigned char data = 0;
-    PCHECK(HANDLE_EINTR(read(connection_pipe_fds_[0], &data, 1)) == 1);
-    connection_pipe_has_data_ = false;
-  }
-}
-
 bool MockXConnection::SendClientMessageEvent(XWindow dest_xid,
                                              XWindow xid,
                                              XAtom message_type,
@@ -700,11 +687,10 @@ void MockXConnection::InitKeyEvent(XEvent* event, XWindow xid,
                                    XTime time,
                                    bool press) const {
   CHECK(event);
-  const WindowInfo* info = GetWindowInfoOrDie(xid);
   XKeyEvent* key_event = &(event->xkey);
   memset(key_event, 0, sizeof(*key_event));
   key_event->type = press ? KeyPress : KeyRelease;
-  key_event->window = info->xid;
+  key_event->window = xid;
   key_event->state = key_mask;
   key_event->keycode = keycode;
   key_event->time = time;
@@ -867,6 +853,22 @@ void MockXConnection::InitUnmapEvent(XEvent* event, XWindow xid) const {
   memset(unmap_event, 0, sizeof(*unmap_event));
   unmap_event->type = UnmapNotify;
   unmap_event->window = xid;
+}
+
+void MockXConnection::GetEventInternal(XEvent* event, bool remove_from_queue) {
+  CHECK(event);
+  CHECK(!queued_events_.empty())
+      << "GetEventInternal() called while no events are queued in "
+      << "single-threaded testing code -- we would block forever";
+  *event = queued_events_.front();
+  if (remove_from_queue)
+    queued_events_.pop();
+
+  if (connection_pipe_has_data_) {
+    unsigned char data = 0;
+    PCHECK(HANDLE_EINTR(read(connection_pipe_fds_[0], &data, 1)) == 1);
+    connection_pipe_has_data_ = false;
+  }
 }
 
 }  // namespace window_manager

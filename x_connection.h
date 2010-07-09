@@ -356,10 +356,14 @@ class XConnection {
   // Is there an unprocessed event available?
   virtual bool IsEventPending() = 0;
 
-  // Get the next event, blocking if one isn't available.  'event' is
-  // actually a pointer to an XEvent; we just don't want to include Xlib.h
-  // here. :-(
+  // Get the next event and remove it from the queue, blocking if one isn't
+  // available.  'event' is actually a pointer to an XEvent; we just don't
+  // want to include Xlib.h here. :-(
   virtual void GetNextEvent(void* event) = 0;
+
+  // Gets the next event without removing it from the queue, blocking if
+  // one isn't available.  'event' is a pointer to an XEvent.
+  virtual void PeekNextEvent(void* event) = 0;
 
   // Send a ClientMessage event with 32-bit data to a window.  If
   // 'event_mask' is 0, the event is sent to the client that created
@@ -429,10 +433,9 @@ class XConnection {
   //   KeyRelease @ time_2    <-- Key released
   //
   // This clears up the problem with mis-reporting an auto-repeat key
-  // release as an actual key release. Thanks!: http://wiki.tcl.tk/20299
-  // TODO(tedbo): I lied. On the HP Mini 1000, for some reason it does
-  // *not* clear up the issue. On my gHardy desktop it does work.
-  // Why!!!!!!???
+  // release as an actual key release (but note also that this was broken
+  // for a while in the X.org server but has since been fixed; see
+  // http://bugs.freedesktop.org/show_bug.cgi?id=22515).
   virtual bool SetDetectableKeyboardAutoRepeat(bool detectable) = 0;
 
   // Get the pressed-vs.-not-pressed state of all keys.  'keycodes_out' is

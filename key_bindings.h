@@ -92,8 +92,8 @@ class KeyBindings {
   void RefreshKeyMappings();
 
   // These should be called by the window manager in order to process bindings.
-  bool HandleKeyPress(KeySym keysym, uint32 modifiers, XTime event_time);
-  bool HandleKeyRelease(KeySym keysym, uint32 modifiers, XTime event_time);
+  bool HandleKeyPress(KeyCode keycode, uint32 modifiers, XTime event_time);
+  bool HandleKeyRelease(KeyCode keycode, uint32 modifiers, XTime event_time);
 
   // The current event time is non-zero when we are within a call to
   // HandleKeyPress or HandleKeyRelease.  This allows the action
