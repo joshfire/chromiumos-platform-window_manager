@@ -131,9 +131,10 @@ void OpenGlesDrawVisitor::BindImage(const ImageContainer* container,
                   0, GL_RGBA, GL_UNSIGNED_BYTE, container->data());
 
   OpenGlesTextureData* data = new OpenGlesTextureData(gl_);
-  data->SetTexture(texture,
-                   container->format() == ImageContainer::IMAGE_FORMAT_RGBA_32);
-  actor->SetDrawingData(kTextureData, RealCompositor::DrawingDataPtr(data));
+  data->SetTexture(texture);
+  data->set_has_alpha(
+      container->format() == ImageContainer::IMAGE_FORMAT_RGBA_32);
+  actor->set_texture_data(data);
   LOG(INFO) << "Binding image " << container->filename()
             << " to texture " << texture;
 }
@@ -188,26 +189,18 @@ void OpenGlesDrawVisitor::VisitTexturePixmap(
   if (!actor->IsVisible())
     return;
 
-  OpenGlesEglImageData* image_data = dynamic_cast<OpenGlesEglImageData*>(
-      actor->GetDrawingData(kEglImageData).get());
+  if (!actor->texture_data()) {
+    OpenGlesEglImageData image_data(gl_);
 
-  if (!image_data) {
-    image_data = new OpenGlesEglImageData(gl_);
-    actor->SetDrawingData(kEglImageData,
-                          RealCompositor::DrawingDataPtr(image_data));
+    if (!image_data.Bind(actor, egl_context_))
+      return;
+
+    OpenGlesTextureData* texture = new OpenGlesTextureData(gl_);
+    image_data.BindTexture(texture, !actor->pixmap_is_opaque());
+    actor->set_texture_data(texture);
   }
 
-  if (!image_data->bound()) {
-    if (image_data->Bind(actor, egl_context_)) {
-      OpenGlesTextureData* texture = new OpenGlesTextureData(gl_);
-      image_data->BindTexture(texture, actor->pixmap_is_opaque() == false);
-      actor->SetDrawingData(kTextureData,
-                            RealCompositor::DrawingDataPtr(texture));
-      VisitQuad(actor);
-    }
-  } else {
-    VisitQuad(actor);
-  }
+  VisitQuad(actor);
 }
 
 void OpenGlesDrawVisitor::VisitQuad(RealCompositor::QuadActor* actor) {
@@ -221,9 +214,9 @@ void OpenGlesDrawVisitor::VisitQuad(RealCompositor::QuadActor* actor) {
   Matrix4 mvp = projection_ * actor->model_view();
 
   // texture
-  OpenGlesTextureData* texture_data = dynamic_cast<OpenGlesTextureData*>(
-      actor->GetDrawingData(kTextureData).get());
-  gl_->BindTexture(GL_TEXTURE_2D, texture_data ? texture_data->texture() : 0);
+  TextureData* texture_data = actor->texture_data();
+  gl_->BindTexture(GL_TEXTURE_2D,
+                   texture_data ? texture_data->texture() : 0);
   const bool texture_has_alpha = texture_data ?
                                    texture_data->has_alpha() :
                                    true;
@@ -345,18 +338,15 @@ void OpenGlesDrawVisitor::VisitContainer(
 }
 
 OpenGlesTextureData::OpenGlesTextureData(Gles2Interface* gl)
-    : gl_(gl),
-      texture_(0),
-      has_alpha_(false) {}
+    : gl_(gl) {}
 
 OpenGlesTextureData::~OpenGlesTextureData() {
-  gl_->DeleteTextures(1, &texture_);
+  gl_->DeleteTextures(1, texture_ptr());
 }
 
-void OpenGlesTextureData::SetTexture(GLuint texture, bool has_alpha) {
-  gl_->DeleteTextures(1, &texture_);
-  texture_ = texture;
-  has_alpha_ = has_alpha;
+void OpenGlesTextureData::SetTexture(GLuint texture) {
+  gl_->DeleteTextures(1, texture_ptr());
+  set_texture(texture);
 }
 
 OpenGlesEglImageData::OpenGlesEglImageData(Gles2Interface* gl)
@@ -417,7 +407,8 @@ void OpenGlesEglImageData::BindTexture(OpenGlesTextureData* texture_data,
   gl_->EGLImageTargetTexture2DOES(GL_TEXTURE_2D,
                                   static_cast<GLeglImageOES>(egl_image_));
 
-  texture_data->SetTexture(texture, has_alpha);
+  texture_data->SetTexture(texture);
+  texture_data->set_has_alpha(has_alpha);
 }
 
 }  // namespace window_manager

@@ -15,108 +15,85 @@
 #include "window_manager/gl_interface.h"
 #include "window_manager/image_container.h"
 #include "window_manager/real_compositor.h"
+#include "window_manager/texture_data.h"
 #include "window_manager/x_connection.h"
 
 namespace window_manager {
 
-class OpenGlDrawVisitor;
-
-class OpenGlQuadDrawingData : public RealCompositor::DrawingData  {
+class OpenGlTextureData : public TextureData {
  public:
-  explicit OpenGlQuadDrawingData(GLInterface* gl_interface);
-  virtual ~OpenGlQuadDrawingData();
+  explicit OpenGlTextureData(GLInterface* gl_interface);
+  virtual ~OpenGlTextureData();
 
-  GLuint vertex_buffer() { return vertex_buffer_; }
-  float* color_buffer() { return color_buffer_.get(); }
-
-  // Sets the vertex color of the give vertex index.
-  // Has no effect on drawing until the next call to SetBufferData.
-  void set_vertex_color(int index, float r, float g, float b, float a);
+  void SetTexture(GLuint texture);
 
  private:
-  // This is the gl interface to use for communicating with GL.
+  // This is the GL interface to use for communicating with GL.
   GLInterface* gl_interface_;
-
-  // This is the vertex buffer that holds the rect we use for
-  // rendering quads.
-  GLuint vertex_buffer_;
-
-  scoped_array<float> color_buffer_;
 };
 
-class OpenGlPixmapData : public RealCompositor::DrawingData  {
+class OpenGlPixmapData : public DynamicTextureData {
  public:
   OpenGlPixmapData(OpenGlDrawVisitor* visitor);
   virtual ~OpenGlPixmapData();
+
+  virtual void Refresh();
 
   // This creates a GLX pixmap from the actor's pixmap and binds it to a GL
   // texture.  false is returned if the process fails (in which case this
   // object should be thrown away).
   bool Init(RealCompositor::TexturePixmapActor* actor);
 
-  // Refresh the texture in response to the X pixmap's contents being
-  // modified.
-  void Refresh();
-
-  GLuint texture() const { return texture_; }
-
  private:
   OpenGlDrawVisitor* visitor_;  // not owned
   GLInterface* gl_;             // not owned
-
-  // GL texture.
-  GLuint texture_;
 
   // GLX pixmap created from the actor's X pixmap.
   GLXPixmap glx_pixmap_;
 };
 
-class OpenGlTextureData : public RealCompositor::DrawingData  {
- public:
-  explicit OpenGlTextureData(GLInterface* gl_interface);
-  virtual ~OpenGlTextureData();
-
-  void SetTexture(GLuint texture, bool has_alpha);
-
-  GLuint texture() const { return texture_; }
-  bool has_alpha() const { return has_alpha_; }
-
- private:
-  // This is the GL interface to use for communicating with GL.
-  GLInterface* gl_interface_;
-
-  // This is the texture ID of the bound texture.
-  GLuint texture_;
-
-  // True if associated texture has an alpha channel.
-  bool has_alpha_;
-};
-
 // This class visits an actor tree and draws it using OpenGL.
 class OpenGlDrawVisitor : virtual public RealCompositor::ActorVisitor {
  public:
-  // These are IDs used when storing drawing data on the actors.
-  enum DataId {
-    TEXTURE_DATA = 1,
-    PIXMAP_DATA = 2,
-    DRAWING_DATA = 3,
-  };
-
   OpenGlDrawVisitor(GLInterface* gl_interface,
                     RealCompositor* compositor,
                     Compositor::StageActor* stage);
   virtual ~OpenGlDrawVisitor();
 
   void BindImage(const ImageContainer* container,
-                 RealCompositor::QuadActor* actor);
+                 RealCompositor::ImageActor* actor);
 
   virtual void VisitActor(RealCompositor::Actor* actor);
   virtual void VisitStage(RealCompositor::StageActor* actor);
   virtual void VisitContainer(RealCompositor::ContainerActor* actor);
+  virtual void VisitImage(RealCompositor::ImageActor* actor);
   virtual void VisitTexturePixmap(RealCompositor::TexturePixmapActor* actor);
   virtual void VisitQuad(RealCompositor::QuadActor* actor);
 
  private:
+  class OpenGlQuadDrawingData {
+   public:
+    explicit OpenGlQuadDrawingData(GLInterface* gl_interface);
+    virtual ~OpenGlQuadDrawingData();
+
+    GLuint vertex_buffer() { return vertex_buffer_; }
+    float* color_buffer() { return color_buffer_.get(); }
+
+    // Sets the vertex color of the give vertex index.
+    // Has no effect on drawing until the next call to SetBufferData.
+    void set_vertex_color(int index, float r, float g, float b, float a);
+
+   private:
+    // This is the gl interface to use for communicating with GL.
+    GLInterface* gl_interface_;
+
+    // This is the vertex buffer that holds the rect we use for
+    // rendering quads.
+    GLuint vertex_buffer_;
+
+    scoped_array<float> color_buffer_;
+  };
+
   class OpenGlStateCache {
    public:
     OpenGlStateCache();
@@ -147,7 +124,7 @@ class OpenGlDrawVisitor : virtual public RealCompositor::ActorVisitor {
   // This holds the drawing data used for quads.  Note that only
   // QuadActors use this drawing data, and they all share the same
   // one (to keep from allocating a lot of quad vertex buffers).
-  RealCompositor::DrawingDataPtr quad_drawing_data_;
+  scoped_ptr<OpenGlQuadDrawingData> quad_drawing_data_;
 
   // The framebuffer configs to use with this display.
   GLXFBConfig framebuffer_config_rgb_;

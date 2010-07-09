@@ -475,13 +475,13 @@ TEST_F(RealCompositorTest, HandleXEvents) {
   EXPECT_EQ(info->compositing_pixmap, cast_actor->pixmap());
   EXPECT_EQ(info->width, cast_actor->GetWidth());
   EXPECT_EQ(info->height, cast_actor->GetHeight());
-  EXPECT_FALSE(cast_actor->HasPixmapDrawingData());
+  EXPECT_FALSE(cast_actor->texture_data());
   EXPECT_TRUE(compositor()->dirty());
 
   // The visitor should grab the actor's pixmap the next time we draw and
   // set the 'pixmap_was_reset' flag back to false.
   compositor()->Draw();
-  EXPECT_TRUE(cast_actor->HasPixmapDrawingData());
+  EXPECT_TRUE(cast_actor->texture_data());
   EXPECT_FALSE(compositor()->dirty());
 
   // Now say that the window was resized.  The new pixmap should be loaded.
@@ -491,13 +491,13 @@ TEST_F(RealCompositorTest, HandleXEvents) {
   EXPECT_EQ(info->compositing_pixmap, cast_actor->pixmap());
   EXPECT_EQ(info->width, cast_actor->GetWidth());
   EXPECT_EQ(info->height, cast_actor->GetHeight());
-  EXPECT_FALSE(cast_actor->HasPixmapDrawingData());
+  EXPECT_FALSE(cast_actor->texture_data());
   EXPECT_TRUE(compositor()->dirty());
 
   // Now tell the actor to stop tracking the window.
   cast_actor->SetPixmap(0);
   EXPECT_EQ(0, cast_actor->pixmap());
-  EXPECT_FALSE(cast_actor->HasPixmapDrawingData());
+  EXPECT_FALSE(cast_actor->texture_data());
   EXPECT_TRUE(compositor()->dirty());
 
   actor.reset();

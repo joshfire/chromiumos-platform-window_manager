@@ -15,6 +15,7 @@
 #include "window_manager/compositor.h"
 #include "window_manager/math_types.h"
 #include "window_manager/real_compositor.h"
+#include "window_manager/texture_data.h"
 
 namespace window_manager {
 
@@ -28,12 +29,6 @@ class Gles2Interface;
 // This class vists an actor tree and draws it using OpenGLES
 class OpenGlesDrawVisitor : virtual public RealCompositor::ActorVisitor {
  public:
-  // IDs for storing drawing data
-  enum DataId {
-    kTextureData = 1,
-    kEglImageData
-  };
-
   OpenGlesDrawVisitor(Gles2Interface* gl,
                       RealCompositor* compositor,
                       Compositor::StageActor* stage);
@@ -78,30 +73,22 @@ class OpenGlesDrawVisitor : virtual public RealCompositor::ActorVisitor {
   DISALLOW_COPY_AND_ASSIGN(OpenGlesDrawVisitor);
 };
 
-class OpenGlesTextureData : public RealCompositor::DrawingData {
+// TODO: further combine texture class between GL and GLES after common GL
+// functions are combined.
+class OpenGlesTextureData : public TextureData {
  public:
   explicit OpenGlesTextureData(Gles2Interface* gl);
   virtual ~OpenGlesTextureData();
 
-  void SetTexture(GLuint texture, bool has_alpha);
-
-  GLuint texture() const { return texture_; }
-  bool has_alpha() const { return has_alpha_; }
+  void SetTexture(GLuint texture);
 
  private:
   Gles2Interface* gl_;  // Not owned.
 
-  // Texture ID of the wrapped texture; this takes ownership of the texture
-  // handle
-  GLuint texture_;
-
-  // Does this texture require alpha-blending?
-  bool has_alpha_;
-
   DISALLOW_COPY_AND_ASSIGN(OpenGlesTextureData);
 };
 
-class OpenGlesEglImageData : public RealCompositor::DrawingData {
+class OpenGlesEglImageData : public DynamicTextureData {
  public:
   OpenGlesEglImageData(Gles2Interface* gl);
   virtual ~OpenGlesEglImageData();
@@ -115,9 +102,6 @@ class OpenGlesEglImageData : public RealCompositor::DrawingData {
 
   // Create and bind a GL texture
   void BindTexture(OpenGlesTextureData* texture, bool has_alpha);
-
-  // Respond to damage events
-  void Refresh() {}
 
  private:
   // Has Bind() returned successfully

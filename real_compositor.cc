@@ -120,7 +120,6 @@ static CullingResult PerformActorCullingTest(
   return CULLING_WINDOW_ONSCREEN;
 }
 
-
 void RealCompositor::ActorVisitor::VisitContainer(ContainerActor* actor) {
   CHECK(actor);
   this->VisitActor(actor);
@@ -133,7 +132,6 @@ void RealCompositor::ActorVisitor::VisitContainer(ContainerActor* actor) {
     ++iterator;
   }
 }
-
 
 void RealCompositor::LayerVisitor::VisitActor(RealCompositor::Actor* actor) {
   actor->set_z(depth_);
@@ -217,31 +215,28 @@ void RealCompositor::LayerVisitor::VisitTexturedQuadActor(
   actor->set_culled(result == CULLING_WINDOW_OFFSCREEN);
 }
 
-// TODO: create a TextureActor that is equivalent of TexturePixmapActor for
-// static GL textures.
 void RealCompositor::LayerVisitor::VisitQuad(
     RealCompositor::QuadActor* actor) {
-  bool is_texture_opaque = true;
+  DCHECK(actor->texture_data() == NULL);
+  VisitTexturedQuadActor(actor, true);
+}
 
-#if defined(COMPOSITOR_OPENGL)
-  OpenGlTextureData* data = static_cast<OpenGlTextureData*>(
-      actor->GetDrawingData(OpenGlDrawVisitor::TEXTURE_DATA).get());
-  if (data)
-    is_texture_opaque = !data->has_alpha();
-#elif defined(COMPOSITOR_OPENGLES)
-  OpenGlesTextureData* data = static_cast<OpenGlesTextureData*>(
-      actor->GetDrawingData(OpenGlesDrawVisitor::kTextureData).get());
-  if (data)
-    is_texture_opaque = !data->has_alpha();
-#endif
-
-  VisitTexturedQuadActor(actor, is_texture_opaque);
+void RealCompositor::LayerVisitor::VisitImage(
+    RealCompositor::ImageActor* actor) {
+  CHECK(actor->texture_data());
+  VisitTexturedQuadActor(actor, !actor->texture_data()->has_alpha());
 }
 
 void RealCompositor::LayerVisitor::VisitTexturePixmap(
     RealCompositor::TexturePixmapActor* actor) {
+  // OpenGlPixmapData is not created until OpenGlDrawVisitor has traversed
+  // through the tree, which happens after the LayerVisitor, so we cannot rely
+  // on actor->texture_data()->has_alpha() because texture_data() is NULL
+  // in the beginning.
+  // TODO: combine VisitQuad and VisitTexturePixmap.
   VisitTexturedQuadActor(actor, actor->pixmap_is_opaque());
 }
+
 
 RealCompositor::Actor::Actor(RealCompositor* compositor)
     : compositor_(compositor),
@@ -292,10 +287,6 @@ void RealCompositor::Actor::CloneImpl(RealCompositor::Actor* clone) {
   clone->has_children_ = has_children_;
   clone->is_shown_ = is_shown_;
   clone->name_ = name_;
-
-  // This copies all the drawing data, but they're all tr1::shared_ptr's,
-  // so it all works out great.
-  clone->drawing_data_ = drawing_data_;
 }
 
 void RealCompositor::Actor::Move(int x, int y, int duration_ms) {
@@ -416,15 +407,6 @@ bool RealCompositor::Actor::IsInActiveVisibilityGroup() const {
       return true;
   }
   return false;
-}
-
-RealCompositor::DrawingDataPtr RealCompositor::Actor::GetDrawingData(
-    int32 id) const {
-  DrawingDataMap::const_iterator iterator = drawing_data_.find(id);
-  if (iterator != drawing_data_.end()) {
-    return (*iterator).second;
-  }
-  return DrawingDataPtr();
 }
 
 void RealCompositor::Actor::Update(int* count, AnimationTime now) {
@@ -675,6 +657,14 @@ RealCompositor::Actor* RealCompositor::QuadActor::Clone() {
 void RealCompositor::QuadActor::CloneImpl(QuadActor* clone) {
   Actor::CloneImpl(static_cast<RealCompositor::Actor*>(clone));
   clone->SetColor(color_, border_color_, border_width_);
+  clone->texture_data_ = texture_data_;
+}
+
+
+RealCompositor::Actor* RealCompositor::ImageActor::Clone() {
+  ImageActor* new_instance = new ImageActor(compositor());
+  QuadActor::CloneImpl(new_instance);
+  return static_cast<Actor*>(new_instance);
 }
 
 
@@ -686,23 +676,12 @@ RealCompositor::TexturePixmapActor::TexturePixmapActor(
 }
 
 RealCompositor::TexturePixmapActor::~TexturePixmapActor() {
-#if defined(COMPOSITOR_OPENGL)
-  EraseDrawingData(OpenGlDrawVisitor::PIXMAP_DATA);
-#elif defined(COMPOSITOR_OPENGLES)
-  EraseDrawingData(OpenGlesDrawVisitor::kEglImageData);
-  EraseDrawingData(OpenGlesDrawVisitor::kTextureData);
-#endif
+  set_texture_data(NULL);
   pixmap_ = 0;
 }
 
 void RealCompositor::TexturePixmapActor::SetPixmap(XID pixmap) {
-#if defined(COMPOSITOR_OPENGL)
-  EraseDrawingData(OpenGlDrawVisitor::PIXMAP_DATA);
-#elif defined(COMPOSITOR_OPENGLES)
-  EraseDrawingData(OpenGlesDrawVisitor::kEglImageData);
-  EraseDrawingData(OpenGlesDrawVisitor::kTextureData);
-#endif
-
+  set_texture_data(NULL);
   pixmap_ = pixmap;
   pixmap_is_opaque_ = false;
 
@@ -724,13 +703,8 @@ void RealCompositor::TexturePixmapActor::SetPixmap(XID pixmap) {
 }
 
 void RealCompositor::TexturePixmapActor::UpdateTexture() {
-#if defined(COMPOSITOR_OPENGL)
-  OpenGlPixmapData* data  = dynamic_cast<OpenGlPixmapData*>(
-      GetDrawingData(OpenGlDrawVisitor::PIXMAP_DATA).get());
-#elif defined(COMPOSITOR_OPENGLES)
-  OpenGlesEglImageData* data = dynamic_cast<OpenGlesEglImageData*>(
-      GetDrawingData(OpenGlesDrawVisitor::kEglImageData).get());
-#endif
+  DynamicTextureData* data = static_cast<DynamicTextureData*>(texture_data());
+
   if (data)
     data->Refresh();
 
@@ -739,14 +713,6 @@ void RealCompositor::TexturePixmapActor::UpdateTexture() {
   // or out of view.
   if (is_shown() && !culled())
     SetDirty();
-}
-
-bool RealCompositor::TexturePixmapActor::HasPixmapDrawingData() {
-#if defined(COMPOSITOR_OPENGL)
-  return GetDrawingData(OpenGlDrawVisitor::PIXMAP_DATA) != NULL;
-#elif defined(COMPOSITOR_OPENGLES)
-  return GetDrawingData(OpenGlesDrawVisitor::kEglImageData) != NULL;
-#endif
 }
 
 
@@ -828,6 +794,7 @@ RealCompositor::RealCompositor(EventLoop* event_loop,
   draw_timeout_enabled_ = true;
 }
 
+
 RealCompositor::~RealCompositor() {
   draw_visitor_.reset();
   if (draw_timeout_id_ >= 0) {
@@ -849,19 +816,16 @@ RealCompositor::Actor* RealCompositor::CreateRectangle(
   return actor;
 }
 
-RealCompositor::Actor* RealCompositor::CreateImage(const string& filename) {
-  QuadActor* actor = new QuadActor(this);
+RealCompositor::ImageActor* RealCompositor::CreateImage(
+    const string& filename) {
+  ImageActor* actor = new ImageActor(this);
   scoped_ptr<ImageContainer> container(
       ImageContainer::CreateContainer(filename));
-  if (container.get() &&
-      container->LoadImage() == ImageContainer::IMAGE_LOAD_SUCCESS) {
-    draw_visitor_->BindImage(container.get(), actor);
-    actor->SetSize(container->width(), container->height());
-  } else {
-    Compositor::Color color(1.f, 0.f, 1.f);
-    actor->SetColor(color, color, 0);
-  }
+  CHECK(container.get() &&
+        container->LoadImage() == ImageContainer::IMAGE_LOAD_SUCCESS);
 
+  draw_visitor_->BindImage(container.get(), actor);
+  actor->SetSize(container->width(), container->height());
   return actor;
 }
 

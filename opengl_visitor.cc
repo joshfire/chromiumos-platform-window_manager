@@ -46,84 +46,16 @@ using window_manager::util::XidStr;
 
 namespace window_manager {
 
-OpenGlDrawVisitor::OpenGlStateCache::OpenGlStateCache() {
-  Invalidate();
-}
-
-void OpenGlDrawVisitor::OpenGlStateCache::Invalidate() {
-  actor_opacity_ = -1.f;
-  dimmed_transparency_ = -1.f;
-  red_ = -1.f;
-  green_ = -1.f;
-  blue_ = -1.f;
-}
-
-bool OpenGlDrawVisitor::OpenGlStateCache::ColorStateChanged(
-    float actor_opacity, float dimmed_transparency,
-    float red, float green, float blue) {
-  if (actor_opacity != actor_opacity_ ||
-      dimmed_transparency != dimmed_transparency_ ||
-      red != red_ || green != green_ || blue != blue_) {
-    actor_opacity_ = actor_opacity;
-    dimmed_transparency_ = dimmed_transparency;
-    red_ = red;
-    green_ = green;
-    blue_ = blue;
-    return true;
-  }
-  return false;
-}
-
-OpenGlQuadDrawingData::OpenGlQuadDrawingData(GLInterface* gl_interface)
-    : gl_interface_(gl_interface) {
-  gl_interface_->GenBuffers(1, &vertex_buffer_);
-  gl_interface_->BindBuffer(GL_ARRAY_BUFFER, vertex_buffer_);
-
-  static const float kQuad[] = {
-    0.f, 0.f,
-    0.f, 1.f,
-    1.f, 0.f,
-    1.f, 1.f,
-  };
-
-  gl_interface_->BufferData(GL_ARRAY_BUFFER, sizeof(kQuad),
-                            kQuad, GL_STATIC_DRAW);
-  color_buffer_.reset(new float[4*4]);
-  CHECK_GL_ERROR(gl_interface_);
-}
-
-OpenGlQuadDrawingData::~OpenGlQuadDrawingData() {
-  if (vertex_buffer_)
-    gl_interface_->DeleteBuffers(1, &vertex_buffer_);
-}
-
-void OpenGlQuadDrawingData::set_vertex_color(int index,
-                                             float r,
-                                             float g,
-                                             float b,
-                                             float a) {
-  // Calculate member index
-  index *= 4;
-  // Assign the color.
-  color_buffer_[index++] = r;
-  color_buffer_[index++] = g;
-  color_buffer_[index++] = b;
-  color_buffer_[index] = a;
-}
-
 OpenGlPixmapData::OpenGlPixmapData(OpenGlDrawVisitor* visitor)
     : visitor_(visitor),
       gl_(visitor_->gl_interface_),
-      texture_(0),
       glx_pixmap_(0) {
   DCHECK(visitor);
 }
 
 OpenGlPixmapData::~OpenGlPixmapData() {
-  if (texture_) {
-    gl_->DeleteTextures(1, &texture_);
-    texture_ = 0;
-  }
+  if (texture())
+    gl_->DeleteTextures(1, texture_ptr());
   if (glx_pixmap_) {
     gl_->DestroyGlxPixmap(glx_pixmap_);
     glx_pixmap_ = 0;
@@ -163,8 +95,9 @@ bool OpenGlPixmapData::Init(RealCompositor::TexturePixmapActor* actor) {
     return false;
   }
 
-  gl_->GenTextures(1, &texture_);
-  gl_->BindTexture(GL_TEXTURE_2D, texture_);
+  GLuint new_texture = 0;
+  gl_->GenTextures(1, &new_texture);
+  gl_->BindTexture(GL_TEXTURE_2D, new_texture);
   gl_->EnableAnisotropicFiltering();
   gl_->TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
   gl_->TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
@@ -172,35 +105,97 @@ bool OpenGlPixmapData::Init(RealCompositor::TexturePixmapActor* actor) {
   gl_->TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
   gl_->BindGlxTexImage(glx_pixmap_, GLX_FRONT_LEFT_EXT, NULL);
   CHECK_GL_ERROR(gl_);
+  set_texture(new_texture);
   return true;
 }
 
 void OpenGlPixmapData::Refresh() {
-  DCHECK(texture_);
+  DCHECK(texture());
   DCHECK(glx_pixmap_);
-  gl_->BindTexture(GL_TEXTURE_2D, texture_);
+  gl_->BindTexture(GL_TEXTURE_2D, texture());
   gl_->ReleaseGlxTexImage(glx_pixmap_, GLX_FRONT_LEFT_EXT);
   gl_->BindGlxTexImage(glx_pixmap_, GLX_FRONT_LEFT_EXT, NULL);
   CHECK_GL_ERROR(gl_);
 }
 
 OpenGlTextureData::OpenGlTextureData(GLInterface* gl_interface)
-    : gl_interface_(gl_interface),
-      texture_(0),
-      has_alpha_(false) {}
+    : gl_interface_(gl_interface) {}
 
 OpenGlTextureData::~OpenGlTextureData() {
-  if (texture_) {
-    gl_interface_->DeleteTextures(1, &texture_);
-  }
+  if (texture())
+    gl_interface_->DeleteTextures(1, texture_ptr());
 }
 
-void OpenGlTextureData::SetTexture(GLuint texture, bool has_alpha) {
-  if (texture_ && texture_ != texture) {
-    gl_interface_->DeleteTextures(1, &texture_);
+void OpenGlTextureData::SetTexture(GLuint texture) {
+  if (this->texture() && this->texture() != texture)
+    gl_interface_->DeleteTextures(1, texture_ptr());
+  set_texture(texture);
+}
+
+OpenGlDrawVisitor::OpenGlQuadDrawingData::OpenGlQuadDrawingData(
+    GLInterface* gl_interface)
+    : gl_interface_(gl_interface) {
+  gl_interface_->GenBuffers(1, &vertex_buffer_);
+  gl_interface_->BindBuffer(GL_ARRAY_BUFFER, vertex_buffer_);
+
+  static const float kQuad[] = {
+    0.f, 0.f,
+    0.f, 1.f,
+    1.f, 0.f,
+    1.f, 1.f,
+  };
+
+  gl_interface_->BufferData(GL_ARRAY_BUFFER, sizeof(kQuad),
+                            kQuad, GL_STATIC_DRAW);
+  color_buffer_.reset(new float[4*4]);
+  CHECK_GL_ERROR(gl_interface_);
+}
+
+OpenGlDrawVisitor::OpenGlQuadDrawingData::~OpenGlQuadDrawingData() {
+  if (vertex_buffer_)
+    gl_interface_->DeleteBuffers(1, &vertex_buffer_);
+}
+
+void OpenGlDrawVisitor::OpenGlQuadDrawingData::set_vertex_color(int index,
+                                                                float r,
+                                                                float g,
+                                                                float b,
+                                                                float a) {
+  // Calculate member index
+  index *= 4;
+  // Assign the color.
+  color_buffer_[index++] = r;
+  color_buffer_[index++] = g;
+  color_buffer_[index++] = b;
+  color_buffer_[index] = a;
+}
+
+OpenGlDrawVisitor::OpenGlStateCache::OpenGlStateCache() {
+  Invalidate();
+}
+
+void OpenGlDrawVisitor::OpenGlStateCache::Invalidate() {
+  actor_opacity_ = -1.f;
+  dimmed_transparency_ = -1.f;
+  red_ = -1.f;
+  green_ = -1.f;
+  blue_ = -1.f;
+}
+
+bool OpenGlDrawVisitor::OpenGlStateCache::ColorStateChanged(
+    float actor_opacity, float dimmed_transparency,
+    float red, float green, float blue) {
+  if (actor_opacity != actor_opacity_ ||
+      dimmed_transparency != dimmed_transparency_ ||
+      red != red_ || green != green_ || blue != blue_) {
+    actor_opacity_ = actor_opacity;
+    dimmed_transparency_ = dimmed_transparency;
+    red_ = red;
+    green_ = green;
+    blue_ = blue;
+    return true;
   }
-  texture_ = texture;
-  has_alpha_ = has_alpha;
+  return false;
 }
 
 OpenGlDrawVisitor::OpenGlDrawVisitor(GLInterface* gl_interface,
@@ -309,7 +304,7 @@ void OpenGlDrawVisitor::FindFramebufferConfigurations() {
 OpenGlDrawVisitor::~OpenGlDrawVisitor() {
   gl_interface_->Finish();
   // Make sure the vertex buffer is deleted.
-  quad_drawing_data_ = RealCompositor::DrawingDataPtr();
+  quad_drawing_data_.reset(NULL);
   CHECK_GL_ERROR(gl_interface_);
   gl_interface_->MakeGlxCurrent(0, 0);
   if (context_) {
@@ -318,8 +313,7 @@ OpenGlDrawVisitor::~OpenGlDrawVisitor() {
 }
 
 void OpenGlDrawVisitor::BindImage(const ImageContainer* container,
-                                  RealCompositor::QuadActor* actor) {
-  PROFILER_MARKER_BEGIN(BindImage);
+                                  RealCompositor::ImageActor* actor) {
   // Create an OpenGL texture with the loaded image data.
   GLuint new_texture;
   gl_interface_->Enable(GL_TEXTURE_2D);
@@ -344,18 +338,27 @@ void OpenGlDrawVisitor::BindImage(const ImageContainer* container,
                             container->data());
   CHECK_GL_ERROR(gl_interface_);
   OpenGlTextureData* data = new OpenGlTextureData(gl_interface_);
-  data->SetTexture(new_texture,
-                   container->format() == ImageContainer::IMAGE_FORMAT_RGBA_32);
+  data->SetTexture(new_texture);
+  data->set_has_alpha(
+      container->format() == ImageContainer::IMAGE_FORMAT_RGBA_32);
   actor->SetSize(container->width(), container->height());
-  actor->SetDrawingData(OpenGlDrawVisitor::TEXTURE_DATA,
-                        RealCompositor::DrawingDataPtr(data));
-  DLOG(INFO) << "Binding image " << container->filename()
-             << " to texture " << new_texture;
-  PROFILER_MARKER_END(BindImage);
+  actor->set_texture_data(data);
 }
 
 void OpenGlDrawVisitor::VisitActor(RealCompositor::Actor* actor) {
   // Base actors actually don't have anything to draw.
+}
+
+void OpenGlDrawVisitor::VisitImage(RealCompositor::ImageActor* actor) {
+  if (!actor->IsVisible())
+    return;
+
+  PROFILER_MARKER_BEGIN(VisitImage);
+
+  // All ImageActors are also QuadActors, and so we let the
+  // QuadActor do all the actual drawing.
+  VisitQuad(actor);
+  PROFILER_MARKER_END(VisitImage);
 }
 
 void OpenGlDrawVisitor::VisitTexturePixmap(
@@ -366,19 +369,19 @@ void OpenGlDrawVisitor::VisitTexturePixmap(
   PROFILER_MARKER_BEGIN(VisitTexturePixmap);
 
   // Make sure there's a bound texture.
-  if (!actor->GetDrawingData(PIXMAP_DATA).get()) {
+  if (!actor->texture_data()) {
     if (!actor->pixmap()) {
       PROFILER_MARKER_END(VisitTexturePixmap);
       return;
     }
 
-    scoped_ptr<OpenGlPixmapData> data(new OpenGlPixmapData(this));
+    OpenGlPixmapData* data = new OpenGlPixmapData(this);
     if (!data->Init(actor)) {
       PROFILER_MARKER_END(VisitTexturePixmap);
       return;
     }
-    actor->SetDrawingData(OpenGlDrawVisitor::PIXMAP_DATA,
-                          RealCompositor::DrawingDataPtr(data.release()));
+    data->set_has_alpha(!actor->pixmap_is_opaque());
+    actor->set_texture_data(data);
   }
 
   // All texture pixmaps are also QuadActors, and so we let the
@@ -395,17 +398,6 @@ void OpenGlDrawVisitor::VisitQuad(RealCompositor::QuadActor* actor) {
   DLOG(INFO) << "Drawing quad " << actor->name() << ".";
 #endif
   PROFILER_DYNAMIC_MARKER_BEGIN(actor->name().c_str());
-
-  RealCompositor::DrawingData* generic_drawing_data =
-      actor->GetDrawingData(DRAWING_DATA).get();
-  if (!generic_drawing_data) {
-    // This actor hasn't been here before, so let's set the drawing data on it.
-    actor->SetDrawingData(DRAWING_DATA, quad_drawing_data_);
-    generic_drawing_data = quad_drawing_data_.get();
-  }
-  OpenGlQuadDrawingData* drawing_data =
-      dynamic_cast<OpenGlQuadDrawingData*>(generic_drawing_data);
-  CHECK(drawing_data);
 
   // Calculate the vertex colors, taking into account the actor color,
   // opacity and the dimming gradient.
@@ -436,50 +428,36 @@ void OpenGlDrawVisitor::VisitQuad(RealCompositor::QuadActor* actor) {
     float dim_green = green * dimmed_transparency;
     float dim_blue = blue * dimmed_transparency;
 
-    drawing_data->set_vertex_color(
+    quad_drawing_data_->set_vertex_color(
         0, red, green, blue, actor_opacity);
-    drawing_data->set_vertex_color(
+    quad_drawing_data_->set_vertex_color(
         1, red, green, blue, actor_opacity);
-    drawing_data->set_vertex_color(
+    quad_drawing_data_->set_vertex_color(
         2, dim_red, dim_green, dim_blue, actor_opacity);
-    drawing_data->set_vertex_color(
+    quad_drawing_data_->set_vertex_color(
         3, dim_red, dim_green, dim_blue, actor_opacity);
 
+    gl_interface_->EnableClientState(GL_COLOR_ARRAY);
     // Have to un-bind the array buffer to set the color pointer so that
     // it uses the color buffer instead of the vertex buffer memory.
     gl_interface_->BindBuffer(GL_ARRAY_BUFFER, 0);
-    gl_interface_->ColorPointer(4, GL_FLOAT, 0, drawing_data->color_buffer());
+    gl_interface_->ColorPointer(4, GL_FLOAT, 0,
+                                quad_drawing_data_->color_buffer());
   }
 
-  gl_interface_->BindBuffer(GL_ARRAY_BUFFER, drawing_data->vertex_buffer());
+  gl_interface_->BindBuffer(GL_ARRAY_BUFFER,
+                            quad_drawing_data_->vertex_buffer());
   CHECK_GL_ERROR(gl_interface_);
 
   // Find out if this quad has pixmap or texture data to bind.
-  RealCompositor::DrawingData* generic_pixmap_data =
-      actor->GetDrawingData(PIXMAP_DATA).get();
-  OpenGlPixmapData* pixmap_data =
-      dynamic_cast<OpenGlPixmapData*>(generic_pixmap_data);
-  if (generic_pixmap_data)
-    CHECK(pixmap_data);
-  if (pixmap_data && pixmap_data->texture()) {
-    // Actor has a pixmap texture to bind.
+  if (actor->texture_data()) {
+    // Actor has a texture to bind.
     gl_interface_->Enable(GL_TEXTURE_2D);
-    gl_interface_->BindTexture(GL_TEXTURE_2D, pixmap_data->texture());
+    gl_interface_->BindTexture(GL_TEXTURE_2D,
+                               actor->texture_data()->texture());
   } else {
-    RealCompositor::DrawingData* generic_texture_data =
-        actor->GetDrawingData(TEXTURE_DATA).get();
-    OpenGlTextureData* texture_data =
-        dynamic_cast<OpenGlTextureData*>(generic_texture_data);
-    if (generic_texture_data)
-      CHECK(texture_data);
-    if (texture_data && texture_data->texture()) {
-      // Actor has a texture to bind.
-      gl_interface_->Enable(GL_TEXTURE_2D);
-      gl_interface_->BindTexture(GL_TEXTURE_2D, texture_data->texture());
-    } else {
-      // Actor has no texture.
-      gl_interface_->Disable(GL_TEXTURE_2D);
-    }
+    // Actor has no texture.
+    gl_interface_->Disable(GL_TEXTURE_2D);
   }
 
 #ifdef EXTRA_LOGGING
@@ -502,10 +480,8 @@ void OpenGlDrawVisitor::VisitQuad(RealCompositor::QuadActor* actor) {
 
 void OpenGlDrawVisitor::DrawNeedle() {
   PROFILER_MARKER_BEGIN(DrawNeedle);
-  OpenGlQuadDrawingData* drawing_data =
-      dynamic_cast<OpenGlQuadDrawingData*>(quad_drawing_data_.get());
-  CHECK(drawing_data);
-  gl_interface_->BindBuffer(GL_ARRAY_BUFFER, drawing_data->vertex_buffer());
+  gl_interface_->BindBuffer(GL_ARRAY_BUFFER,
+                            quad_drawing_data_->vertex_buffer());
   gl_interface_->EnableClientState(GL_VERTEX_ARRAY);
   gl_interface_->VertexPointer(2, GL_FLOAT, 0, 0);
   gl_interface_->DisableClientState(GL_TEXTURE_COORD_ARRAY);
@@ -528,9 +504,6 @@ void OpenGlDrawVisitor::VisitStage(RealCompositor::StageActor* actor) {
 
   PROFILER_MARKER_BEGIN(VisitStage);
   stage_ = actor;
-  OpenGlQuadDrawingData* drawing_data =
-      dynamic_cast<OpenGlQuadDrawingData*>(quad_drawing_data_.get());
-  CHECK(drawing_data);
 
   if (actor->stage_color_changed()) {
     const Compositor::Color& color = actor->stage_color();
@@ -564,7 +537,8 @@ void OpenGlDrawVisitor::VisitStage(RealCompositor::StageActor* actor) {
   gl_interface_->LoadMatrixf(&projection[0][0]);
   gl_interface_->MatrixMode(GL_MODELVIEW);
   gl_interface_->LoadIdentity();
-  gl_interface_->BindBuffer(GL_ARRAY_BUFFER, drawing_data->vertex_buffer());
+  gl_interface_->BindBuffer(GL_ARRAY_BUFFER,
+                            quad_drawing_data_->vertex_buffer());
   gl_interface_->EnableClientState(GL_VERTEX_ARRAY);
   gl_interface_->VertexPointer(2, GL_FLOAT, 0, 0);
   gl_interface_->EnableClientState(GL_TEXTURE_COORD_ARRAY);

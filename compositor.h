@@ -19,6 +19,7 @@
 namespace window_manager {
 
 class CompositorEventSource;
+class ImageContainer;
 template<class T> class Stacker;  // from util.h
 class XConnection;
 
@@ -128,6 +129,17 @@ class Compositor {
     DISALLOW_COPY_AND_ASSIGN(StageActor);
   };
 
+  // ImageActor displays static image onscreen.
+  class ImageActor : virtual public Actor {
+   public:
+    ImageActor() {}
+    virtual ~ImageActor() {}
+
+    virtual void SetImage(const ImageContainer& image_container) = 0;
+   private:
+    DISALLOW_COPY_AND_ASSIGN(ImageActor);
+  };
+
   // TexturePixmapActor displays the contents of a pixmap onscreen.
   class TexturePixmapActor : virtual public Actor {
    public:
@@ -159,7 +171,7 @@ class Compositor {
   virtual ContainerActor* CreateGroup() = 0;
   virtual Actor* CreateRectangle(const Color& color, const Color& border_color,
                                  int border_width) = 0;
-  virtual Actor* CreateImage(const std::string& filename) = 0;
+  virtual ImageActor* CreateImage(const std::string& filename) = 0;
   virtual TexturePixmapActor* CreateTexturePixmap() = 0;
   virtual Actor* CreateText(const std::string& font_name,
                             const std::string& text,
@@ -336,6 +348,19 @@ class MockCompositor : public Compositor {
     DISALLOW_COPY_AND_ASSIGN(StageActor);
   };
 
+  class ImageActor : public MockCompositor::Actor,
+                     public Compositor::ImageActor {
+   public:
+    ImageActor() {}
+    virtual ~ImageActor() {}
+
+    // Begin Compositor::ImageActor methods.
+    virtual void SetImage(const ImageContainer& image_container) {}
+    // End Compositor::ImageActor methods.
+   private:
+    DISALLOW_COPY_AND_ASSIGN(ImageActor);
+  };
+
   class TexturePixmapActor : public MockCompositor::Actor,
                              public Compositor::TexturePixmapActor {
    public:
@@ -390,7 +415,9 @@ class MockCompositor : public Compositor {
                                  int border_width) {
     return new Actor;
   }
-  virtual Actor* CreateImage(const std::string& filename) { return new Actor; }
+  virtual ImageActor* CreateImage(const std::string& filename) {
+    return new ImageActor;
+  }
   virtual TexturePixmapActor* CreateTexturePixmap() {
     return new TexturePixmapActor(xconn_);
   }

@@ -35,27 +35,19 @@ class Gles2Interface;
 class GLInterface;
 class OpenGlDrawVisitor;
 class OpenGlesDrawVisitor;
+class TextureData;
 class XConnection;
 
 class RealCompositor : public Compositor {
  public:
   class Actor;
   class ContainerActor;
-  class DrawingData;
+  class ImageActor;
   class QuadActor;
   class StageActor;
   class TexturePixmapActor;
 
   typedef std::vector<Actor*> ActorVector;
-  typedef std::tr1::shared_ptr<DrawingData> DrawingDataPtr;
-  typedef std::map<int32, DrawingDataPtr> DrawingDataMap;
-
-  // Base class for memento storage on the actors.
-  class DrawingData {
-   public:
-    DrawingData() {}
-    virtual ~DrawingData() {}
-  };
 
   // This is in milliseconds.
   typedef int64_t AnimationTime;
@@ -124,6 +116,7 @@ class RealCompositor : public Compositor {
     virtual void VisitContainer(ContainerActor* actor);
     virtual void VisitStage(StageActor* actor) { VisitContainer(actor); }
     virtual void VisitQuad(QuadActor* actor) { VisitActor(actor); }
+    virtual void VisitImage(ImageActor* actor) { VisitActor(actor); }
     virtual void VisitTexturePixmap(TexturePixmapActor* actor) {
       VisitActor(actor);
     }
@@ -159,6 +152,7 @@ class RealCompositor : public Compositor {
     virtual void VisitStage(RealCompositor::StageActor* actor);
     virtual void VisitContainer(RealCompositor::ContainerActor* actor);
     virtual void VisitQuad(RealCompositor::QuadActor* actor);
+    virtual void VisitImage(RealCompositor::ImageActor* actor);
     virtual void VisitTexturePixmap(RealCompositor::TexturePixmapActor* actor);
 
     void VisitTexturedQuadActor(RealCompositor::QuadActor* actor,
@@ -281,17 +275,6 @@ class RealCompositor : public Compositor {
     bool is_dimmed() const { return dimmed_opacity_ > 0.001f; }
     float dimmed_opacity() const { return dimmed_opacity_; }
 
-    // Sets the drawing data of the given type on this object.
-    void SetDrawingData(int32 id, DrawingDataPtr data) {
-      drawing_data_[id] = data;
-    }
-
-    // Gets the drawing data of the given type.
-    DrawingDataPtr GetDrawingData(int32 id) const;
-
-    // Erases the drawing data of the given type.
-    void EraseDrawingData(int32 id) { drawing_data_.erase(id); }
-
    protected:
     // Needs to update the opacity flag.
     friend class RealCompositor::LayerVisitor;
@@ -391,10 +374,6 @@ class RealCompositor : public Compositor {
     std::map<float*, std::tr1::shared_ptr<Animation<float> > >
         float_animations_;
 
-    // Mapping of int32 ID to drawing data pointer.  The ID space is
-    // maintained by the visitor implementation.
-    DrawingDataMap drawing_data_;
-
     // IDs of visibility groups this actor is a member of.
     std::set<int> visibility_groups_;
 
@@ -480,6 +459,11 @@ class RealCompositor : public Compositor {
     }
     const int border_width() const { return border_width_; }
 
+    TextureData* texture_data() const { return texture_data_.get(); }
+    void set_texture_data(TextureData* texture_data) {
+      texture_data_.reset(texture_data);
+    }
+
     // Implement VisitorDestination for visitor.
     void Accept(ActorVisitor* visitor) {
       CHECK(visitor);
@@ -495,8 +479,37 @@ class RealCompositor : public Compositor {
     Compositor::Color color_;
     Compositor::Color border_color_;
     int border_width_;
+    std::tr1::shared_ptr<TextureData> texture_data_;
 
     DISALLOW_COPY_AND_ASSIGN(QuadActor);
+  };
+
+  class ImageActor : public RealCompositor::QuadActor,
+                     public Compositor::ImageActor {
+   public:
+    explicit ImageActor(RealCompositor* compositor) : QuadActor(compositor) {}
+    virtual ~ImageActor() {}
+
+    virtual void SetImage(const ImageContainer& image_container) {
+      // TODO: implement this.
+      NOTIMPLEMENTED();
+    }
+
+    // Begin Compositor::Actor methods.
+    virtual Actor* Clone();
+    virtual std::string GetDebugString(int indent_level) {
+      return GetDebugStringInternal("ImageActor", indent_level);
+    }
+    // End Compositor::Actor methods.
+
+    // Implement VisitorDestination for visitor.
+    virtual void Accept(ActorVisitor* visitor) {
+      CHECK(visitor);
+      visitor->VisitImage(this);
+    }
+    // End Compositor::TexturePixmapActor methods.
+   private:
+    DISALLOW_COPY_AND_ASSIGN(ImageActor);
   };
 
   class TexturePixmapActor : public RealCompositor::QuadActor,
@@ -540,10 +553,6 @@ class RealCompositor : public Compositor {
 
    private:
     FRIEND_TEST(RealCompositorTest, HandleXEvents);
-
-    // Is there currently any pixmap drawing data?  Tests use this to
-    // check that old drawing data is discarded when needed.
-    bool HasPixmapDrawingData();
 
     // Offscreen X pixmap whose contents we're displaying.
     XID pixmap_;
@@ -632,7 +641,7 @@ class RealCompositor : public Compositor {
   Actor* CreateRectangle(const Compositor::Color& color,
                          const Compositor::Color& border_color,
                          int border_width);
-  Actor* CreateImage(const std::string& filename);
+  ImageActor* CreateImage(const std::string& filename);
   TexturePixmapActor* CreateTexturePixmap();
   Actor* CreateText(const std::string& font_name,
                     const std::string& text,
