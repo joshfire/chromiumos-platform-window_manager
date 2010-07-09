@@ -1729,7 +1729,7 @@ void WindowManager::TakeScreenshot(bool use_active_window) {
 
   string filename = StringPrintf("%s/screenshot-%s.png", dir.c_str(),
                                  GetTimeAsString(GetCurrentTimeSec()).c_str());
-  command += " " + filename;
+  command += " " + filename + " &";
 
   if (system(command.c_str()) < 0) {
     LOG(ERROR) << "Taking screenshot via \"" << command << "\" failed";
