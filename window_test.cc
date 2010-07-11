@@ -598,10 +598,9 @@ TEST_F(WindowTest, UpdatePixmapAndShadowSizes) {
   // We shouldn't reload the pixmap in response to a non-resize
   // ConfigureNotify event (like what we'll receive whenever the window
   // gets moved).
-  info->compositing_pixmap++;
+  XID prev_pixmap = actor->pixmap();
   win.HandleConfigureNotify(info->width, info->height);
-  EXPECT_EQ(info->compositing_pixmap - 1, actor->pixmap());
-  info->compositing_pixmap--;
+  EXPECT_EQ(prev_pixmap, actor->pixmap());
 
   // Now act as if the window gets resized two more times, but the second
   // resize has already happened in the X server by the time that the

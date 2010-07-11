@@ -51,22 +51,22 @@ class RealCompositorTest : public ::testing::Test {
  public:
   RealCompositorTest()
       : gl_interface_(new MockGLInterface),
-        x_connection_(new MockXConnection),
+        xconn_(new MockXConnection),
         event_loop_(new EventLoop),
         compositor_(new RealCompositor(event_loop_.get(),
-                                       x_connection_.get(),
+                                       xconn_.get(),
                                        gl_interface_.get())) {
   }
   virtual ~RealCompositorTest() {
   }
 
   RealCompositor* compositor() { return compositor_.get(); }
-  MockXConnection* x_connection() { return x_connection_.get(); }
+  MockXConnection* xconn() { return xconn_.get(); }
   EventLoop* event_loop() { return event_loop_.get(); }
 
  private:
   scoped_ptr<MockGLInterface> gl_interface_;
-  scoped_ptr<MockXConnection> x_connection_;
+  scoped_ptr<MockXConnection> xconn_;
   scoped_ptr<EventLoop> event_loop_;
   scoped_ptr<RealCompositor> compositor_;
 };
@@ -459,36 +459,37 @@ TEST_F(RealCompositorTest, HandleXEvents) {
   compositor()->Draw();
   EXPECT_FALSE(compositor()->dirty());
 
-  XWindow xid = x_connection()->CreateWindow(
-      x_connection()->GetRootWindow(),  // parent
+  XWindow xid = xconn()->CreateWindow(
+      xconn()->GetRootWindow(),  // parent
       0, 0,      // x, y
       400, 300,  // width, height
       false,     // override_redirect=false
       false,     // input_only=false
       0);        // event_mask
-  MockXConnection::WindowInfo* info =
-      x_connection()->GetWindowInfoOrDie(xid);
+  MockXConnection::WindowInfo* info = xconn()->GetWindowInfoOrDie(xid);
+  XID pixmap_id = xconn()->GetCompositingPixmapForWindow(xid);
 
-  // After we bind the actor to our window, the actor's pixmap should be
-  // updated and the compositor should be marked dirty.
-  cast_actor->SetPixmap(info->compositing_pixmap);
-  EXPECT_EQ(info->compositing_pixmap, cast_actor->pixmap());
+  // After we bind the actor to the window's pixmap, the actor's size
+  // should be updated and the compositor should be marked dirty.
+  cast_actor->SetPixmap(pixmap_id);
+  EXPECT_EQ(pixmap_id, cast_actor->pixmap());
   EXPECT_EQ(info->width, cast_actor->GetWidth());
   EXPECT_EQ(info->height, cast_actor->GetHeight());
-  EXPECT_FALSE(cast_actor->texture_data());
+  EXPECT_TRUE(cast_actor->texture_data() == NULL);
   EXPECT_TRUE(compositor()->dirty());
 
-  // The visitor should grab the actor's pixmap the next time we draw and
-  // set the 'pixmap_was_reset' flag back to false.
+  // The visitor should initialize the texture data from the actor's pixmap.
   compositor()->Draw();
-  EXPECT_TRUE(cast_actor->texture_data());
+  EXPECT_TRUE(cast_actor->texture_data() != NULL);
   EXPECT_FALSE(compositor()->dirty());
 
-  // Now say that the window was resized.  The new pixmap should be loaded.
-  info->width += 20;
-  info->height += 10;
-  actor->SetPixmap(info->compositing_pixmap);
-  EXPECT_EQ(info->compositing_pixmap, cast_actor->pixmap());
+  // Now resize the window.  The new pixmap should be loaded and the old
+  // texture data should be discarded.
+  ASSERT_TRUE(xconn()->ResizeWindow(xid, info->width + 20, info->height + 10));
+  ASSERT_TRUE(xconn()->FreePixmap(pixmap_id));
+  pixmap_id = xconn()->GetCompositingPixmapForWindow(xid);
+  actor->SetPixmap(pixmap_id);
+  EXPECT_EQ(pixmap_id, cast_actor->pixmap());
   EXPECT_EQ(info->width, cast_actor->GetWidth());
   EXPECT_EQ(info->height, cast_actor->GetHeight());
   EXPECT_FALSE(cast_actor->texture_data());

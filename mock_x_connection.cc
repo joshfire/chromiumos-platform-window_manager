@@ -31,8 +31,7 @@ const int MockXConnection::kDisplayHeight = 768;
 MockXConnection::MockXConnection()
     : windows_(),
       stacked_xids_(new Stacker<XWindow>),
-      next_window_(1),
-      next_pixmap_(100000),
+      next_xid_(1),
       root_(CreateWindow(None, 0, 0,
                          kDisplayWidth, kDisplayHeight, true, false, 0)),
       overlay_(CreateWindow(root_, 0, 0,
@@ -66,23 +65,27 @@ MockXConnection::~MockXConnection() {
 
 bool MockXConnection::GetWindowGeometry(XWindow xid, WindowGeometry* geom_out) {
   CHECK(geom_out);
-  WindowInfo* info = GetWindowInfo(xid);
-  if (!info) {
-    // Maybe this is a compositing pixmap for a window.  If so, just use
-    // the window's geometry instead.
-    XWindow window_xid = FindWithDefault(
-        pixmap_to_window_, static_cast<XID>(xid), static_cast<XWindow>(0));
-    info = GetWindowInfo(window_xid);
-    if (!info)
-      return false;
+  if (WindowInfo* window_info = GetWindowInfo(xid)) {
+    geom_out->x = window_info->x;
+    geom_out->y = window_info->y;
+    geom_out->width = window_info->width;
+    geom_out->height = window_info->height;
+    geom_out->border_width = window_info->border_width;
+    geom_out->depth = window_info->depth;
+    return true;
   }
-  geom_out->x = info->x;
-  geom_out->y = info->y;
-  geom_out->width = info->width;
-  geom_out->height = info->height;
-  geom_out->border_width = info->border_width;
-  geom_out->depth = info->depth;
-  return true;
+
+  if (PixmapInfo* pixmap_info = GetPixmapInfo(xid)) {
+    geom_out->x = 0;
+    geom_out->y = 0;
+    geom_out->width = pixmap_info->width;
+    geom_out->height = pixmap_info->height;
+    geom_out->border_width = 0;
+    geom_out->depth = pixmap_info->depth;
+    return true;
+  }
+
+  return false;
 }
 
 bool MockXConnection::MapWindow(XWindow xid) {
@@ -294,11 +297,27 @@ bool MockXConnection::UnredirectWindowForCompositing(XWindow xid) {
   return true;
 }
 
+XPixmap MockXConnection::CreatePixmap(
+    XDrawable drawable, int width, int height, int depth) {
+  XID xid = next_xid_++;
+  shared_ptr<PixmapInfo> info(new PixmapInfo(xid, width, height, depth));
+  pixmaps_[xid] = info;
+  return xid;
+}
+
 XPixmap MockXConnection::GetCompositingPixmapForWindow(XWindow xid) {
   WindowInfo* info = GetWindowInfo(xid);
   if (!info)
     return 0;
-  return info->compositing_pixmap;
+  return CreatePixmap(xid, info->width, info->height, info->depth);
+}
+
+bool MockXConnection::FreePixmap(XPixmap pixmap) {
+  map<XID, shared_ptr<PixmapInfo> >::iterator it = pixmaps_.find(pixmap);
+  if (it == pixmaps_.end())
+    return false;
+  pixmaps_.erase(it);
+  return true;
 }
 
 XWindow MockXConnection::CreateWindow(
@@ -308,8 +327,7 @@ XWindow MockXConnection::CreateWindow(
     bool override_redirect,
     bool input_only,
     int event_mask) {
-  XWindow xid = next_window_;
-  next_window_++;
+  XWindow xid = next_xid_++;
   shared_ptr<WindowInfo> info(new WindowInfo(xid, parent));
   info->x = x;
   info->y = y;
@@ -318,11 +336,8 @@ XWindow MockXConnection::CreateWindow(
   info->override_redirect = override_redirect;
   info->input_only = input_only;
   info->event_mask = event_mask;
-  info->compositing_pixmap = next_pixmap_++;
-  CHECK(!GetWindowInfo(info->compositing_pixmap));
 
   windows_[xid] = info;
-  pixmap_to_window_[info->compositing_pixmap] = xid;
   stacked_xids_->AddOnTop(xid);
 
   const WindowInfo* parent_info = GetWindowInfo(parent);
@@ -336,7 +351,6 @@ bool MockXConnection::DestroyWindow(XWindow xid) {
   map<XWindow, shared_ptr<WindowInfo> >::iterator it = windows_.find(xid);
   if (it == windows_.end())
     return false;
-  pixmap_to_window_.erase(it->second->compositing_pixmap);
   windows_.erase(it);
   stacked_xids_->Remove(xid);
   if (focused_xid_ == xid)
@@ -606,15 +620,25 @@ MockXConnection::WindowInfo::WindowInfo(XWindow xid, XWindow parent)
       shape_events_selected(false),
       randr_events_selected(false),
       changed(false),
-      num_configures(0),
-      compositing_pixmap(None) {
+      num_configures(0) {
 }
 
-MockXConnection::WindowInfo::~WindowInfo() {}
+MockXConnection::PixmapInfo::PixmapInfo(
+    XWindow xid, int width, int height, int depth)
+    : xid(xid),
+      width(width),
+      height(height),
+      depth(depth) {
+}
 
 MockXConnection::WindowInfo* MockXConnection::GetWindowInfo(XWindow xid) const {
   map<XWindow, shared_ptr<WindowInfo> >::const_iterator it = windows_.find(xid);
   return (it != windows_.end()) ? it->second.get() : NULL;
+}
+
+MockXConnection::PixmapInfo* MockXConnection::GetPixmapInfo(XID xid) const {
+  map<XID, shared_ptr<PixmapInfo> >::const_iterator it = pixmaps_.find(xid);
+  return (it != pixmaps_.end()) ? it->second.get() : NULL;
 }
 
 void MockXConnection::AddKeyMapping(KeyCode keycode, KeySym keysym) {

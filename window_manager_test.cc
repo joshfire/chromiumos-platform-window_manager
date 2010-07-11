@@ -825,7 +825,7 @@ TEST_F(WindowManagerTest, RedirectWindows) {
   Window* existing_win = wm_->GetWindowOrDie(existing_xid);
   MockCompositor::TexturePixmapActor* existing_mock_actor =
       GetMockActorForWindow(existing_win);
-  EXPECT_EQ(existing_info->compositing_pixmap, existing_mock_actor->pixmap());
+  EXPECT_TRUE(existing_mock_actor->pixmap() != 0);
 
   // Now, create a new window, but don't map it yet.  The window manager
   // should've already told the X server to automatically redirect toplevel
@@ -844,7 +844,7 @@ TEST_F(WindowManagerTest, RedirectWindows) {
   xconn_->InitMapRequestEvent(&event, xid);
   wm_->HandleEvent(&event);
   EXPECT_TRUE(win->mapped());
-  EXPECT_EQ(info->compositing_pixmap, mock_actor->pixmap());
+  EXPECT_TRUE(existing_mock_actor->pixmap() != 0);
 
   // There won't be a MapRequest event for override-redirect windows, but they
   // should still get redirected automatically.
@@ -873,8 +873,7 @@ TEST_F(WindowManagerTest, RedirectWindows) {
   xconn_->InitMapEvent(&event, override_redirect_xid);
   wm_->HandleEvent(&event);
   EXPECT_TRUE(override_redirect_win->mapped());
-  EXPECT_EQ(override_redirect_info->compositing_pixmap,
-            override_redirect_mock_actor->pixmap());
+  EXPECT_TRUE(override_redirect_mock_actor->pixmap() != 0);
 }
 
 // This tests against a bug where the window manager would fail to handle
@@ -988,36 +987,59 @@ TEST_F(WindowManagerTest, HandleMappingNotify) {
   EXPECT_FALSE(xconn_->KeyIsGrabbed(old_keycode, ControlMask | Mod1Mask));
 }
 
-// Check that the window manager tells the compositor to discard the pixmap
-// for a window when the window is resized or remapped.  See
-// http://crosbug.com/3159.
-TEST_F(WindowManagerTest, DiscardPixmapOnUnmap) {
-  XWindow xid = CreateSimpleWindow();
+// Check that the window manager tells the Window class to tell the
+// compositor to discard the pixmap for a window when the window is resized
+// or remapped.  See http://crosbug.com/3159.
+TEST_F(WindowManagerTest, FetchNewPixmap) {
+  XWindow xid = xconn_->CreateWindow(
+        xconn_->GetRootWindow(),
+        10, 20,  // x, y
+        30, 40,  // width, height
+        true,    // override redirect
+        false,   // input only
+        0);      // event mask
   MockXConnection::WindowInfo* info = xconn_->GetWindowInfoOrDie(xid);
+  xconn_->MapWindow(xid);
+  ASSERT_TRUE(info->mapped);
   SendInitialEventsForWindow(xid);
 
   Window* win = wm_->GetWindowOrDie(xid);
   MockCompositor::TexturePixmapActor* actor = GetMockActorForWindow(win);
-  EXPECT_EQ(info->compositing_pixmap, actor->pixmap());
+  EXPECT_TRUE(actor->pixmap() != 0);
+  MockXConnection::PixmapInfo* pixmap_info =
+      xconn_->GetPixmapInfo(actor->pixmap());
+  ASSERT_TRUE(pixmap_info != NULL);
+  EXPECT_EQ(info->width, pixmap_info->width);
+  EXPECT_EQ(info->height, pixmap_info->height);
 
   // Check that the pixmap gets reset when the window gets resized.
+  XID prev_pixmap = actor->pixmap();
+  ASSERT_TRUE(xconn_->ResizeWindow(xid, info->width + 10, info->height));
   XEvent event;
-  info->width += 10;
-  info->compositing_pixmap++;
   xconn_->InitConfigureNotifyEvent(&event, xid);
   wm_->HandleEvent(&event);
-  EXPECT_EQ(info->compositing_pixmap, actor->pixmap());
+
+  EXPECT_NE(prev_pixmap, actor->pixmap());
+  pixmap_info = xconn_->GetPixmapInfo(actor->pixmap());
+  ASSERT_TRUE(pixmap_info != NULL);
+  EXPECT_EQ(info->width, pixmap_info->width);
+  EXPECT_EQ(info->height, pixmap_info->height);
 
   // We should reset it when the window is remapped, too (but we should
   // continue using the old pixmap until we actually see the window get
   // mapped again).
-  info->compositing_pixmap++;
+  prev_pixmap = actor->pixmap();
   xconn_->InitUnmapEvent(&event, xid);
   wm_->HandleEvent(&event);
-  EXPECT_EQ(info->compositing_pixmap - 1, actor->pixmap());
+  EXPECT_EQ(prev_pixmap, actor->pixmap());
+
   xconn_->InitMapEvent(&event, xid);
   wm_->HandleEvent(&event);
-  EXPECT_EQ(info->compositing_pixmap, actor->pixmap());
+  EXPECT_NE(prev_pixmap, actor->pixmap());
+  pixmap_info = xconn_->GetPixmapInfo(actor->pixmap());
+  ASSERT_TRUE(pixmap_info != NULL);
+  EXPECT_EQ(info->width, pixmap_info->width);
+  EXPECT_EQ(info->height, pixmap_info->height);
 }
 
 // Test that we switch log files after the user logs in.

@@ -63,11 +63,9 @@ class MockXConnection : public XConnection {
   bool RedirectSubwindowsForCompositing(XWindow xid);
   bool UnredirectWindowForCompositing(XWindow xid);
   XWindow GetCompositingOverlayWindow(XWindow root) { return overlay_; }
-  XPixmap CreatePixmap(XDrawable drawable,
-                       int width, int height,
-                       int depth) { return 1; }
+  XPixmap CreatePixmap(XDrawable drawable, int width, int height, int depth);
   XPixmap GetCompositingPixmapForWindow(XWindow xid);
-  bool FreePixmap(XPixmap pixmap) { return true; }
+  bool FreePixmap(XPixmap pixmap);
   void CopyArea(XDrawable src_drawable, XDrawable dest_drawable,
                 int src_x, int src_y,
                 int dest_x, int dest_y,
@@ -131,7 +129,6 @@ class MockXConnection : public XConnection {
   // Testing-specific code.
   struct WindowInfo {
     WindowInfo(XWindow xid, XWindow parent);
-    ~WindowInfo();
 
     // Information about a button grab installed on this window.
     struct ButtonGrabInfo {
@@ -193,17 +190,31 @@ class MockXConnection : public XConnection {
     // button.
     std::map<int, ButtonGrabInfo> button_grabs;
 
-    // XComposite offscreen pixmap with this window's contents.
-    XPixmap compositing_pixmap;
-
    private:
     DISALLOW_COPY_AND_ASSIGN(WindowInfo);
   };
 
-  WindowInfo* GetWindowInfo(XWindow xid) const;
+  struct PixmapInfo {
+    PixmapInfo(XWindow xid, int width, int height, int depth);
 
+    XID xid;
+    int width, height;
+    int depth;
+
+   private:
+    DISALLOW_COPY_AND_ASSIGN(PixmapInfo);
+  };
+
+  WindowInfo* GetWindowInfo(XWindow xid) const;
   WindowInfo* GetWindowInfoOrDie(XWindow xid) const {
     WindowInfo* info = GetWindowInfo(xid);
+    CHECK(info);
+    return info;
+  }
+
+  PixmapInfo* GetPixmapInfo(XID xid) const;
+  PixmapInfo* GetPixmapInfoOrDie(XPixmap xid) const {
+    PixmapInfo* info = GetPixmapInfo(xid);
     CHECK(info);
     return info;
   }
@@ -331,22 +342,16 @@ class MockXConnection : public XConnection {
   // 'remove_from_queue' is true.
   void GetEventInternal(XEvent* event, bool remove_from_queue);
 
-  // Map from window ID to info about the window.
+  // Map from IDs to info about the corresponding windows or pixmaps.
   std::map<XWindow, std::tr1::shared_ptr<WindowInfo> > windows_;
-
-  // Map from compositing pixmaps to the windows that they represent.
-  std::map<XID, XWindow> pixmap_to_window_;
+  std::map<XID, std::tr1::shared_ptr<PixmapInfo> > pixmaps_;
 
   // All windows other than the overlay and root, in top-to-bottom stacking
   // order.
   scoped_ptr<Stacker<XWindow> > stacked_xids_;
 
-  // Next window ID that should be used by CreateWindow().
-  XWindow next_window_;
-
-  // Next compositing pixmap ID that should be used by CreateWindow().
-  // Note that these share the same space as 'next_window_'.
-  XID next_pixmap_;
+  // Next ID that should be used by CreateWindow() or CreatePixmap().
+  XWindow next_xid_;
 
   XWindow root_;
   XWindow overlay_;

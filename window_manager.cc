@@ -294,16 +294,18 @@ bool WindowManager::Init() {
       hotkey_overlay_->group(), StackingManager::LAYER_HOTKEY_OVERLAY);
   hotkey_overlay_->group()->Move(width_ / 2, height_ / 2, 0);
 
-  // Look up existing windows (note that this includes windows created
-  // earlier in this method) and select window management events.
+  // Select window management events before we look up existing windows --
+  // we want to make sure that we eventually hear about any resizes that we
+  // did while setting up existing windows so that the Window class will
+  // know that it needs to fetch new redirected pixmaps for them.
   scoped_ptr<XConnection::ScopedServerGrab> grab(
       xconn_->CreateScopedServerGrab());
-  ManageExistingWindows();
   CHECK(xconn_->SelectInputOnWindow(
             root_,
             SubstructureRedirectMask | StructureNotifyMask |
               SubstructureNotifyMask,
             true));  // preserve the existing event mask
+  ManageExistingWindows();
   grab.reset();
 
   return true;
