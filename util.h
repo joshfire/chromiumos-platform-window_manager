@@ -177,6 +177,28 @@ class ByteMap {
 };
 
 
+// Sets a variable to a value within a particular scope and resets it when
+// the scope is exited.
+// TODO: This is just a templatized version of Chrome's base/auto_reset.h.
+// Use that instead when/if it's templatized.
+template<class T>
+class AutoReset {
+ public:
+  AutoReset(T* scoped_variable, T new_value)
+      : scoped_variable_(scoped_variable),
+        original_value_(*scoped_variable) {
+    *scoped_variable_ = new_value;
+  }
+  ~AutoReset() { *scoped_variable_ = original_value_; }
+
+ private:
+  T* scoped_variable_;
+  T original_value_;
+
+  DISALLOW_COPY_AND_ASSIGN(AutoReset);
+};
+
+
 namespace util {
 
 template<class K, class V>

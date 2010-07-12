@@ -29,6 +29,8 @@
 #include <set>
 #include <string>
 
+#include <stdint.h>
+
 #include "base/basictypes.h"
 #include "window_manager/callback.h"
 #include "window_manager/x_types.h"
@@ -42,13 +44,11 @@ class KeyBindings {
  public:
   // Set of possible modifer mask bits. OR these together to create a KeyCombo
   // modifiers value.
-  static const uint32 kShiftMask;
-  static const uint32 kControlMask;
-  static const uint32 kAltMask;
-  static const uint32 kMetaMask;
-  static const uint32 kNumLockMask;
-  static const uint32 kSuperMask;
-  static const uint32 kHyperMask;
+  static const uint32_t kShiftMask;
+  static const uint32_t kCapsLockMask;
+  static const uint32_t kControlMask;
+  static const uint32_t kAltMask;
+  static const uint32_t kNumLockMask;
 
   // A key and modifier combination, such as (XK_Tab, kAltMask) for alt-tab.
   struct KeyCombo {
@@ -56,16 +56,18 @@ class KeyBindings {
     // or Caps Lock is on isn't useful for us) and mask LockMask out of the
     // modifier (so that bindings will still be recognized if Caps Lock is
     // enabled).
-    explicit KeyCombo(KeySym keysym_param, uint32 modifiers_param = 0);
+    explicit KeyCombo(KeySym keysym_param, uint32_t modifiers_param = 0);
 
     bool operator<(const KeyCombo& o) const;
 
     KeySym keysym;
-    uint32 modifiers;
+    uint32_t modifiers;
   };
 
   explicit KeyBindings(XConnection* xconn);
   ~KeyBindings();
+
+  XTime current_event_time() const { return current_event_time_; }
 
   // Add a new action. This will fail if the action already exists.
   // NOTE: The KeyBindings class will take ownership of passed-in
@@ -91,22 +93,23 @@ class KeyBindings {
   // if needed.
   void RefreshKeyMappings();
 
-  // These should be called by the window manager in order to process bindings.
-  bool HandleKeyPress(KeyCode keycode, uint32 modifiers, XTime event_time);
-  bool HandleKeyRelease(KeyCode keycode, uint32 modifiers, XTime event_time);
-
-  // The current event time is non-zero when we are within a call to
-  // HandleKeyPress or HandleKeyRelease.  This allows the action
-  // closures to access the event time if they need it.
-  XTime current_event_time() const { return current_event_time_; }
+  // These should be called by the window manager when keys are pressed or
+  // released.  These methods return true if an action is invoked and false
+  // otherwise.
+  bool HandleKeyPress(KeyCode keycode, uint32_t modifiers, XTime event_time);
+  bool HandleKeyRelease(KeyCode keycode, uint32_t modifiers, XTime event_time);
 
  private:
-  // Returns the modifier mask value that is equivalent to the given keysym
-  // if the keysym is a modifier type; else 0.
-  uint32 KeySymToModifier(uint32 keysym);
+  // Grab or ungrab a combination of a key and some modifiers.  We also
+  // install grabs for the combination plus Caps Lock and Num Lock.
+  void GrabKey(KeyCode keycode, uint32_t modifiers);
+  void UngrabKey(KeyCode keycode, uint32_t modifiers);
 
-  XConnection* xconn_;  // Weak reference
+  XConnection* xconn_;  // not owned
 
+  // Non-zero when we are within a call to HandleKeyPress or
+  // HandleKeyRelease.  This allows the action closures to access the event
+  // time if they need it.
   XTime current_event_time_;
 
   typedef std::map<std::string, Action*> ActionMap;

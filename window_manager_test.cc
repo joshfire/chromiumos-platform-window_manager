@@ -1047,9 +1047,12 @@ TEST_F(WindowManagerTest, StartNewLogAfterLogin) {
   wm_.reset(NULL);
 
   ScopedTempDirectory logged_in_dir;
-  FLAGS_logged_in_log_dir = logged_in_dir.path().value();
+  AutoReset<string> logged_in_flag_resetter(
+      &FLAGS_logged_in_log_dir, logged_in_dir.path().value());
+
   ScopedTempDirectory logged_out_dir;
-  FLAGS_logged_out_log_dir = logged_out_dir.path().value();
+  AutoReset<string> logged_out_flag_resetter(
+      &FLAGS_logged_out_log_dir, logged_out_dir.path().value());
 
   // Make sure that logging is turned on, and pretend like we just started
   // while not logged in.

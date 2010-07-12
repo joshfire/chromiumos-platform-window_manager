@@ -2,6 +2,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#include <string>
+#include <tr1/memory>
 #include <vector>
 
 #include <gflags/gflags.h>
@@ -29,6 +31,7 @@ DEFINE_bool(logtostderr, false,
 
 DECLARE_string(background_image);  // from layout_manager.cc
 
+using std::string;
 using std::vector;
 using std::tr1::shared_ptr;
 using window_manager::util::FindWithDefault;
@@ -1485,7 +1488,8 @@ TEST_F(LayoutManagerTest, ChangeModeWithNoWindows) {
 TEST_F(LayoutManagerTest, ChangeBackgroundsAfterInitialWindow) {
   SetLoggedInState(false);
   // The mock compositor doesn't actually load images.
-  FLAGS_background_image = "bogus_bg.png";
+  AutoReset<string> background_image_flag_resetter(
+      &FLAGS_background_image, "bogus_bg.png");
   CreateAndInitNewWm();
   lm_ = wm_->layout_manager_.get();
 

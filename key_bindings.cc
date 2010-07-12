@@ -28,38 +28,18 @@ using window_manager::util::FindWithDefault;
 
 namespace window_manager {
 
-const uint32 KeyBindings::kShiftMask   = ShiftMask;
-const uint32 KeyBindings::kControlMask = ControlMask;
-const uint32 KeyBindings::kAltMask     = Mod1Mask;
-const uint32 KeyBindings::kMetaMask    = Mod2Mask;  // TODO: Verify
-const uint32 KeyBindings::kNumLockMask = Mod3Mask;  // TODO: Verify
-const uint32 KeyBindings::kSuperMask   = Mod4Mask;
-const uint32 KeyBindings::kHyperMask   = Mod5Mask;  // TODO: Verify
+const uint32_t KeyBindings::kShiftMask    = ShiftMask;
+const uint32_t KeyBindings::kCapsLockMask = LockMask;
+const uint32_t KeyBindings::kControlMask  = ControlMask;
+const uint32_t KeyBindings::kAltMask      = Mod1Mask;
+const uint32_t KeyBindings::kNumLockMask  = Mod2Mask;
 
-// TODO(gspencer): Make this use AutoReset in base/auto_reset.h when
-// it has been converted to be a template.
-class AutoResetXTime {
- public:
-  AutoResetXTime(XTime* scoped_variable, XTime new_value)
-      : scoped_variable_(scoped_variable),
-        original_value_(*scoped_variable) {
-    *scoped_variable_ = new_value;
-  }
 
-  ~AutoResetXTime() { *scoped_variable_ = original_value_; }
-
- private:
-  XTime* scoped_variable_;
-  XTime original_value_;
-
-  DISALLOW_COPY_AND_ASSIGN(AutoResetXTime);
-};
-
-KeyBindings::KeyCombo::KeyCombo(KeySym key_param, uint32 modifiers_param) {
+KeyBindings::KeyCombo::KeyCombo(KeySym key_param, uint32_t modifiers_param) {
   KeySym upper_keysym = None, lower_keysym = None;
   XConvertCase(key_param, &lower_keysym, &upper_keysym);
   keysym = lower_keysym;
-  modifiers = (modifiers_param & ~LockMask);
+  modifiers = (modifiers_param & (~kCapsLockMask & ~kNumLockMask));
 }
 
 bool KeyBindings::KeyCombo::operator<(const KeyCombo& o) const {
@@ -180,9 +160,7 @@ bool KeyBindings::AddBinding(const KeyCombo& combo, const string& action_name) {
     LOG(WARNING) << "Unable to look up keycode for keysym " << combo.keysym
                  << "; not grabbing key";
   } else {
-    xconn_->GrabKey(keycode, combo.modifiers);
-    // Also grab this key combination plus Caps Lock.
-    xconn_->GrabKey(keycode, combo.modifiers | LockMask);
+    GrabKey(keycode, combo.modifiers);
   }
   return true;
 }
@@ -212,18 +190,16 @@ bool KeyBindings::RemoveBinding(const KeyCombo& combo) {
 
   KeyCode keycode = FindWithDefault(
       keysyms_to_grabbed_keycodes_, combo.keysym, static_cast<KeyCode>(0));
-  if (keycode != 0) {
-    xconn_->UngrabKey(keycode, combo.modifiers);
-    xconn_->UngrabKey(keycode, combo.modifiers | LockMask);
-  }
+  if (keycode != 0)
+    UngrabKey(keycode, combo.modifiers);
   return true;
 }
 
 void KeyBindings::RefreshKeyMappings() {
   map<KeySym, KeyCode> new_keysyms_to_grabbed_keycodes_;
 
-  vector<pair<KeyCode, uint32> > grabs_to_remove;
-  vector<pair<KeyCode, uint32> > grabs_to_add;
+  vector<pair<KeyCode, uint32_t> > grabs_to_remove;
+  vector<pair<KeyCode, uint32_t> > grabs_to_add;
 
   // Go through all of our combos, looking up the old keycodes and the new
   // ones and keeping track of things that've changed.
@@ -257,29 +233,26 @@ void KeyBindings::RefreshKeyMappings() {
 
   // Now actually ungrab and regrab things as needed (this is done in a
   // separate step in case there's overlap between the old and new mappings).
-  for (vector<pair<KeyCode, uint32> >::const_iterator it =
+  for (vector<pair<KeyCode, uint32_t> >::const_iterator it =
          grabs_to_remove.begin(); it != grabs_to_remove.end(); ++it) {
-    xconn_->UngrabKey(it->first, it->second);
-    xconn_->UngrabKey(it->first, it->second | LockMask);
+    UngrabKey(it->first, it->second);
   }
-  for (vector<pair<KeyCode, uint32> >::const_iterator it =
+  for (vector<pair<KeyCode, uint32_t> >::const_iterator it =
          grabs_to_add.begin(); it != grabs_to_add.end(); ++it) {
-    xconn_->GrabKey(it->first, it->second);
-    xconn_->GrabKey(it->first, it->second | LockMask);
+    GrabKey(it->first, it->second);
   }
   keysyms_to_grabbed_keycodes_.swap(new_keysyms_to_grabbed_keycodes_);
 }
 
 bool KeyBindings::HandleKeyPress(KeyCode keycode,
-                                 uint32 modifiers,
+                                 uint32_t modifiers,
                                  XTime event_time) {
   const KeySym keysym = xconn_->GetKeySymFromKeyCode(keycode);
-  AutoResetXTime reset(&current_event_time_, event_time);
+  AutoReset<XTime> reset(&current_event_time_, event_time);
   KeyCombo combo(keysym, modifiers);
   BindingsMap::const_iterator bindings_iter = bindings_.find(combo);
-  if (bindings_iter == bindings_.end()) {
+  if (bindings_iter == bindings_.end())
     return false;
-  }
 
   ActionMap::iterator action_iter = actions_.find(bindings_iter->second);
   CHECK(action_iter != actions_.end());
@@ -300,10 +273,10 @@ bool KeyBindings::HandleKeyPress(KeyCode keycode,
 }
 
 bool KeyBindings::HandleKeyRelease(KeyCode keycode,
-                                   uint32 modifiers,
+                                   uint32_t modifiers,
                                    XTime event_time) {
   const KeySym keysym = xconn_->GetKeySymFromKeyCode(keycode);
-  AutoResetXTime reset(&current_event_time_, event_time);
+  AutoReset<XTime> reset(&current_event_time_, event_time);
   KeyCombo combo(keysym, modifiers);
 
   // It's possible that a combo's modifier key(s) will get released before
@@ -315,9 +288,8 @@ bool KeyBindings::HandleKeyRelease(KeyCode keycode,
   // here to see if any of them are active.
   KeySymMap::const_iterator keysym_iter =
       action_names_by_keysym_.find(combo.keysym);
-  if (keysym_iter == action_names_by_keysym_.end()) {
+  if (keysym_iter == action_names_by_keysym_.end())
     return false;
-  }
 
   bool ran_end_closure = false;
   for (set<string>::const_iterator action_name_iter =
@@ -337,30 +309,18 @@ bool KeyBindings::HandleKeyRelease(KeyCode keycode,
   return ran_end_closure;
 }
 
-uint32 KeyBindings::KeySymToModifier(uint32 keysym) {
-  switch (keysym) {
-    case XK_Shift_L:
-    case XK_Shift_R:
-      return kShiftMask;
-    case XK_Control_L:
-    case XK_Control_R:
-      return kControlMask;
-    case XK_Alt_L:
-    case XK_Alt_R:
-      return kAltMask;
-    case XK_Meta_L:
-    case XK_Meta_R:
-      return kMetaMask;
-    case XK_Num_Lock:
-      return kNumLockMask;
-    case XK_Super_L:
-    case XK_Super_R:
-      return kSuperMask;
-    case XK_Hyper_L:
-    case XK_Hyper_R:
-      return kHyperMask;
-  }
-  return 0;
+void KeyBindings::GrabKey(KeyCode keycode, uint32_t modifiers) {
+  xconn_->GrabKey(keycode, modifiers);
+  xconn_->GrabKey(keycode, modifiers | kCapsLockMask);
+  xconn_->GrabKey(keycode, modifiers | kNumLockMask);
+  xconn_->GrabKey(keycode, modifiers | kCapsLockMask | kNumLockMask);
+}
+
+void KeyBindings::UngrabKey(KeyCode keycode, uint32_t modifiers) {
+  xconn_->UngrabKey(keycode, modifiers);
+  xconn_->UngrabKey(keycode, modifiers | kCapsLockMask);
+  xconn_->UngrabKey(keycode, modifiers | kNumLockMask);
+  xconn_->UngrabKey(keycode, modifiers | kCapsLockMask | kNumLockMask);
 }
 
 

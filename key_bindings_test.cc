@@ -167,14 +167,14 @@ TEST_F(KeyBindingsTest, Basic) {
 
 TEST_F(KeyBindingsTest, ModifierKey) {
   const KeyCode keycode = 1;
-  xconn_->AddKeyMapping(keycode, XK_Super_L);
+  xconn_->AddKeyMapping(keycode, XK_Alt_L);
 
   // Action 0: Requests begin and end callbacks.
   AddAction(0, true, true, true);
 
   // Bind a modifier as the main key. Upon release, the modifiers mask will
   // also contain the modifier, so make sure that doesn't mess things up.
-  KeyBindings::KeyCombo combo(XK_Super_L, KeyBindings::kControlMask);
+  KeyBindings::KeyCombo combo(XK_Alt_L, KeyBindings::kControlMask);
   bindings_->AddBinding(combo, actions_[0]->name);
 
   // -- Combo press for action 0
@@ -187,7 +187,7 @@ TEST_F(KeyBindingsTest, ModifierKey) {
   // -- Combo release for action 0
   // NOTE: We add in the modifier mask for the key itself.
   bindings_->HandleKeyRelease(
-      keycode, KeyBindings::kControlMask | KeyBindings::kSuperMask,
+      keycode, KeyBindings::kControlMask | KeyBindings::kAltMask,
       event_time++);
   EXPECT_EQ(1, actions_[0]->begin_call_count);
   EXPECT_EQ(1, actions_[0]->end_call_count);
@@ -430,20 +430,44 @@ TEST_F(KeyBindingsTest, RemoveCapsLock) {
       KeyBindings::KeyCombo(XK_e, KeyBindings::kControlMask),
       actions_[0]->name));
 
-  // We need to grab both Ctrl+e and Ctrl+CapsLock+e; we wouldn't get
-  // triggered when Caps Lock is on otherwise.
+  const uint32_t kCapsLock = KeyBindings::kCapsLockMask;
+  const uint32_t kNumLock = KeyBindings::kNumLockMask;
+
+  // We need to grab Ctrl+e, Ctrl+CapsLock+e, Ctrl+NumLock+e, and
+  // Ctrl+CapsLock+NumLock+e; we wouldn't get triggered when Caps Lock or
+  // Num Lock is on otherwise.
   XTime event_time = 10;
   EXPECT_TRUE(xconn_->KeyIsGrabbed(keycode, KeyBindings::kControlMask));
-  EXPECT_TRUE(
-      xconn_->KeyIsGrabbed(keycode, KeyBindings::kControlMask | LockMask));
+  EXPECT_TRUE(xconn_->KeyIsGrabbed(
+                  keycode, KeyBindings::kControlMask | kCapsLock));
+  EXPECT_TRUE(xconn_->KeyIsGrabbed(
+                  keycode, KeyBindings::kControlMask | kNumLock));
+  EXPECT_TRUE(xconn_->KeyIsGrabbed(
+                  keycode, KeyBindings::kControlMask | kCapsLock | kNumLock));
 
   EXPECT_TRUE(bindings_->HandleKeyPress(
-      keycode, KeyBindings::kControlMask | LockMask, event_time++));
+      keycode, KeyBindings::kControlMask | kCapsLock, event_time++));
   EXPECT_TRUE(bindings_->HandleKeyRelease(
-      keycode, KeyBindings::kControlMask | LockMask, event_time++));
+      keycode, KeyBindings::kControlMask | kCapsLock, event_time++));
   EXPECT_EQ(1, actions_[0]->begin_call_count);
   EXPECT_EQ(0, actions_[0]->repeat_call_count);
   EXPECT_EQ(1, actions_[0]->end_call_count);
+
+  EXPECT_TRUE(bindings_->HandleKeyPress(
+      keycode, KeyBindings::kControlMask | kNumLock, event_time++));
+  EXPECT_TRUE(bindings_->HandleKeyRelease(
+      keycode, KeyBindings::kControlMask | kNumLock, event_time++));
+  EXPECT_EQ(2, actions_[0]->begin_call_count);
+  EXPECT_EQ(0, actions_[0]->repeat_call_count);
+  EXPECT_EQ(2, actions_[0]->end_call_count);
+
+  EXPECT_TRUE(bindings_->HandleKeyPress(
+      keycode, KeyBindings::kControlMask | kCapsLock | kNumLock, event_time++));
+  EXPECT_TRUE(bindings_->HandleKeyRelease(
+      keycode, KeyBindings::kControlMask | kCapsLock | kNumLock, event_time++));
+  EXPECT_EQ(3, actions_[0]->begin_call_count);
+  EXPECT_EQ(0, actions_[0]->repeat_call_count);
+  EXPECT_EQ(3, actions_[0]->end_call_count);
 }
 
 // Test that we terminate in-progress actions correctly when their modifier
