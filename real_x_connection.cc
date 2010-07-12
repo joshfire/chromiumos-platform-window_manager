@@ -907,6 +907,60 @@ bool RealXConnection::SetSelectionOwner(
   return true;
 }
 
+bool RealXConnection::GetImage(XID drawable, int x, int y,
+                               int width, int height, int drawable_depth,
+                               scoped_ptr_malloc<uint8_t>* data_out,
+                               ImageFormat* format_out) {
+  DCHECK(data_out);
+  DCHECK(format_out);
+
+  TrapErrors();
+  XImage* image = XGetImage(
+      display_, drawable, x, y, width, height, AllPlanes, ZPixmap);
+  if (int error = UntrapErrors()) {
+    DLOG(WARNING) << "Got X error while getting image for drawable "
+                  << XidStr(drawable) << ": " << GetErrorText(error);
+    return false;
+  }
+
+  if (!GetImageFormatFromColorMasks(image->byte_order == LSBFirst,
+                                    image->bits_per_pixel,
+                                    static_cast<uint32_t>(image->red_mask),
+                                    static_cast<uint32_t>(image->green_mask),
+                                    static_cast<uint32_t>(image->blue_mask),
+                                    drawable_depth,
+                                    format_out)) {
+    DLOG(WARNING) << "Unhandled format in image: "
+                  << " drawable=" << XidStr(drawable)
+                  << " drawable_depth=" << drawable_depth
+                  << " image_depth=" << image->bits_per_pixel
+                  << " lsb_first=" << (image->byte_order == LSBFirst)
+                  << std::hex
+                  << " red_mask=0x" << image->red_mask
+                  << " green_mask=0x" << image->green_mask
+                  << " blue_mask=0x" << image->blue_mask;
+    XDestroyImage(image);
+    return false;
+  }
+
+  const size_t data_size = image->bytes_per_line * image->height;
+  const int format_bpp = GetBitsPerPixelInImageFormat(*format_out);
+  const size_t expected_size = width * height * format_bpp / 8;
+  if (data_size != expected_size) {
+    DLOG(WARNING) << "Expected " << expected_size << " bytes in image from "
+                  << XidStr(drawable) << " (" << width << "x" << height
+                  << " at " << format_bpp << " bpp) " << " but got "
+                  << data_size;
+    XDestroyImage(image);
+    return false;
+  }
+
+  data_out->reset(reinterpret_cast<uint8_t*>(image->data));
+  image->data = NULL;  // Take ownership so Xlib doesn't free it.
+  XDestroyImage(image);
+  return true;
+}
+
 bool RealXConnection::SetWindowCursor(XWindow xid, uint32 shape) {
   uint32_t value_mask = XCB_CW_CURSOR;
   uint32_t values[] = { GetCursorInternal(shape) };
@@ -1085,6 +1139,47 @@ string RealXConnection::GetErrorText(int error_code) {
   char str[1024];
   XGetErrorText(display_, error_code, str, sizeof(str));
   return string(str);
+}
+
+// static
+bool RealXConnection::GetImageFormatFromColorMasks(bool lsb_first,
+                                                   int image_depth,
+                                                   uint32_t red_mask,
+                                                   uint32_t green_mask,
+                                                   uint32_t blue_mask,
+                                                   int drawable_depth,
+                                                   ImageFormat* format_out) {
+  // We only support 32-bit image data with or without a usable alpha
+  // channel at the moment.
+  if (image_depth != 32 || (drawable_depth != 24 && drawable_depth != 32))
+    return false;
+
+  bool has_alpha = (drawable_depth == 32);
+
+  const uint32_t& r = red_mask;
+  const uint32_t& g = green_mask;
+  const uint32_t& b = blue_mask;
+
+  // What a mess. :-(
+  if (lsb_first) {
+    if (r == 0xff && g == 0xff00 && b == 0xff0000) {
+      *format_out = has_alpha ? IMAGE_FORMAT_RGBA_32 : IMAGE_FORMAT_RGBX_32;
+    } else if (r == 0xff0000 && g == 0xff00 && b == 0xff) {
+      *format_out = has_alpha ? IMAGE_FORMAT_BGRA_32 : IMAGE_FORMAT_BGRX_32;
+    } else {
+      return false;
+    }
+  } else {
+    if (r == 0xff000000 && g == 0xff0000 && b == 0xff00) {
+      *format_out = has_alpha ? IMAGE_FORMAT_RGBA_32 : IMAGE_FORMAT_RGBX_32;
+    } else if (r == 0xff00 && g == 0xff0000 && b == 0xff000000) {
+      *format_out = has_alpha ? IMAGE_FORMAT_BGRA_32 : IMAGE_FORMAT_BGRX_32;
+    } else {
+      return false;
+    }
+  }
+
+  return true;
 }
 
 bool RealXConnection::GrabServerImpl() {

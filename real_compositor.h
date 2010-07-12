@@ -207,7 +207,6 @@ class RealCompositor : public Compositor {
     void SetOpacity(double opacity, int duration_ms);
     void SetTilt(double tilt, int duration_ms);
     double GetTilt() const { return tilt_; }
-    void SetClip(int x, int y, int width, int height) { NOTIMPLEMENTED(); }
 
     void Raise(Compositor::Actor* other);
     void Lower(Compositor::Actor* other);
@@ -396,7 +395,6 @@ class RealCompositor : public Compositor {
 
     // Begin Compositor::Actor methods.
     virtual void SetSize(int width, int height) {
-      // TODO: Implement a more complete story for setting sizes of containers.
       LOG(WARNING) << "Ignoring request to set size of ContainerActor";
     }
     virtual Actor* Clone() {
@@ -487,20 +485,23 @@ class RealCompositor : public Compositor {
   class ImageActor : public RealCompositor::QuadActor,
                      public Compositor::ImageActor {
    public:
-    explicit ImageActor(RealCompositor* compositor) : QuadActor(compositor) {}
+    explicit ImageActor(RealCompositor* compositor);
     virtual ~ImageActor() {}
 
-    virtual void SetImage(const ImageContainer& image_container) {
-      // TODO: implement this.
-      NOTIMPLEMENTED();
-    }
-
     // Begin Compositor::Actor methods.
+    virtual void SetSize(int width, int height) {
+      // ImageActors just track the size of their image data.
+      LOG(WARNING) << "Ignoring request to set size of ImageActor";
+    }
     virtual Actor* Clone();
     virtual std::string GetDebugString(int indent_level) {
       return GetDebugStringInternal("ImageActor", indent_level);
     }
     // End Compositor::Actor methods.
+
+    // Begin Compositor::ImageActor methods.
+    virtual void SetImageData(const ImageContainer& image_container);
+    // End Compositor::ImageActor methods.
 
     // Implement VisitorDestination for visitor.
     virtual void Accept(ActorVisitor* visitor) {
@@ -637,17 +638,15 @@ class RealCompositor : public Compositor {
   ~RealCompositor();
 
   // Begin Compositor methods.
-  ContainerActor* CreateGroup();
-  Actor* CreateRectangle(const Compositor::Color& color,
-                         const Compositor::Color& border_color,
-                         int border_width);
-  ImageActor* CreateImage(const std::string& filename);
-  TexturePixmapActor* CreateTexturePixmap();
-  Actor* CreateText(const std::string& font_name,
-                    const std::string& text,
-                    const Compositor::Color& color);
-  Actor* CloneActor(Compositor::Actor* orig);
-  StageActor* GetDefaultStage() { return default_stage_.get(); }
+  virtual ContainerActor* CreateGroup();
+  virtual Actor* CreateRectangle(const Compositor::Color& color,
+                                 const Compositor::Color& border_color,
+                                 int border_width);
+  virtual ImageActor* CreateImage();
+  virtual ImageActor* CreateImageFromFile(const std::string& filename);
+  virtual TexturePixmapActor* CreateTexturePixmap();
+  virtual Actor* CloneActor(Compositor::Actor* orig);
+  virtual StageActor* GetDefaultStage() { return default_stage_.get(); }
   virtual void SetActiveVisibilityGroups(
       const std::tr1::unordered_set<int>& groups);
 
@@ -657,6 +656,13 @@ class RealCompositor : public Compositor {
   // End Compositor methods
 
   XConnection* x_conn() { return x_conn_; }
+  // TODO: These are just here so that ImageActor::SetImageData() can
+  // update its texture.  Find a better way to expose this.
+#if defined(COMPOSITOR_OPENGL)
+  OpenGlDrawVisitor* draw_visitor() { return draw_visitor_.get(); }
+#elif defined(COMPOSITOR_OPENGLES)
+  OpenGlesDrawVisitor* draw_visitor() { return draw_visitor_.get(); }
+#endif
   int actor_count() { return actor_count_; }
   bool dirty() const { return dirty_; }
   void set_current_time_ms_for_testing(int64_t time_ms) {

@@ -11,6 +11,7 @@
 
 #include "base/logging.h"
 #include "base/eintr_wrapper.h"
+#include "window_manager/image_enums.h"
 #include "window_manager/util.h"
 
 using std::list;
@@ -537,6 +538,24 @@ XWindow MockXConnection::GetSelectionOwner(XAtom atom) {
 bool MockXConnection::SetSelectionOwner(
     XAtom atom, XWindow xid, XTime timestamp) {
   selection_owners_[atom] = xid;
+  return true;
+}
+
+bool MockXConnection::GetImage(XID drawable, int x, int y,
+                               int width, int height, int drawable_depth,
+                               scoped_ptr_malloc<uint8_t>* data_out,
+                               ImageFormat* format_out) {
+  CHECK(data_out);
+  CHECK(format_out);
+  WindowInfo* info = GetWindowInfo(drawable);
+  if (!info)
+    return false;
+
+  // TODO: Make data settable in the WindowInfo so it can be tested.
+  data_out->reset(NULL);
+  *format_out = (drawable_depth == 32) ?
+                IMAGE_FORMAT_RGBA_32 :
+                IMAGE_FORMAT_RGBX_32;
   return true;
 }
 

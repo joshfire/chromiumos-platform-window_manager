@@ -5,6 +5,7 @@
 #include "window_manager/compositor.h"
 
 #include "base/logging.h"
+#include "window_manager/image_container.h"
 #include "window_manager/util.h"
 #include "window_manager/x_connection.h"
 
@@ -106,6 +107,29 @@ int MockCompositor::ContainerActor::GetStackingIndex(Compositor::Actor* actor) {
   return stacked_children_->GetIndex(cast_actor);
 }
 
+
+MockCompositor::ImageActor::ImageActor() {
+  Actor::SetSize(0, 0);
+}
+
+void MockCompositor::ImageActor::SetImageData(
+    const ImageContainer& image_container) {
+  Actor::SetSize(image_container.width(), image_container.height());
+}
+
+
+MockCompositor::TexturePixmapActor::TexturePixmapActor(XConnection* xconn)
+    : xconn_(xconn),
+      alpha_mask_bytes_(NULL),
+      pixmap_(0),
+      num_texture_updates_(0) {
+  Actor::SetSize(0, 0);
+}
+
+MockCompositor::TexturePixmapActor::~TexturePixmapActor() {
+  ClearAlphaMask();
+}
+
 void MockCompositor::TexturePixmapActor::SetPixmap(XWindow pixmap) {
   pixmap_ = pixmap;
   XConnection::WindowGeometry geometry;
@@ -129,6 +153,16 @@ void MockCompositor::TexturePixmapActor::SetAlphaMask(
 void MockCompositor::TexturePixmapActor::ClearAlphaMask() {
   delete[] alpha_mask_bytes_;
   alpha_mask_bytes_ = NULL;
+}
+
+
+MockCompositor::ImageActor* MockCompositor::CreateImageFromFile(
+    const std::string& filename) {
+  ImageActor* actor = new ImageActor;
+  InMemoryImageContainer container(
+      new uint8_t[1], 1, 1, IMAGE_FORMAT_RGBA_32, false);  // malloc=false
+  actor->SetImageData(container);
+  return actor;
 }
 
 }  // namespace window_manager

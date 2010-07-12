@@ -118,7 +118,13 @@ OpenGlesDrawVisitor::~OpenGlesDrawVisitor() {
 
 void OpenGlesDrawVisitor::BindImage(const ImageContainer* container,
                                     RealCompositor::QuadActor* actor) {
-  GLuint texture;
+  // TODO: Check container->format() and use a shader to swizzle BGR
+  // data into RGB.
+  if (container->format() == IMAGE_FORMAT_BGRA_32 ||
+      container->format() == IMAGE_FORMAT_BGRX_32)
+    NOTIMPLEMENTED() << "BGR-order image data unsupported";
+
+  GLuint texture = 0;
   gl_->GenTextures(1, &texture);
   CHECK(texture > 0) << "Failed to allocated texture.";
   gl_->BindTexture(GL_TEXTURE_2D, texture);
@@ -132,11 +138,8 @@ void OpenGlesDrawVisitor::BindImage(const ImageContainer* container,
 
   OpenGlesTextureData* data = new OpenGlesTextureData(gl_);
   data->SetTexture(texture);
-  data->set_has_alpha(
-      container->format() == ImageContainer::IMAGE_FORMAT_RGBA_32);
+  data->set_has_alpha(ImageFormatUsesAlpha(container->format()));
   actor->set_texture_data(data);
-  LOG(INFO) << "Binding image " << container->filename()
-            << " to texture " << texture;
 }
 
 void OpenGlesDrawVisitor::VisitStage(RealCompositor::StageActor* actor) {

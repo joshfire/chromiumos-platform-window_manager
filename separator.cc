@@ -101,7 +101,7 @@ void LayoutManager::Separator::UpdateLayout(bool animate) {
 void LayoutManager::Separator::Init() {
   CHECK(!texture_) << "Was Init() already called?";
   string filename = FLAGS_separator_image;
-  texture_ = compositor_->CreateImage(filename);
+  texture_ = compositor_->CreateImageFromFile(filename);
   texture_->SetName(filename);
 
   // Even though we don't actually want to display it, we need to add

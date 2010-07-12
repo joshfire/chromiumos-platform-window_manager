@@ -640,7 +640,7 @@ void WindowManager::UpdateClientWindowDebugging() {
   static const Compositor::Color kFgColor(0.f, 0.f, 0.f);
 
   int cnt = 0;
-  float step = 6.f/xids.size();
+  float step = 6.f / xids.size();
   for (vector<XWindow>::iterator it = xids.begin(); it != xids.end(); ++it) {
     Compositor::Color bg_color;
     bg_color.SetHsv(cnt++ * step, 1.f, 1.f);
@@ -648,39 +648,19 @@ void WindowManager::UpdateClientWindowDebugging() {
     if (!xconn_->GetWindowGeometry(*it, &geometry))
       continue;
 
-    Compositor::ContainerActor* group = compositor_->CreateGroup();
-    stage_->AddActor(group);
-    stacking_manager_->StackActorAtTopOfLayer(
-        group, StackingManager::LAYER_DEBUGGING);
-    group->SetName("debug group");
-    group->Move(geometry.x, geometry.y, 0);
-    group->SetSize(geometry.width, geometry.height);
-    group->Show();
-    group->SetClip(0, 0, geometry.width, geometry.height);
-
     Compositor::Actor* rect =
         compositor_->CreateRectangle(bg_color, kFgColor, 1);
-    group->AddActor(rect);
+    stage_->AddActor(rect);
+    stacking_manager_->StackActorAtTopOfLayer(
+        rect, StackingManager::LAYER_DEBUGGING);
     rect->SetName("debug box");
-    rect->Move(0, 0, 0);
+    rect->Move(geometry.x, geometry.y, 0);
     rect->SetSize(geometry.width, geometry.height);
     rect->SetOpacity(0, 0);
     rect->SetOpacity(0.3, kDebugFadeMs);
     rect->Show();
 
-    Compositor::Actor* text =
-        compositor_->CreateText("Sans 10pt", XidStr(*it), kFgColor);
-    group->AddActor(text);
-    text->SetName("debug label");
-    text->Move(3, 3, 0);
-    text->SetOpacity(0, 0);
-    text->SetOpacity(1, kDebugFadeMs);
-    text->Show();
-    text->Raise(rect);
-
-    new_actors.push_back(shared_ptr<Compositor::Actor>(group));
     new_actors.push_back(shared_ptr<Compositor::Actor>(rect));
-    new_actors.push_back(shared_ptr<Compositor::Actor>(text));
   }
 
   client_window_debugging_actors_.swap(new_actors);

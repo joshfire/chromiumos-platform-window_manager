@@ -33,98 +33,117 @@ class MockXConnection : public XConnection {
   MockXConnection();
   ~MockXConnection();
 
-  bool GetWindowGeometry(XWindow xid, WindowGeometry* geom_out);
-  bool MapWindow(XWindow xid);
-  bool UnmapWindow(XWindow xid);
-  bool MoveWindow(XWindow xid, int x, int y);
-  bool ResizeWindow(XWindow xid, int width, int height);
-  bool ConfigureWindow(XWindow xid, int x, int y, int width, int height) {
+  // Begin XConnection methods.
+  virtual bool GetWindowGeometry(XWindow xid, WindowGeometry* geom_out);
+  virtual bool MapWindow(XWindow xid);
+  virtual bool UnmapWindow(XWindow xid);
+  virtual bool MoveWindow(XWindow xid, int x, int y);
+  virtual bool ResizeWindow(XWindow xid, int width, int height);
+  virtual bool ConfigureWindow(
+      XWindow xid, int x, int y, int width, int height) {
     return (MoveWindow(xid, x, y) && ResizeWindow(xid, width, height));
   }
-  bool RaiseWindow(XWindow xid);
-  bool FocusWindow(XWindow xid, XTime event_time);
-  bool StackWindow(XWindow xid, XWindow other, bool above);
-  bool ReparentWindow(XWindow xid, XWindow parent, int x, int y) {
+  virtual bool RaiseWindow(XWindow xid);
+  virtual bool FocusWindow(XWindow xid, XTime event_time);
+  virtual bool StackWindow(XWindow xid, XWindow other, bool above);
+  virtual bool ReparentWindow(XWindow xid, XWindow parent, int x, int y) {
     return true;
   }
-  bool SetWindowBorderWidth(XWindow xid, int width);
-  bool SelectInputOnWindow(XWindow xid, int event_mask, bool preserve_existing);
-  bool DeselectInputOnWindow(XWindow xid, int event_mask);
-  bool AddButtonGrabOnWindow(
+  virtual bool SetWindowBorderWidth(XWindow xid, int width);
+  virtual bool SelectInputOnWindow(
+      XWindow xid, int event_mask, bool preserve_existing);
+  virtual bool DeselectInputOnWindow(XWindow xid, int event_mask);
+  virtual bool AddButtonGrabOnWindow(
       XWindow xid, int button, int event_mask, bool synchronous);
-  bool RemoveButtonGrabOnWindow(XWindow xid, int button);
-  bool AddPointerGrabForWindow(XWindow xid, int event_mask, XTime timestamp);
-  bool RemovePointerGrab(bool replay_events, XTime timestamp);
-  bool RemoveInputRegionFromWindow(XWindow xid) { return true; }
-  bool SetInputRegionForWindow(XWindow xid, const Rect& rect) { return true; }
-  bool GetSizeHintsForWindow(XWindow xid, SizeHints* hints_out);
-  bool GetTransientHintForWindow(XWindow xid, XWindow* owner_out);
-  bool GetWindowAttributes(XWindow xid, WindowAttributes* attr_out);
-  bool RedirectSubwindowsForCompositing(XWindow xid);
-  bool UnredirectWindowForCompositing(XWindow xid);
-  XWindow GetCompositingOverlayWindow(XWindow root) { return overlay_; }
-  XPixmap CreatePixmap(XDrawable drawable, int width, int height, int depth);
-  XPixmap GetCompositingPixmapForWindow(XWindow xid);
-  bool FreePixmap(XPixmap pixmap);
-  void CopyArea(XDrawable src_drawable, XDrawable dest_drawable,
-                int src_x, int src_y,
-                int dest_x, int dest_y,
-                int width, int height) {}
-  XWindow GetRootWindow() { return root_; }
-  XWindow CreateWindow(XWindow parent, int x, int y, int width, int height,
-                       bool override_redirect, bool input_only, int event_mask);
-  bool DestroyWindow(XWindow xid);
-  bool IsWindowShaped(XWindow xid);
-  bool SelectShapeEventsOnWindow(XWindow xid);
-  bool GetWindowBoundingRegion(XWindow xid, ByteMap* bytemap);
-  bool SelectRandREventsOnWindow(XWindow xid);
-  bool GetAtoms(const std::vector<std::string>& names,
-                std::vector<XAtom>* atoms_out);
-  bool GetAtomName(XAtom atom, std::string* name);
-  bool GetIntArrayProperty(XWindow xid, XAtom xatom, std::vector<int>* values);
-  bool SetIntArrayProperty(
+  virtual bool RemoveButtonGrabOnWindow(XWindow xid, int button);
+  virtual bool AddPointerGrabForWindow(
+      XWindow xid, int event_mask, XTime timestamp);
+  virtual bool RemovePointerGrab(bool replay_events, XTime timestamp);
+  virtual bool RemoveInputRegionFromWindow(XWindow xid) { return true; }
+  virtual bool SetInputRegionForWindow(XWindow xid, const Rect& rect) {
+    return true;
+  }
+  virtual bool GetSizeHintsForWindow(XWindow xid, SizeHints* hints_out);
+  virtual bool GetTransientHintForWindow(XWindow xid, XWindow* owner_out);
+  virtual bool GetWindowAttributes(XWindow xid, WindowAttributes* attr_out);
+  virtual bool RedirectSubwindowsForCompositing(XWindow xid);
+  virtual bool UnredirectWindowForCompositing(XWindow xid);
+  virtual XWindow GetCompositingOverlayWindow(XWindow root) { return overlay_; }
+  virtual XPixmap CreatePixmap(XDrawable drawable,
+                               int width, int height,
+                               int depth);
+  virtual XPixmap GetCompositingPixmapForWindow(XWindow xid);
+  virtual bool FreePixmap(XPixmap pixmap);
+  virtual void CopyArea(XDrawable src_drawable, XDrawable dest_drawable,
+                        int src_x, int src_y,
+                        int dest_x, int dest_y,
+                        int width, int height) {}
+  virtual XWindow GetRootWindow() { return root_; }
+  virtual XWindow CreateWindow(
+      XWindow parent, int x, int y, int width, int height,
+      bool override_redirect, bool input_only, int event_mask);
+  virtual bool DestroyWindow(XWindow xid);
+  virtual bool IsWindowShaped(XWindow xid);
+  virtual bool SelectShapeEventsOnWindow(XWindow xid);
+  virtual bool GetWindowBoundingRegion(XWindow xid, ByteMap* bytemap);
+  virtual bool SelectRandREventsOnWindow(XWindow xid);
+  virtual bool GetAtoms(const std::vector<std::string>& names,
+                        std::vector<XAtom>* atoms_out);
+  virtual bool GetAtomName(XAtom atom, std::string* name);
+  virtual bool GetIntArrayProperty(
+      XWindow xid, XAtom xatom, std::vector<int>* values);
+  virtual bool SetIntArrayProperty(
       XWindow xid, XAtom xatom, XAtom type, const std::vector<int>& values);
-  bool GetStringProperty(XWindow xid, XAtom xatom, std::string* out);
-  bool SetStringProperty(XWindow xid, XAtom xatom, const std::string& value);
-  bool DeletePropertyIfExists(XWindow xid, XAtom xatom);
-  int GetConnectionFileDescriptor() { return connection_pipe_fds_[0]; }
-  bool IsEventPending();
-  void GetNextEvent(void* event) {
+  virtual bool GetStringProperty(XWindow xid, XAtom xatom, std::string* out);
+  virtual bool SetStringProperty(
+      XWindow xid, XAtom xatom, const std::string& value);
+  virtual bool DeletePropertyIfExists(XWindow xid, XAtom xatom);
+  virtual int GetConnectionFileDescriptor() { return connection_pipe_fds_[0]; }
+  virtual bool IsEventPending();
+  virtual void GetNextEvent(void* event) {
     GetEventInternal(reinterpret_cast<XEvent*>(event), true);
   }
-  void PeekNextEvent(void* event) {
+  virtual void PeekNextEvent(void* event) {
     GetEventInternal(reinterpret_cast<XEvent*>(event), false);
   }
-  bool SendClientMessageEvent(XWindow dest_xid,
-                              XWindow xid,
-                              XAtom message_type,
-                              long data[5],
-                              int event_mask);
-  bool WaitForWindowToBeDestroyed(XWindow xid) { return true; }
-  bool WaitForPropertyChange(XWindow xid, XTime* timestamp_out);
-  XWindow GetSelectionOwner(XAtom atom);
-  bool SetSelectionOwner(XAtom atom, XWindow xid, XTime timestamp);
-  bool SetWindowCursor(XWindow xid, uint32 shape);
-  bool GetChildWindows(XWindow xid, std::vector<XWindow>* children_out);
-  void RefreshKeyboardMap(int request, KeyCode first_keycode, int count) {
+  virtual bool SendClientMessageEvent(XWindow dest_xid,
+                                      XWindow xid,
+                                      XAtom message_type,
+                                      long data[5],
+                                      int event_mask);
+  virtual bool WaitForWindowToBeDestroyed(XWindow xid) { return true; }
+  virtual bool WaitForPropertyChange(XWindow xid, XTime* timestamp_out);
+  virtual XWindow GetSelectionOwner(XAtom atom);
+  virtual bool SetSelectionOwner(XAtom atom, XWindow xid, XTime timestamp);
+  virtual bool GetImage(XID drawable, int x, int y,
+                        int width, int height, int drawable_depth,
+                        scoped_ptr_malloc<uint8_t>* data_out,
+                        ImageFormat* format_out);
+  virtual bool SetWindowCursor(XWindow xid, uint32 shape);
+  virtual bool GetChildWindows(XWindow xid, std::vector<XWindow>* children_out);
+  virtual void RefreshKeyboardMap(
+      int request, KeyCode first_keycode, int count) {
     num_keymap_refreshes_++;
   }
-  KeySym GetKeySymFromKeyCode(KeyCode keycode);
-  KeyCode GetKeyCodeFromKeySym(KeySym keysym);
-  std::string GetStringFromKeySym(KeySym keysym) { return ""; }
-  bool GrabKey(KeyCode keycode, uint32 modifiers);
-  bool UngrabKey(KeyCode keycode, uint32 modifiers);
-  XDamage CreateDamage(XDrawable drawable, DamageReportLevel level) {
+  virtual KeySym GetKeySymFromKeyCode(KeyCode keycode);
+  virtual KeyCode GetKeyCodeFromKeySym(KeySym keysym);
+  virtual std::string GetStringFromKeySym(KeySym keysym) { return ""; }
+  virtual bool GrabKey(KeyCode keycode, uint32 modifiers);
+  virtual bool UngrabKey(KeyCode keycode, uint32 modifiers);
+  virtual XDamage CreateDamage(XDrawable drawable, DamageReportLevel level) {
     return 1;
   }
-  void DestroyDamage(XDamage damage) {}
-  void ClearDamage(XDamage damage) {}
-  bool SetDetectableKeyboardAutoRepeat(bool detectable) {
+  virtual void DestroyDamage(XDamage damage) {}
+  virtual void ClearDamage(XDamage damage) {}
+  virtual bool SetDetectableKeyboardAutoRepeat(bool detectable) {
     using_detectable_keyboard_auto_repeat_ = detectable;
     return true;
   }
-  bool QueryKeyboardState(std::vector<uint8_t>* keycodes_out) { return true; }
-  bool QueryPointerPosition(int* x_root, int* y_root);
+  virtual bool QueryKeyboardState(std::vector<uint8_t>* keycodes_out) {
+    return true;
+  }
+  virtual bool QueryPointerPosition(int* x_root, int* y_root);
+  // End XConnection methods.
 
   // Testing-specific code.
   struct WindowInfo {

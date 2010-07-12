@@ -16,17 +16,38 @@ namespace window_manager {
 static const int kPngSignatureSize = 8;
 
 // static
-ImageContainer* ImageContainer::CreateContainer(const string& filename) {
+ImageContainer* ImageContainer::CreateContainerFromFile(
+    const string& filename) {
   if (PngImageContainer::IsPngImage(filename)) {
     return new PngImageContainer(filename);
   } else {
     LOG(ERROR) << "Unable to determine file type of '" << filename
-               << "' in ImageContainer::CreateContainer";
+               << "' in ImageContainer::CreateContainerFromFile()";
     return NULL;
   }
 }
 
-////////// Begin PngImageContainer Functions ///////////////
+ImageContainer::ImageContainer()
+    : data_(NULL),
+      data_was_allocated_with_malloc_(false),
+      width_(0),
+      height_(0),
+      format_(IMAGE_FORMAT_UNKNOWN) {
+}
+
+void ImageContainer::SetData(uint8_t* new_data,
+                             bool was_allocated_with_malloc) {
+  if (data_) {
+    if (data_was_allocated_with_malloc_)
+      free(data_);
+    else
+      delete[] data_;
+  }
+
+  data_ = new_data;
+  data_was_allocated_with_malloc_ = was_allocated_with_malloc;
+}
+
 
 // static
 bool PngImageContainer::IsPngImage(const string& filename) {
@@ -56,7 +77,7 @@ bool PngImageContainer::IsPngImage(const string& filename) {
 }
 
 PngImageContainer::PngImageContainer(const string& filename)
-    : ImageContainer(filename) {
+    : filename_(filename) {
 }
 
 static void PngErrorHandler(png_structp container_ptr,
@@ -93,9 +114,9 @@ ImageContainer::Result PngImageContainer::LoadImage() {
   }
 
   // Load the image.
-  FILE* fp = fopen(filename().c_str(), "rb");
+  FILE* fp = fopen(filename_.c_str(), "rb");
   if (!fp) {
-    LOG(ERROR) << "Unable to open '" << filename()
+    LOG(ERROR) << "Unable to open '" << filename_
                << "' for reading in LoadImage.";
     png_destroy_read_struct(&read_obj, &info_obj, NULL);
     return ImageContainer::IMAGE_LOAD_FAILURE;
@@ -145,11 +166,11 @@ ImageContainer::Result PngImageContainer::LoadImage() {
     png_set_strip_16(read_obj);
   }
 
-  scoped_array<char*> row_pointers(new char*[height()]);
-  set_data(new char[height() * stride()]);
+  scoped_array<uint8_t*> row_pointers(new uint8_t*[height()]);
+  SetData(new uint8_t[height() * stride()], false);  // malloc=false
 
-  for (int i = 0; i < height(); i++) {
-    uint32 position = i * stride();
+  for (size_t i = 0; i < height(); i++) {
+    size_t position = i * stride();
     row_pointers[i] = data() + position;
   }
 
@@ -158,12 +179,23 @@ ImageContainer::Result PngImageContainer::LoadImage() {
   png_destroy_read_struct(&read_obj, &info_obj, NULL);
   fclose(fp);
 
-  DLOG(INFO) << "Successfully loaded image '" << filename() << "' ("
+  DLOG(INFO) << "Successfully loaded image '" << filename_ << "' ("
              << width() << "x" << height() << ", "
              << channels() << " channel(s), "
              << bits_per_channel() << " bit(s)/channel)";
 
   return ImageContainer::IMAGE_LOAD_SUCCESS;
+}
+
+
+InMemoryImageContainer::InMemoryImageContainer(
+    uint8_t* new_data, size_t new_width, size_t new_height,
+    ImageFormat new_format, bool was_allocated_with_malloc) {
+  DCHECK(new_data);
+  SetData(new_data, was_allocated_with_malloc);
+  set_width(new_width);
+  set_height(new_height);
+  set_format(new_format);
 }
 
 }  // namespace window_manager

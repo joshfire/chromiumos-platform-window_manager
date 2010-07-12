@@ -69,6 +69,11 @@ class OpenGlVisitorTestTree : public OpenGlVisitorTest {
                                                Compositor::Color(), 0));
     rect3_.reset(compositor()->CreateRectangle(Compositor::Color(),
                                                Compositor::Color(), 0));
+
+    rect1_->SetSize(stage_->GetWidth(), stage_->GetHeight());
+    rect2_->SetSize(stage_->GetWidth(), stage_->GetHeight());
+    rect3_->SetSize(stage_->GetWidth(), stage_->GetHeight());
+
     stage_->SetName("stage");
     group1_->SetName("group1");
     group2_->SetName("group2");

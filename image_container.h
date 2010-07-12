@@ -8,24 +8,19 @@
 #include <string>
 
 #include "base/basictypes.h"
+#include "base/logging.h"
 #include "base/scoped_ptr.h"
+#include "window_manager/image_enums.h"
 
 namespace window_manager {
 
-// This is the image container base class which knows how to create image
-// containers from an appropriate file and load it.  It provides a
-// consistent API for loading and accessing loaded images.
-
+// This base class contains image data.  Given a filename, it's able to
+// infer its type and construct an appropriate container object.
 class ImageContainer {
  public:
   enum Result {
     IMAGE_LOAD_SUCCESS = 0,
     IMAGE_LOAD_FAILURE,
-  };
-
-  enum Format {
-    IMAGE_FORMAT_RGBA_32 = 0,
-    IMAGE_FORMAT_RGBX_32      // RGB image padded to RGBA with opaque alpha
   };
 
   // This determines the type of image container to use automatically
@@ -34,22 +29,20 @@ class ImageContainer {
   // deleting the returned image container.  Returns NULL if unable to
   // determine file type or access the file.  Note that the image data
   // isn't loaded until the LoadImage method returns successfully.
-  static ImageContainer* CreateContainer(const std::string& filename);
+  static ImageContainer* CreateContainerFromFile(const std::string& filename);
 
-  // Create a new container for this file.
-  explicit ImageContainer(const std::string& filename) : filename_(filename) {}
-  virtual ~ImageContainer() {}
+  ImageContainer();
+  virtual ~ImageContainer() { SetData(NULL, false); }
 
   // Loads the image, and returns a result code.
   virtual Result LoadImage() = 0;
 
-  const std::string& filename() const { return filename_; }
-  char* data() const { return data_.get(); }
-  int width() const { return width_; }
-  int height() const { return height_; }
+  uint8_t* data() const { return data_; }
+  size_t width() const { return width_; }
+  size_t height() const { return height_; }
 
   // Return stride in bytes of a row of pixels in the image data.
-  int stride() const {
+  size_t stride() const {
     return channels() * bits_per_channel() * width() / 8;
   }
 
@@ -59,37 +52,38 @@ class ImageContainer {
   // The number of bits per channel in the image.
   int bits_per_channel() const { return 8; }
 
-  // Currently, this class only supports results in 32-bit RGBA or RGBX
-  // format.  When other formats are added, they should be added to
-  // the Format enum, and accessors made to support them.
-  Format format() const { return format_; }
+  // Currently, this class only supports 32-bit formats.
+  ImageFormat format() const { return format_; }
 
  protected:
-  // Takes ownership of the given new allocated array.
-  void set_data(char* new_data) { data_.reset(new_data); }
-
   // Set parameters read from image.
-  void set_width(int new_width) { width_ = new_width; }
-  void set_height(int new_height) { height_ = new_height; }
-  void set_format(Format format) { format_ = format; }
+  void set_width(size_t new_width) { width_ = new_width; }
+  void set_height(size_t new_height) { height_ = new_height; }
+  void set_format(ImageFormat format) {
+    DCHECK_EQ(GetBitsPerPixelInImageFormat(format),
+              channels() * bits_per_channel());
+    format_ = format;
+  }
+
+  // Takes ownership of the given array.
+  void SetData(uint8_t* new_data, bool was_allocated_with_malloc);
 
  private:
-  // The filename we were constructed with.
-  std::string filename_;
+  // 32-bit-per-pixel image data, oriented with (0, 0) at the beginning of
+  // the array.  We own this data.
+  uint8_t* data_;
 
-  // The associated 32-bit RGBA data oriented with (0, 0) in the
-  // bottom left.  LoadImage must have been called first, or this will
-  // return NULL.  The returned pointer is still owned by this object.
-  scoped_array<char> data_;
+  // Was 'data_' allocated using malloc() (rather than new[])?
+  bool data_was_allocated_with_malloc_;
 
-  // Width in pixels of a row in the image.
-  uint32 width_;
+  // Image width in pixels.
+  size_t width_;
 
-  // Height in pixels of a column in the image.
-  uint32 height_;
+  // Image height in pixels.
+  size_t height_;
 
-  // Format of the image either RGBA or RGBX.
-  Format format_;
+  // Format of the image (from image_enums.h).
+  ImageFormat format_;
 
   DISALLOW_COPY_AND_ASSIGN(ImageContainer);
 };
@@ -106,10 +100,32 @@ class PngImageContainer : public virtual ImageContainer {
   explicit PngImageContainer(const std::string& filename);
   virtual ~PngImageContainer() {}
 
-  ImageContainer::Result LoadImage();
+  const std::string& filename() { return filename_; }
+
+  virtual Result LoadImage();
 
  private:
+  // Name of the file being loaded.
+  std::string filename_;
+
   DISALLOW_COPY_AND_ASSIGN(PngImageContainer);
+};
+
+// This is an implementation of ImageContainer that can be constructed
+// directly from raw, already-loaded data.
+class InMemoryImageContainer : public virtual ImageContainer {
+ public:
+  // Takes ownership of 'new_data', which must be 32-bit image data.
+  InMemoryImageContainer(uint8_t* new_data, size_t new_width, size_t new_height,
+                         ImageFormat new_format,
+                         bool was_allocated_using_malloc);
+  virtual ~InMemoryImageContainer() {}
+
+  // This doesn't need to be called.
+  virtual Result LoadImage() { return IMAGE_LOAD_SUCCESS; }
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(InMemoryImageContainer);
 };
 
 }  // namespace window_manager

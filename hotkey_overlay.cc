@@ -124,7 +124,8 @@ void HotkeyOverlay::ShowImage(const string& filename) {
   map<string, shared_ptr<Compositor::Actor> >::iterator it =
       images_.find(filename);
   if (it == images_.end()) {
-    shared_ptr<Compositor::Actor> image(compositor_->CreateImage(filename));
+    shared_ptr<Compositor::Actor> image(
+        compositor_->CreateImageFromFile(filename));
     image->SetName("hotkey overlay image");
     image->SetOpacity(0, 0);
     image->Show();

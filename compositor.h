@@ -14,6 +14,7 @@
 #include "base/basictypes.h"
 #include "base/logging.h"
 #include "base/scoped_ptr.h"
+#include "window_manager/image_enums.h"
 #include "window_manager/x_types.h"
 
 namespace window_manager {
@@ -82,8 +83,6 @@ class Compositor {
     // The width of an actor if it were tilted by the given amount.
     static int GetTiltedWidth(int width, double tilt);
 
-    virtual void SetClip(int x, int y, int width, int height) = 0;
-
     // Move an actor directly above or below another sibling actor in the
     // stacking order, or to the top or bottom of all of its siblings.
     virtual void Raise(Actor* other) = 0;
@@ -135,7 +134,8 @@ class Compositor {
     ImageActor() {}
     virtual ~ImageActor() {}
 
-    virtual void SetImage(const ImageContainer& image_container) = 0;
+    // Make the actor display the passed-in image data.
+    virtual void SetImageData(const ImageContainer& image_container) = 0;
    private:
     DISALLOW_COPY_AND_ASSIGN(ImageActor);
   };
@@ -171,11 +171,12 @@ class Compositor {
   virtual ContainerActor* CreateGroup() = 0;
   virtual Actor* CreateRectangle(const Color& color, const Color& border_color,
                                  int border_width) = 0;
-  virtual ImageActor* CreateImage(const std::string& filename) = 0;
+  virtual ImageActor* CreateImage() = 0;
+  // Convenience method that assigns an image loaded from disk to the actor.
+  // TODO: This would ideally be implemented within this base class, but we
+  // don't want tests to have to load images from disk.
+  virtual ImageActor* CreateImageFromFile(const std::string& filename) = 0;
   virtual TexturePixmapActor* CreateTexturePixmap() = 0;
-  virtual Actor* CreateText(const std::string& font_name,
-                            const std::string& text,
-                            const Color& color) = 0;
   virtual Actor* CloneActor(Actor* orig) = 0;
 
   // Get the default stage object.  Ownership of the StageActor remains
@@ -268,7 +269,6 @@ class MockCompositor : public Compositor {
     virtual void Hide() { is_shown_ = false; }
     virtual void SetTilt(double tilt, int anim_ms) { tilt_ = tilt; }
     virtual double GetTilt() const { return tilt_; }
-    virtual void SetClip(int x, int y, int width, int height) {}
     virtual void Raise(Compositor::Actor* other);
     virtual void Lower(Compositor::Actor* other);
     virtual void RaiseToTop();
@@ -351,11 +351,15 @@ class MockCompositor : public Compositor {
   class ImageActor : public MockCompositor::Actor,
                      public Compositor::ImageActor {
    public:
-    ImageActor() {}
+    ImageActor();
     virtual ~ImageActor() {}
 
+    // Begin Compositor::Actor methods.
+    virtual void SetSize(int width, int height) {}
+    // End Compositor::Actor methods.
+
     // Begin Compositor::ImageActor methods.
-    virtual void SetImage(const ImageContainer& image_container) {}
+    virtual void SetImageData(const ImageContainer& image_container);
     // End Compositor::ImageActor methods.
    private:
     DISALLOW_COPY_AND_ASSIGN(ImageActor);
@@ -364,15 +368,15 @@ class MockCompositor : public Compositor {
   class TexturePixmapActor : public MockCompositor::Actor,
                              public Compositor::TexturePixmapActor {
    public:
-    explicit TexturePixmapActor(XConnection* xconn)
-        : xconn_(xconn),
-          alpha_mask_bytes_(NULL),
-          pixmap_(0),
-          num_texture_updates_(0) {}
-    virtual ~TexturePixmapActor() { ClearAlphaMask(); }
+    explicit TexturePixmapActor(XConnection* xconn);
+    virtual ~TexturePixmapActor();
     const uint8_t* alpha_mask_bytes() const { return alpha_mask_bytes_; }
     XID pixmap() const { return pixmap_; }
     int num_texture_updates() const { return num_texture_updates_; }
+
+    // Begin Compositor::Actor methods.
+    virtual void SetSize(int width, int height) {}
+    // End Compositor::Actor methods.
 
     // Begin Compositor::TexturePixmapActor methods.
     virtual void SetPixmap(XID pixmap);
@@ -380,10 +384,6 @@ class MockCompositor : public Compositor {
     virtual void SetAlphaMask(const uint8_t* bytes, int width, int height);
     virtual void ClearAlphaMask();
     // End Compositor::TexturePixmapActor methods.
-
-    // Begin MockCompositor::Actor methods.
-    virtual void SetSize(int width, int height) {}
-    // End MockCompositor::Actor methods.
 
    private:
     XConnection* xconn_;  // not owned
@@ -415,16 +415,12 @@ class MockCompositor : public Compositor {
                                  int border_width) {
     return new Actor;
   }
-  virtual ImageActor* CreateImage(const std::string& filename) {
-    return new ImageActor;
-  }
+  virtual ImageActor* CreateImage() { return new ImageActor; }
+  // We always pretend like we successfully loaded a 1x1 image instead of
+  // actually trying to open the file.
+  virtual ImageActor* CreateImageFromFile(const std::string& filename);
   virtual TexturePixmapActor* CreateTexturePixmap() {
     return new TexturePixmapActor(xconn_);
-  }
-  virtual Actor* CreateText(const std::string& font_name,
-                            const std::string& text,
-                            const Compositor::Color& color) {
-    return new Actor;
   }
   Actor* CloneActor(Compositor::Actor* orig) { return new Actor; }
   StageActor* GetDefaultStage() { return &default_stage_; }

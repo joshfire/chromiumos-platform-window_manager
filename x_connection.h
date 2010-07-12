@@ -12,6 +12,7 @@
 #include "base/basictypes.h"
 #include "base/logging.h"
 #include "base/scoped_ptr.h"
+#include "window_manager/image_enums.h"
 #include "window_manager/x_types.h"
 
 namespace window_manager {
@@ -388,6 +389,13 @@ class XConnection {
   // selection.
   virtual XWindow GetSelectionOwner(XAtom atom) = 0;
   virtual bool SetSelectionOwner(XAtom atom, XWindow xid, XTime timestamp) = 0;
+
+  // Get the contents of a drawable.
+  // Returns false for unsupported formats or X errors.
+  virtual bool GetImage(XID drawable, int x, int y,
+                        int width, int height, int drawable_depth,
+                        scoped_ptr_malloc<uint8_t>* data_out,
+                        ImageFormat* format_out) = 0;
 
   // Change the cursor for a window.  'shape' is a definition from
   // Xlib's cursorfont.h header.

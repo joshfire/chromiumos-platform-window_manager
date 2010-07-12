@@ -318,7 +318,8 @@ void LayoutManager::HandleLoggedInStateChange() {
   if (wm_->logged_in()) {
     EnableKeyBindingsForMode(mode_);
     if (!background_.get() && !FLAGS_background_image.empty())
-      SetBackground(wm_->compositor()->CreateImage(FLAGS_background_image));
+      SetBackground(
+          wm_->compositor()->CreateImageFromFile(FLAGS_background_image));
   } else {  // not logged in
     DisableKeyBindingsForMode(mode_);
     if (background_.get())

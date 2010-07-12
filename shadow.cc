@@ -156,7 +156,7 @@ void Shadow::Init() {
 }
 
 Compositor::Actor* Shadow::InitTexture(const string& filename) {
-  Compositor::Actor* actor = compositor_->CreateImage(
+  Compositor::Actor* actor = compositor_->CreateImageFromFile(
       FLAGS_shadow_image_dir + "/" + filename);
   actor->SetName(filename);
   // Even though we don't actually want to display it, we need to add the

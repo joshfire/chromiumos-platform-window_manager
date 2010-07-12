@@ -19,6 +19,7 @@
 #include "base/logging.h"
 #include "window_manager/gl_interface.h"
 #include "window_manager/image_container.h"
+#include "window_manager/image_enums.h"
 #include "window_manager/profiler.h"
 #include "window_manager/util.h"
 
@@ -314,8 +315,23 @@ OpenGlDrawVisitor::~OpenGlDrawVisitor() {
 
 void OpenGlDrawVisitor::BindImage(const ImageContainer* container,
                                   RealCompositor::ImageActor* actor) {
+  GLenum pixel_data_format = 0;
+  switch (container->format()) {
+    case IMAGE_FORMAT_RGBA_32:  // fallthrough
+    case IMAGE_FORMAT_RGBX_32:
+      pixel_data_format = GL_RGBA;
+      break;
+    case IMAGE_FORMAT_BGRA_32:  // fallthrough
+    case IMAGE_FORMAT_BGRX_32:
+      pixel_data_format = GL_BGRA;
+      break;
+    default:
+      NOTREACHED() << "Unhandled image container data format "
+                   << container->format();
+  }
+
   // Create an OpenGL texture with the loaded image data.
-  GLuint new_texture;
+  GLuint new_texture = 0;
   gl_interface_->Enable(GL_TEXTURE_2D);
   gl_interface_->GenTextures(1, &new_texture);
   gl_interface_->BindTexture(GL_TEXTURE_2D, new_texture);
@@ -334,14 +350,12 @@ void OpenGlDrawVisitor::BindImage(const ImageContainer* container,
                                GL_CLAMP_TO_EDGE);
   gl_interface_->TexImage2D(GL_TEXTURE_2D, 0, GL_RGBA,
                             container->width(), container->height(),
-                            0, GL_RGBA, GL_UNSIGNED_BYTE,
+                            0, pixel_data_format, GL_UNSIGNED_BYTE,
                             container->data());
   CHECK_GL_ERROR(gl_interface_);
   OpenGlTextureData* data = new OpenGlTextureData(gl_interface_);
   data->SetTexture(new_texture);
-  data->set_has_alpha(
-      container->format() == ImageContainer::IMAGE_FORMAT_RGBA_32);
-  actor->SetSize(container->width(), container->height());
+  data->set_has_alpha(ImageFormatUsesAlpha(container->format()));
   actor->set_texture_data(data);
 }
 

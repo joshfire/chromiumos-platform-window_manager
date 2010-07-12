@@ -661,10 +661,22 @@ void RealCompositor::QuadActor::CloneImpl(QuadActor* clone) {
 }
 
 
+RealCompositor::ImageActor::ImageActor(RealCompositor* compositor)
+    : QuadActor(compositor) {
+  Actor::SetSize(0, 0);
+}
+
 RealCompositor::Actor* RealCompositor::ImageActor::Clone() {
   ImageActor* new_instance = new ImageActor(compositor());
   QuadActor::CloneImpl(new_instance);
   return static_cast<Actor*>(new_instance);
+}
+
+void RealCompositor::ImageActor::SetImageData(
+    const ImageContainer& image_container) {
+  compositor()->draw_visitor()->BindImage(&image_container, this);
+  Actor::SetSize(image_container.width(), image_container.height());
+  SetDirty();
 }
 
 
@@ -673,6 +685,7 @@ RealCompositor::TexturePixmapActor::TexturePixmapActor(
     : RealCompositor::QuadActor(compositor),
       pixmap_(0),
       pixmap_is_opaque_(false) {
+  Actor::SetSize(0, 0);
 }
 
 RealCompositor::TexturePixmapActor::~TexturePixmapActor() {
@@ -728,6 +741,7 @@ RealCompositor::StageActor::StageActor(RealCompositor* the_compositor,
       compositor()->x_conn()->GetRootWindow(),
       0, 0, width, height);
   compositor()->x_conn()->MapWindow(window_);
+  Actor::SetSize(width, height);
   SetDirty();
 }
 
@@ -816,32 +830,23 @@ RealCompositor::Actor* RealCompositor::CreateRectangle(
   return actor;
 }
 
-RealCompositor::ImageActor* RealCompositor::CreateImage(
+RealCompositor::ImageActor* RealCompositor::CreateImage() {
+  return new ImageActor(this);
+}
+
+RealCompositor::ImageActor* RealCompositor::CreateImageFromFile(
     const string& filename) {
-  ImageActor* actor = new ImageActor(this);
+  ImageActor* actor = CreateImage();
   scoped_ptr<ImageContainer> container(
-      ImageContainer::CreateContainer(filename));
+      ImageContainer::CreateContainerFromFile(filename));
   CHECK(container.get() &&
         container->LoadImage() == ImageContainer::IMAGE_LOAD_SUCCESS);
-
-  draw_visitor_->BindImage(container.get(), actor);
-  actor->SetSize(container->width(), container->height());
+  actor->SetImageData(*(container.get()));
   return actor;
 }
 
 RealCompositor::TexturePixmapActor* RealCompositor::CreateTexturePixmap() {
   return new TexturePixmapActor(this);
-}
-
-RealCompositor::Actor* RealCompositor::CreateText(
-    const string& font_name,
-    const string& text,
-    const Compositor::Color& color) {
-  QuadActor* actor = new QuadActor(this);
-  // TODO: Actually create the text.
-  actor->SetColor(color, color, 0);
-  actor->SetOpacity(.5f, 0);
-  return actor;
 }
 
 RealCompositor::Actor* RealCompositor::CloneActor(Compositor::Actor* orig) {
