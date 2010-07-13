@@ -865,14 +865,18 @@ void WindowManager::RegisterKeyBindings() {
       NewPermanentCallback(this, &WindowManager::ToggleClientWindowDebugging),
       NULL, NULL);
   key_bindings_->AddBinding(
-      KeyBindings::KeyCombo(XK_F9), "toggle-client-window-debugging");
+      KeyBindings::KeyCombo(
+          XK_d, KeyBindings::kControlMask | KeyBindings::kAltMask),
+      "toggle-client-window-debugging");
 
   key_bindings_->AddAction(
       "toggle-profiler",
       NewPermanentCallback(this, &WindowManager::ToggleProfiler),
       NULL, NULL);
   key_bindings_->AddBinding(
-      KeyBindings::KeyCombo(XK_F10), "toggle-profiler");
+      KeyBindings::KeyCombo(
+          XK_p, KeyBindings::kControlMask | KeyBindings::kAltMask),
+      "toggle-profiler");
 
   key_bindings_->AddAction(
       "lock-screen",
@@ -898,15 +902,15 @@ void WindowManager::RegisterKeyBindings() {
       "toggle-hotkey-overlay",
       NewPermanentCallback(this, &WindowManager::ToggleHotkeyOverlay),
       NULL, NULL);
-  key_bindings_->AddBinding(
-      KeyBindings::KeyCombo(XK_F8), "toggle-hotkey-overlay");
+  // TODO: We don't have any keys bound to this for now; it'll be added
+  // back via another means later.
 
   key_bindings_->AddAction(
       "take-root-screenshot",
       NewPermanentCallback(this, &WindowManager::TakeScreenshot, false),
       NULL, NULL);
   key_bindings_->AddBinding(
-      KeyBindings::KeyCombo(XK_Print), "take-root-screenshot");
+      KeyBindings::KeyCombo(XK_Print, 0), "take-root-screenshot");
 
   key_bindings_->AddAction(
       "take-window-screenshot",
@@ -923,7 +927,10 @@ void WindowManager::RegisterKeyBindings() {
           chromeos::WM_IPC_SYSTEM_KEY_VOLUME_UP),
       NULL, NULL);
   key_bindings_->AddBinding(
-      KeyBindings::KeyCombo(XF86XK_AudioRaiseVolume), "increase-audio-volume");
+      KeyBindings::KeyCombo(XF86XK_AudioRaiseVolume, 0),
+      "increase-audio-volume");
+  key_bindings_->AddBinding(
+      KeyBindings::KeyCombo(XK_F10, 0), "increase-audio-volume");
 
   key_bindings_->AddAction(
       "decrease-audio-volume",
@@ -932,7 +939,10 @@ void WindowManager::RegisterKeyBindings() {
           chromeos::WM_IPC_SYSTEM_KEY_VOLUME_DOWN),
       NULL, NULL);
   key_bindings_->AddBinding(
-      KeyBindings::KeyCombo(XF86XK_AudioLowerVolume), "decrease-audio-volume");
+      KeyBindings::KeyCombo(XF86XK_AudioLowerVolume, 0),
+      "decrease-audio-volume");
+  key_bindings_->AddBinding(
+      KeyBindings::KeyCombo(XK_F9, 0), "decrease-audio-volume");
 
   key_bindings_->AddAction(
       "mute-audio",
@@ -941,7 +951,9 @@ void WindowManager::RegisterKeyBindings() {
           chromeos::WM_IPC_SYSTEM_KEY_VOLUME_MUTE),
       NULL, NULL);
   key_bindings_->AddBinding(
-      KeyBindings::KeyCombo(XF86XK_AudioMute), "mute-audio");
+      KeyBindings::KeyCombo(XF86XK_AudioMute, 0), "mute-audio");
+  key_bindings_->AddBinding(
+      KeyBindings::KeyCombo(XK_F8, 0), "mute-audio");
 }
 
 bool WindowManager::ManageExistingWindows() {

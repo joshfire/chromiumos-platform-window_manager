@@ -53,10 +53,10 @@ class KeyBindings {
   // A key and modifier combination, such as (XK_Tab, kAltMask) for alt-tab.
   struct KeyCombo {
     // We lowercase keysyms (the uppercase distinction when Shift is down
-    // or Caps Lock is on isn't useful for us) and mask LockMask out of the
-    // modifier (so that bindings will still be recognized if Caps Lock is
-    // enabled).
-    explicit KeyCombo(KeySym keysym_param, uint32_t modifiers_param = 0);
+    // or Caps Lock is on isn't useful for us) and mask kCapsLockMask and
+    // kNumLockMask out of the modifier (so that bindings will still be
+    // recognized if Caps Lock or Num Lock are enabled).
+    explicit KeyCombo(KeySym keysym_param, uint32_t modifiers_param);
 
     bool operator<(const KeyCombo& o) const;
 

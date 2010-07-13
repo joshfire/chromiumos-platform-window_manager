@@ -129,7 +129,7 @@ LayoutManager::LayoutManager(WindowManager* wm, PanelManager* panel_manager)
       NewPermanentCallback(this, &LayoutManager::SetMode, MODE_OVERVIEW),
       NULL, NULL);
   active_mode_key_bindings_group_->AddBinding(
-      KeyBindings::KeyCombo(XK_F12, 0), "switch-to-overview-mode");
+      KeyBindings::KeyCombo(XK_F3, 0), "switch-to-overview-mode");
 
   kb->AddAction(
       "switch-to-active-mode",
@@ -140,58 +140,54 @@ LayoutManager::LayoutManager(WindowManager* wm, PanelManager* panel_manager)
       KeyBindings::KeyCombo(XK_Escape, 0), "switch-to-active-mode");
 
   kb->AddAction(
-      "cycle-active-forward",
+      "cycle-toplevel-forward",
       NewPermanentCallback(
           this, &LayoutManager::CycleCurrentToplevelWindow, true),
       NULL, NULL);
   active_mode_key_bindings_group_->AddBinding(
       KeyBindings::KeyCombo(XK_Tab, KeyBindings::kAltMask),
-      "cycle-active-forward");
+      "cycle-toplevel-forward");
   active_mode_key_bindings_group_->AddBinding(
-      KeyBindings::KeyCombo(XK_F2, KeyBindings::kAltMask),
-      "cycle-active-forward");
+      KeyBindings::KeyCombo(XK_F2, 0), "cycle-toplevel-forward");
 
   kb->AddAction(
-      "cycle-active-backward",
+      "cycle-toplevel-backward",
       NewPermanentCallback(
           this, &LayoutManager::CycleCurrentToplevelWindow, false),
       NULL, NULL);
   active_mode_key_bindings_group_->AddBinding(
       KeyBindings::KeyCombo(
           XK_Tab, KeyBindings::kAltMask | KeyBindings::kShiftMask),
-      "cycle-active-backward");
+      "cycle-toplevel-backward");
   active_mode_key_bindings_group_->AddBinding(
-      KeyBindings::KeyCombo(XK_F1, KeyBindings::kAltMask),
-      "cycle-active-backward");
+      KeyBindings::KeyCombo(XK_F1, 0), "cycle-toplevel-backward");
 
   kb->AddAction(
-      "cycle-magnification-forward",
+      "cycle-snapshot-forward",
       NewPermanentCallback(
           this, &LayoutManager::CycleCurrentSnapshotWindow, true),
       NULL, NULL);
   overview_mode_key_bindings_group_->AddBinding(
-      KeyBindings::KeyCombo(XK_Right, 0), "cycle-magnification-forward");
+      KeyBindings::KeyCombo(XK_Right, 0), "cycle-snapshot-forward");
   overview_mode_key_bindings_group_->AddBinding(
       KeyBindings::KeyCombo(XK_Tab, KeyBindings::kAltMask),
-      "cycle-magnification-forward");
+      "cycle-snapshot-forward");
   overview_mode_key_bindings_group_->AddBinding(
-      KeyBindings::KeyCombo(XK_F2, KeyBindings::kAltMask),
-      "cycle-magnification-forward");
+      KeyBindings::KeyCombo(XK_F2, 0), "cycle-snapshot-forward");
 
   kb->AddAction(
-      "cycle-magnification-backward",
+      "cycle-snapshot-backward",
       NewPermanentCallback(
           this, &LayoutManager::CycleCurrentSnapshotWindow, false),
       NULL, NULL);
   overview_mode_key_bindings_group_->AddBinding(
-      KeyBindings::KeyCombo(XK_Left, 0), "cycle-magnification-backward");
+      KeyBindings::KeyCombo(XK_Left, 0), "cycle-snapshot-backward");
   overview_mode_key_bindings_group_->AddBinding(
       KeyBindings::KeyCombo(
           XK_Tab, KeyBindings::kAltMask | KeyBindings::kShiftMask),
-      "cycle-magnification-backward");
+      "cycle-snapshot-backward");
   overview_mode_key_bindings_group_->AddBinding(
-      KeyBindings::KeyCombo(XK_F1, KeyBindings::kAltMask),
-      "cycle-magnification-backward");
+      KeyBindings::KeyCombo(XK_F1, 0), "cycle-snapshot-backward");
 
   kb->AddAction(
       "switch-to-active-mode-for-selected",
@@ -201,7 +197,7 @@ LayoutManager::LayoutManager(WindowManager* wm, PanelManager* panel_manager)
       KeyBindings::KeyCombo(XK_Return, 0),
       "switch-to-active-mode-for-selected");
   overview_mode_key_bindings_group_->AddBinding(
-      KeyBindings::KeyCombo(XK_F12, 0), "switch-to-active-mode-for-selected");
+      KeyBindings::KeyCombo(XK_F3, 0), "switch-to-active-mode-for-selected");
 
   for (int i = 0; i < 8; ++i) {
     kb->AddAction(
@@ -253,6 +249,8 @@ LayoutManager::LayoutManager(WindowManager* wm, PanelManager* panel_manager)
           XK_w, KeyBindings::kControlMask | KeyBindings::kShiftMask),
       "delete-active-window");
 
+  // TODO: Choose better key bindings for panning in overview mode; these
+  // were just stupid placeholders that were used for testing.
   kb->AddAction(
       "pan-overview-mode-left",
       NewPermanentCallback(this, &LayoutManager::PanOverviewMode, -50),

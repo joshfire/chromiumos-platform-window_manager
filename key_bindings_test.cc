@@ -283,14 +283,14 @@ TEST_F(KeyBindingsTest, InvalidOperations) {
   xconn_->AddKeyMapping(1, XK_e);
 
   EXPECT_FALSE(bindings_->RemoveAction("nonexistant"));
-  EXPECT_FALSE(bindings_->RemoveBinding(KeyBindings::KeyCombo(XK_e)));
-  EXPECT_FALSE(bindings_->AddBinding(KeyBindings::KeyCombo(XK_e),
+  EXPECT_FALSE(bindings_->RemoveBinding(KeyBindings::KeyCombo(XK_e, 0)));
+  EXPECT_FALSE(bindings_->AddBinding(KeyBindings::KeyCombo(XK_e, 0),
                                      "nonexistant"));
 
   EXPECT_TRUE(bindings_->AddAction("test", NULL, NULL, NULL));
   EXPECT_FALSE(bindings_->AddAction("test", NULL, NULL, NULL));  // Double add
 
-  KeyBindings::KeyCombo combo(XK_e);
+  KeyBindings::KeyCombo combo(XK_e, 0);
   EXPECT_TRUE(bindings_->AddBinding(combo, "test"));
   EXPECT_FALSE(bindings_->AddBinding(combo, "test"));  // Double add
 }
@@ -305,7 +305,7 @@ TEST_F(KeyBindingsTest, ManyActionsAndBindings) {
       KeySym keysym = XK_a + (i * kNumActions) + j;
       xconn_->AddKeyMapping(i * kNumActions + j + 1, keysym);
       EXPECT_TRUE(
-          bindings_->AddBinding(KeyBindings::KeyCombo(keysym),
+          bindings_->AddBinding(KeyBindings::KeyCombo(keysym, 0),
                                 actions_[j]->name));
     }
   }
@@ -341,7 +341,7 @@ TEST_F(KeyBindingsTest, ManyActionsAndBindings) {
   for (int i = 0; i < (kBindingsPerAction / 2); ++i) {
     for (int j = 0; j < kNumActions; ++j) {
       KeySym keysym = XK_a + (i * kNumActions) + j;
-      EXPECT_TRUE(bindings_->RemoveBinding(KeyBindings::KeyCombo(keysym)));
+      EXPECT_TRUE(bindings_->RemoveBinding(KeyBindings::KeyCombo(keysym, 0)));
     }
   }
 
@@ -387,7 +387,7 @@ TEST_F(KeyBindingsTest, ManyActionsAndBindings) {
   for (int i = 0; i < kBindingsPerAction; ++i) {
     for (int j = 0; j < kNumActions; ++j) {
       KeySym keysym = XK_a + (i * kNumActions) + j;
-      EXPECT_FALSE(bindings_->RemoveBinding(KeyBindings::KeyCombo(keysym)));
+      EXPECT_FALSE(bindings_->RemoveBinding(KeyBindings::KeyCombo(keysym, 0)));
     }
   }
 
