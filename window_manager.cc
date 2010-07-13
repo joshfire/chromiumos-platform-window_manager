@@ -28,6 +28,8 @@ extern "C" {
 #include "window_manager/focus_manager.h"
 #include "window_manager/geometry.h"
 #include "window_manager/hotkey_overlay.h"
+#include "window_manager/image_container.h"
+#include "window_manager/image_enums.h"
 #include "window_manager/key_bindings.h"
 #include "window_manager/layout_manager.h"
 #include "window_manager/login_controller.h"
@@ -39,8 +41,8 @@ extern "C" {
 #include "window_manager/window.h"
 #include "window_manager/x_connection.h"
 
-DEFINE_string(xterm_command, "xterm", "Command for hotkey xterm spawn.");
-DEFINE_string(background_color, "#000", "Background color to use");
+DEFINE_string(xterm_command, "xterm", "Command to launch a terminal");
+DEFINE_string(background_color, "#000", "Background color");
 DEFINE_string(lock_screen_command, "powerd_lock_screen",
               "Command to lock the screen");
 DEFINE_string(configure_monitor_command,
@@ -54,9 +56,12 @@ DEFINE_string(logged_in_screenshot_output_dir,
 DEFINE_string(logged_out_screenshot_output_dir,
               ".", "Output directory for screenshots when not logged in");
 DEFINE_string(logged_in_log_dir,
-              ".", "Directory to write logs to when logged in.");
+              ".", "Directory to write logs to when logged in");
 DEFINE_string(logged_out_log_dir,
-              ".", "Directory to write logs to when not logged in.");
+              ".", "Directory to write logs to when not logged in");
+DEFINE_string(unaccelerated_graphics_image,
+              "../assets/images/unaccelerated_graphics.png",
+              "Image to display when using unaccelerated rendering");
 
 DEFINE_bool(use_compositing, true, "Use compositing");
 
@@ -82,6 +87,17 @@ static const int kHotkeyOverlayAnimMs = 100;
 // Interval with which we query the keyboard state from the X server to
 // update the hotkey overlay (when it's being shown).
 static const int kHotkeyOverlayPollMs = 100;
+
+// How many pixels should 'unaccelerated_graphics_actor_' be offset from
+// the upper-left corner of the screen?
+static const int kUnacceleratedGraphicsActorOffsetPixels = 5;
+
+// How long should we wait before hiding 'unaccelerated_graphics_actor_'?
+static const int kUnacceleratedGraphicsActorHideTimeoutMs = 15000;
+
+// How quickly should we fade out 'unaccelerated_graphics_actor_' when
+// hiding it?
+static const int kUnacceleratedGraphicsActorHideAnimMs = 500;
 
 const int WindowManager::kVideoTimePropertyUpdateSec = 5;
 
@@ -177,7 +193,8 @@ WindowManager::WindowManager(EventLoop* event_loop,
       wm_ipc_version_(1),
       logged_in_(false),
       initialize_logging_(false),
-      last_video_time_(-1) {
+      last_video_time_(-1),
+      hide_unaccelerated_graphics_actor_timeout_id_(-1) {
   CHECK(event_loop_);
   CHECK(xconn_);
   CHECK(compositor_);
@@ -190,6 +207,8 @@ WindowManager::~WindowManager() {
     xconn_->FreePixmap(startup_pixmap_);
   if (query_keyboard_state_timeout_id_ >= 0)
     event_loop_->RemoveTimeout(query_keyboard_state_timeout_id_);
+  if (hide_unaccelerated_graphics_actor_timeout_id_ >= 0)
+    event_loop_->RemoveTimeout(hide_unaccelerated_graphics_actor_timeout_id_);
   if (panel_manager_.get())
     panel_manager_->UnregisterAreaChangeListener(this);
 }
@@ -206,6 +225,7 @@ bool WindowManager::Init() {
   CHECK(xconn_->GetWindowGeometry(root_, &root_geometry));
   width_ = root_geometry.width;
   height_ = root_geometry.height;
+  root_depth_ = root_geometry.depth;
 
   // Create the atom cache first; RegisterExistence() needs it.
   atom_cache_.reset(new AtomCache(xconn_));
@@ -239,18 +259,8 @@ bool WindowManager::Init() {
       new StackingManager(xconn_, compositor_, atom_cache_.get()));
   focus_manager_.reset(new FocusManager(this));
 
-  if (!logged_in_) {
-    startup_pixmap_ = xconn_->CreatePixmap(root_, width_, height_,
-                                           root_geometry.depth);
-    xconn_->CopyArea(root_, startup_pixmap_, 0, 0, 0, 0, width_, height_);
-    startup_background_.reset(compositor_->CreateTexturePixmap());
-    startup_background_->SetName("startup background");
-    startup_background_->SetPixmap(startup_pixmap_);
-    startup_background_->Show();
-    stage_->AddActor(startup_background_.get());
-    stacking_manager_->StackActorAtTopOfLayer(
-        startup_background_.get(), StackingManager::LAYER_BACKGROUND);
-  }
+  if (!logged_in_)
+    CreateInitialBackground();
 
   if (FLAGS_use_compositing) {
     // Draw the scene first to make sure that it's ready.
@@ -265,6 +275,26 @@ bool WindowManager::Init() {
     CHECK(xconn_->ReparentWindow(stage_xid_, overlay_xid_, 0, 0));
     CHECK(xconn_->RemoveInputRegionFromWindow(overlay_xid_));
     CHECK(xconn_->RemoveInputRegionFromWindow(stage_xid_));
+  }
+
+  if (!compositor_->TexturePixmapActorUsesFastPath() &&
+      !FLAGS_unaccelerated_graphics_image.empty()) {
+    unaccelerated_graphics_actor_.reset(
+        compositor_->CreateImageFromFile(FLAGS_unaccelerated_graphics_image));
+    unaccelerated_graphics_actor_->Move(
+        kUnacceleratedGraphicsActorOffsetPixels,
+        kUnacceleratedGraphicsActorOffsetPixels,
+        0);
+    unaccelerated_graphics_actor_->SetOpacity(1.f, 0);
+    stage_->AddActor(unaccelerated_graphics_actor_.get());
+    stacking_manager_->StackActorAtTopOfLayer(
+        unaccelerated_graphics_actor_.get(), StackingManager::LAYER_DEBUGGING);
+    unaccelerated_graphics_actor_->Show();
+    hide_unaccelerated_graphics_actor_timeout_id_ =
+        event_loop_->AddTimeout(
+            NewPermanentCallback(
+                this, &WindowManager::HideUnacceleratedGraphicsActor),
+            kUnacceleratedGraphicsActorHideTimeoutMs, 0);
   }
 
   key_bindings_.reset(new KeyBindings(xconn()));
@@ -1722,6 +1752,28 @@ void WindowManager::QueryKeyboardState() {
   vector<uint8_t> keycodes;
   xconn_->QueryKeyboardState(&keycodes);
   hotkey_overlay_->HandleKeyboardState(keycodes);
+}
+
+void WindowManager::CreateInitialBackground() {
+  startup_pixmap_ = xconn_->CreatePixmap(root_, width_, height_, root_depth_);
+  xconn_->CopyArea(root_, startup_pixmap_, 0, 0, 0, 0, width_, height_);
+  Compositor::TexturePixmapActor* pixmap_actor =
+      compositor_->CreateTexturePixmap();
+  pixmap_actor->SetPixmap(startup_pixmap_);
+  startup_background_.reset(pixmap_actor);
+  startup_background_->SetName("startup background");
+  stage_->AddActor(startup_background_.get());
+  stacking_manager_->StackActorAtTopOfLayer(
+      startup_background_.get(), StackingManager::LAYER_BACKGROUND);
+  startup_background_->Show();
+}
+
+void WindowManager::HideUnacceleratedGraphicsActor() {
+  if (unaccelerated_graphics_actor_.get())
+    unaccelerated_graphics_actor_->SetOpacity(
+        0.f, kUnacceleratedGraphicsActorHideAnimMs );
+  event_loop_->RemoveTimeout(hide_unaccelerated_graphics_actor_timeout_id_);
+  hide_unaccelerated_graphics_actor_timeout_id_ = 0;
 }
 
 }  // namespace window_manager

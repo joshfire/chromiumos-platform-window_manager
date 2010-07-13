@@ -223,8 +223,9 @@ void RealCompositor::LayerVisitor::VisitQuad(
 
 void RealCompositor::LayerVisitor::VisitImage(
     RealCompositor::ImageActor* actor) {
-  CHECK(actor->texture_data());
-  VisitTexturedQuadActor(actor, !actor->texture_data()->has_alpha());
+  VisitTexturedQuadActor(
+      actor,
+      actor->texture_data() ? !actor->texture_data()->has_alpha() : true);
 }
 
 void RealCompositor::LayerVisitor::VisitTexturePixmap(
@@ -786,7 +787,8 @@ RealCompositor::RealCompositor(EventLoop* event_loop,
       current_time_ms_for_testing_(-1),
       last_draw_time_ms_(-1),
       draw_timeout_id_(-1),
-      draw_timeout_enabled_(false) {
+      draw_timeout_enabled_(false),
+      texture_pixmap_actor_uses_fast_path_(true) {
   CHECK(event_loop_);
   XWindow root = x_conn()->GetRootWindow();
   XConnection::WindowGeometry geometry;
@@ -802,6 +804,11 @@ RealCompositor::RealCompositor(EventLoop* event_loop,
       new OpenGlesDrawVisitor(gl_interface, this, default_stage_.get())
 #endif
       );
+
+#if defined(COMPOSITOR_OPENGL)
+  if (!gl_interface->HasTextureFromPixmapExtension())
+    texture_pixmap_actor_uses_fast_path_ = false;
+#endif
 
   draw_timeout_id_ = event_loop_->AddTimeout(
       NewPermanentCallback(this, &RealCompositor::Draw), 0, kDrawTimeoutMs);

@@ -13,12 +13,14 @@
 #include "base/scoped_ptr.h"
 #include "window_manager/compositor.h"
 #include "window_manager/gl_interface.h"
-#include "window_manager/image_container.h"
 #include "window_manager/real_compositor.h"
 #include "window_manager/texture_data.h"
 #include "window_manager/x_connection.h"
 
 namespace window_manager {
+
+class ImageContainer;
+
 
 class OpenGlTextureData : public TextureData {
  public:
@@ -37,19 +39,34 @@ class OpenGlPixmapData : public DynamicTextureData {
   OpenGlPixmapData(OpenGlDrawVisitor* visitor);
   virtual ~OpenGlPixmapData();
 
+  // Begin DynamicTextureData methods.
   virtual void Refresh();
+  // End DynamicTextureData methods.
 
-  // This creates a GLX pixmap from the actor's pixmap and binds it to a GL
-  // texture.  false is returned if the process fails (in which case this
-  // object should be thrown away).
+  // Initialize our texture and make it contain the current contents of the
+  // passed-in actor's pixmap.  False is returned if the process fails (in
+  // which case this object should be thrown away).
   bool Init(RealCompositor::TexturePixmapActor* actor);
 
  private:
+  // Fetch the contents of 'pixmap_' from the X server and copy them to our
+  // texture.  This is the slower implementation used when the
+  // texture-from-pixmap extension is unavailable.  Returns true on success.
+  bool CopyPixmapImageToTexture();
+
   OpenGlDrawVisitor* visitor_;  // not owned
   GLInterface* gl_;             // not owned
 
-  // GLX pixmap created from the actor's X pixmap.
+  // The actor's X pixmap.  Ownership of the pixmap remains with the caller.
+  XPixmap pixmap_;
+
+  // GLX pixmap created from the actor's X pixmap if the
+  // texture-from-pixmap extension is available.
   GLXPixmap glx_pixmap_;
+
+  // Dimensions and depth of 'pixmap_'.  This is only initialized if
+  // 'glx_pixmap_' isn't being used.
+  XConnection::WindowGeometry pixmap_geometry_;
 };
 
 // This class visits an actor tree and draws it using OpenGL.
@@ -59,6 +76,8 @@ class OpenGlDrawVisitor : virtual public RealCompositor::ActorVisitor {
                     RealCompositor* compositor,
                     Compositor::StageActor* stage);
   virtual ~OpenGlDrawVisitor();
+
+  XConnection* xconn() { return xconn_; }
 
   void BindImage(const ImageContainer* container,
                  RealCompositor::ImageActor* actor);
@@ -118,7 +137,7 @@ class OpenGlDrawVisitor : virtual public RealCompositor::ActorVisitor {
 
   GLInterface* gl_interface_;  // Not owned.
   RealCompositor* compositor_;  // Not owned.
-  XConnection* x_conn_;  // Not owned.
+  XConnection* xconn_;  // Not owned.
   RealCompositor::StageActor* stage_; // Not owned.
 
   // This holds the drawing data used for quads.  Note that only

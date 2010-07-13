@@ -1,6 +1,6 @@
 #!/bin/sh
 
-# Copyright (c) 2009 The Chromium OS Authors. All rights reserved.
+# Copyright (c) 2010 The Chromium OS Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -12,15 +12,13 @@
 (sleep 1 && if [ -e $HOME/.Xresources ]; then xrdb -load $HOME/.Xresources; fi)
 (sleep 1 && xmodmap -e 'add mod4 = Super_L Super_R')
 
-# It looks like there might be a race condition if we start the terminal at
-# the same time as the window manager -- I'm occasionally seeing the WM not
-# notice the window.  Sleep for a second so the WM has a chance to start
-# first.
-(sleep 1 && ./mock_chrome --num_windows=5 &)
-(sleep 2 && xterm &)
+xterm &
+xprop -root -f _CHROME_LOGGED_IN 32i -set _CHROME_LOGGED_IN 1
 
 # Uncomment to dump all communication between the WM and X server to a file.
 #XTRACE="xtrace -n -o /tmp/wm_xtrace.log"
 
-exec $XTRACE ./wm --logtostderr \
-  --wm_background_image=../assets/images/background_1024x768.png
+exec $XTRACE ./wm \
+  --background_image=../assets/images/background_1024x768.png \
+  --logged_in_log_dir=/tmp \
+  --logged_out_log_dir=/tmp

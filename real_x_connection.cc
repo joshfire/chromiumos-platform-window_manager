@@ -923,22 +923,15 @@ bool RealXConnection::GetImage(XID drawable, int x, int y,
     return false;
   }
 
-  if (!GetImageFormatFromColorMasks(image->byte_order == LSBFirst,
-                                    image->bits_per_pixel,
-                                    static_cast<uint32_t>(image->red_mask),
-                                    static_cast<uint32_t>(image->green_mask),
-                                    static_cast<uint32_t>(image->blue_mask),
-                                    drawable_depth,
-                                    format_out)) {
-    DLOG(WARNING) << "Unhandled format in image: "
+  if (!GetImageFormat(image->byte_order == LSBFirst,
+                      image->bits_per_pixel,
+                      drawable_depth,
+                      format_out)) {
+    DLOG(WARNING) << "Unhandled format in image:"
                   << " drawable=" << XidStr(drawable)
                   << " drawable_depth=" << drawable_depth
                   << " image_depth=" << image->bits_per_pixel
-                  << " lsb_first=" << (image->byte_order == LSBFirst)
-                  << std::hex
-                  << " red_mask=0x" << image->red_mask
-                  << " green_mask=0x" << image->green_mask
-                  << " blue_mask=0x" << image->blue_mask;
+                  << " lsb_first=" << (image->byte_order == LSBFirst);
     XDestroyImage(image);
     return false;
   }
@@ -1142,13 +1135,10 @@ string RealXConnection::GetErrorText(int error_code) {
 }
 
 // static
-bool RealXConnection::GetImageFormatFromColorMasks(bool lsb_first,
-                                                   int image_depth,
-                                                   uint32_t red_mask,
-                                                   uint32_t green_mask,
-                                                   uint32_t blue_mask,
-                                                   int drawable_depth,
-                                                   ImageFormat* format_out) {
+bool RealXConnection::GetImageFormat(bool lsb_first,
+                                     int image_depth,
+                                     int drawable_depth,
+                                     ImageFormat* format_out) {
   // We only support 32-bit image data with or without a usable alpha
   // channel at the moment.
   if (image_depth != 32 || (drawable_depth != 24 && drawable_depth != 32))
@@ -1156,28 +1146,14 @@ bool RealXConnection::GetImageFormatFromColorMasks(bool lsb_first,
 
   bool has_alpha = (drawable_depth == 32);
 
-  const uint32_t& r = red_mask;
-  const uint32_t& g = green_mask;
-  const uint32_t& b = blue_mask;
-
-  // What a mess. :-(
-  if (lsb_first) {
-    if (r == 0xff && g == 0xff00 && b == 0xff0000) {
-      *format_out = has_alpha ? IMAGE_FORMAT_RGBA_32 : IMAGE_FORMAT_RGBX_32;
-    } else if (r == 0xff0000 && g == 0xff00 && b == 0xff) {
-      *format_out = has_alpha ? IMAGE_FORMAT_BGRA_32 : IMAGE_FORMAT_BGRX_32;
-    } else {
-      return false;
-    }
-  } else {
-    if (r == 0xff000000 && g == 0xff0000 && b == 0xff00) {
-      *format_out = has_alpha ? IMAGE_FORMAT_RGBA_32 : IMAGE_FORMAT_RGBX_32;
-    } else if (r == 0xff00 && g == 0xff0000 && b == 0xff000000) {
-      *format_out = has_alpha ? IMAGE_FORMAT_BGRA_32 : IMAGE_FORMAT_BGRX_32;
-    } else {
-      return false;
-    }
-  }
+  // Xlib appears to not fill in the red, green, and blue masks in XImage
+  // structs in some cases, such as when fetching an image from a window's
+  // XComposite pixmap.  We just assume that little-endian systems store
+  // data in BGR order and big-endian systems use RGB.
+  if (lsb_first)
+    *format_out = has_alpha ? IMAGE_FORMAT_BGRA_32 : IMAGE_FORMAT_BGRX_32;
+  else
+    *format_out = has_alpha ? IMAGE_FORMAT_RGBA_32 : IMAGE_FORMAT_RGBX_32;
 
   return true;
 }

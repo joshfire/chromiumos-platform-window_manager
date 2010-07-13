@@ -21,6 +21,9 @@ class GLInterface : virtual public GLInterfaceBase {
   GLInterface() {}
   virtual ~GLInterface() {}
 
+  // Is GLX_EXT_texture_from_pixmap available?
+  virtual bool HasTextureFromPixmapExtension() { return true; }
+
   // Use this function to free objects obtained from this interface,
   // such as from GetGlxFbConfigs and GetGlxVisualFromFbConfig.  In
   // other words, call this when you would have called "XFree" on an

@@ -21,17 +21,18 @@ LOGGED_IN_SCREENSHOT_DIR="${HOME}/Downloads/Screenshots"
 LOGGED_OUT_SCREENSHOT_DIR="/tmp"
 XTERM_COMMAND="/usr/bin/cros-term"
 
-"${WM}"                                                              \
-  --hotkey_overlay_image_dir="${IMAGES}"                             \
-  --panel_anchor_image="${IMAGES}/panel_anchor.png"                  \
-  --panel_dock_background_image="${IMAGES}/panel_dock_bg.png"        \
-  --shadow_image_dir="${IMAGES}"                                     \
-  --background_image="${IMAGES}/background_1024x600.png"             \
-  --initial_chrome_window_mapped_file="${INITIAL_CHROME_FILE}"       \
-  --profile_dir="${PROFILE_DIR}"                                     \
-  --logged_in_log_dir="${LOGGED_IN_LOG_DIR}"                         \
-  --logged_out_log_dir="${LOGGED_OUT_LOG_DIR}"                       \
-  --logged_in_screenshot_output_dir="${LOGGED_IN_SCREENSHOT_DIR}"    \
-  --logged_out_screenshot_output_dir="${LOGGED_OUT_SCREENSHOT_DIR}"  \
-  --separator_image="${IMAGES}/separator.png"                        \
+"${WM}"                                                                 \
+  --background_image="${IMAGES}/background_1024x600.png"                \
+  --hotkey_overlay_image_dir="${IMAGES}"                                \
+  --initial_chrome_window_mapped_file="${INITIAL_CHROME_FILE}"          \
+  --logged_in_log_dir="${LOGGED_IN_LOG_DIR}"                            \
+  --logged_in_screenshot_output_dir="${LOGGED_IN_SCREENSHOT_DIR}"       \
+  --logged_out_log_dir="${LOGGED_OUT_LOG_DIR}"                          \
+  --logged_out_screenshot_output_dir="${LOGGED_OUT_SCREENSHOT_DIR}"     \
+  --panel_anchor_image="${IMAGES}/panel_anchor.png"                     \
+  --panel_dock_background_image="${IMAGES}/panel_dock_bg.png"           \
+  --profile_dir="${PROFILE_DIR}"                                        \
+  --separator_image="${IMAGES}/separator.png"                           \
+  --shadow_image_dir="${IMAGES}"                                        \
+  --unaccelerated_graphics_image="${IMAGES}/unaccelerated_graphics.png" \
   --xterm_command="${XTERM_COMMAND}"

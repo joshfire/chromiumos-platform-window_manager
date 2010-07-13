@@ -350,15 +350,23 @@ class WindowManager : public PanelManagerAreaChangeListener {
   // server and pass it to the overlay.
   void QueryKeyboardState();
 
+  // Initialize 'startup_background_' to hold a new actor that displays the
+  // initial contents of the root window.  Called by Init().
+  void CreateInitialBackground();
+
+  // Callback that fades out 'unaccelerated_graphics_actor_'.
+  void HideUnacceleratedGraphicsActor();
+
   EventLoop* event_loop_;   // not owned
   XConnection* xconn_;      // not owned
   Compositor* compositor_;  // not owned
 
   XWindow root_;
 
-  // Root window dimensions.
+  // Root window dimensions and depth.
   int width_;
   int height_;
+  int root_depth_;
 
   // Offscreen window that we just use for registering as the WM.
   XWindow wm_xid_;
@@ -460,6 +468,13 @@ class WindowManager : public PanelManagerAreaChangeListener {
 
   // Last time that we saved to the _CHROME_VIDEO_TIME property.
   time_t last_video_time_;
+
+  // Image that we display onscreen to let the user know when we're not
+  // fully hardware-accelerated, or NULL if we are accelerated.
+  scoped_ptr<Compositor::ImageActor> unaccelerated_graphics_actor_;
+
+  // ID for the timeout that calls HideUnacceleratedGraphicsActor().
+  int hide_unaccelerated_graphics_actor_timeout_id_;
 
   DISALLOW_COPY_AND_ASSIGN(WindowManager);
 };

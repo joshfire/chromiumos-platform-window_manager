@@ -18,67 +18,31 @@ namespace window_manager {
 
 class RealXConnectionTest : public ::testing::Test {};
 
-TEST_F(RealXConnectionTest, GetImageFormatFromColorMasks) {
-  ImageFormat format = IMAGE_FORMAT_RGBA_32;
+TEST_F(RealXConnectionTest, GetImageFormat) {
+  ImageFormat format = IMAGE_FORMAT_UNKNOWN;
 
   // Check that we don't support non-32-bit-per-pixel data or drawables
   // with non 24- or 32-bit depths.
-  EXPECT_FALSE(RealXConnection::GetImageFormatFromColorMasks(
-      true, 0, 0xff, 0xff00, 0xff0000, 32, &format));
-  EXPECT_FALSE(RealXConnection::GetImageFormatFromColorMasks(
-      true, 24, 0xff, 0xff00, 0xff0000, 32, &format));
-  EXPECT_FALSE(RealXConnection::GetImageFormatFromColorMasks(
-      true, 40, 0xff, 0xff00, 0xff0000, 32, &format));
-  EXPECT_FALSE(RealXConnection::GetImageFormatFromColorMasks(
-      true, 32, 0xff, 0xff00, 0xff0000, 0, &format));
-  EXPECT_FALSE(RealXConnection::GetImageFormatFromColorMasks(
-      true, 32, 0xff, 0xff00, 0xff0000, 16, &format));
-  EXPECT_FALSE(RealXConnection::GetImageFormatFromColorMasks(
-      true, 32, 0xff, 0xff00, 0xff0000, 40, &format));
+  EXPECT_FALSE(RealXConnection::GetImageFormat(true, 0, 32, &format));
+  EXPECT_FALSE(RealXConnection::GetImageFormat(true, 24, 32, &format));
+  EXPECT_FALSE(RealXConnection::GetImageFormat(true, 40, 32, &format));
+  EXPECT_FALSE(RealXConnection::GetImageFormat(true, 32, 0, &format));
+  EXPECT_FALSE(RealXConnection::GetImageFormat(true, 32, 16, &format));
+  EXPECT_FALSE(RealXConnection::GetImageFormat(true, 32, 40, &format));
 
-  // Test some nonsensical masks (no bits for each color, or all bits for
-  // each color).
-  EXPECT_FALSE(RealXConnection::GetImageFormatFromColorMasks(
-      true, 32, 0, 0, 0, 32, &format));
-  EXPECT_FALSE(RealXConnection::GetImageFormatFromColorMasks(
-      true, 32, 0xffffffff, 0xffffffff, 0xffffffff, 32, &format));
-
-  // Unsupported formats like xBGR should also fail.
-  EXPECT_FALSE(RealXConnection::GetImageFormatFromColorMasks(
-      true, 32, 0xff000000, 0xff0000, 0xff00, 24, &format));
-  EXPECT_FALSE(RealXConnection::GetImageFormatFromColorMasks(
-      false, 32, 0xff, 0xff00, 0xff0000, 24, &format));
-
-  // Now check that we recognize RGBx and BGRx for both little- and
-  // big-endian systems.
-  EXPECT_TRUE(RealXConnection::GetImageFormatFromColorMasks(
-      true, 32, 0xff, 0xff00, 0xff0000, 24, &format));
-  EXPECT_EQ(IMAGE_FORMAT_RGBX_32, format);
-  EXPECT_TRUE(RealXConnection::GetImageFormatFromColorMasks(
-      true, 32, 0xff0000, 0xff00, 0xff, 24, &format));
+  // Now check that we report BGRx for little-endian systems and RGBx for
+  // big-endian ones when we have a 24-bit drawable.
+  EXPECT_TRUE(RealXConnection::GetImageFormat(true, 32, 24, &format));
   EXPECT_EQ(IMAGE_FORMAT_BGRX_32, format);
-
-  EXPECT_TRUE(RealXConnection::GetImageFormatFromColorMasks(
-      false, 32, 0xff000000, 0xff0000, 0xff00, 24, &format));
+  EXPECT_TRUE(RealXConnection::GetImageFormat(false, 32, 24, &format));
   EXPECT_EQ(IMAGE_FORMAT_RGBX_32, format);
-  EXPECT_TRUE(RealXConnection::GetImageFormatFromColorMasks(
-      false, 32, 0xff00, 0xff0000, 0xff000000, 24, &format));
-  EXPECT_EQ(IMAGE_FORMAT_BGRX_32, format);
 
   // When we get a drawable with a 32-bit depth, we should report that the
   // data's alpha channel is usable.
-  EXPECT_TRUE(RealXConnection::GetImageFormatFromColorMasks(
-      true, 32, 0xff, 0xff00, 0xff0000, 32, &format));
-  EXPECT_EQ(IMAGE_FORMAT_RGBA_32, format);
-  EXPECT_TRUE(RealXConnection::GetImageFormatFromColorMasks(
-      true, 32, 0xff0000, 0xff00, 0xff, 32, &format));
+  EXPECT_TRUE(RealXConnection::GetImageFormat(true, 32, 32, &format));
   EXPECT_EQ(IMAGE_FORMAT_BGRA_32, format);
-  EXPECT_TRUE(RealXConnection::GetImageFormatFromColorMasks(
-      false, 32, 0xff000000, 0xff0000, 0xff00, 32, &format));
+  EXPECT_TRUE(RealXConnection::GetImageFormat(false, 32, 32, &format));
   EXPECT_EQ(IMAGE_FORMAT_RGBA_32, format);
-  EXPECT_TRUE(RealXConnection::GetImageFormatFromColorMasks(
-      false, 32, 0xff00, 0xff0000, 0xff000000, 32, &format));
-  EXPECT_EQ(IMAGE_FORMAT_BGRA_32, format);
 }
 
 }  // namespace window_manager

@@ -19,8 +19,12 @@ class RealGLInterface : public GLInterface {
   virtual ~RealGLInterface() {}
 
   // Begin GLInterface methods.
+  virtual bool HasTextureFromPixmapExtension() {
+    return has_texture_from_pixmap_extension_;
+  }
   virtual void GlxFree(void* item);
 
+  // GLX functions
   virtual GLXPixmap CreateGlxPixmap(GLXFBConfig config,
                                     XPixmap pixmap,
                                     const int* attrib_list);
@@ -40,7 +44,7 @@ class RealGLInterface : public GLInterface {
                                int* attrib_list);
   virtual void ReleaseGlxTexImage(GLXDrawable drawable, int buffer);
 
-  // GL Functions
+  // GL functions
   virtual void Viewport(GLint x, GLint y, GLsizei width, GLsizei height);
   virtual void BindBuffer(GLenum target, GLuint buffer);
   virtual void BindTexture(GLenum target, GLuint texture);
@@ -96,7 +100,11 @@ class RealGLInterface : public GLInterface {
   // End GLInterface methods.
 
  private:
-  RealXConnection* xconn_;
+  RealXConnection* xconn_;  // not owned
+
+  // Is GLX_EXT_texture_from_pixmap available?
+  bool has_texture_from_pixmap_extension_;
+
   DISALLOW_COPY_AND_ASSIGN(RealGLInterface);
 };
 

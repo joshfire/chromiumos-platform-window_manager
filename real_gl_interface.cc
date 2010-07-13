@@ -29,12 +29,9 @@ static bool supports_anisotropy = false;
 // http://www.opengl.org/registry/specs/EXT/texture_filter_anisotropic.txt
 static float max_anisotropy = 1.0f;
 
-void RealGLInterface::GlxFree(void* item) {
-  XFree(item);
-}
-
 RealGLInterface::RealGLInterface(RealXConnection* connection)
-    : xconn_(connection) {
+    : xconn_(connection),
+      has_texture_from_pixmap_extension_(false) {
   if (kGlxExtensions.size() == 0) {
     kGlxExtensions = string(glXQueryExtensionsString(
         xconn_->GetDisplay(), DefaultScreen(xconn_->GetDisplay())));
@@ -56,8 +53,7 @@ RealGLInterface::RealGLInterface(RealXConnection* connection)
     }
     CHECK(_gl_release_tex_image)
         << "Unable to find proc address for glXReleaseTexImageEXT";
-  } else {
-    CHECK(false) << "Texture from pixmap not supported on this device.";
+    has_texture_from_pixmap_extension_ = true;
   }
   if (kGlxExtensions.find("GLX_SGIX_fbconfig") != string::npos) {
     if (_gl_create_pixmap == NULL) {
@@ -78,6 +74,10 @@ RealGLInterface::RealGLInterface(RealXConnection* connection)
   } else {
     CHECK(false) << "FBConfig not supported on this device.";
   }
+}
+
+void RealGLInterface::GlxFree(void* item) {
+  XFree(item);
 }
 
 GLXPixmap RealGLInterface::CreateGlxPixmap(GLXFBConfig config,

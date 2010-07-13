@@ -154,22 +154,18 @@ class RealXConnection : public XConnection {
   std::string GetErrorText(int error_code);
 
  private:
-  FRIEND_TEST(RealXConnectionTest, GetImageFormatFromColorMasks);
+  FRIEND_TEST(RealXConnectionTest, GetImageFormat);
 
-  // Get an image format using the color masks from an X image.
-  // 'lsb_first' should be true if the image data is least-significant-byte
-  // first or false if it's MSB-first, and the mask values specify which
-  // bits correspond to which colors.  'image_depth' is the bits-per-pixel
-  // from the image data (only 32 is supported currently) and
-  // 'drawable_depth' is the drawable's depth (either 32 or 24).  False is
-  // returned for unsupported formats.
-  static bool GetImageFormatFromColorMasks(bool lsb_first,
-                                           int image_depth,
-                                           uint32_t red_mask,
-                                           uint32_t green_mask,
-                                           uint32_t blue_mask,
-                                           int drawable_depth,
-                                           ImageFormat* format_out);
+  // Get an image format using information from an X image.  'lsb_first'
+  // should be true if the image data is least-significant-byte first or
+  // false if it's MSB-first, 'image_depth' is the bits-per-pixel from the
+  // image data (only 32 is supported currently), and 'drawable_depth' is
+  // the drawable's depth (either 32 or 24).  False is returned for
+  // unsupported formats.
+  static bool GetImageFormat(bool lsb_first,
+                             int image_depth,
+                             int drawable_depth,
+                             ImageFormat* format_out);
 
   bool GrabServerImpl();
   bool UngrabServerImpl();

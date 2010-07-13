@@ -166,6 +166,10 @@ class Compositor {
   Compositor() {}
   virtual ~Compositor() {}
 
+  // Can we get windows' contents to the GPU without having to copy them to
+  // userspace and then upload them to GL?
+  virtual bool TexturePixmapActorUsesFastPath() = 0;
+
   // These methods create new Actor objects.  The caller is responsible for
   // deleting them, even after they have been added to a container.
   virtual ContainerActor* CreateGroup() = 0;
@@ -409,6 +413,7 @@ class MockCompositor : public Compositor {
   ~MockCompositor() {}
 
   // Begin Compositor methods
+  virtual bool TexturePixmapActorUsesFastPath() { return true; }
   virtual ContainerActor* CreateGroup() { return new ContainerActor; }
   virtual Actor* CreateRectangle(const Compositor::Color& color,
                                  const Compositor::Color& border_color,

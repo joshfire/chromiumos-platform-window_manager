@@ -50,6 +50,7 @@ namespace window_manager {
 OpenGlPixmapData::OpenGlPixmapData(OpenGlDrawVisitor* visitor)
     : visitor_(visitor),
       gl_(visitor_->gl_interface_),
+      pixmap_(0),
       glx_pixmap_(0) {
   DCHECK(visitor);
 }
@@ -63,37 +64,64 @@ OpenGlPixmapData::~OpenGlPixmapData() {
   }
   visitor_ = NULL;
   gl_ = NULL;
+  pixmap_ = 0;
+}
+
+void OpenGlPixmapData::Refresh() {
+  DCHECK(texture());
+  gl_->BindTexture(GL_TEXTURE_2D, texture());
+
+  if (gl_->HasTextureFromPixmapExtension()) {
+    DCHECK(glx_pixmap_);
+    gl_->ReleaseGlxTexImage(glx_pixmap_, GLX_FRONT_LEFT_EXT);
+    gl_->BindGlxTexImage(glx_pixmap_, GLX_FRONT_LEFT_EXT, NULL);
+  } else {
+    CopyPixmapImageToTexture();
+  }
+
+  CHECK_GL_ERROR(gl_);
 }
 
 bool OpenGlPixmapData::Init(RealCompositor::TexturePixmapActor* actor) {
   DCHECK(actor);
-  CHECK(!glx_pixmap_) << "Pixmap data was already initialized";
   if (!actor->pixmap()) {
     LOG(WARNING) << "Can't create GLX pixmap for actor \"" << actor->name()
                  << "\", since it doesn't have an X pixmap";
     return false;
   }
 
-  const int kGlxPixmapAttribs[] = {
-    GLX_TEXTURE_FORMAT_EXT,
-    actor->pixmap_is_opaque() ?
-      GLX_TEXTURE_FORMAT_RGB_EXT :
-      GLX_TEXTURE_FORMAT_RGBA_EXT,
-    GLX_TEXTURE_TARGET_EXT,
-    GLX_TEXTURE_2D_EXT,
-    0
-  };
-  glx_pixmap_ = gl_->CreateGlxPixmap(
+  CHECK(!pixmap_) << "Pixmap data was already initialized";
+  pixmap_ = actor->pixmap();
+
+  const bool use_glx_pixmap = gl_->HasTextureFromPixmapExtension();
+  if (use_glx_pixmap) {
+    const int kGlxPixmapAttribs[] = {
+      GLX_TEXTURE_FORMAT_EXT,
       actor->pixmap_is_opaque() ?
-        visitor_->framebuffer_config_rgb_ :
-        visitor_->framebuffer_config_rgba_,
-      actor->pixmap(),
-      kGlxPixmapAttribs);
-  CHECK_GL_ERROR(gl_);
-  if (!glx_pixmap_) {
-    LOG(WARNING) << "Failed to create GLX pixmap for actor \"" << actor->name()
-                 << "\" using pixmap " << XidStr(actor->pixmap());
-    return false;
+        GLX_TEXTURE_FORMAT_RGB_EXT :
+        GLX_TEXTURE_FORMAT_RGBA_EXT,
+      GLX_TEXTURE_TARGET_EXT,
+      GLX_TEXTURE_2D_EXT,
+      0
+    };
+    glx_pixmap_ = gl_->CreateGlxPixmap(
+        actor->pixmap_is_opaque() ?
+          visitor_->framebuffer_config_rgb_ :
+          visitor_->framebuffer_config_rgba_,
+        actor->pixmap(),
+        kGlxPixmapAttribs);
+    CHECK_GL_ERROR(gl_);
+    if (!glx_pixmap_) {
+      LOG(WARNING) << "Failed to create GLX pixmap for actor \""
+                   << actor->name() << "\" using pixmap "
+                   << XidStr(actor->pixmap());
+      return false;
+    }
+  } else {
+    if (!visitor_->xconn()->GetWindowGeometry(pixmap_, &pixmap_geometry_)) {
+      LOG(WARNING) << "Unable to fetch geometry for pixmap " << XidStr(pixmap_);
+      return false;
+    }
   }
 
   GLuint new_texture = 0;
@@ -104,20 +132,58 @@ bool OpenGlPixmapData::Init(RealCompositor::TexturePixmapActor* actor) {
   gl_->TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
   gl_->TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
   gl_->TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-  gl_->BindGlxTexImage(glx_pixmap_, GLX_FRONT_LEFT_EXT, NULL);
+
+  if (use_glx_pixmap) {
+    gl_->BindGlxTexImage(glx_pixmap_, GLX_FRONT_LEFT_EXT, NULL);
+  } else {
+    if (!CopyPixmapImageToTexture())
+      return false;
+  }
+
   CHECK_GL_ERROR(gl_);
   set_texture(new_texture);
   return true;
 }
 
-void OpenGlPixmapData::Refresh() {
-  DCHECK(texture());
-  DCHECK(glx_pixmap_);
-  gl_->BindTexture(GL_TEXTURE_2D, texture());
-  gl_->ReleaseGlxTexImage(glx_pixmap_, GLX_FRONT_LEFT_EXT);
-  gl_->BindGlxTexImage(glx_pixmap_, GLX_FRONT_LEFT_EXT, NULL);
-  CHECK_GL_ERROR(gl_);
+bool OpenGlPixmapData::CopyPixmapImageToTexture() {
+  DCHECK(pixmap_);
+  DCHECK(!gl_->HasTextureFromPixmapExtension());
+
+  scoped_ptr_malloc<uint8_t> data;
+  ImageFormat format = IMAGE_FORMAT_UNKNOWN;
+  if (!visitor_->xconn()->GetImage(
+          pixmap_, 0, 0, pixmap_geometry_.width, pixmap_geometry_.height,
+          pixmap_geometry_.depth, &data, &format)) {
+    LOG(WARNING) << "Unable to fetch image from pixmap " << XidStr(pixmap_);
+    return false;
+  }
+
+  InMemoryImageContainer image_container(
+      data.release(), pixmap_geometry_.width, pixmap_geometry_.height,
+      format, true);
+
+  GLenum pixel_data_format = 0;
+  switch (format) {
+    case IMAGE_FORMAT_RGBA_32:  // fallthrough
+    case IMAGE_FORMAT_RGBX_32:
+      pixel_data_format = GL_RGBA;
+      break;
+    case IMAGE_FORMAT_BGRA_32:  // fallthrough
+    case IMAGE_FORMAT_BGRX_32:
+      pixel_data_format = GL_BGRA;
+      break;
+    default:
+      NOTREACHED() << "Unhandled image container data format " << format;
+      return false;
+  }
+
+  gl_->TexImage2D(GL_TEXTURE_2D, 0, GL_RGBA,
+                  image_container.width(), image_container.height(),
+                  0, pixel_data_format, GL_UNSIGNED_BYTE,
+                  image_container.data());
+  return true;
 }
+
 
 OpenGlTextureData::OpenGlTextureData(GLInterface* gl_interface)
     : gl_interface_(gl_interface) {}
@@ -204,7 +270,7 @@ OpenGlDrawVisitor::OpenGlDrawVisitor(GLInterface* gl_interface,
                                      Compositor::StageActor* stage)
     : gl_interface_(gl_interface),
       compositor_(compositor),
-      x_conn_(compositor_->x_conn()),
+      xconn_(compositor_->x_conn()),
       stage_(NULL),
       framebuffer_config_rgb_(0),
       framebuffer_config_rgba_(0),

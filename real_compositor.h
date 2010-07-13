@@ -638,6 +638,9 @@ class RealCompositor : public Compositor {
   ~RealCompositor();
 
   // Begin Compositor methods.
+  virtual bool TexturePixmapActorUsesFastPath() {
+    return texture_pixmap_actor_uses_fast_path_;
+  }
   virtual ContainerActor* CreateGroup();
   virtual Actor* CreateRectangle(const Compositor::Color& color,
                                  const Compositor::Color& border_color,
@@ -758,6 +761,10 @@ class RealCompositor : public Compositor {
   // Actor visibility groups that we're currently going to draw.  If empty,
   // we're not using visibility groups and just draw all actors.
   std::tr1::unordered_set<int> active_visibility_groups_;
+
+  // False if we're using OpenGL and GLX_EXT_texture_from_pixmap is
+  // unavailable; true otherwise.
+  bool texture_pixmap_actor_uses_fast_path_;
 
   DISALLOW_COPY_AND_ASSIGN(RealCompositor);
 };
