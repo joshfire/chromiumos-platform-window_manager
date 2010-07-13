@@ -14,6 +14,7 @@ class TextureData {
 
   bool has_alpha() const { return has_alpha_; }
   void set_has_alpha(bool has_alpha) { has_alpha_ = has_alpha; }
+  virtual void Refresh() {}
 
  protected:
   // TextureData is not allowed to be instantiated.
@@ -25,18 +26,6 @@ class TextureData {
   GLuint texture_;
   bool has_alpha_;
   DISALLOW_COPY_AND_ASSIGN(TextureData);
-};
-
-class DynamicTextureData : public TextureData {
- public:
-  virtual ~DynamicTextureData() {}
-  virtual void Refresh() {}
-
- protected:
-  DynamicTextureData() {}
-
- private:
-  DISALLOW_COPY_AND_ASSIGN(DynamicTextureData);
 };
 
 }  // namespace window_manager

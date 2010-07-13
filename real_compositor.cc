@@ -717,10 +717,8 @@ void RealCompositor::TexturePixmapActor::SetPixmap(XID pixmap) {
 }
 
 void RealCompositor::TexturePixmapActor::UpdateTexture() {
-  DynamicTextureData* data = static_cast<DynamicTextureData*>(texture_data());
-
-  if (data)
-    data->Refresh();
+  if (texture_data())
+    texture_data()->Refresh();
 
   // Note that culled flag is one frame behind, but it is still valid for the
   // update here, because the stage will be set dirty if object is moving into

@@ -34,14 +34,14 @@ class OpenGlTextureData : public TextureData {
   GLInterface* gl_interface_;
 };
 
-class OpenGlPixmapData : public DynamicTextureData {
+class OpenGlPixmapData : public TextureData {
  public:
   OpenGlPixmapData(OpenGlDrawVisitor* visitor);
   virtual ~OpenGlPixmapData();
 
-  // Begin DynamicTextureData methods.
+  // Begin TextureData methods.
   virtual void Refresh();
-  // End DynamicTextureData methods.
+  // End TextureData methods.
 
   // Initialize our texture and make it contain the current contents of the
   // passed-in actor's pixmap.  False is returned if the process fails (in

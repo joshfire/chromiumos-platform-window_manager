@@ -88,7 +88,7 @@ class OpenGlesTextureData : public TextureData {
   DISALLOW_COPY_AND_ASSIGN(OpenGlesTextureData);
 };
 
-class OpenGlesEglImageData : public DynamicTextureData {
+class OpenGlesEglImageData : public TextureData {
  public:
   OpenGlesEglImageData(Gles2Interface* gl);
   virtual ~OpenGlesEglImageData();
