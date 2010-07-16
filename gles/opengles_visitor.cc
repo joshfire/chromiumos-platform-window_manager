@@ -160,7 +160,8 @@ void OpenGlesDrawVisitor::VisitStage(RealCompositor::StageActor* actor) {
   // Set the z-depths for the actors, update is_opaque, model view matrices,
   // projection matrix, and perform culling test.  Also checks if the screen
   // will be covered by an opaque actor.
-  RealCompositor::LayerVisitor layer_visitor(compositor_->actor_count());
+  RealCompositor::LayerVisitor layer_visitor(compositor_->actor_count(),
+                                             false);
   actor->Accept(&layer_visitor);
 
   // No need to clear color buffer if something will cover up the screen.
