@@ -14,6 +14,7 @@
 #include "base/basictypes.h"
 #include "base/logging.h"
 #include "base/scoped_ptr.h"
+#include "window_manager/geometry.h"
 #include "window_manager/image_enums.h"
 #include "window_manager/x_types.h"
 
@@ -158,6 +159,19 @@ class Compositor {
 
     // Clear the previously-applied alpha mask.
     virtual void ClearAlphaMask() = 0;
+
+    // TODO(zmo@): merge this function with UpdateTexture.
+    // Compute the union of the current damaged and the new region; this is
+    // called at Damage event handler.
+    virtual void MergeDamagedRegion(const Rect& region) = 0;
+
+    // Get the currently damaged region; if (width, height) is (0, 0), then
+    // the content is not dirty.
+    virtual const Rect& GetDamagedRegion() const = 0;
+
+    // Clear the previously set damaged region, i.e., set (width, height)
+    // to (0, 0).
+    virtual void ResetDamagedRegion() = 0;
 
    private:
     DISALLOW_COPY_AND_ASSIGN(TexturePixmapActor);
@@ -387,6 +401,9 @@ class MockCompositor : public Compositor {
     virtual void UpdateTexture() { num_texture_updates_++; }
     virtual void SetAlphaMask(const uint8_t* bytes, int width, int height);
     virtual void ClearAlphaMask();
+    virtual void MergeDamagedRegion(const Rect& region);
+    virtual const Rect& GetDamagedRegion() const;
+    virtual void ResetDamagedRegion();
     // End Compositor::TexturePixmapActor methods.
 
    private:
@@ -403,6 +420,9 @@ class MockCompositor : public Compositor {
 
     // Number of times that UpdateTexture() has been called.
     int num_texture_updates_;
+
+    // Dirty region.
+    Rect damaged_region_;
 
     DISALLOW_COPY_AND_ASSIGN(TexturePixmapActor);
   };

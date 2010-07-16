@@ -277,7 +277,8 @@ OpenGlDrawVisitor::OpenGlDrawVisitor(GLInterface* gl_interface,
       context_(0),
       visit_opaque_(false),
       ancestor_opacity_(1.0f),
-      num_frames_drawn_(0) {
+      num_frames_drawn_(0),
+      use_partial_updates_(false) {
   CHECK(gl_interface_);
   context_ = gl_interface_->CreateGlxContext();
   CHECK(context_) << "Unable to create a context from the available visuals.";
@@ -601,8 +602,22 @@ void OpenGlDrawVisitor::VisitStage(RealCompositor::StageActor* actor) {
   // Set the z-depths for the actors, update is_opaque, model view matrices,
   // projection matrix, and perform culling test.  Also checks if the screen
   // will be covered by an opaque actor.
-  RealCompositor::LayerVisitor layer_visitor(compositor_->actor_count());
+  RealCompositor::LayerVisitor layer_visitor(
+      compositor_->actor_count(),
+      use_partial_updates_);
   actor->Accept(&layer_visitor);
+
+  Rect damaged_region = layer_visitor.GetDamagedRegion(actor->width(),
+                                                       actor->height());
+  if (use_partial_updates_) {
+    if (damaged_region.empty()) {
+      PROFILER_MARKER_END(VisitStage);
+      stage_ = NULL;
+      return;
+    }
+    gl_interface_->Scissor(damaged_region.x, damaged_region.y,
+                           damaged_region.width, damaged_region.height);
+  }
 
   // No need to clear color buffer if something will cover up the screen.
   if (layer_visitor.has_fullscreen_actor())
@@ -662,7 +677,26 @@ void OpenGlDrawVisitor::VisitStage(RealCompositor::StageActor* actor) {
     DrawNeedle();
   }
   PROFILER_MARKER_BEGIN(Swap_Buffer);
-  gl_interface_->SwapGlxBuffers(actor->GetStageXWindow());
+  if (use_partial_updates_ &&
+      !damaged_region.empty()) {
+    gl_interface_->CopyGlxSubBuffer(actor->GetStageXWindow(),
+                                    damaged_region.x,
+                                    damaged_region.y,
+                                    damaged_region.width,
+                                    damaged_region.height);
+#ifdef EXTRA_LOGGING
+    DLOG(INFO) << "Partial updates: "
+               << damaged_region.x << ", "
+               << damaged_region.y << ", "
+               << damaged_region.width << ", "
+               << damaged_region.height << ".";
+#endif
+  } else {
+    gl_interface_->SwapGlxBuffers(actor->GetStageXWindow());
+#ifdef EXTRA_LOGGING
+    DLOG(INFO) << "Full updates.";
+#endif
+  }
   PROFILER_MARKER_END(Swap_Buffer);
   ++num_frames_drawn_;
 #ifdef EXTRA_LOGGING

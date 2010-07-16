@@ -43,6 +43,12 @@ class RealGLInterface : public GLInterface {
                                int buffer,
                                int* attrib_list);
   virtual void ReleaseGlxTexImage(GLXDrawable drawable, int buffer);
+  virtual bool IsCapableOfPartialUpdates();
+  virtual void CopyGlxSubBuffer(GLXDrawable drawable,
+                                int x,
+                                int y,
+                                int width,
+                                int height);
 
   // GL functions
   virtual void Viewport(GLint x, GLint y, GLsizei width, GLsizei height);
@@ -77,6 +83,7 @@ class RealGLInterface : public GLInterface {
   virtual void PopMatrix();
   virtual void Rotatef(GLfloat angle, GLfloat x, GLfloat y, GLfloat z);
   virtual void Scalef(GLfloat x, GLfloat y, GLfloat z);
+  virtual void Scissor(GLint x, GLint y, GLint width, GLint height);
   virtual void TexCoordPointer(GLint size, GLenum type, GLsizei stride,
                                const GLvoid* pointer);
   virtual void TexParameteri(GLenum target, GLenum pname, GLint param);

@@ -43,6 +43,10 @@ class OpenGlesDrawVisitor : virtual public RealCompositor::ActorVisitor {
   virtual void VisitTexturePixmap(RealCompositor::TexturePixmapActor* actor);
   virtual void VisitQuad(RealCompositor::QuadActor* actor);
 
+  void SetUsePartialUpdates(bool use_partial_updates) {
+    NOTIMPLEMENTED();
+  }
+
  private:
   Gles2Interface* gl_;  // Not owned.
   RealCompositor* compositor_;  // Not owned.

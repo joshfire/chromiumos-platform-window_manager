@@ -122,7 +122,8 @@ MockCompositor::TexturePixmapActor::TexturePixmapActor(XConnection* xconn)
     : xconn_(xconn),
       alpha_mask_bytes_(NULL),
       pixmap_(0),
-      num_texture_updates_(0) {
+      num_texture_updates_(0),
+      damaged_region_() {
   Actor::SetSize(0, 0);
 }
 
@@ -155,7 +156,6 @@ void MockCompositor::TexturePixmapActor::ClearAlphaMask() {
   alpha_mask_bytes_ = NULL;
 }
 
-
 MockCompositor::ImageActor* MockCompositor::CreateImageFromFile(
     const std::string& filename) {
   ImageActor* actor = new ImageActor;
@@ -163,6 +163,19 @@ MockCompositor::ImageActor* MockCompositor::CreateImageFromFile(
       new uint8_t[1], 1, 1, IMAGE_FORMAT_RGBA_32, false);  // malloc=false
   actor->SetImageData(container);
   return actor;
+}
+
+void MockCompositor::TexturePixmapActor::MergeDamagedRegion(
+    const Rect& region) {
+  damaged_region_.merge(region);
+}
+
+const Rect& MockCompositor::TexturePixmapActor::GetDamagedRegion() const {
+  return damaged_region_;
+}
+
+void MockCompositor::TexturePixmapActor::ResetDamagedRegion() {
+  damaged_region_.reset(0, 0, 0, 0);
 }
 
 }  // namespace window_manager

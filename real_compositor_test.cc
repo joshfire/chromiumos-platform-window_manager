@@ -49,20 +49,26 @@ class NameCheckVisitor : virtual public RealCompositor::ActorVisitor {
 
 class RealCompositorTest : public ::testing::Test {
  public:
-  RealCompositorTest()
-      : gl_interface_(new MockGLInterface),
-        xconn_(new MockXConnection),
-        event_loop_(new EventLoop),
-        compositor_(new RealCompositor(event_loop_.get(),
-                                       xconn_.get(),
-                                       gl_interface_.get())) {
+  RealCompositorTest() {}
+  virtual ~RealCompositorTest() {}
+
+  virtual void SetUp() {
+    gl_interface_.reset(new MockGLInterface);
+    xconn_.reset(new MockXConnection);
+    event_loop_.reset(new EventLoop);
+    compositor_.reset(new RealCompositor(event_loop_.get(),
+                                         xconn_.get(),
+                                         gl_interface_.get()));
   }
-  virtual ~RealCompositorTest() {
+
+  virtual void TearDown() {
+    compositor_.reset();
   }
 
   RealCompositor* compositor() { return compositor_.get(); }
   MockXConnection* xconn() { return xconn_.get(); }
   EventLoop* event_loop() { return event_loop_.get(); }
+  MockGLInterface* gl_interface() { return gl_interface_.get(); }
 
  private:
   scoped_ptr<MockGLInterface> gl_interface_;
@@ -75,7 +81,10 @@ class RealCompositorTestTree : public RealCompositorTest {
  public:
   RealCompositorTestTree() {}
   virtual ~RealCompositorTestTree() {}
-  void SetUp() {
+
+  virtual void SetUp() {
+    RealCompositorTest::SetUp();
+
     // Create an actor tree to test.
     stage_ = compositor()->GetDefaultStage();
     group1_.reset(compositor()->CreateGroup());
@@ -129,7 +138,7 @@ class RealCompositorTestTree : public RealCompositorTest {
     group4_->AddActor(rect3_.get());
   }
 
-  void TearDown() {
+  virtual void TearDown() {
     // This is in reverse order of creation on purpose...
     rect3_.reset(NULL);
     rect2_.reset(NULL);
@@ -139,7 +148,10 @@ class RealCompositorTestTree : public RealCompositorTest {
     group3_.reset(NULL);
     group1_.reset(NULL);
     stage_ = NULL;
+
+    RealCompositorTest::TearDown();
   }
+
  protected:
   RealCompositor::StageActor* stage_;
   scoped_ptr<RealCompositor::ContainerActor> group1_;
@@ -167,7 +179,7 @@ TEST_F(RealCompositorTestTree, LayerDepth) {
   float depth = RealCompositor::LayerVisitor::kMinDepth + thickness;
 
   // First we test the layer visitor directly.
-  RealCompositor::LayerVisitor layer_visitor(count);
+  RealCompositor::LayerVisitor layer_visitor(count, false);
   stage_->Accept(&layer_visitor);
 
   EXPECT_FLOAT_EQ(depth, rect3_->z());
@@ -218,7 +230,7 @@ TEST_F(RealCompositorTestTree, LayerDepthWithOpacity) {
   float depth = RealCompositor::LayerVisitor::kMinDepth + thickness;
 
   // First we test the layer visitor directly.
-  RealCompositor::LayerVisitor layer_visitor(count);
+  RealCompositor::LayerVisitor layer_visitor(count, false);
   stage_->Accept(&layer_visitor);
 
   EXPECT_FLOAT_EQ(depth, rect3_->z());
@@ -282,7 +294,8 @@ TEST_F(RealCompositorTestTree, ActorVisitor) {
 }
 
 TEST_F(RealCompositorTestTree, ActorAttributes) {
-  RealCompositor::LayerVisitor layer_visitor(compositor()->actor_count());
+  RealCompositor::LayerVisitor layer_visitor(compositor()->actor_count(),
+                                             false);
   stage_->Accept(&layer_visitor);
 
   // Make sure width and height set the right parameters.
@@ -339,7 +352,8 @@ TEST_F(RealCompositorTestTree, ActorAttributes) {
 }
 
 TEST_F(RealCompositorTestTree, ContainerActorAttributes) {
-  RealCompositor::LayerVisitor layer_visitor(compositor()->actor_count());
+  RealCompositor::LayerVisitor layer_visitor(compositor()->actor_count(),
+                                             false);
   stage_->Accept(&layer_visitor);
   rect1_->SetSize(10, 5);
   // Make sure width and height set the right parameters.
@@ -736,6 +750,72 @@ TEST_F(RealCompositorTest, VisibilityGroups) {
   EXPECT_TRUE(compositor()->dirty());
   EXPECT_TRUE(actor->IsVisible());
   compositor()->Draw();
+}
+
+// Test RealCompositor's handling of partial updates.
+TEST_F(RealCompositorTest, PartialUpdates) {
+  // Need to set the stage actor's size large enough to test partial updates.
+  const int stage_width = 1000;
+  const int stage_height = 1000;
+  compositor()->GetDefaultStage()->SetSize(stage_width, stage_height);
+  ASSERT_EQ(stage_width, compositor()->GetDefaultStage()->GetWidth());
+  ASSERT_EQ(stage_height, compositor()->GetDefaultStage()->GetHeight());
+
+  // Now create an texture pixmap actor and add it to the stage.
+  scoped_ptr<Compositor::TexturePixmapActor> actor(
+      compositor()->CreateTexturePixmap());
+
+  RealCompositor::TexturePixmapActor* cast_actor =
+      dynamic_cast<RealCompositor::TexturePixmapActor*>(actor.get());
+  CHECK(cast_actor);
+  cast_actor->Show();
+  compositor()->GetDefaultStage()->AddActor(cast_actor);
+  compositor()->Draw();
+  EXPECT_FALSE(compositor()->dirty());
+
+  XWindow xid = xconn()->CreateWindow(
+      xconn()->GetRootWindow(),  // parent
+      0, 0,      // x, y
+      400, 300,  // width, height
+      false,     // override_redirect=false
+      false,     // input_only=false
+      0);        // event_mask
+  XID pixmap_id = xconn()->GetCompositingPixmapForWindow(xid);
+
+  // After we bind the actor to the window's pixmap, the actor's size
+  // should be updated and the compositor should be marked dirty.
+  cast_actor->SetPixmap(pixmap_id);
+  int full_updates_count = gl_interface()->full_updates_count();
+  int partial_updates_count = gl_interface()->partial_updates_count();
+  compositor()->Draw();
+  EXPECT_FALSE(compositor()->dirty());
+  ++full_updates_count;
+  EXPECT_EQ(gl_interface()->full_updates_count(), full_updates_count);
+  EXPECT_EQ(gl_interface()->partial_updates_count(), partial_updates_count);
+
+  // Mark part of the window as dirty. The next time we draw, partial updates
+  // should happen.
+  EXPECT_TRUE(gl_interface()->IsCapableOfPartialUpdates());
+  Rect damaged_region(50, 50, 100, 100);
+  cast_actor->MergeDamagedRegion(damaged_region);
+  compositor()->SetPartiallyDirty();
+  EXPECT_FALSE(compositor()->dirty());
+  compositor()->Draw();
+  ++partial_updates_count;
+  EXPECT_FALSE(compositor()->dirty());
+  EXPECT_EQ(gl_interface()->full_updates_count(), full_updates_count);
+  EXPECT_EQ(gl_interface()->partial_updates_count(), partial_updates_count);
+  const Rect& updated_region = gl_interface()->partial_updates_region();
+  // Damaged region is defined relative to the window where (0, 0) is top_left
+  // and (w, h) is bottom_right.  CopyGlxSubBuffer's region is defined relative
+  // to the screen where (0, 0) is bottom_left and (w, h) is top_right.
+  int expected_x = damaged_region.x + cast_actor->GetX();
+  int expected_y = stage_height - damaged_region.height -
+                   (damaged_region.y + cast_actor->GetY());
+  EXPECT_EQ(expected_x, updated_region.x);
+  EXPECT_EQ(expected_y, updated_region.y);
+  EXPECT_EQ(damaged_region.width, updated_region.width);
+  EXPECT_EQ(damaged_region.height, updated_region.height);
 }
 
 }  // end namespace window_manager

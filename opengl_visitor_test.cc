@@ -30,15 +30,20 @@ namespace window_manager {
 
 class OpenGlVisitorTest : public ::testing::Test {
  public:
-  OpenGlVisitorTest()
-      : gl_interface_(new MockGLInterface),
-        x_connection_(new MockXConnection),
-        event_loop_(new EventLoop),
-        compositor_(new RealCompositor(event_loop_.get(),
-                                       x_connection_.get(),
-                                       gl_interface_.get())) {
+  OpenGlVisitorTest() {}
+  virtual ~OpenGlVisitorTest() {}
+
+  virtual void SetUp() {
+    gl_interface_.reset(new MockGLInterface);
+    x_connection_.reset(new MockXConnection);
+    event_loop_.reset(new EventLoop);
+    compositor_.reset(new RealCompositor(event_loop_.get(),
+                                         x_connection_.get(),
+                                         gl_interface_.get()));
   }
-  virtual ~OpenGlVisitorTest() {
+
+  virtual void TearDown() {
+    compositor_.reset();
   }
 
   RealCompositor* compositor() { return compositor_.get(); }
@@ -56,7 +61,9 @@ class OpenGlVisitorTestTree : public OpenGlVisitorTest {
   OpenGlVisitorTestTree() {}
   virtual ~OpenGlVisitorTestTree() {}
 
-  void SetUp() {
+  virtual void SetUp() {
+    OpenGlVisitorTest::SetUp();
+
     // Create an actor tree to test.
     stage_ = compositor()->GetDefaultStage();
     group1_.reset(compositor()->CreateGroup());
@@ -110,7 +117,7 @@ class OpenGlVisitorTestTree : public OpenGlVisitorTest {
     group4_->AddActor(rect3_.get());
   }
 
-  void TearDown() {
+  virtual void TearDown() {
     // This is in reverse order of creation on purpose...
     rect3_.reset(NULL);
     rect2_.reset(NULL);
@@ -120,6 +127,8 @@ class OpenGlVisitorTestTree : public OpenGlVisitorTest {
     group3_.reset(NULL);
     group1_.reset(NULL);
     stage_ = NULL;
+
+    OpenGlVisitorTest::TearDown();
   }
 
  protected:

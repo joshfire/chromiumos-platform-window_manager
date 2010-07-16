@@ -93,7 +93,10 @@ MockGLInterface::MockGLInterface()
       clear_green_(0.f),
       clear_blue_(0.f),
       clear_alpha_(0.f),
-      next_glx_pixmap_id_(1) {
+      next_glx_pixmap_id_(1),
+      full_updates_count_(0),
+      partial_updates_count_(0),
+      partial_updates_region_() {
   mock_configs_.reset(new GLXFBConfig[2]);
   kConfigRec24.depthBits = 24;
   kConfigRec24.redBits = 8;

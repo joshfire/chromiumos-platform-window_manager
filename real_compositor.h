@@ -52,6 +52,44 @@ class RealCompositor : public Compositor {
   // This is in milliseconds.
   typedef int64_t AnimationTime;
 
+  struct BoundingBox {
+    BoundingBox() : x_min(0.0f), x_max(0.0f), y_min(0.0f), y_max(0.0f) {}
+    BoundingBox(float x0, float x1, float y0, float y1)
+        : x_min(x0),
+          x_max(x1),
+          y_min(y0),
+          y_max(y1) {
+    }
+
+    void merge(const BoundingBox& other) {
+      if (other.x_min == other.x_max || other.y_min == other.y_max)
+        return;
+      if (x_min == x_max || y_min == y_max) {
+        x_min = other.x_min;
+        x_max = other.x_max;
+        y_min = other.y_min;
+        y_max = other.y_max;
+      } else {
+        x_min = std::min(x_min, other.x_min);
+        x_max = std::max(x_max, other.x_max);
+        y_min = std::min(y_min, other.y_min);
+        y_max = std::max(y_max, other.y_max);
+      }
+    }
+
+    void clear() {
+      x_min = 0.f;
+      x_max = 0.f;
+      y_min = 0.f;
+      y_max = 0.f;
+    }
+
+    float x_min;
+    float x_max;
+    float y_min;
+    float y_max;
+  };
+
   template<class T>
   class Animation {
    public:
@@ -141,11 +179,13 @@ class RealCompositor : public Compositor {
     static const float kMinDepth;
     static const float kMaxDepth;
 
-    explicit LayerVisitor(int32 count)
+    explicit LayerVisitor(int32 count, bool use_partial_updates)
         : depth_(0.0f),
           layer_thickness_(0.0f),
           count_(count),
-          has_fullscreen_actor_(false) {}
+          has_fullscreen_actor_(false),
+          updated_area_(0.0f, 0.0f, 0.0f, 0.0f),
+          use_partial_updates_(use_partial_updates) {}
     virtual ~LayerVisitor() {}
 
     virtual void VisitActor(RealCompositor::Actor* actor);
@@ -160,11 +200,22 @@ class RealCompositor : public Compositor {
 
     bool has_fullscreen_actor() const { return has_fullscreen_actor_; }
 
+    // Get the damaged region in screen coordinates where (0, 0) is bottom_left
+    // and (w-1, h-1) is top_right.
+    Rect GetDamagedRegion(int stage_width, int stage_height);
+
    private:
     float depth_;
     float layer_thickness_;
     int32 count_;
     bool has_fullscreen_actor_;
+
+    // This restores the dirty region union of all actors from the most
+    // recent VisitStage.  It's defined in GL coordinates where (-1, -1) is
+    // bottom_left and (1, 1) is top_right.
+    BoundingBox updated_area_;
+
+    bool use_partial_updates_;
 
     DISALLOW_COPY_AND_ASSIGN(LayerVisitor);
   };
@@ -550,6 +601,13 @@ class RealCompositor : public Compositor {
       NOTIMPLEMENTED();
     }
     virtual void ClearAlphaMask() { NOTIMPLEMENTED(); }
+    virtual const Rect& GetDamagedRegion() const { return damaged_region_; }
+    virtual void MergeDamagedRegion(const Rect& region) {
+      damaged_region_.merge(region);
+    }
+    virtual void ResetDamagedRegion() {
+      damaged_region_.reset(0, 0, 0, 0);
+    }
     // End Compositor::TexturePixmapActor methods.
 
    private:
@@ -560,6 +618,10 @@ class RealCompositor : public Compositor {
 
     // Is 'pixmap_' opaque (i.e. it has a non-32-bit depth)?
     bool pixmap_is_opaque_;
+
+    // Rectangle bounding all not-yet-composited regions reported by Damage
+    // events.
+    Rect damaged_region_;
 
     DISALLOW_COPY_AND_ASSIGN(TexturePixmapActor);
   };
@@ -692,6 +754,9 @@ class RealCompositor : public Compositor {
   // Mark the scene as dirty, enabling the draw timeout if needed.
   void SetDirty();
 
+  // Mark the scene as partially dirty, enabling the draw timeout if needed.
+  void SetPartiallyDirty();
+
   // Increment or decrement the number of in-progress actors.  This is
   // invoked by Actor as animations start or stop.  The increment method
   // enables the draw timeout if needed.
@@ -712,8 +777,11 @@ class RealCompositor : public Compositor {
   EventLoop* event_loop_;  // not owned
   XConnection* x_conn_;    // not owned
 
-  // This indicates if the scene is dirty and needs to be redrawn.
+  // This indicates if the entire scene is dirty and needs to be redrawn.
   bool dirty_;
+
+  // This indicates if part of the scene is dirty and needs partial updates.
+  bool partially_dirty_;
 
   // Total number of in-progress animations.
   int num_animations_;

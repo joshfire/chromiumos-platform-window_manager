@@ -89,6 +89,11 @@ class OpenGlDrawVisitor : virtual public RealCompositor::ActorVisitor {
   virtual void VisitTexturePixmap(RealCompositor::TexturePixmapActor* actor);
   virtual void VisitQuad(RealCompositor::QuadActor* actor);
 
+  void SetUsePartialUpdates(bool use_partial_updates) {
+    use_partial_updates_ = gl_interface_->IsCapableOfPartialUpdates() &&
+                           use_partial_updates;
+  }
+
  private:
   class OpenGlQuadDrawingData {
    public:
@@ -169,6 +174,10 @@ class OpenGlDrawVisitor : virtual public RealCompositor::ActorVisitor {
   // only need to reset OpenGl states that are changed to avoid unnecessary GL
   // state changes.
   OpenGlStateCache state_cache_;
+
+  // This indicates whether we should perform a partial update of the stage's
+  // contents (as opposed to a full update)."
+  bool use_partial_updates_;
 
   DISALLOW_COPY_AND_ASSIGN(OpenGlDrawVisitor);
 };

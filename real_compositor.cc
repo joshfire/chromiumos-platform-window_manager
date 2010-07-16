@@ -53,15 +53,6 @@ enum CullingResult {
   CULLING_WINDOW_FULLSCREEN
 };
 
-// Struct used for visibility and culling tests.
-// The X and Y axes are the same as in OpenGL. Where positive X is right, and
-// positive Y is top. Both corners are exclusive, so two bounding boxes do not
-// intersect if their sides overlap.
-struct BoundingBox {
-  float top_left_x, top_left_y;
-  float bottom_right_x, bottom_right_y;
-};
-
 const float kMaxDimmedOpacity = 0.6f;
 
 const float RealCompositor::LayerVisitor::kMinDepth = 0.0f;
@@ -71,17 +62,17 @@ const float RealCompositor::LayerVisitor::kMaxDepth =
 // Minimum amount of time in milliseconds between scene redraws.
 static const int64_t kDrawTimeoutMs = 16;
 
-static inline bool IsBoxOnScreen(const BoundingBox& a) {
+static inline bool IsBoxOnScreen(const RealCompositor::BoundingBox& a) {
   // The window has corners top left (-1, 1) and bottom right (1, -1).
-  return !(a.bottom_right_x <= -1.0 || a.top_left_x >= 1.0 ||
-           a.top_left_y <= -1.0 || a.bottom_right_y >= 1.0);
+  return !(a.x_max <= -1.0 || a.x_min >= 1.0 ||
+           a.y_max <= -1.0 || a.y_min >= 1.0);
 }
 
-static inline bool IsBoxFullScreen(const BoundingBox& a) {
+static inline bool IsBoxFullScreen(const RealCompositor::BoundingBox& a) {
   // The bounding box must be equal or greater than the area (-1, 1) - (1, -1)
   // in case of full screen.
-  return a.bottom_right_x >= 1.0 && a.top_left_x <= -1.0 &&
-         a.top_left_y >= 1.0 && a.bottom_right_y <= -1.0;
+  return a.x_max >= 1.0 && a.x_min <= -1.0 &&
+         a.y_max >= 1.0 && a.y_min <= -1.0;
 }
 
 static inline float min4(float a, float b, float c, float d) {
@@ -92,24 +83,38 @@ static inline float max4(float a, float b, float c, float d) {
   return max(max(max(a, b), c), d);
 }
 
-static CullingResult PerformActorCullingTest(
-    RealCompositor::StageActor* stage, RealCompositor::QuadActor* actor) {
-  static const Vector4 bottom_left(0, 0, 0, 1);
-  static const Vector4 top_left(0, 1, 0, 1);
-  static const Vector4 top_right(1, 1, 0, 1);
-  static const Vector4 bottom_right(1, 0, 0, 1);
-
+// The input region is in window coordinates where top_left is (0, 0) and
+// bottom_right is (1, 1).  Output is the bounding box of the transformed window
+// in GL coordinates where bottom_left is (-1, -1) and top_right is (1, 1).
+static RealCompositor::BoundingBox ComputeTransformedBoundingBox(
+    RealCompositor::StageActor* stage,
+    RealCompositor::QuadActor* actor,
+    const RealCompositor::BoundingBox& region) {
   const Matrix4& transform = stage->projection() * actor->model_view();
 
-  const Vector4 tl = transform * top_left;
-  const Vector4 tr = transform * top_right;
-  const Vector4 bl = transform * bottom_left;
-  const Vector4 br = transform * bottom_right;
+  Vector4 v0(region.x_min, region.y_min, 0, 1);
+  Vector4 v1(region.x_min, region.y_max, 0, 1);
+  Vector4 v2(region.x_max, region.y_max, 0, 1);
+  Vector4 v3(region.x_max, region.y_min, 0, 1);
 
-  BoundingBox box = { min4(tl[0], tr[0], bl[0], br[0]),   // top left x
-                      max4(tl[1], tr[1], bl[1], br[1]),   // top left y
-                      max4(tl[0], tr[0], bl[0], br[0]),   // bottom right x
-                      min4(tl[1], tr[1], bl[1], br[1]) }; // bottom right y
+  v0 = transform * v0;
+  v1 = transform * v1;
+  v2 = transform * v2;
+  v3 = transform * v3;
+
+  return RealCompositor::BoundingBox(min4(v0[0], v1[0], v2[0], v3[0]),
+                                     max4(v0[0], v1[0], v2[0], v3[0]),
+                                     min4(v0[1], v1[1], v2[1], v3[1]),
+                                     max4(v0[1], v1[1], v2[1], v3[1]));
+}
+
+static CullingResult PerformActorCullingTest(
+    RealCompositor::StageActor* stage, RealCompositor::QuadActor* actor) {
+  static const RealCompositor::BoundingBox region(0, 1, 0, 1);
+
+  RealCompositor::BoundingBox box = ComputeTransformedBoundingBox(stage,
+                                                                  actor,
+                                                                  region);
 
   if (!IsBoxOnScreen(box))
     return CULLING_WINDOW_OFFSCREEN;
@@ -118,6 +123,25 @@ static CullingResult PerformActorCullingTest(
     return CULLING_WINDOW_FULLSCREEN;
 
   return CULLING_WINDOW_ONSCREEN;
+}
+
+// The input region is defined in the actor's window coordinates.
+static RealCompositor::BoundingBox MapRegionToGlCoordinates(
+    RealCompositor::StageActor* stage,
+    RealCompositor::TexturePixmapActor* actor,
+    const Rect& region) {
+  DCHECK(actor && actor->width() > 0 && actor->height() > 0);
+  float x_min = region.x;
+  x_min /= actor->width();
+  float x_max = region.x + region.width;
+  x_max /= actor->width();
+  float y_min = region.y;
+  y_min /= actor->height();
+  float y_max = region.y + region.height;
+  y_max /= actor->height();
+
+  RealCompositor::BoundingBox box(x_min, x_max, y_min, y_max);
+  return ComputeTransformedBoundingBox(stage, actor, box);
 }
 
 void RealCompositor::ActorVisitor::VisitContainer(ContainerActor* actor) {
@@ -159,6 +183,9 @@ void RealCompositor::LayerVisitor::VisitStage(
   depth_ = kMinDepth + layer_thickness_;
 
   has_fullscreen_actor_ = false;
+
+  if (use_partial_updates_)
+    updated_area_.clear();
 
   actor->UpdateProjection();
   VisitContainer(actor);
@@ -236,6 +263,34 @@ void RealCompositor::LayerVisitor::VisitTexturePixmap(
   // in the beginning.
   // TODO: combine VisitQuad and VisitTexturePixmap.
   VisitTexturedQuadActor(actor, actor->pixmap_is_opaque());
+
+  if (!actor->IsVisible() || actor->width() <= 0 || actor->height() <= 0)
+    return;
+
+  if (use_partial_updates_) {
+    RealCompositor::BoundingBox region = MapRegionToGlCoordinates(
+        actor->compositor()->GetDefaultStage(),
+        actor,
+        actor->GetDamagedRegion());
+    updated_area_.merge(region);
+  }
+  actor->ResetDamagedRegion();
+}
+
+Rect RealCompositor::LayerVisitor::GetDamagedRegion(int stage_width,
+                                                    int stage_height) {
+  Rect region;
+  if (use_partial_updates_) {
+    float x = (updated_area_.x_min + 1) / 2;
+    float y = (updated_area_.y_min + 1) / 2;
+    float width = (updated_area_.x_max - updated_area_.x_min) / 2;
+    float height = (updated_area_.y_max - updated_area_.y_min) / 2;
+    region.x = static_cast<int>(x * stage_width);
+    region.y = static_cast<int>(y * stage_height);
+    region.width = static_cast<int>(ceilf(width * stage_width));
+    region.height = static_cast<int>(ceilf(height * stage_height));
+  }
+  return region;
 }
 
 
@@ -724,7 +779,7 @@ void RealCompositor::TexturePixmapActor::UpdateTexture() {
   // update here, because the stage will be set dirty if object is moving into
   // or out of view.
   if (is_shown() && !culled())
-    SetDirty();
+    compositor()->SetPartiallyDirty();
 }
 
 
@@ -780,6 +835,7 @@ RealCompositor::RealCompositor(EventLoop* event_loop,
     : event_loop_(event_loop),
       x_conn_(xconn),
       dirty_(true),
+      partially_dirty_(false),
       num_animations_(0),
       actor_count_(0),
       current_time_ms_for_testing_(-1),
@@ -884,9 +940,16 @@ RealCompositor::AnimationTime RealCompositor::GetCurrentTimeMs() {
 }
 
 void RealCompositor::SetDirty() {
-  if (!dirty_)
+  if (!dirty_ && !partially_dirty_)
     EnableDrawTimeout();
   dirty_ = true;
+}
+
+void RealCompositor::SetPartiallyDirty() {
+  if (dirty_ || partially_dirty_)
+    return;
+  EnableDrawTimeout();
+  partially_dirty_ = true;
 }
 
 void RealCompositor::IncrementNumAnimations() {
@@ -909,12 +972,14 @@ void RealCompositor::Draw() {
     default_stage_->Update(&actor_count_, now);
     PROFILER_MARKER_END(RealCompositor_Draw_Update);
   }
-  if (dirty_) {
+  if (dirty_ || partially_dirty_) {
     last_draw_time_ms_ = now;
     PROFILER_MARKER_BEGIN(RealCompositor_Draw_Render);
+    draw_visitor_->SetUsePartialUpdates(!dirty_ && partially_dirty_);
     default_stage_->Accept(draw_visitor_.get());
     PROFILER_MARKER_END(RealCompositor_Draw_Render);
     dirty_ = false;
+    partially_dirty_ = false;
   }
   if (num_animations_ == 0)
     DisableDrawTimeout();

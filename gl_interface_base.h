@@ -19,6 +19,9 @@ class GLInterfaceBase {
  public:
   GLInterfaceBase() {}
   virtual ~GLInterfaceBase() {}
+
+  virtual bool IsCapableOfPartialUpdates() { return false; }
+
  protected:
   // Parse an OpenGL extension string, adding all of the available extensions
   // to the out vector
@@ -28,6 +31,7 @@ class GLInterfaceBase {
   // Check the vector of strings for the named extension
   static bool HasExtension(const std::vector<std::string>& extensions,
                            const char* extension);
+
  private:
   DISALLOW_COPY_AND_ASSIGN(GLInterfaceBase);
 };

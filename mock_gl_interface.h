@@ -27,7 +27,7 @@ class MockGLInterface : public GLInterface {
   virtual GLXContext CreateGlxContext();
   virtual void DestroyGlxContext(GLXContext context) {}
   virtual Bool IsGlxDirect(GLXContext context) { return true; }
-  virtual void SwapGlxBuffers(GLXDrawable drawable) {}
+  virtual void SwapGlxBuffers(GLXDrawable drawable) { ++full_updates_count_; }
   virtual Bool MakeGlxCurrent(GLXDrawable drawable,
                               GLXContext ctx);
   virtual GLXFBConfig* GetGlxFbConfigs(int* nelements);
@@ -39,6 +39,15 @@ class MockGLInterface : public GLInterface {
                                int buffer,
                                int* attrib_list) {}
   virtual void ReleaseGlxTexImage(GLXDrawable drawable, int buffer) {}
+  virtual bool IsCapableOfPartialUpdates() { return true; }
+  virtual void CopyGlxSubBuffer(GLXDrawable drawable,
+                                int x,
+                                int y,
+                                int width,
+                                int height) {
+    ++partial_updates_count_;
+    partial_updates_region_.reset(x, y, width, height);
+  }
 
   // GL functions we use.
   virtual void Viewport(GLint x, GLint y, GLsizei width, GLsizei height);
@@ -79,6 +88,7 @@ class MockGLInterface : public GLInterface {
   virtual void PopMatrix() {}
   virtual void Rotatef(GLfloat angle, GLfloat x, GLfloat y, GLfloat z) {}
   virtual void Scalef(GLfloat x, GLfloat y, GLfloat z) {}
+  virtual void Scissor(GLint x, GLint y, GLint width, GLint height) {}
   virtual void TexCoordPointer(GLint size, GLenum type, GLsizei stride,
                                const GLvoid* pointer) {}
   virtual void TexParameteri(GLenum target, GLenum pname, GLint param) {}
@@ -107,6 +117,9 @@ class MockGLInterface : public GLInterface {
   GLfloat clear_green() const { return clear_green_; }
   GLfloat clear_blue() const { return clear_blue_; }
   GLfloat clear_alpha() const { return clear_alpha_; }
+  int full_updates_count() const { return full_updates_count_; }
+  int partial_updates_count() const { return partial_updates_count_; }
+  const Rect& partial_updates_region() const { return partial_updates_region_; }
   // End test-only methods.
 
  private:
@@ -122,6 +135,15 @@ class MockGLInterface : public GLInterface {
 
   // Next ID to hand out in CreateGlxPixmap().
   GLXPixmap next_glx_pixmap_id_;
+
+  // The number of times SwapGlxBuffers() is called.
+  int full_updates_count_;
+
+  // The number of times CopyGlxSubBuffer() is called.
+  int partial_updates_count_;
+
+  // Most recent CopyGlxSubBuffer() region.
+  Rect partial_updates_region_;
 
   DISALLOW_COPY_AND_ASSIGN(MockGLInterface);
 };

@@ -19,6 +19,7 @@ static PFNGLXBINDTEXIMAGEEXTPROC _gl_bind_tex_image = NULL;
 static PFNGLXRELEASETEXIMAGEEXTPROC _gl_release_tex_image = NULL;
 static PFNGLXCREATEPIXMAPPROC _gl_create_pixmap = NULL;
 static PFNGLXDESTROYPIXMAPPROC _gl_destroy_pixmap = NULL;
+static PFNGLXCOPYSUBBUFFERMESAPROC _gl_copy_sub_buffer = NULL;
 
 // True if GL supports the anisotropic sampling extension.
 static bool supports_anisotropy = false;
@@ -73,6 +74,22 @@ RealGLInterface::RealGLInterface(RealXConnection* connection)
         << "Unable to find proc address for glXDestroyPixmap";
   } else {
     CHECK(false) << "FBConfig not supported on this device.";
+  }
+  if (kGlxExtensions.find("GLX_MESA_copy_sub_buffer") != string::npos) {
+    if (_gl_copy_sub_buffer == NULL) {
+      _gl_copy_sub_buffer = reinterpret_cast<PFNGLXCOPYSUBBUFFERMESAPROC>(
+          glXGetProcAddress(
+              reinterpret_cast<const GLubyte*>("glXCopySubBufferMESA")));
+    }
+    if (_gl_copy_sub_buffer == NULL) {
+      LOG(INFO) << "glXCopySubBufferMESA is un-available: "
+                << "unable to find proc address.";
+    } else {
+      LOG(INFO) << "glXCopySubBufferMESA is available.";
+    }
+  } else {
+      LOG(INFO) << "glXCopySubBufferMESA is un-available: "
+                << "not supported on this device.";
   }
 }
 
@@ -244,6 +261,24 @@ void RealGLInterface::ReleaseGlxTexImage(GLXDrawable drawable,
   }
 }
 
+bool RealGLInterface::IsCapableOfPartialUpdates() {
+  return (_gl_copy_sub_buffer != NULL);
+}
+
+void RealGLInterface::CopyGlxSubBuffer(GLXDrawable drawable,
+                                       int x,
+                                       int y,
+                                       int width,
+                                       int height) {
+  xconn_->TrapErrors();
+  CHECK(_gl_copy_sub_buffer != NULL);
+  _gl_copy_sub_buffer(xconn_->GetDisplay(), drawable, x, y, width, height);
+  if (int error = xconn_->UntrapErrors()) {
+    LOG(WARNING) << "Got X error while copying GLX sub buffer: "
+                 << xconn_->GetErrorText(error);
+  }
+}
+
 // GL Functions.
 
 void RealGLInterface::Viewport(
@@ -366,6 +401,10 @@ void RealGLInterface::Rotatef(GLfloat angle, GLfloat x,
 
 void RealGLInterface::Scalef(GLfloat x, GLfloat y, GLfloat z) {
   glScalef(x, y, z);
+}
+
+void RealGLInterface::Scissor(GLint x, GLint y, GLint width, GLint height) {
+  glScissor(x, y, width, height);
 }
 
 void RealGLInterface::TexCoordPointer(GLint size, GLenum type,

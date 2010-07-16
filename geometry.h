@@ -5,6 +5,8 @@
 #ifndef WINDOW_MANAGER_GEOMETRY_H_
 #define WINDOW_MANAGER_GEOMETRY_H_
 
+#include <algorithm>
+
 namespace window_manager {
 
 // This file defines a few simple types for storing geometry-related data.
@@ -51,6 +53,23 @@ struct Rect {
 
     width = w;
     height = h;
+  }
+
+  bool empty() const { return width <= 0 || height <= 0; }
+
+  void merge(const Rect& other) {
+    if (other.empty())
+      return;
+    if (empty()) {
+      *this = other;
+    } else {
+      int x_max = std::max(x + width, other.x + other.width);
+      x = std::min(x, other.x);
+      width = x_max - x;
+      int y_max = std::max(y + height, other.y + other.height);
+      y = std::min(y, other.y);
+      height = y_max - y;
+    }
   }
 
   int x;

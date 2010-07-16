@@ -42,6 +42,11 @@ class GLInterface : virtual public GLInterfaceBase {
   virtual void SwapGlxBuffers(GLXDrawable drawable) = 0;
   virtual Bool MakeGlxCurrent(GLXDrawable drawable,
                               GLXContext ctx) = 0;
+  virtual void CopyGlxSubBuffer(GLXDrawable drawable,
+                                int x,
+                                int y,
+                                int width,
+                                int height) = 0;
 
   // The caller assumes ownership of objects obtained from
   // GetGlxFbConfigs and GetGlxVisualFromFbConfig and must call the
@@ -92,6 +97,7 @@ class GLInterface : virtual public GLInterfaceBase {
   virtual void PopMatrix() = 0;
   virtual void Rotatef(GLfloat angle, GLfloat x, GLfloat y, GLfloat z) = 0;
   virtual void Scalef(GLfloat x, GLfloat y, GLfloat z) = 0;
+  virtual void Scissor(GLint x, GLint y, GLint width, GLint height) = 0;
   virtual void TexCoordPointer(GLint size, GLenum type, GLsizei stride,
                                const GLvoid* pointer) = 0;
   virtual void TexParameteri(GLenum target, GLenum pname, GLint param) = 0;

@@ -671,6 +671,7 @@ void Window::HandleConfigureNotify(int width, int height) {
 void Window::HandleDamageNotify(const Rect& bounding_box) {
   wm_->xconn()->ClearDamage(damage_);
   actor_->UpdateTexture();
+  actor_->MergeDamagedRegion(bounding_box);
 
   // Check if this update could indicate that a video is playing.
   if (bounding_box.width >= kVideoMinWidth &&
