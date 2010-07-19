@@ -181,8 +181,7 @@ ImageContainer::Result PngImageContainer::LoadImage() {
 
   DLOG(INFO) << "Successfully loaded image '" << filename_ << "' ("
              << width() << "x" << height() << ", "
-             << channels() << " channel(s), "
-             << bits_per_channel() << " bit(s)/channel)";
+             << bits_per_pixel() << " bit(s)/pixel)";
 
   return ImageContainer::IMAGE_LOAD_SUCCESS;
 }

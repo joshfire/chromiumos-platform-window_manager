@@ -1140,20 +1140,31 @@ bool RealXConnection::GetImageFormat(bool lsb_first,
                                      int drawable_depth,
                                      ImageFormat* format_out) {
   // We only support 32-bit image data with or without a usable alpha
-  // channel at the moment.
-  if (image_depth != 32 || (drawable_depth != 24 && drawable_depth != 32))
-    return false;
+  // channel at the moment, and 16-bit RGB images.
+  switch (image_depth) {
+    case 32: {
+      if (drawable_depth != 24 && drawable_depth != 32)
+        return false;
+      bool has_alpha = (drawable_depth == 32);
 
-  bool has_alpha = (drawable_depth == 32);
-
-  // Xlib appears to not fill in the red, green, and blue masks in XImage
-  // structs in some cases, such as when fetching an image from a window's
-  // XComposite pixmap.  We just assume that little-endian systems store
-  // data in BGR order and big-endian systems use RGB.
-  if (lsb_first)
-    *format_out = has_alpha ? IMAGE_FORMAT_BGRA_32 : IMAGE_FORMAT_BGRX_32;
-  else
-    *format_out = has_alpha ? IMAGE_FORMAT_RGBA_32 : IMAGE_FORMAT_RGBX_32;
+      // Xlib appears to not fill in the red, green, and blue masks in XImage
+      // structs in some cases, such as when fetching an image from a window's
+      // XComposite pixmap.  We just assume that little-endian systems store
+      // data in BGR order and big-endian systems use RGB.
+      if (lsb_first)
+        *format_out = has_alpha ? IMAGE_FORMAT_BGRA_32 : IMAGE_FORMAT_BGRX_32;
+      else
+        *format_out = has_alpha ? IMAGE_FORMAT_RGBA_32 : IMAGE_FORMAT_RGBX_32;
+      break;
+    }
+    case 16:
+      // The format is packed in unsigned short, so provided the server and
+      // client use the same endianness, this should work for both.
+      *format_out = IMAGE_FORMAT_RGB_16;
+      break;
+    default:
+      return false;
+  }
 
   return true;
 }

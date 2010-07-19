@@ -163,6 +163,8 @@ bool OpenGlPixmapData::CopyPixmapImageToTexture() {
       format, true);
 
   GLenum pixel_data_format = 0;
+  GLenum pixel_data_type = GL_UNSIGNED_BYTE;
+  GLenum internal_format = GL_RGBA;
   switch (format) {
     case IMAGE_FORMAT_RGBA_32:  // fallthrough
     case IMAGE_FORMAT_RGBX_32:
@@ -172,14 +174,19 @@ bool OpenGlPixmapData::CopyPixmapImageToTexture() {
     case IMAGE_FORMAT_BGRX_32:
       pixel_data_format = GL_BGRA;
       break;
+    case IMAGE_FORMAT_RGB_16:
+      internal_format = GL_RGB;
+      pixel_data_format = GL_RGB;
+      pixel_data_type = GL_UNSIGNED_SHORT_5_6_5;
+      break;
     default:
       NOTREACHED() << "Unhandled image container data format " << format;
       return false;
   }
 
-  gl_->TexImage2D(GL_TEXTURE_2D, 0, GL_RGBA,
+  gl_->TexImage2D(GL_TEXTURE_2D, 0, internal_format,
                   image_container.width(), image_container.height(),
-                  0, pixel_data_format, GL_UNSIGNED_BYTE,
+                  0, pixel_data_format, pixel_data_type,
                   image_container.data());
   return true;
 }

@@ -120,9 +120,28 @@ void OpenGlesDrawVisitor::BindImage(const ImageContainer* container,
                                     RealCompositor::QuadActor* actor) {
   // TODO: Check container->format() and use a shader to swizzle BGR
   // data into RGB.
-  if (container->format() == IMAGE_FORMAT_BGRA_32 ||
-      container->format() == IMAGE_FORMAT_BGRX_32)
-    NOTIMPLEMENTED() << "BGR-order image data unsupported";
+  GLenum gl_format = 0;
+  GLenum gl_type = 0;
+  switch (container->format()) {
+    case IMAGE_FORMAT_RGBA_32:
+    case IMAGE_FORMAT_RGBX_32:
+      gl_format = GL_RGBA;
+      gl_type = GL_UNSIGNED_BYTE;
+      break;
+    case IMAGE_FORMAT_BGRA_32:
+    case IMAGE_FORMAT_BGRX_32:
+      NOTIMPLEMENTED() << "BGR-order image data unsupported";
+      gl_format = GL_RGBA;
+      gl_type = GL_UNSIGNED_BYTE;
+      break;
+    case IMAGE_FORMAT_RGB_16:
+      gl_format = GL_RGB;
+      gl_type = GL_UNSIGNED_SHORT_5_6_5;
+      break;
+    default:
+      NOTREACHED() << "Invalid image data format";
+      break;
+  }
 
   GLuint texture = 0;
   gl_->GenTextures(1, &texture);
@@ -132,9 +151,9 @@ void OpenGlesDrawVisitor::BindImage(const ImageContainer* container,
   gl_->TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
   gl_->TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
   gl_->TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-  gl_->TexImage2D(GL_TEXTURE_2D, 0, GL_RGBA,
+  gl_->TexImage2D(GL_TEXTURE_2D, 0, gl_format,
                   container->width(), container->height(),
-                  0, GL_RGBA, GL_UNSIGNED_BYTE, container->data());
+                  0, gl_format, gl_type, container->data());
 
   OpenGlesTextureData* data = new OpenGlesTextureData(gl_);
   data->SetTexture(texture);

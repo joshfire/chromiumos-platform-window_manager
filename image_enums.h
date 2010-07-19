@@ -16,6 +16,7 @@ enum ImageFormat {
   IMAGE_FORMAT_RGBX_32,  // RGB data with opaque alpha in fourth byte
   IMAGE_FORMAT_BGRA_32,
   IMAGE_FORMAT_BGRX_32,
+  IMAGE_FORMAT_RGB_16,  // R5 G6 B5 packed in an unsigned short (R msb).
 };
 
 // Does the passed-in image format use an alpha channel?
@@ -25,7 +26,8 @@ inline bool ImageFormatUsesAlpha(ImageFormat format) {
     case IMAGE_FORMAT_BGRA_32:
       return true;
     case IMAGE_FORMAT_RGBX_32:  // fallthrough
-    case IMAGE_FORMAT_BGRX_32:
+    case IMAGE_FORMAT_BGRX_32:  // fallthrough
+    case IMAGE_FORMAT_RGB_16:
       return false;
     default:
       NOTREACHED() << "Unhandled image format " << format;
@@ -41,6 +43,8 @@ inline int GetBitsPerPixelInImageFormat(ImageFormat format) {
     case IMAGE_FORMAT_BGRA_32:  // fallthrough
     case IMAGE_FORMAT_BGRX_32:
       return 32;
+    case IMAGE_FORMAT_RGB_16:
+      return 16;
     default:
       NOTREACHED() << "Unhandled image format " << format;
       return 0;

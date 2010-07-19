@@ -43,16 +43,13 @@ class ImageContainer {
 
   // Return stride in bytes of a row of pixels in the image data.
   size_t stride() const {
-    return channels() * bits_per_channel() * width() / 8;
+    return bits_per_pixel() * width() / 8;
   }
 
-  // The number of channels in the image.
-  int channels() const { return 4; }
+  // The number of bits per pixel in the image.
+  int bits_per_pixel() const { return GetBitsPerPixelInImageFormat(format_); }
 
-  // The number of bits per channel in the image.
-  int bits_per_channel() const { return 8; }
-
-  // Currently, this class only supports 32-bit formats.
+  // Currently, this class only supports 32-bit formats as well as 16-bit RGB.
   ImageFormat format() const { return format_; }
 
  protected:
@@ -60,8 +57,6 @@ class ImageContainer {
   void set_width(size_t new_width) { width_ = new_width; }
   void set_height(size_t new_height) { height_ = new_height; }
   void set_format(ImageFormat format) {
-    DCHECK_EQ(GetBitsPerPixelInImageFormat(format),
-              channels() * bits_per_channel());
     format_ = format;
   }
 
@@ -69,7 +64,7 @@ class ImageContainer {
   void SetData(uint8_t* new_data, bool was_allocated_with_malloc);
 
  private:
-  // 32-bit-per-pixel image data, oriented with (0, 0) at the beginning of
+  // 16 or 32-bit-per-pixel image data, oriented with (0, 0) at the beginning of
   // the array.  We own this data.
   uint8_t* data_;
 
