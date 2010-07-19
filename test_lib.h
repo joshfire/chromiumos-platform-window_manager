@@ -16,8 +16,9 @@ extern "C" {
 #include "base/scoped_ptr.h"
 #include "base/logging.h"
 #include "cros/chromeos_wm_ipc_enums.h"
-#include "window_manager/stacking_manager.h"
 #include "window_manager/key_bindings.h"
+#include "window_manager/mock_compositor.h"
+#include "window_manager/stacking_manager.h"
 #include "window_manager/wm_ipc.h"
 #include "window_manager/x_types.h"
 

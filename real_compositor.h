@@ -29,7 +29,6 @@
 
 namespace window_manager {
 
-class CompositorEventSource;
 class EventLoop;
 class Gles2Interface;
 class GLInterface;

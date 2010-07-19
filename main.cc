@@ -22,6 +22,7 @@ extern "C" {
 #include "window_manager/callback.h"
 #include "window_manager/compositor.h"
 #include "window_manager/event_loop.h"
+#include "window_manager/mock_compositor.h"
 #include "window_manager/profiler.h"
 #include "window_manager/real_compositor.h"
 #if defined(COMPOSITOR_OPENGL)
