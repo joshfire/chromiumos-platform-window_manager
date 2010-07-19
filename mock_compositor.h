@@ -171,7 +171,11 @@ class MockCompositor : public Compositor {
     virtual ~ImageActor() {}
 
     // Begin Compositor::Actor methods.
-    virtual void SetSize(int width, int height) {}
+    virtual void SetSize(int width, int height) {
+      LOG(FATAL) << "Got attempt to resize ImageActor " << this
+                 << " to " << width << "x" << height
+                 << " (ImageActors must be scaled rather than resized)";
+    }
     // End Compositor::Actor methods.
 
     // Begin Compositor::ImageActor methods.
@@ -191,7 +195,11 @@ class MockCompositor : public Compositor {
     int num_texture_updates() const { return num_texture_updates_; }
 
     // Begin Compositor::Actor methods.
-    virtual void SetSize(int width, int height) {}
+    virtual void SetSize(int width, int height) {
+      LOG(FATAL) << "Got attempt to resize TexturePixmapActor " << this
+                 << " to " << width << "x" << height
+                 << " (TexturePixmapActor must be scaled rather than resized)";
+    }
     // End Compositor::Actor methods.
 
     // Begin Compositor::TexturePixmapActor methods.

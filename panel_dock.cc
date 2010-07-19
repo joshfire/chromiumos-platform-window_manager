@@ -79,7 +79,7 @@ PanelDock::PanelDock(PanelManager* panel_manager, DockType type, int width)
 
   bg_actor_->SetName("panel dock background");
   wm()->stage()->AddActor(bg_actor_.get());
-  bg_actor_->SetSize(width_, height_);
+  ResizeBackgroundActor(width_, height_);
   bg_actor_->Move(bg_x, y_, 0);
   bg_actor_->Show();
   wm()->stacking_manager()->StackActorAtTopOfLayer(
@@ -255,7 +255,7 @@ void PanelDock::HandleScreenResize() {
   int bg_x = x_;
   if (hidden)
     bg_x = (type_ == DOCK_TYPE_LEFT) ? x_ - width_ : x_ + width_;
-  bg_actor_->SetSize(width_, height_);
+  ResizeBackgroundActor(width_, height_);
   bg_actor_->Move(bg_x, y_, 0);
   bg_shadow_->Resize(width_, height_, 0);
   bg_shadow_->Move(bg_x, y_, 0);
@@ -347,6 +347,15 @@ void PanelDock::PackPanels(Panel* fixed_panel) {
 void PanelDock::FocusPanel(Panel* panel, XTime timestamp) {
   DCHECK(panel);
   panel->TakeFocus(timestamp);
+}
+
+void PanelDock::ResizeBackgroundActor(int width, int height) {
+  DCHECK(bg_actor_.get());
+  DCHECK_GT(width, 0);
+  DCHECK_GT(height, 0);
+  bg_actor_->Scale(static_cast<float>(width_) / bg_actor_->GetWidth(),
+                   static_cast<float>(height_) / bg_actor_->GetHeight(),
+                   0);  // anim_ms
 }
 
 };  // namespace window_manager

@@ -1760,7 +1760,10 @@ void LayoutManager::ConfigureBackground(int width, int height) {
              << " as " << background_width << "x" << background_height
              << " for " << width << "x" << height << " display";
 
-  background_->SetSize(background_width, background_height);
+  background_->Scale(
+      static_cast<float>(background_width) / background_->GetWidth(),
+      static_cast<float>(background_height) / background_->GetHeight(),
+      0);  // anim_ms
 
   // Center the image vertically.
   background_->Move(0, (height - background_height) / 2, 0);

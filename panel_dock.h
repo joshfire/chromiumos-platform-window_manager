@@ -122,6 +122,9 @@ class PanelDock : public PanelContainer {
   // Focus a panel.
   void FocusPanel(Panel* panel, XTime timestamp);
 
+  // Scale our background ImageActor to a specific size.
+  void ResizeBackgroundActor(int width, int height);
+
   PanelManager* panel_manager_;  // not owned
 
   DockType type_;

@@ -535,6 +535,8 @@ TEST_F(LayoutManagerTest, Resize) {
       Compositor::Color(0xff, 0xff, 0xff), 0);
   background->SetSize(root_info->width, root_info->height);
   lm_->SetBackground(background);
+  ASSERT_EQ(root_info->width, background->GetWidth());
+  ASSERT_EQ(root_info->height, background->GetHeight());
 
   XWindow xid = CreateSimpleWindow();
   MockXConnection::WindowInfo* info = xconn_->GetWindowInfoOrDie(xid);
@@ -583,11 +585,13 @@ TEST_F(LayoutManagerTest, Resize) {
   EXPECT_EQ(
       static_cast<int>(
           new_width * LayoutManager::kBackgroundExpansionFactor + 0.5f),
-      background->GetWidth());
+      static_cast<int>(
+          background->GetWidth() * background->GetXScale() + 0.5f));
   EXPECT_EQ(
       static_cast<int>(
           new_height * LayoutManager::kBackgroundExpansionFactor + 0.5f),
-      background->GetHeight());
+      static_cast<int>(
+          background->GetHeight() * background->GetYScale() + 0.5f));
 
   // Now check that background config works with different aspects.
   background->SetSize(root_info->width * 2, root_info->height);
@@ -600,11 +604,13 @@ TEST_F(LayoutManagerTest, Resize) {
   EXPECT_EQ(
       static_cast<int>(
           new_width * LayoutManager::kBackgroundExpansionFactor + 0.5f),
-      background->GetWidth());
+      static_cast<int>(
+          background->GetWidth() * background->GetXScale() + 0.5f));
   EXPECT_EQ(
       static_cast<int>(
           new_height * LayoutManager::kBackgroundExpansionFactor * 2 + 0.5f),
-      background->GetHeight());
+      static_cast<int>(
+          background->GetHeight() * background->GetYScale() + 0.5f));
 }
 
 // Test that we let clients resize toplevel windows after they've been
