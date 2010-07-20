@@ -92,7 +92,6 @@ srcs = Split('''\
   layout_manager.cc
   login_controller.cc
   login_entry.cc
-  mock_compositor.cc
   motion_event_coalescer.cc
   panel.cc
   panel_bar.cc
@@ -132,6 +131,7 @@ libwm_core = wm_env.Library('wm_core', srcs)
 
 # Define a library to be used by tests.
 srcs = Split('''\
+  mock_compositor.cc
   mock_gl_interface.cc
   mock_x_connection.cc
   test_lib.cc

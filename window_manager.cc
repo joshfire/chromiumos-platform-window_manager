@@ -63,8 +63,6 @@ DEFINE_string(unaccelerated_graphics_image,
               "../assets/images/unaccelerated_graphics.png",
               "Image to display when using unaccelerated rendering");
 
-DEFINE_bool(use_compositing, true, "Use compositing");
-
 using chromeos::WmIpcMessageType;
 using std::list;
 using std::make_pair;
@@ -262,20 +260,18 @@ bool WindowManager::Init() {
   if (!logged_in_)
     CreateInitialBackground();
 
-  if (FLAGS_use_compositing) {
-    // Draw the scene first to make sure that it's ready.
-    compositor_->Draw();
-    CHECK(xconn_->RedirectSubwindowsForCompositing(root_));
-    // Create the compositing overlay, put the stage's window inside of it,
-    // and make events fall through both to the client windows underneath.
-    overlay_xid_ = xconn_->GetCompositingOverlayWindow(root_);
-    CHECK(overlay_xid_);
-    LOG(INFO) << "Reparenting stage window " << XidStr(stage_xid_)
-              << " into Xcomposite overlay window " << XidStr(overlay_xid_);
-    CHECK(xconn_->ReparentWindow(stage_xid_, overlay_xid_, 0, 0));
-    CHECK(xconn_->RemoveInputRegionFromWindow(overlay_xid_));
-    CHECK(xconn_->RemoveInputRegionFromWindow(stage_xid_));
-  }
+  // Draw the scene first to make sure that it's ready.
+  compositor_->Draw();
+  CHECK(xconn_->RedirectSubwindowsForCompositing(root_));
+  // Create the compositing overlay, put the stage's window inside of it,
+  // and make events fall through both to the client windows underneath.
+  overlay_xid_ = xconn_->GetCompositingOverlayWindow(root_);
+  CHECK(overlay_xid_);
+  LOG(INFO) << "Reparenting stage window " << XidStr(stage_xid_)
+            << " into Xcomposite overlay window " << XidStr(overlay_xid_);
+  CHECK(xconn_->ReparentWindow(stage_xid_, overlay_xid_, 0, 0));
+  CHECK(xconn_->RemoveInputRegionFromWindow(overlay_xid_));
+  CHECK(xconn_->RemoveInputRegionFromWindow(stage_xid_));
 
   if (!compositor_->TexturePixmapActorUsesFastPath() &&
       !FLAGS_unaccelerated_graphics_image.empty()) {
@@ -465,13 +461,10 @@ XWindow WindowManager::CreateInputWindow(
       event_mask);
   CHECK(xid);
 
-  if (FLAGS_use_compositing) {
-    // If the stage has been reparented into the overlay window, we need to
-    // stack the input window under the overlay instead of under the stage
-    // (because the stage isn't a sibling of the input window).
-    XWindow top_win = overlay_xid_ ? overlay_xid_ : stage_xid_;
-    CHECK(xconn_->StackWindow(xid, top_win, false));
-  }
+  // Since the stage has been reparented into the overlay window, we need
+  // to stack the input window under the overlay instead of under the stage
+  // (because the stage isn't a sibling of the input window).
+  CHECK(xconn_->StackWindow(xid, overlay_xid_, false));
   CHECK(xconn_->MapWindow(xid));
   return xid;
 }
@@ -1621,8 +1614,7 @@ void WindowManager::HandleReparentNotify(const XReparentEvent& e) {
 
       // We're not going to be compositing the window anymore, so
       // unredirect it so it'll get drawn using the usual path.
-      if (FLAGS_use_compositing)
-        xconn_->UnredirectWindowForCompositing(e.window);
+      xconn_->UnredirectWindowForCompositing(e.window);
     }
   }
 }

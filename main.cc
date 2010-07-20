@@ -20,9 +20,7 @@ extern "C" {
 #include "base/scoped_ptr.h"
 #include "base/string_util.h"
 #include "window_manager/callback.h"
-#include "window_manager/compositor.h"
 #include "window_manager/event_loop.h"
-#include "window_manager/mock_compositor.h"
 #include "window_manager/profiler.h"
 #include "window_manager/real_compositor.h"
 #if defined(COMPOSITOR_OPENGL)
@@ -33,8 +31,6 @@ extern "C" {
 #include "window_manager/real_x_connection.h"
 #include "window_manager/util.h"
 #include "window_manager/window_manager.h"
-
-DECLARE_bool(use_compositing);  // from window_manager.cc
 
 DEFINE_string(display, "",
               "X Display to connect to (overrides DISPLAY env var).");
@@ -49,9 +45,7 @@ DEFINE_int32(pause_at_start, 0,
              "Specify this to pause for N seconds at startup.");
 
 using std::string;
-using window_manager::Compositor;
 using window_manager::EventLoop;
-using window_manager::MockCompositor;
 using window_manager::RealCompositor;
 #if defined(COMPOSITOR_OPENGL)
 using window_manager::RealGLInterface;
@@ -126,30 +120,17 @@ int main(int argc, char** argv) {
   Display* display = XOpenDisplay(display_name);
   CHECK(display) << "Unable to open "
                  << (display_name ? display_name : "default display");
+
   RealXConnection xconn(display);
-
   EventLoop event_loop;
-
-  scoped_ptr<Compositor> compositor;
 #if defined(COMPOSITOR_OPENGL)
-  scoped_ptr<RealGLInterface> gl_interface;
+  RealGLInterface gl_interface(&xconn);
 #elif defined(COMPOSITOR_OPENGLES)
-  scoped_ptr<RealGles2Interface> gl_interface;
+  RealGles2Interface gl_interface(&xconn);
 #endif
+  RealCompositor compositor(&event_loop, &xconn, &gl_interface);
 
-  if (FLAGS_use_compositing) {
-#if defined(COMPOSITOR_OPENGL)
-    gl_interface.reset(new RealGLInterface(&xconn));
-#elif defined(COMPOSITOR_OPENGLES)
-    gl_interface.reset(new RealGles2Interface(&xconn));
-#endif
-    compositor.reset(
-        new RealCompositor(&event_loop, &xconn, gl_interface.get()));
-  } else {
-    compositor.reset(new MockCompositor(&xconn));
-  }
-
-  WindowManager wm(&event_loop, &xconn, compositor.get());
+  WindowManager wm(&event_loop, &xconn, &compositor);
   wm.set_initialize_logging(true);
   wm.Init();
 
