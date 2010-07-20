@@ -25,9 +25,9 @@ class ScreenLockerHandler : public EventConsumer {
 
   // Begin EventConsumer implementation.
   virtual bool IsInputWindow(XWindow xid) { return false; }
-  virtual void HandleScreenResize() {}
+  virtual void HandleScreenResize();
   virtual void HandleLoggedInStateChange() {}
-  virtual bool HandleWindowMapRequest(Window* win) { return false; }
+  virtual bool HandleWindowMapRequest(Window* win);
   virtual void HandleWindowMap(Window* win);
   virtual void HandleWindowUnmap(Window* win);
   virtual void HandleWindowConfigureRequest(Window* win,

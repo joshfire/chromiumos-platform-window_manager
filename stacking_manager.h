@@ -37,6 +37,9 @@ class StackingManager {
     // Debugging objects that should be positioned above everything else.
     LAYER_DEBUGGING = 0,
 
+    // Chrome screen locker window.
+    LAYER_SCREEN_LOCKER,
+
     // Hotkey overlay images.
     LAYER_HOTKEY_OVERLAY,
 

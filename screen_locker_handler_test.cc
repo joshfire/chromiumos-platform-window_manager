@@ -34,13 +34,10 @@ TEST_F(ScreenLockerHandlerTest, Basic) {
   EXPECT_TRUE(compositor_->active_visibility_groups().empty());
 
   // Now create a screen locker window.
-  XWindow screen_locker_xid = xconn_->CreateWindow(
-      xconn_->GetRootWindow(),
-      0, 0,   // x, y
-      wm_->width(), wm_->height(),
-      true,   // override redirect
-      false,  // input only
-      0);     // event mask
+  XWindow screen_locker_xid =
+      CreateBasicWindow(5, 5, wm_->width() - 5, wm_->height() - 5);
+  MockXConnection::WindowInfo* screen_locker_info =
+      xconn_->GetWindowInfoOrDie(screen_locker_xid);
   wm_->wm_ipc()->SetWindowType(
       screen_locker_xid, chromeos::WM_IPC_WINDOW_CHROME_SCREEN_LOCKER, NULL);
   WmIpc::Message msg;
@@ -49,14 +46,26 @@ TEST_F(ScreenLockerHandlerTest, Basic) {
           screen_locker_xid,
           chromeos::WM_IPC_MESSAGE_CHROME_NOTIFY_SCREEN_REDRAWN_FOR_LOCK,
           &msg));
-  ASSERT_TRUE(xconn_->MapWindow(screen_locker_xid));
   const int initial_num_draws = compositor_->num_draws();
   SendInitialEventsForWindow(screen_locker_xid);
+  Window* screen_locker_win = wm_->GetWindowOrDie(screen_locker_xid);
+  MockCompositor::TexturePixmapActor* screen_locker_actor =
+      GetMockActorForWindow(screen_locker_win);
+
+  // Check that the window was moved to (0, 0), resized to cover the whole
+  // screen, stacked correctly, and shown.
+  EXPECT_EQ(0, screen_locker_info->x);
+  EXPECT_EQ(0, screen_locker_info->y);
+  EXPECT_EQ(wm_->width(), screen_locker_info->width);
+  EXPECT_EQ(wm_->height(), screen_locker_info->height);
+  EXPECT_EQ(0, screen_locker_actor->GetX());
+  EXPECT_EQ(0, screen_locker_actor->GetY());
+  EXPECT_TRUE(WindowIsInLayer(screen_locker_win,
+                              StackingManager::LAYER_SCREEN_LOCKER));
+  EXPECT_TRUE(screen_locker_actor->is_shown());
 
   // This window's actor *should* be added to a group, and this should now
   // be the only group that we're drawing.
-  MockCompositor::TexturePixmapActor* screen_locker_actor =
-      GetMockActorForWindow(wm_->GetWindowOrDie(screen_locker_xid));
   EXPECT_EQ(static_cast<size_t>(1),
             screen_locker_actor->visibility_groups().size());
   EXPECT_TRUE(screen_locker_actor->visibility_groups().count(
@@ -75,8 +84,21 @@ TEST_F(ScreenLockerHandlerTest, Basic) {
           chromeos::WM_IPC_MESSAGE_CHROME_NOTIFY_SCREEN_REDRAWN_FOR_LOCK,
           &msg));
 
-  // Now unmap the screen locker window and check that the original
-  // toplevel window would be drawn again.
+  // Now resize the root window and check that the screen locker window is
+  // also resized.
+  const XWindow root_xid = xconn_->GetRootWindow();
+  MockXConnection::WindowInfo* root_info = xconn_->GetWindowInfoOrDie(root_xid);
+  const int new_width = root_info->width + 20;
+  const int new_height = root_info->height + 20;
+  xconn_->ResizeWindow(root_xid, new_width, new_height);
+  XEvent resize_event;
+  xconn_->InitConfigureNotifyEvent(&resize_event, root_xid);
+  wm_->HandleEvent(&resize_event);
+  EXPECT_EQ(new_width, screen_locker_info->width);
+  EXPECT_EQ(new_height, screen_locker_info->height);
+
+  // Unmap the screen locker window and check that the original toplevel
+  // window would be drawn again.
   ASSERT_TRUE(xconn_->UnmapWindow(screen_locker_xid));
   XEvent event;
   xconn_->InitUnmapEvent(&event, screen_locker_xid);

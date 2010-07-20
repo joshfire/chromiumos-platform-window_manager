@@ -8,12 +8,16 @@
 
 #include "base/logging.h"
 #include "cros/chromeos_wm_ipc_enums.h"
+#include "window_manager/geometry.h"
+#include "window_manager/stacking_manager.h"
+#include "window_manager/util.h"
 #include "window_manager/window.h"
 #include "window_manager/window_manager.h"
 #include "window_manager/wm_ipc.h"
 
 using std::set;
 using std::tr1::unordered_set;
+using window_manager::util::XidStr;
 
 namespace window_manager {
 
@@ -28,15 +32,36 @@ ScreenLockerHandler::~ScreenLockerHandler() {
   }
 }
 
+void ScreenLockerHandler::HandleScreenResize() {
+  for (set<XWindow>::const_iterator it = screen_locker_xids_.begin();
+       it != screen_locker_xids_.end(); ++it) {
+    Window* win = wm_->GetWindow(*it);
+    DCHECK(win) << "Window " << XidStr(*it) << " is missing";
+    // TODO: The override-redirect check can be removed once Chrome is
+    // using regular windows for the screen locker.
+    if (!win->override_redirect())
+      win->ResizeClient(wm_->width(), wm_->height(), GRAVITY_NORTHWEST);
+  }
+}
+
+bool ScreenLockerHandler::HandleWindowMapRequest(Window* win) {
+  DCHECK(win);
+  if (win->type() != chromeos::WM_IPC_WINDOW_CHROME_SCREEN_LOCKER)
+    return false;
+
+  win->MoveClient(0, 0);
+  win->MoveCompositedToClient();
+  win->ResizeClient(wm_->width(), wm_->height(), GRAVITY_NORTHWEST);
+  wm_->stacking_manager()->StackWindowAtTopOfLayer(
+      win, StackingManager::LAYER_SCREEN_LOCKER);
+  win->MapClient();
+  return true;
+}
+
 void ScreenLockerHandler::HandleWindowMap(Window* win) {
   DCHECK(win);
   if (win->type() != chromeos::WM_IPC_WINDOW_CHROME_SCREEN_LOCKER)
     return;
-
-  if (!win->override_redirect()) {
-    LOG(WARNING) << "Got non-override-redirect screen locker window "
-                 << win->xid_str();
-  }
 
   win->ShowComposited();
   win->actor()->AddToVisibilityGroup(
