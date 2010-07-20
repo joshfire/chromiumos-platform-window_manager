@@ -33,9 +33,10 @@ static float max_anisotropy = 1.0f;
 RealGLInterface::RealGLInterface(RealXConnection* connection)
     : xconn_(connection),
       has_texture_from_pixmap_extension_(false) {
+  Display* display = xconn_->GetDisplay();
   if (kGlxExtensions.size() == 0) {
     kGlxExtensions = string(glXQueryExtensionsString(
-        xconn_->GetDisplay(), DefaultScreen(xconn_->GetDisplay())));
+        display, DefaultScreen(display)));
     LOG(INFO) << "Supported GLX extensions: " << kGlxExtensions;
   }
   if (kGlxExtensions.find("GLX_EXT_texture_from_pixmap") != string::npos) {
@@ -91,10 +92,31 @@ RealGLInterface::RealGLInterface(RealXConnection* connection)
       LOG(INFO) << "glXCopySubBufferMESA is un-available: "
                 << "not supported on this device.";
   }
+  GLint attributes[] = {
+    GLX_RGBA,
+    GLX_DOUBLEBUFFER,
+    GLX_RED_SIZE, 8,
+    GLX_GREEN_SIZE, 8,
+    GLX_BLUE_SIZE, 8,
+    GLX_ALPHA_SIZE, 8,
+    GLX_DEPTH_SIZE, 16,
+    None
+  };
+  visual_info_ = glXChooseVisual(display, DefaultScreen(display), attributes);
+  CHECK(visual_info_) << "Did not find a suitable GL visual";
+  LOG(INFO) << "Chose visual " << visual_info_->visualid;
+}
+
+RealGLInterface::~RealGLInterface() {
+  XFree(visual_info_);
 }
 
 void RealGLInterface::GlxFree(void* item) {
   XFree(item);
+}
+
+XVisualID RealGLInterface::GetVisual() {
+  return visual_info_->visualid;
 }
 
 GLXPixmap RealGLInterface::CreateGlxPixmap(GLXFBConfig config,
@@ -121,31 +143,13 @@ void RealGLInterface::DestroyGlxPixmap(GLXPixmap pixmap) {
 }
 
 GLXContext RealGLInterface::CreateGlxContext() {
-  XConnection::WindowAttributes attributes;
-  xconn_->GetWindowAttributes(xconn_->GetRootWindow(), &attributes);
-
-  XVisualInfo visual_info_template;
-  visual_info_template.visualid = attributes.visual_id;
-  int visual_info_count = 0;
-  XVisualInfo* visual_info_list = xconn_->GetVisualInfo(VisualIDMask,
-                                                        &visual_info_template,
-                                                        &visual_info_count);
-  CHECK(visual_info_list);
-  CHECK(visual_info_count > 0);
-
-  GLXContext context = None;
-  for (int i = 0; i < visual_info_count; ++i) {
-    xconn_->TrapErrors();
-    context = glXCreateContext(
-        xconn_->GetDisplay(), visual_info_list + i, NULL, True);
-    if (int error = xconn_->UntrapErrors()) {
-      LOG(WARNING) << "Got X error while creating a GL context: "
-                   << xconn_->GetErrorText(error);
-    } else if (context) {
-      break;
-    }
+  xconn_->TrapErrors();
+  GLXContext context = glXCreateContext(xconn_->GetDisplay(), visual_info_,
+                                        NULL, True);
+  if (int error = xconn_->UntrapErrors()) {
+    LOG(WARNING) << "Got X error while creating a GL context: "
+                 << xconn_->GetErrorText(error);
   }
-  xconn_->Free(visual_info_list);
   return context;
 }
 

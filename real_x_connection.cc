@@ -562,17 +562,48 @@ XWindow RealXConnection::CreateWindow(
     int width, int height,
     bool override_redirect,
     bool input_only,
-    int event_mask) {
+    int event_mask,
+    XVisualID visual) {
   CHECK(width > 0);
   CHECK(height > 0);
   CHECK(parent != XCB_NONE);
 
-  const uint32_t value_mask = XCB_CW_OVERRIDE_REDIRECT | XCB_CW_EVENT_MASK;
-  const uint32_t values[] = { override_redirect ? 1 : 0, event_mask, };
+  uint32_t value_mask = XCB_CW_OVERRIDE_REDIRECT | XCB_CW_EVENT_MASK;
+  // The values need to be in the same order as the numerical value of the
+  // enabled flags:
+  // XCB_CW_BORDER_PIXEL, XCB_CW_OVERRIDE_REDIRECT, XCB_CW_EVENT_MASK and then
+  // XCB_CW_COLORMAP
+  std::vector<uint32_t> values;
+  values.push_back(override_redirect ? 1 : 0);
+  values.push_back(event_mask);
+
+  uint32_t depth = XCB_COPY_FROM_PARENT;
+  xcb_colormap_t colormap_id = 0;
+  if (visual) {
+    XVisualInfo template_visual_info;
+    template_visual_info.visualid = visual;
+
+    int count;
+    XVisualInfo* visual_info =
+        GetVisualInfo(VisualIDMask, &template_visual_info, &count);
+    CHECK(count == 1);
+    CHECK(visual_info);
+    depth = visual_info->depth;
+    XFree(visual_info);
+
+    // X says that if the visual is different from the parent's window, we need
+    // a border pixel and a colormap.
+    value_mask |= XCB_CW_BORDER_PIXEL | XCB_CW_COLORMAP;
+    values.insert(values.begin(), 0);  // border pixel
+    colormap_id = xcb_generate_id(xcb_conn_);
+    xcb_create_colormap(xcb_conn_, XCB_COLORMAP_ALLOC_NONE, colormap_id, parent,
+                        visual);
+    values.push_back(colormap_id);  // colormap
+  }
 
   const xcb_window_t xid = xcb_generate_id(xcb_conn_);
   xcb_create_window(xcb_conn_,
-                    XCB_COPY_FROM_PARENT,  // depth
+                    depth,
                     xid,
                     parent,
                     x, y,
@@ -581,9 +612,12 @@ XWindow RealXConnection::CreateWindow(
                     input_only ?
                       XCB_WINDOW_CLASS_INPUT_ONLY :
                       XCB_WINDOW_CLASS_INPUT_OUTPUT,
-                    XCB_COPY_FROM_PARENT,  // visual
+                    visual,
                     value_mask,
-                    values);
+                    &values[0]);
+
+  if (colormap_id)
+    xcb_free_colormap(xcb_conn_, colormap_id);
   return xid;
 }
 

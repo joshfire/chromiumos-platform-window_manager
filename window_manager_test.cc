@@ -285,7 +285,7 @@ TEST_F(WindowManagerTest, OverrideRedirectMapping) {
         30, 40,  // width, height
         true,    // override redirect
         false,   // input only
-        0);      // event mask
+        0, 0);   // event mask, visual
   MockXConnection::WindowInfo* info = xconn_->GetWindowInfoOrDie(xid);
   xconn_->MapWindow(xid);
   ASSERT_TRUE(info->mapped);
@@ -307,7 +307,7 @@ TEST_F(WindowManagerTest, OverrideRedirectMapping) {
         30, 40,  // width, height
         true,    // override redirect
         false,   // input only
-        0);      // event mask
+        0, 0);   // event mask, visual
   MockXConnection::WindowInfo* info2 = xconn_->GetWindowInfoOrDie(xid2);
 
   xconn_->InitCreateWindowEvent(&event, xid2);
@@ -484,7 +484,7 @@ TEST_F(WindowManagerTest, RestackOverrideRedirectWindows) {
       30, 40,  // width, height
       true,    // override redirect
       false,   // input only
-      0);      // event mask
+      0, 0);   // event mask, visual
   xconn_->MapWindow(xid);
   SendInitialEventsForWindow(xid);
   Window* win = wm_->GetWindowOrDie(xid);
@@ -495,7 +495,7 @@ TEST_F(WindowManagerTest, RestackOverrideRedirectWindows) {
       30, 40,  // width, height
       true,    // override redirect
       false,   // input only
-      0);      // event mask
+      0, 0);   // event mask, visual
   xconn_->MapWindow(xid2);
   SendInitialEventsForWindow(xid2);
   Window* win2 = wm_->GetWindowOrDie(xid2);
@@ -529,7 +529,7 @@ TEST_F(WindowManagerTest, StackOverrideRedirectWindowsAboveLayers) {
       30, 40,  // width, height
       true,    // override redirect
       false,   // input only
-      0);      // event mask
+      0, 0);   // event mask, visual
   xconn_->MapWindow(xid);
   SendInitialEventsForWindow(xid);
   Window* win = wm_->GetWindowOrDie(xid);
@@ -725,7 +725,7 @@ TEST_F(WindowManagerTest, ClientListProperties) {
           200, 200,  // width, height
           true,      // override_redirect
           false,     // input_only
-          0);        // event_mask
+          0, 0);     // event mask, visual
   SendInitialEventsForWindow(override_redirect_xid);
 
   // The override-redirect window shouldn't be included.
@@ -854,7 +854,7 @@ TEST_F(WindowManagerTest, RedirectWindows) {
         30, 40,  // width, height
         true,    // override redirect
         false,   // input only
-        0);      // event mask
+        0, 0);   // event mask, visual
   MockXConnection::WindowInfo* override_redirect_info =
       xconn_->GetWindowInfoOrDie(override_redirect_xid);
   EXPECT_TRUE(override_redirect_info->redirected);
@@ -997,7 +997,7 @@ TEST_F(WindowManagerTest, FetchNewPixmap) {
         30, 40,  // width, height
         true,    // override redirect
         false,   // input only
-        0);      // event mask
+        0, 0);   // event mask, visual
   MockXConnection::WindowInfo* info = xconn_->GetWindowInfoOrDie(xid);
   xconn_->MapWindow(xid);
   ASSERT_TRUE(info->mapped);

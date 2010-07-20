@@ -149,7 +149,7 @@ XWindow BasicWindowManagerTest::CreateBasicWindow(int x, int y,
       width, height,
       false,  // override redirect
       false,  // input only
-      0);     // event mask
+      0, 0);  // event mask, visual
 }
 
 XWindow BasicWindowManagerTest::CreateToplevelWindow(int tab_count,

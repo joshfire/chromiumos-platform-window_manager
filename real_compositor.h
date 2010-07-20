@@ -628,7 +628,8 @@ class RealCompositor : public Compositor {
   class StageActor : public RealCompositor::ContainerActor,
                      public Compositor::StageActor {
    public:
-    StageActor(RealCompositor* compositor, int width, int height);
+    StageActor(RealCompositor* compositor, XWindow window,
+               int width, int height);
     virtual ~StageActor();
 
     // Implement VisitorDestination for visitor.

@@ -81,7 +81,8 @@ class MockXConnection : public XConnection {
   virtual XWindow GetRootWindow() { return root_; }
   virtual XWindow CreateWindow(
       XWindow parent, int x, int y, int width, int height,
-      bool override_redirect, bool input_only, int event_mask);
+      bool override_redirect, bool input_only, int event_mask,
+      XVisualID visual);
   virtual bool DestroyWindow(XWindow xid);
   virtual bool IsWindowShaped(XWindow xid);
   virtual bool SelectShapeEventsOnWindow(XWindow xid);
@@ -177,6 +178,7 @@ class MockXConnection : public XConnection {
     bool redirect_subwindows;
     bool redirected;
     int event_mask;
+    XVisualID visual;
     std::map<XAtom, std::vector<int> > int_properties;
     std::map<XAtom, std::string> string_properties;
     XWindow transient_for;

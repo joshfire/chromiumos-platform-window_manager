@@ -287,14 +287,16 @@ class XConnection {
   // Create a new override-redirect window.  'width' and 'height' must be
   // positive.  'event_mask' determines which events the window receives;
   // it takes values from the "Input Event Masks" section of X.h.  The
-  // window is a child of 'parent'.
+  // window is a child of 'parent'.  'visual' can be either the ID of the
+  // desired visual, or 0 to mean copy-from-parent.
   virtual XWindow CreateWindow(
       XWindow parent,
       int x, int y,
       int width, int height,
       bool override_redirect,
       bool input_only,
-      int event_mask) = 0;
+      int event_mask,
+      XVisualID visual) = 0;
 
   // Create a new simple window.  'width' and 'height' must be
   // positive. The window is a child of 'parent'.  The border width is

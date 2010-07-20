@@ -30,6 +30,9 @@ class GLInterface : virtual public GLInterfaceBase {
   // object returned from GLX.
   virtual void GlxFree(void* item) = 0;
 
+  // Gets a visual ID that is compatible with GL.
+  virtual XVisualID GetVisual() = 0;
+
   // GLX functions that we use.
   // These functions all correspond to similar glX* functions (without the Glx).
   virtual GLXPixmap CreateGlxPixmap(GLXFBConfig config,

@@ -16,13 +16,14 @@ class RealXConnection;
 class RealGLInterface : public GLInterface {
  public:
   explicit RealGLInterface(RealXConnection* connection);
-  virtual ~RealGLInterface() {}
+  virtual ~RealGLInterface();
 
   // Begin GLInterface methods.
   virtual bool HasTextureFromPixmapExtension() {
     return has_texture_from_pixmap_extension_;
   }
   virtual void GlxFree(void* item);
+  virtual XVisualID GetVisual();
 
   // GLX functions
   virtual GLXPixmap CreateGlxPixmap(GLXFBConfig config,
@@ -111,6 +112,9 @@ class RealGLInterface : public GLInterface {
 
   // Is GLX_EXT_texture_from_pixmap available?
   bool has_texture_from_pixmap_extension_;
+
+  // Visual to be used by the compositing window and context.
+  XVisualInfo* visual_info_;
 
   DISALLOW_COPY_AND_ASSIGN(RealGLInterface);
 };

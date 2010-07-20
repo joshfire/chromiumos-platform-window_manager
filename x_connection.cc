@@ -78,6 +78,6 @@ bool XConnection::SetIntProperty(
 XWindow XConnection::CreateSimpleWindow(XWindow parent,
                                         int x, int y,
                                         int width, int height) {
-  return CreateWindow(parent, x, y, width, height, false, false, 0);
+  return CreateWindow(parent, x, y, width, height, false, false, 0, 0);
 }
 }  // namespace window_manager

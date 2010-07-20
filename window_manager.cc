@@ -458,7 +458,8 @@ XWindow WindowManager::CreateInputWindow(
       width, height,
       true,   // override redirect
       true,   // input only
-      event_mask);
+      event_mask,
+      0);     // visual
   CHECK(xid);
 
   // Since the stage has been reparented into the overlay window, we need
@@ -746,7 +747,8 @@ bool WindowManager::RegisterExistence() {
                                  1, 1,    // dimensions
                                  true,    // override redirect
                                  false,   // input only
-                                 PropertyChangeMask);  // event mask
+                                 PropertyChangeMask,  // event mask
+                                 0);      // visual
   CHECK(wm_xid_);
   LOG(INFO) << "Created window " << XidStr(wm_xid_)
             << " for registering ourselves as the window manager";

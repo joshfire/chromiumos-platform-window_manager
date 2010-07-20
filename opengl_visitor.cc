@@ -295,7 +295,8 @@ OpenGlDrawVisitor::OpenGlDrawVisitor(GLInterface* gl_interface,
 
   gl_interface_->MakeGlxCurrent(stage->GetStageXWindow(), context_);
 
-  FindFramebufferConfigurations();
+  if (gl_interface_->HasTextureFromPixmapExtension())
+    FindFramebufferConfigurations();
 
   gl_interface_->Enable(GL_DEPTH_TEST);
   gl_interface_->BlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);

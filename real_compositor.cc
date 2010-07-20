@@ -784,17 +784,14 @@ void RealCompositor::TexturePixmapActor::UpdateTexture() {
 
 
 RealCompositor::StageActor::StageActor(RealCompositor* the_compositor,
+                                       XWindow window,
                                        int width, int height)
     : RealCompositor::ContainerActor(the_compositor),
-      window_(0),
+      window_(window),
       projection_(Matrix4::identity()),
       stage_color_changed_(true),
       was_resized_(true),
       stage_color_(0.f, 0.f, 0.f) {
-  window_ = compositor()->x_conn()->CreateSimpleWindow(
-      compositor()->x_conn()->GetRootWindow(),
-      0, 0, width, height);
-  compositor()->x_conn()->MapWindow(window_);
   Actor::SetSize(width, height);
   SetDirty();
 }
@@ -847,7 +844,18 @@ RealCompositor::RealCompositor(EventLoop* event_loop,
   XWindow root = x_conn()->GetRootWindow();
   XConnection::WindowGeometry geometry;
   x_conn()->GetWindowGeometry(root, &geometry);
-  default_stage_.reset(new RealCompositor::StageActor(this,
+#if defined(COMPOSITOR_OPENGL)
+  XVisualID visual_id = gl_interface->GetVisual();
+  XWindow window = x_conn()->CreateWindow(root, 0, 0,
+                                          geometry.width, geometry.height,
+                                          false, false, 0, visual_id);
+#elif defined(COMPOSITOR_OPENGLES)
+  XWindow window = x_conn()->CreateSimpleWindow(root, 0, 0,
+                                                geometry.width,
+                                                geometry.height);
+#endif
+  x_conn()->MapWindow(window);
+  default_stage_.reset(new RealCompositor::StageActor(this, window,
                                                       geometry.width,
                                                       geometry.height));
 

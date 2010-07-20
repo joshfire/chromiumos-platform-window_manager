@@ -34,9 +34,9 @@ MockXConnection::MockXConnection()
       stacked_xids_(new Stacker<XWindow>),
       next_xid_(1),
       root_(CreateWindow(None, 0, 0,
-                         kDisplayWidth, kDisplayHeight, true, false, 0)),
+                         kDisplayWidth, kDisplayHeight, true, false, 0, 0)),
       overlay_(CreateWindow(root_, 0, 0,
-                            kDisplayWidth, kDisplayHeight, true, false, 0)),
+                            kDisplayWidth, kDisplayHeight, true, false, 0, 0)),
       next_atom_(1000),
       focused_xid_(None),
       last_focus_timestamp_(0),
@@ -327,7 +327,8 @@ XWindow MockXConnection::CreateWindow(
     int width, int height,
     bool override_redirect,
     bool input_only,
-    int event_mask) {
+    int event_mask,
+    XVisualID visual) {
   XWindow xid = next_xid_++;
   shared_ptr<WindowInfo> info(new WindowInfo(xid, parent));
   info->x = x;
@@ -337,6 +338,7 @@ XWindow MockXConnection::CreateWindow(
   info->override_redirect = override_redirect;
   info->input_only = input_only;
   info->event_mask = event_mask;
+  info->visual = visual;
 
   windows_[xid] = info;
   stacked_xids_->AddOnTop(xid);

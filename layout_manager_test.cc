@@ -54,7 +54,7 @@ TEST_F(LayoutManagerTest, Basic) {
       640, 480,  // width, height
       false,     // override redirect
       false,     // input only
-      0);        // event mask
+      0, 0);     // event mask, visual
   XConnection::WindowGeometry geometry;
   ASSERT_TRUE(xconn_->GetWindowGeometry(xid1, &geometry));
   wm_->TrackWindow(xid1, false, geometry);  // override_redirect=false
@@ -81,7 +81,7 @@ TEST_F(LayoutManagerTest, Basic) {
       640, 480,  // width, height
       false,     // override redirect
       false,     // input only
-      0);        // event mask
+      0, 0);     // event mask, visual
   ASSERT_TRUE(xconn_->GetWindowGeometry(xid2, &geometry));
   wm_->TrackWindow(xid2, false, geometry);  // override_redirect=false
   Window* win2 = wm_->GetWindowOrDie(xid2);
@@ -94,7 +94,7 @@ TEST_F(LayoutManagerTest, Basic) {
       640, 480,  // width, height
       false,     // override redirect
       false,     // input only
-      0);        // event mask
+      0, 0);     // event mask, visual
   ASSERT_TRUE(xconn_->GetWindowGeometry(xid3, &geometry));
   wm_->TrackWindow(xid3, false, geometry);  // override_redirect=false
   Window* win3 = wm_->GetWindowOrDie(xid3);
@@ -221,7 +221,7 @@ TEST_F(LayoutManagerTest, ConfigureTransient) {
       320, 240,  // width, height
       false,     // override redirect
       false,     // input only
-      0);        // event mask
+      0, 0);     // event mask, visual
   MockXConnection::WindowInfo* transient_info =
       xconn_->GetWindowInfoOrDie(transient_xid);
   transient_info->transient_for = owner_xid;
@@ -287,7 +287,7 @@ TEST_F(LayoutManagerTest, ConfigureTransient) {
       320, 240,  // width, height
       false,     // override redirect
       false,     // input only
-      0);        // event mask
+      0, 0);     // event mask, visual
   ASSERT_TRUE(wm_->wm_ipc()->SetWindowType(
       bubble_xid,
       chromeos::WM_IPC_WINDOW_CHROME_INFO_BUBBLE,

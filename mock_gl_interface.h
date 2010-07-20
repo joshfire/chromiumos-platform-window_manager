@@ -18,6 +18,7 @@ class MockGLInterface : public GLInterface {
   virtual ~MockGLInterface() {}
 
   // Begin GLInterface methods.
+  virtual XVisualID GetVisual() { return 1; }
   virtual void GlxFree(void* item) {}
 
   virtual GLXPixmap CreateGlxPixmap(GLXFBConfig config,

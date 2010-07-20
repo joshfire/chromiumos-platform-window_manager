@@ -72,7 +72,8 @@ class RealXConnection : public XConnection {
   virtual XWindow GetRootWindow() { return root_; }
   virtual XWindow CreateWindow(
       XWindow parent, int x, int y, int width, int height,
-      bool override_redirect, bool input_only, int event_mask);
+      bool override_redirect, bool input_only, int event_mask,
+      XVisualID visual);
   virtual bool DestroyWindow(XWindow xid);
   virtual bool IsWindowShaped(XWindow xid);
   virtual bool SelectShapeEventsOnWindow(XWindow xid);
