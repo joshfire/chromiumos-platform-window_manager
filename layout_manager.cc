@@ -832,6 +832,9 @@ void LayoutManager::LayoutWindows(bool animate) {
   }
   for (ToplevelWindows::iterator it = toplevels_.begin();
        it != toplevels_.end(); ++it) {
+    // Don't mess with fullscreen windows.
+    if (it->get() == fullscreen_toplevel_)
+      continue;
     (*it)->UpdateLayout(animate);
   }
   for (Separators::iterator it = separators_.begin();
@@ -1057,13 +1060,16 @@ void LayoutManager::MoveAndResizeForAvailableArea() {
 
   for (ToplevelWindows::iterator it = toplevels_.begin();
        it != toplevels_.end(); ++it) {
-    int width = width_;
-    int height = height_;
-    (*it)->win()->ResizeClient(width, height, resize_gravity);
-    if (mode_ == MODE_OVERVIEW) {
-      // Make sure the toplevel windows are offscreen still if we're
-      // in overview mode.
-      (*it)->win()->MoveClientOffscreen();
+    if (it->get() == fullscreen_toplevel_) {
+      (*it)->win()->ResizeClient(wm_->width(), wm_->height(),
+                                 GRAVITY_NORTHWEST);
+    } else {
+      (*it)->win()->ResizeClient(width_, height_, resize_gravity);
+      if (mode_ == MODE_OVERVIEW) {
+        // Make sure the toplevel windows are offscreen still if we're
+        // in overview mode.
+        (*it)->win()->MoveClientOffscreen();
+      }
     }
   }
 

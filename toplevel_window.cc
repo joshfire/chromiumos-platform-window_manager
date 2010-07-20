@@ -19,6 +19,7 @@
 #include "window_manager/callback.h"
 #include "window_manager/event_consumer_registrar.h"
 #include "window_manager/focus_manager.h"
+#include "window_manager/geometry.h"
 #include "window_manager/motion_event_coalescer.h"
 #include "window_manager/snapshot_window.h"
 #include "window_manager/stacking_manager.h"
@@ -226,11 +227,16 @@ void LayoutManager::ToplevelWindow::SetFullscreenState(bool fullscreen) {
   if (is_fullscreen_) {
     wm()->stacking_manager()->StackWindowAtTopOfLayer(
         win_, StackingManager::LAYER_FULLSCREEN_WINDOW);
-    // TODO: We should probably also resize the window to fill the whole
-    // screen even if a panel dock is visible.
+    win_->ResizeClient(wm()->width(), wm()->height(), GRAVITY_NORTHWEST);
+    win_->MoveClient(0, 0);
+    win_->MoveCompositedToClient();
   } else {
     wm()->stacking_manager()->StackWindowAtTopOfLayer(
         win_, StackingManager::LAYER_TOPLEVEL_WINDOW);
+    win_->ResizeClient(layout_manager_->width(), layout_manager_->height(),
+                       GRAVITY_NORTHWEST);
+    win_->MoveClient(layout_manager_->x(), layout_manager_->y());
+    win_->MoveCompositedToClient();
   }
 
   const bool stack_transient_directly_above_win =

@@ -1419,11 +1419,11 @@ TEST_F(LayoutManagerTest, Fullscreen) {
 
   // When a window asks to be fullscreened, its fullscreen property should
   // be set and it should be moved to the fullscreen stacking layer.
-  XEvent event;
+  XEvent fullscreen_event;
   xconn_->InitClientMessageEvent(
-      &event, xid, wm_->GetXAtom(ATOM_NET_WM_STATE),
+      &fullscreen_event, xid, wm_->GetXAtom(ATOM_NET_WM_STATE),
       1, wm_->GetXAtom(ATOM_NET_WM_STATE_FULLSCREEN), None, None, None);
-  wm_->HandleEvent(&event);
+  wm_->HandleEvent(&fullscreen_event);
   EXPECT_TRUE(win->wm_state_fullscreen());
   EXPECT_TRUE(WindowIsInLayer(win, StackingManager::LAYER_FULLSCREEN_WINDOW));
 
@@ -1440,20 +1440,20 @@ TEST_F(LayoutManagerTest, Fullscreen) {
 
   // Check that the first window is automatically focused if it requests to
   // be fullscreened again.
-  wm_->HandleEvent(&event);
+  wm_->HandleEvent(&fullscreen_event);
   EXPECT_EQ(xid, xconn_->focused_xid());
   EXPECT_TRUE(win->wm_state_fullscreen());
   EXPECT_TRUE(WindowIsInLayer(win, StackingManager::LAYER_FULLSCREEN_WINDOW));
 
   // Now open a panel that'll take the focus and check that the toplevel
   // window is again unfullscreened.
-  CreatePanel(200, 20, 400);
+  Panel* panel = CreatePanel(200, 20, 400);
   EXPECT_FALSE(win->wm_state_fullscreen());
   EXPECT_TRUE(WindowIsInLayer(win, StackingManager::LAYER_TOPLEVEL_WINDOW));
 
   // Make the window fullscreen again and check that it stays that way if a
   // transient window is opened for it.
-  wm_->HandleEvent(&event);
+  wm_->HandleEvent(&fullscreen_event);
   EXPECT_EQ(xid, xconn_->focused_xid());
   EXPECT_TRUE(win->wm_state_fullscreen());
   EXPECT_TRUE(WindowIsInLayer(win, StackingManager::LAYER_FULLSCREEN_WINDOW));
@@ -1470,14 +1470,53 @@ TEST_F(LayoutManagerTest, Fullscreen) {
                               StackingManager::LAYER_FULLSCREEN_WINDOW));
 
   // Now ask to make the toplevel non-fullscreen.
+  XEvent unfullscreen_event;
   xconn_->InitClientMessageEvent(
-      &event, xid, wm_->GetXAtom(ATOM_NET_WM_STATE),
+      &unfullscreen_event, xid, wm_->GetXAtom(ATOM_NET_WM_STATE),
       0, wm_->GetXAtom(ATOM_NET_WM_STATE_FULLSCREEN), None, None, None);
-  wm_->HandleEvent(&event);
+  wm_->HandleEvent(&unfullscreen_event);
   EXPECT_FALSE(win->wm_state_fullscreen());
   EXPECT_TRUE(WindowIsInLayer(win, StackingManager::LAYER_TOPLEVEL_WINDOW));
   EXPECT_TRUE(WindowIsInLayer(transient_win,
                               StackingManager::LAYER_ACTIVE_TRANSIENT_WINDOW));
+
+  // Dock the panel on the left side of the screen and check that the
+  // window gets resized and shifted to the right.
+  SendPanelDraggedMessage(panel, 0, 0);
+  SendPanelDragCompleteMessage(panel);
+  EXPECT_EQ(PanelManager::kPanelDockWidth, win->client_x());
+  EXPECT_EQ(wm_->width() - PanelManager::kPanelDockWidth, win->client_width());
+
+  // When we make the window fullscreen, it should be resized and moved to
+  // cover the whole screen.
+  wm_->HandleEvent(&fullscreen_event);
+  EXPECT_EQ(0, win->client_x());
+  EXPECT_EQ(0, win->composited_x());
+  EXPECT_EQ(wm_->width(), win->client_width());
+  EXPECT_EQ(wm_->width(), win->composited_width());
+
+  // Now resize the screen and check that the window is resized to cover it.
+  const XWindow root_xid = xconn_->GetRootWindow();
+  MockXConnection::WindowInfo* root_info = xconn_->GetWindowInfoOrDie(root_xid);
+  const int new_width = root_info->width + 20;
+  const int new_height = root_info->height + 20;
+  xconn_->ResizeWindow(root_xid, new_width, new_height);
+  XEvent resize_event;
+  xconn_->InitConfigureNotifyEvent(&resize_event, root_xid);
+  wm_->HandleEvent(&resize_event);
+  EXPECT_EQ(0, win->client_x());
+  EXPECT_EQ(0, win->composited_x());
+  EXPECT_EQ(new_width, win->client_width());
+  EXPECT_EQ(new_width, win->composited_width());
+  EXPECT_EQ(new_height, win->client_height());
+  EXPECT_EQ(new_height, win->composited_height());
+
+  // The smaller size should be restored when it's made non-fullscreen.
+  wm_->HandleEvent(&unfullscreen_event);
+  EXPECT_EQ(PanelManager::kPanelDockWidth, win->client_x());
+  EXPECT_EQ(PanelManager::kPanelDockWidth, win->composited_x());
+  EXPECT_EQ(new_width - PanelManager::kPanelDockWidth, win->client_width());
+  EXPECT_EQ(new_width - PanelManager::kPanelDockWidth, win->composited_width());
 }
 
 // This just checks that we don't crash when changing modes while there
