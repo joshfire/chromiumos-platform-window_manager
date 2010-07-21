@@ -5,6 +5,7 @@
 #include "window_manager/compositor.h"
 
 #include <algorithm>
+#include <cmath>
 #include <ctime>
 #include <string>
 
@@ -281,14 +282,16 @@ Rect RealCompositor::LayerVisitor::GetDamagedRegion(int stage_width,
                                                     int stage_height) {
   Rect region;
   if (use_partial_updates_) {
-    float x = (updated_area_.x_min + 1) / 2;
-    float y = (updated_area_.y_min + 1) / 2;
-    float width = (updated_area_.x_max - updated_area_.x_min) / 2;
-    float height = (updated_area_.y_max - updated_area_.y_min) / 2;
-    region.x = static_cast<int>(x * stage_width);
-    region.y = static_cast<int>(y * stage_height);
-    region.width = static_cast<int>(ceilf(width * stage_width));
-    region.height = static_cast<int>(ceilf(height * stage_height));
+    float x_min = (updated_area_.x_min + 1.f) / 2.f * stage_width;
+    float y_min = (updated_area_.y_min + 1.f) / 2.f * stage_height;
+    float x_max = (updated_area_.x_max + 1.f) / 2.f * stage_width;
+    float y_max = (updated_area_.y_max + 1.f) / 2.f * stage_height;
+    region.x = static_cast<int>(x_min);
+    region.y = static_cast<int>(y_min);
+    // Important: To be properly conservative, the differences below need to
+    // happen after the conversion to int.
+    region.width = static_cast<int>(std::ceil(x_max)) - region.x;
+    region.height = static_cast<int>(std::ceil(y_max)) - region.y;
   }
   return region;
 }

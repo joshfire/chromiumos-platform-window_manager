@@ -755,8 +755,8 @@ TEST_F(RealCompositorTest, VisibilityGroups) {
 // Test RealCompositor's handling of partial updates.
 TEST_F(RealCompositorTest, PartialUpdates) {
   // Need to set the stage actor's size large enough to test partial updates.
-  const int stage_width = 1000;
-  const int stage_height = 1000;
+  const int stage_width = 1366;
+  const int stage_height = 768;
   compositor()->GetDefaultStage()->SetSize(stage_width, stage_height);
   ASSERT_EQ(stage_width, compositor()->GetDefaultStage()->GetWidth());
   ASSERT_EQ(stage_height, compositor()->GetDefaultStage()->GetHeight());
@@ -775,11 +775,11 @@ TEST_F(RealCompositorTest, PartialUpdates) {
 
   XWindow xid = xconn()->CreateWindow(
       xconn()->GetRootWindow(),  // parent
-      0, 0,      // x, y
-      400, 300,  // width, height
-      false,     // override_redirect=false
-      false,     // input_only=false
-      0, 0);     // event_mask, visual
+      0, 0,       // x, y
+      1366, 768,  // width, height
+      false,      // override_redirect=false
+      false,      // input_only=false
+      0, 0);      // event_mask, visual
   XID pixmap_id = xconn()->GetCompositingPixmapForWindow(xid);
 
   // After we bind the actor to the window's pixmap, the actor's size
@@ -796,7 +796,7 @@ TEST_F(RealCompositorTest, PartialUpdates) {
   // Mark part of the window as dirty. The next time we draw, partial updates
   // should happen.
   EXPECT_TRUE(gl_interface()->IsCapableOfPartialUpdates());
-  Rect damaged_region(50, 50, 100, 100);
+  Rect damaged_region(44, 28, 12, 13);
   cast_actor->MergeDamagedRegion(damaged_region);
   compositor()->SetPartiallyDirty();
   EXPECT_FALSE(compositor()->dirty());
@@ -809,13 +809,16 @@ TEST_F(RealCompositorTest, PartialUpdates) {
   // Damaged region is defined relative to the window where (0, 0) is top_left
   // and (w, h) is bottom_right.  CopyGlxSubBuffer's region is defined relative
   // to the screen where (0, 0) is bottom_left and (w, h) is top_right.
-  int expected_x = damaged_region.x + cast_actor->GetX();
-  int expected_y = stage_height - damaged_region.height -
+  int expected_min_x = damaged_region.x + cast_actor->GetX();
+  int expected_min_y = stage_height - damaged_region.height -
                    (damaged_region.y + cast_actor->GetY());
-  EXPECT_EQ(expected_x, updated_region.x);
-  EXPECT_EQ(expected_y, updated_region.y);
-  EXPECT_EQ(damaged_region.width, updated_region.width);
-  EXPECT_EQ(damaged_region.height, updated_region.height);
+  int expected_max_x = damaged_region.x + damaged_region.width +
+      cast_actor->GetX();
+  int expected_max_y = stage_height - (damaged_region.y + cast_actor->GetY());
+  EXPECT_GE(expected_min_x, updated_region.x);
+  EXPECT_GE(expected_min_y, updated_region.y);
+  EXPECT_LE(expected_max_x, updated_region.x + updated_region.width);
+  EXPECT_LE(expected_max_y, updated_region.y + updated_region.height);
 }
 
 }  // end namespace window_manager
