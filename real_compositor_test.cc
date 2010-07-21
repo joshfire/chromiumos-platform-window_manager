@@ -484,7 +484,7 @@ TEST_F(RealCompositorTest, HandleXEvents) {
       400, 300,  // width, height
       false,     // override_redirect=false
       false,     // input_only=false
-      0);        // event_mask
+      0, 0);     // event_mask, visual
   MockXConnection::WindowInfo* info = xconn()->GetWindowInfoOrDie(xid);
   XID pixmap_id = xconn()->GetCompositingPixmapForWindow(xid);
 
@@ -779,7 +779,7 @@ TEST_F(RealCompositorTest, PartialUpdates) {
       400, 300,  // width, height
       false,     // override_redirect=false
       false,     // input_only=false
-      0);        // event_mask
+      0, 0);     // event_mask, visual
   XID pixmap_id = xconn()->GetCompositingPixmapForWindow(xid);
 
   // After we bind the actor to the window's pixmap, the actor's size

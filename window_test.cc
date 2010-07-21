@@ -368,7 +368,7 @@ TEST_F(WindowTest, WmWindowType) {
       0, 0, 640, 480,
       true,   // override redirect
       false,  // input only
-      0);     // event mask
+      0, 0);  // event mask, visual
   xconn_->SetIntProperty(xid,
                          wm_window_type_atom,  // atom
                          wm_window_type_atom,  // type
