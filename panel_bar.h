@@ -77,6 +77,10 @@ class PanelBar : public PanelContainer {
   virtual bool TakeFocus(XTime timestamp);
   // End PanelContainer implementation.
 
+  // Number of pixels between the rightmost panel and the right edge of the
+  // screen, in pixels.
+  static const int kRightPaddingPixels;
+
   // Amount of horizontal padding to place between panels, in pixels.
   static const int kPixelsBetweenPanels;
 

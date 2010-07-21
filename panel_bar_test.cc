@@ -490,9 +490,9 @@ TEST_F(PanelBarTest, ReorderPanels) {
 
   // Initially, panel1 should be on the right and panel2 to its left.
   const int rightmost_right_edge =
-      wm_->width() - PanelBar::kPixelsBetweenPanels;
+      wm_->width() - PanelBar::kRightPaddingPixels;
   const int leftmost_right_edge =
-      wm_->width() - 2 * PanelBar::kPixelsBetweenPanels - width;
+      rightmost_right_edge - width - PanelBar::kPixelsBetweenPanels;
   EXPECT_EQ(rightmost_right_edge, panel1->right());
   EXPECT_EQ(leftmost_right_edge, panel2->right());
 
@@ -539,11 +539,11 @@ TEST_F(PanelBarTest, ReorderDifferentlySizedPanels) {
   Panel* big_panel = CreatePanel(big_width, 20, 400);
 
   const int rightmost_right_edge =
-      wm_->width() - PanelBar::kPixelsBetweenPanels;
+      wm_->width() - PanelBar::kRightPaddingPixels;
   const int leftmost_right_edge_for_small =
-      wm_->width() - 2 * PanelBar::kPixelsBetweenPanels - big_width;
+      rightmost_right_edge - big_width - PanelBar::kPixelsBetweenPanels;
   const int leftmost_right_edge_for_big =
-      wm_->width() - 2 * PanelBar::kPixelsBetweenPanels - small_width;
+      rightmost_right_edge - small_width - PanelBar::kPixelsBetweenPanels;
   EXPECT_EQ(rightmost_right_edge, small_panel->right());
   EXPECT_EQ(leftmost_right_edge_for_big, big_panel->right());
 
@@ -623,10 +623,12 @@ TEST_F(PanelBarTest, PackPanelsAfterPanelResize) {
   Panel* panel3 = CreatePanel(200, 20, 400);
 
   // The panels should be crammed together on the right initially.
-  EXPECT_EQ(wm_->width() - PanelBar::kPixelsBetweenPanels, panel1->right());
-  EXPECT_EQ(wm_->width() - 2 * PanelBar::kPixelsBetweenPanels - 200,
+  EXPECT_EQ(wm_->width() - PanelBar::kRightPaddingPixels, panel1->right());
+  EXPECT_EQ(wm_->width() - PanelBar::kRightPaddingPixels -
+              PanelBar::kPixelsBetweenPanels - 200,
             panel2->right());
-  EXPECT_EQ(wm_->width() - 3 * PanelBar::kPixelsBetweenPanels - 2 * 200,
+  EXPECT_EQ(wm_->width() - PanelBar::kRightPaddingPixels -
+              2 * PanelBar::kPixelsBetweenPanels - 2 * 200,
             panel3->right());
 
   // Drag the middle window's upper-left resize handle to resize it to
@@ -644,10 +646,12 @@ TEST_F(PanelBarTest, PackPanelsAfterPanelResize) {
 
   // The right edges of panel1 and panel2 should be in the same place as
   // before, but panel3 should be pushed to the left to make room for panel2.
-  EXPECT_EQ(wm_->width() - PanelBar::kPixelsBetweenPanels, panel1->right());
-  EXPECT_EQ(wm_->width() - 2 * PanelBar::kPixelsBetweenPanels - 200,
+  EXPECT_EQ(wm_->width() - PanelBar::kRightPaddingPixels, panel1->right());
+  EXPECT_EQ(wm_->width() - PanelBar::kRightPaddingPixels -
+              PanelBar::kPixelsBetweenPanels - 200,
             panel2->right());
-  EXPECT_EQ(wm_->width() - 3 * PanelBar::kPixelsBetweenPanels - 200 - 400,
+  EXPECT_EQ(wm_->width() - PanelBar::kRightPaddingPixels -
+              2 * PanelBar::kPixelsBetweenPanels - 200 - 400,
             panel3->right());
 }
 
@@ -712,7 +716,7 @@ TEST_F(PanelBarTest, DragPanelVertically) {
   // Create an expanded panel.
   Panel* panel = CreatePanel(200, 20, 400);
 
-  const int right_edge = wm_->width() - PanelBar::kPixelsBetweenPanels;
+  const int right_edge = wm_->width() - PanelBar::kRightPaddingPixels;
   EXPECT_EQ(right_edge, panel->right());
   const int expanded_y = wm_->height() - panel->total_height();
   EXPECT_EQ(expanded_y, panel->titlebar_y());
@@ -799,6 +803,7 @@ TEST_F(PanelBarTest, AvoidInitialFocus) {
 // immediate left of it.
 TEST_F(PanelBarTest, OpenPanelNextToCreator) {
   const int kPanelWidth = 200, kTitlebarHeight = 20, kContentHeight = 300;
+  const int kRightPadding = PanelBar::kRightPaddingPixels;
   const int kSpacing = PanelBar::kPixelsBetweenPanels;
 
   // Create a few panels, which will be arranged as: 3 2 1.
@@ -810,7 +815,7 @@ TEST_F(PanelBarTest, OpenPanelNextToCreator) {
   // and check that it ends up there: 3 2 4 1.
   creator_content_xid_for_new_panels_ = panel1->content_xid();
   Panel* panel4 = CreatePanel(kPanelWidth, kTitlebarHeight, kContentHeight);
-  EXPECT_EQ(wm_->width() - kSpacing, panel1->right());
+  EXPECT_EQ(wm_->width() - kRightPadding, panel1->right());
   EXPECT_EQ(panel1->content_x() - kSpacing, panel4->right());
   EXPECT_EQ(panel4->content_x() - kSpacing, panel2->right());
   EXPECT_EQ(panel2->content_x() - kSpacing, panel3->right());
@@ -818,7 +823,7 @@ TEST_F(PanelBarTest, OpenPanelNextToCreator) {
   // Now create a panel to the left of 2: 3 5 2 3 1.
   creator_content_xid_for_new_panels_ = panel2->content_xid();
   Panel* panel5 = CreatePanel(kPanelWidth, kTitlebarHeight, kContentHeight);
-  EXPECT_EQ(wm_->width() - kSpacing, panel1->right());
+  EXPECT_EQ(wm_->width() - kRightPadding, panel1->right());
   EXPECT_EQ(panel1->content_x() - kSpacing, panel4->right());
   EXPECT_EQ(panel4->content_x() - kSpacing, panel2->right());
   EXPECT_EQ(panel2->content_x() - kSpacing, panel5->right());
@@ -827,7 +832,7 @@ TEST_F(PanelBarTest, OpenPanelNextToCreator) {
   // Create one that asks to be to the left of 3: 6 3 5 2 3 1.
   creator_content_xid_for_new_panels_ = panel3->content_xid();
   Panel* panel6 = CreatePanel(kPanelWidth, kTitlebarHeight, kContentHeight);
-  EXPECT_EQ(wm_->width() - kSpacing, panel1->right());
+  EXPECT_EQ(wm_->width() - kRightPadding, panel1->right());
   EXPECT_EQ(panel1->content_x() - kSpacing, panel4->right());
   EXPECT_EQ(panel4->content_x() - kSpacing, panel2->right());
   EXPECT_EQ(panel2->content_x() - kSpacing, panel5->right());
@@ -838,7 +843,7 @@ TEST_F(PanelBarTest, OpenPanelNextToCreator) {
   // gets placed on the left: 7 6 3 5 2 3 1.
   creator_content_xid_for_new_panels_ = 4324322;  // bogus creator XID
   Panel* panel7 = CreatePanel(kPanelWidth, kTitlebarHeight, kContentHeight);
-  EXPECT_EQ(wm_->width() - kSpacing, panel1->right());
+  EXPECT_EQ(wm_->width() - kRightPadding, panel1->right());
   EXPECT_EQ(panel1->content_x() - kSpacing, panel4->right());
   EXPECT_EQ(panel4->content_x() - kSpacing, panel2->right());
   EXPECT_EQ(panel2->content_x() - kSpacing, panel5->right());

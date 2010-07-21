@@ -35,6 +35,7 @@ using window_manager::util::XidStr;
 
 namespace window_manager {
 
+const int PanelBar::kRightPaddingPixels = 24;
 const int PanelBar::kPixelsBetweenPanels = 6;
 const int PanelBar::kShowCollapsedPanelsDistancePixels = 1;
 const int PanelBar::kHideCollapsedPanelsDistancePixels = 30;
@@ -130,8 +131,8 @@ void PanelBar::AddPanel(Panel* panel, PanelSource source) {
   DCHECK(panel);
 
   shared_ptr<PanelInfo> info(new PanelInfo);
-  info->snapped_right =
-      wm()->width() - total_panel_width_ - kPixelsBetweenPanels;
+  int padding = panels_.empty() ? kRightPaddingPixels : kPixelsBetweenPanels;
+  info->snapped_right = wm()->width() - total_panel_width_ - padding;
   info->is_urgent = panel->content_win()->wm_hint_urgent();
   CHECK(panel_infos_.insert(make_pair(panel, info)).second);
 
@@ -150,9 +151,9 @@ void PanelBar::AddPanel(Panel* panel, PanelSource source) {
         LOG(WARNING) << "Unable to find creator panel " << XidStr(creator_xid)
                      << " for new panel " << panel->xid_str();
       } else {
+        padding = kPixelsBetweenPanels;
         info->snapped_right = GetPanelInfoOrDie(*it)->snapped_right -
-                              (*it)->width() -
-                              kPixelsBetweenPanels;
+                              (*it)->width() - padding;
         insert_it = it;
       }
     }
@@ -160,7 +161,7 @@ void PanelBar::AddPanel(Panel* panel, PanelSource source) {
 
   const bool inserting_in_middle = insert_it != panels_.begin();
   panels_.insert(insert_it, panel);
-  total_panel_width_ += panel->width() + kPixelsBetweenPanels;
+  total_panel_width_ += panel->width() + padding;
 
   // If the panel is being dragged, move it to the correct position within
   // 'panels_' and repack all other panels.
@@ -244,8 +245,12 @@ void PanelBar::RemovePanel(Panel* panel) {
     return;
   }
 
-  total_panel_width_ -= ((*it)->width() + kPixelsBetweenPanels);
+  total_panel_width_ -= panel->width();
   panels_.erase(it);
+  total_panel_width_ -=
+      (panels_.empty() ? kRightPaddingPixels : kPixelsBetweenPanels);
+  if (panels_.empty())
+    DCHECK_EQ(total_panel_width_, 0);
 
   PackPanels(dragged_panel_);
   if (dragged_panel_)
@@ -657,15 +662,16 @@ void PanelBar::PackPanels(Panel* fixed_panel) {
 
   for (Panels::reverse_iterator it = panels_.rbegin();
        it != panels_.rend(); ++it) {
+    const int padding =
+        (it == panels_.rbegin()) ? kRightPaddingPixels : kPixelsBetweenPanels;
     Panel* panel = *it;
     PanelInfo* info = GetPanelInfoOrDie(panel);
 
-    info->snapped_right =
-        wm()->width() - total_panel_width_ - kPixelsBetweenPanels;
+    info->snapped_right = wm()->width() - total_panel_width_ - padding;
     if (panel != fixed_panel && panel->right() != info->snapped_right)
       panel->MoveX(info->snapped_right, true, kPanelArrangeAnimMs);
 
-    total_panel_width_ += panel->width() + kPixelsBetweenPanels;
+    total_panel_width_ += panel->width() + padding;
   }
 }
 

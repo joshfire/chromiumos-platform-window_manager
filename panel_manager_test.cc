@@ -112,7 +112,7 @@ TEST_F(PanelManagerTest, AttachAndDetach) {
 
   // Now finish the drag and check that the panel ends up back in the bar.
   SendPanelDragCompleteMessage(panel);
-  EXPECT_EQ(wm_->width() - PanelBar::kPixelsBetweenPanels, panel->right());
+  EXPECT_EQ(wm_->width() - PanelBar::kRightPaddingPixels, panel->right());
   EXPECT_EQ(panel_y_in_bar, panel->titlebar_y());
 }
 
@@ -248,7 +248,7 @@ TEST_F(PanelManagerTest, Fullscreen) {
 
   // Check that they're positioned as expecded.
   const int rightmost_panel_right =
-      wm_->width() - PanelBar::kPixelsBetweenPanels;
+      wm_->width() - PanelBar::kRightPaddingPixels;
   const int middle_panel_right =
       rightmost_panel_right - content_width - PanelBar::kPixelsBetweenPanels;
   const int leftmost_panel_right =
