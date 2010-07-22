@@ -1575,6 +1575,20 @@ TEST_F(LayoutManagerTest, ChangeBackgroundsAfterInitialWindow) {
   EXPECT_FALSE(cast_lm_background->is_shown());
 }
 
+// Test that we grab the back and forward keys in overview mode, but not in
+// active mode (Chrome needs to receive events when they're pressed).  This
+// guards against a regression of the problem described in comment #13 in
+// http://crosbug.com/101.
+TEST_F(LayoutManagerTest, DontGrabBackAndForwardKeysInActiveMode) {
+  lm_->SetMode(LayoutManager::MODE_OVERVIEW);
+  EXPECT_TRUE(xconn_->KeyIsGrabbed(xconn_->GetKeyCodeFromKeySym(XK_F1), 0));
+  EXPECT_TRUE(xconn_->KeyIsGrabbed(xconn_->GetKeyCodeFromKeySym(XK_F2), 0));
+
+  lm_->SetMode(LayoutManager::MODE_ACTIVE);
+  EXPECT_FALSE(xconn_->KeyIsGrabbed(xconn_->GetKeyCodeFromKeySym(XK_F1), 0));
+  EXPECT_FALSE(xconn_->KeyIsGrabbed(xconn_->GetKeyCodeFromKeySym(XK_F2), 0));
+}
+
 }  // namespace window_manager
 
 int main(int argc, char** argv) {

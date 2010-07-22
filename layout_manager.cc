@@ -147,8 +147,6 @@ LayoutManager::LayoutManager(WindowManager* wm, PanelManager* panel_manager)
   active_mode_key_bindings_group_->AddBinding(
       KeyBindings::KeyCombo(XK_Tab, KeyBindings::kAltMask),
       "cycle-toplevel-forward");
-  active_mode_key_bindings_group_->AddBinding(
-      KeyBindings::KeyCombo(XK_F2, 0), "cycle-toplevel-forward");
 
   kb->AddAction(
       "cycle-toplevel-backward",
@@ -159,8 +157,6 @@ LayoutManager::LayoutManager(WindowManager* wm, PanelManager* panel_manager)
       KeyBindings::KeyCombo(
           XK_Tab, KeyBindings::kAltMask | KeyBindings::kShiftMask),
       "cycle-toplevel-backward");
-  active_mode_key_bindings_group_->AddBinding(
-      KeyBindings::KeyCombo(XK_F1, 0), "cycle-toplevel-backward");
 
   kb->AddAction(
       "cycle-snapshot-forward",
