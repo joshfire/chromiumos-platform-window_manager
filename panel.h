@@ -46,6 +46,10 @@ class Panel {
   bool is_expanded() const { return is_expanded_; }
   bool is_fullscreen() const { return is_fullscreen_; }
 
+  bool is_urgent() const { return is_urgent_; }
+  // Called by PanelManager when the content window's urgency hint changes.
+  void set_is_urgent(bool urgent) { is_urgent_ = urgent; }
+
   const Window* const_content_win() const { return content_win_; }
   Window* content_win() { return content_win_; }
   Window* titlebar_win() { return titlebar_win_; }
@@ -203,6 +207,11 @@ class Panel {
 
   // Is the content window currently fullscreen?
   bool is_fullscreen_;
+
+  // Is the content window's urgency hint set?
+  // (We track this in a separate variable instead of just reaching into
+  // 'content_win_' to make it easier to tell when the hint changes.)
+  bool is_urgent_;
 
   // Saved position and size of the content and titlebar windows.  Note
   // that these may differ from the actual current configuration of these

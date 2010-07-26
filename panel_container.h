@@ -114,7 +114,7 @@ class PanelContainer {
   // Handle the screen being resized.
   virtual void HandleScreenResize() = 0;
 
-  // Handle a (likely) change to a panel's urgency hint.
+  // Handle a change to a panel's urgency hint.
   virtual void HandlePanelUrgencyChange(Panel* panel) = 0;
 
   // Take the input focus if possible.  Returns 'false' if it doesn't make

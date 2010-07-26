@@ -105,18 +105,13 @@ class PanelBar : public PanelContainer {
 
   // PanelBar-specific information about a panel.
   struct PanelInfo {
-    PanelInfo() : snapped_right(0), is_urgent(false) {}
+    PanelInfo() : snapped_right(0) {}
 
     // X position of the right edge of where the panel wants to be.  For
     // panels that are being dragged, this may be different from the actual
     // composited position -- we only snap the panels to this position when
     // the drag is complete.
     int snapped_right;
-
-    // Was the content window's urgency hint set the last time that we
-    // looked at it?  If so, we avoid hiding the panel offscreen when it's
-    // collapsed.
-    bool is_urgent;
   };
 
   typedef std::vector<Panel*> Panels;
@@ -138,7 +133,7 @@ class PanelBar : public PanelContainer {
   // should be placed (depending on whether it's expanded or collapsed,
   // whether collapsed panels are currently hidden, whether the panel's
   // urgent flag is set, etc.).
-  int ComputePanelY(const Panel& panel, const PanelInfo& info);
+  int ComputePanelY(const Panel& panel);
 
   // Expand a panel.  If 'create_anchor' is true, we additionally create an
   // anchor for it.

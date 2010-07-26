@@ -463,14 +463,19 @@ void PanelManager::HandleClientMessage(XWindow xid,
 }
 
 void PanelManager::HandleWindowPropertyChange(XWindow xid, XAtom xatom) {
-  Panel* panel = GetPanelByXid(xid);
+  Window* win = wm_->GetWindowOrDie(xid);
+  Panel* panel = GetPanelByWindow(*win);
   DCHECK(panel) << "Got property change for non-panel window " << XidStr(xid);
-  if (!panel)
+  if (!panel || panel->content_win() != win)
     return;
   DCHECK(xatom == wm_->GetXAtom(ATOM_WM_HINTS));
-  PanelContainer* container = GetContainerForPanel(*panel);
-  if (container)
-    container->HandlePanelUrgencyChange(panel);
+
+  if (win->wm_hint_urgent() != panel->is_urgent()) {
+    panel->set_is_urgent(win->wm_hint_urgent());
+    PanelContainer* container = GetContainerForPanel(*panel);
+    if (container)
+      container->HandlePanelUrgencyChange(panel);
+  }
 }
 
 void PanelManager::HandleFocusChange() {

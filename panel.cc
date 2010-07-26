@@ -60,6 +60,7 @@ Panel::Panel(PanelManager* panel_manager,
       titlebar_win_(titlebar_win),
       is_expanded_(is_expanded),
       is_fullscreen_(false),
+      is_urgent_(content_win->wm_hint_urgent()),
       resize_actor_(NULL),
       resize_event_coalescer_(
           wm()->event_loop(),
