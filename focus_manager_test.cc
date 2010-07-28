@@ -35,6 +35,7 @@ class FocusManagerTest : public BasicWindowManagerTest {
 // Helper class used by the FocusChangeListener test.
 struct TestFocusChangeListener : public FocusChangeListener {
   TestFocusChangeListener() : num_changes(0) {}
+  virtual ~TestFocusChangeListener() {}
 
   // Begin FocusChangeListener implementation.
   virtual void HandleFocusChange() { num_changes++; }

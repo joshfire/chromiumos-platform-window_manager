@@ -21,6 +21,9 @@ class WindowManager;
 class FocusChangeListener {
   public:
    virtual void HandleFocusChange() = 0;
+
+  protected:
+   ~FocusChangeListener() {}
 };
 
 // This class is used to assign the input focus to windows.

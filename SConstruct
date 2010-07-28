@@ -25,7 +25,8 @@ for key in Split('PKG_CONFIG_LIBDIR PKG_CONFIG_PATH SYSROOT'):
   if os.environ.has_key(key):
     base_env['ENV'][key] = os.environ[key]
 
-base_env.Append(CCFLAGS=Split('-Wall -Werror'))
+base_env.Append(
+    CCFLAGS=Split('-Wall -Werror -Wnon-virtual-dtor -Woverloaded-virtual'))
 
 # Unless we disable strict aliasing, we get warnings about some of the
 # program's command line flags processing code that look like:

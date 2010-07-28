@@ -59,7 +59,7 @@ class WindowManager : public PanelManagerAreaChangeListener {
   WindowManager(EventLoop* event_loop,
                 XConnection* xconn,
                 Compositor* compositor);
-  ~WindowManager();
+  virtual ~WindowManager();
 
   void set_initialize_logging(bool should_init) {
     initialize_logging_ = should_init;

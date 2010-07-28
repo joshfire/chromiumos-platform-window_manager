@@ -37,6 +37,9 @@ class PanelManagerAreaChangeListener {
   // Handle a change in the area of the screen used by the panel manager.
   // See PanelManager::GetArea().
   virtual void HandlePanelManagerAreaChange() = 0;
+
+ protected:
+  ~PanelManagerAreaChangeListener() {}
 };
 
 // Handles map/unmap events for panel windows, owns Panel and
