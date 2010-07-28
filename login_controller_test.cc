@@ -132,25 +132,35 @@ class LoginControllerTest : public BasicWindowManagerTest {
   void UnmapLoginEntry(int i) {
     XEvent event;
 
-    xconn_->UnmapWindow(entries_[i].border_xid);
-    xconn_->InitUnmapEvent(&event, entries_[i].border_xid);
-    wm_->HandleEvent(&event);
+    if (entries_[i].border_xid) {
+      xconn_->UnmapWindow(entries_[i].border_xid);
+      xconn_->InitUnmapEvent(&event, entries_[i].border_xid);
+      wm_->HandleEvent(&event);
+    }
 
-    xconn_->UnmapWindow(entries_[i].image_xid);
-    xconn_->InitUnmapEvent(&event, entries_[i].image_xid);
-    wm_->HandleEvent(&event);
+    if (entries_[i].image_xid) {
+      xconn_->UnmapWindow(entries_[i].image_xid);
+      xconn_->InitUnmapEvent(&event, entries_[i].image_xid);
+      wm_->HandleEvent(&event);
+    }
 
-    xconn_->UnmapWindow(entries_[i].controls_xid);
-    xconn_->InitUnmapEvent(&event, entries_[i].controls_xid);
-    wm_->HandleEvent(&event);
+    if (entries_[i].controls_xid) {
+      xconn_->UnmapWindow(entries_[i].controls_xid);
+      xconn_->InitUnmapEvent(&event, entries_[i].controls_xid);
+      wm_->HandleEvent(&event);
+    }
 
-    xconn_->UnmapWindow(entries_[i].label_xid);
-    xconn_->InitUnmapEvent(&event, entries_[i].label_xid);
-    wm_->HandleEvent(&event);
+    if (entries_[i].label_xid) {
+      xconn_->UnmapWindow(entries_[i].label_xid);
+      xconn_->InitUnmapEvent(&event, entries_[i].label_xid);
+      wm_->HandleEvent(&event);
+    }
 
-    xconn_->UnmapWindow(entries_[i].unselected_label_xid);
-    xconn_->InitUnmapEvent(&event, entries_[i].unselected_label_xid);
-    wm_->HandleEvent(&event);
+    if (entries_[i].unselected_label_xid) {
+      xconn_->UnmapWindow(entries_[i].unselected_label_xid);
+      xconn_->InitUnmapEvent(&event, entries_[i].unselected_label_xid);
+      wm_->HandleEvent(&event);
+    }
   }
 
   // Selects user entry with the specified index by sending IPC message to
@@ -558,6 +568,26 @@ TEST_F(LoginControllerTest, ClientOnOffScreen) {
   EXPECT_TRUE(WindowIsOffscreen(entries_[1].controls_xid));
   EXPECT_TRUE(WindowIsOffscreen(entries_[1].label_xid));
   EXPECT_TRUE(WindowIsOffscreen(entries_[1].unselected_label_xid));
+}
+
+TEST_F(LoginControllerTest, NoCrashOnInconsistenEntry) {
+  // This testcase tests that WM doesn't crash in situation when Chrome crashed
+  // and login entry windows are unmapped in random order, see crash report
+  // http://code.google.com/p/chromium-os/issues/detail?id=5117
+
+  CreateLoginWindows(3, true, false);  // create_guest_window=false
+
+  // Unmap border window for second entry.
+  XEvent event;
+  xconn_->UnmapWindow(entries_[1].border_xid);
+  xconn_->InitUnmapEvent(&event, entries_[1].border_xid);
+  wm_->HandleEvent(&event);
+  entries_[1].border_xid = NULL;
+
+  // Unmap all other windows.
+  UnmapLoginEntry(0);
+  UnmapLoginEntry(1);
+  UnmapLoginEntry(2);
 }
 
 }  // namespace window_manager

@@ -106,6 +106,7 @@ bool LoginEntry::HandleWindowUnmap(Window* win) {
   } else {
     return false;
   }
+  sizes_initialized_ = false;
   return true;
 }
 
@@ -120,6 +121,7 @@ bool LoginEntry::IsGuest() const {
 }
 
 void LoginEntry::InitSizes() {
+  DCHECK(has_all_windows());
   sizes_initialized_ = true;
 
   int unselected_image_size = border_window_->type_params()[2];
@@ -157,6 +159,8 @@ void LoginEntry::InitSizes() {
 }
 
 void LoginEntry::ScaleCompositeWindows(bool is_selected, int anim_ms) {
+  DCHECK(sizes_initialized_);
+
   if (is_selected) {
     border_window_->ScaleComposited(1, 1, anim_ms);
     image_window_->ScaleComposited(1, 1, anim_ms);
@@ -188,6 +192,7 @@ void LoginEntry::ScaleCompositeWindows(bool is_selected, int anim_ms) {
 
 void LoginEntry::UpdateClientWindows(const Point& origin, bool is_selected) {
   DCHECK(sizes_initialized_);
+
   int width = image_window_->client_width();
   int height = image_window_->client_height();
   if (is_selected) {
@@ -222,6 +227,7 @@ void LoginEntry::UpdateClientWindows(const Point& origin, bool is_selected) {
 void LoginEntry::UpdatePositionAndScale(const Point& origin, bool is_selected,
                                         int anim_ms) {
   DCHECK(sizes_initialized_);
+
   border_window_->MoveComposited(origin.x, origin.y, anim_ms);
 
   int x = origin.x + border_to_controls_gap_;
@@ -249,6 +255,8 @@ void LoginEntry::UpdatePositionAndScale(const Point& origin, bool is_selected,
 }
 
 void LoginEntry::FadeIn(const Point& origin, bool is_selected, int anim_ms) {
+  DCHECK(sizes_initialized_);
+
   border_window_->ShowComposited();
   border_window_->SetCompositedOpacity(1, anim_ms);
 
@@ -275,6 +283,8 @@ void LoginEntry::FadeIn(const Point& origin, bool is_selected, int anim_ms) {
 }
 
 void LoginEntry::FadeOut(int anim_ms) {
+  DCHECK(sizes_initialized_);
+
   border_window_->SetCompositedOpacity(0, anim_ms);
   border_window_->MoveClientOffscreen();
 
@@ -292,6 +302,8 @@ void LoginEntry::FadeOut(int anim_ms) {
 }
 
 void LoginEntry::Select(const Point& origin, int anim_ms) {
+  DCHECK(sizes_initialized_);
+
   UpdatePositionAndScale(origin, true, anim_ms);
 
   controls_window_->ShowComposited();
@@ -309,6 +321,8 @@ void LoginEntry::Select(const Point& origin, int anim_ms) {
 }
 
 void LoginEntry::Deselect(const Point& origin, int anim_ms) {
+  DCHECK(sizes_initialized_);
+
   UpdatePositionAndScale(origin, false, anim_ms);
 
   if (IsGuest()) {
@@ -324,6 +338,8 @@ void LoginEntry::Deselect(const Point& origin, int anim_ms) {
 }
 
 void LoginEntry::ProcessSelectionChangeCompleted(bool is_selected) {
+  DCHECK(sizes_initialized_);
+
   if (is_selected) {
     if (IsGuest())
       image_window_->HideComposited();
@@ -336,6 +352,8 @@ void LoginEntry::ProcessSelectionChangeCompleted(bool is_selected) {
 }
 
 void LoginEntry::StackWindows() {
+  DCHECK(sizes_initialized_);
+
   wm_->stacking_manager()->StackWindowAtTopOfLayer(
       unselected_label_window_, StackingManager::LAYER_LOGIN_WINDOW);
   wm_->stacking_manager()->StackWindowAtTopOfLayer(

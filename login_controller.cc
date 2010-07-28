@@ -470,6 +470,11 @@ void LoginController::InitialShow() {
   vector<Point> origins;
   CalculateIdealOrigins(&origins);
   for (size_t i = 0; i < entries_.size(); ++i) {
+    if (!entries_[i]->has_all_windows()) {
+      // Something bad has happened, for example Chrome crashed and windows are
+      // being destroyed in random order, just skip this invalid entry.
+      continue;
+    }
     const bool is_selected = (i == selected_entry_index_);
     entries_[i]->UpdatePositionAndScale(origins[i], is_selected, 0);
     entries_[i]->FadeOut(0);
@@ -491,8 +496,11 @@ void LoginController::ConfigureBackgroundWindow() {
 }
 
 void LoginController::StackWindows() {
-  for (Entries::iterator it = entries_.begin(); it < entries_.end(); ++it)
+  for (Entries::iterator it = entries_.begin(); it < entries_.end(); ++it) {
+    if (!(*it)->has_all_windows())
+      continue;
     (*it)->StackWindows();
+  }
 }
 
 void LoginController::SelectEntryAt(size_t index) {
@@ -510,6 +518,9 @@ void LoginController::SelectEntryAt(size_t index) {
   vector<Point> origins;
   CalculateIdealOrigins(&origins);
   for (size_t i = 0; i < entries_.size(); ++i) {
+    if (!entries_[i]->has_all_windows())
+      continue;
+
     if (i == selected_entry_index_) {
       entries_[i]->Select(origins[i], kAnimationTimeInMs);
       FocusLoginWindow(entries_[i]->controls_window());
@@ -527,8 +538,12 @@ void LoginController::SelectEntryAt(size_t index) {
 
 void LoginController::Hide() {
   selection_changed_manager_.Stop();
-  for (Entries::iterator it = entries_.begin(); it < entries_.end(); ++it)
+  for (Entries::iterator it = entries_.begin(); it < entries_.end(); ++it) {
+    if (!(*it)->has_all_windows())
+      continue;
+
     (*it)->FadeOut(kLoggedInTransitionAnimMs);
+  }
 }
 
 void LoginController::SetEntrySelectionEnabled(bool enable) {
@@ -541,6 +556,9 @@ void LoginController::SelectGuest() {
   DCHECK(!entries_.empty());
   LoginEntry* guest_entry = entries_.back().get();
   DCHECK(guest_entry);
+  DCHECK(guest_entry->has_all_windows());
+  if (!guest_entry->has_all_windows())
+    return;
 
   // Move the guest window to its original location of guest border.
   // TODO(dpolukhin): create GuestEntry class to encapsulate guest animation.
@@ -569,8 +587,12 @@ void LoginController::SelectGuest() {
   guest_window_->MoveClientToComposited();
   FocusLoginWindow(guest_window_);
 
-  for (Entries::iterator it = entries_.begin(); it < entries_.end(); ++it)
+  for (Entries::iterator it = entries_.begin(); it < entries_.end(); ++it) {
+    if (!(*it)->has_all_windows())
+      continue;
+
     (*it)->FadeOut(kAnimationTimeInMs);
+  }
 }
 
 void LoginController::CalculateIdealOrigins(vector<Point>* origins) {
@@ -624,9 +646,13 @@ void LoginController::ProcessSelectionChangeCompleted(
   if (last_selected_index >= entries_.size())
     return;
 
-  entries_[last_selected_index]->ProcessSelectionChangeCompleted(false);
-  if (selected_entry_index_ != kNoSelection)
+  if (entries_[last_selected_index]->has_all_windows())
+    entries_[last_selected_index]->ProcessSelectionChangeCompleted(false);
+
+  if (selected_entry_index_ != kNoSelection &&
+      entries_[selected_entry_index_]->has_all_windows()) {
     entries_[selected_entry_index_]->ProcessSelectionChangeCompleted(true);
+  }
 }
 
 bool LoginController::HasAllWindows() {
