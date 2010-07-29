@@ -512,6 +512,19 @@ void BasicWindowManagerTest::TestPanelContentBounds(
   EXPECT_EQ(height, panel->content_win()->actor()->GetHeight());
 }
 
+bool BasicWindowManagerTest::PanelClientAndCompositedWindowsHaveSamePositions(
+    Panel* panel) {
+  CHECK(panel);
+  return (panel->content_win()->composited_x() ==
+          panel->content_win()->client_x()) &&
+         (panel->content_win()->composited_y() ==
+          panel->content_win()->client_y()) &&
+         (panel->titlebar_win()->composited_x() ==
+          panel->titlebar_win()->client_x()) &&
+         (panel->titlebar_win()->composited_y() ==
+          panel->titlebar_win()->client_y());
+}
+
 bool BasicWindowManagerTest::DecodeWmIpcMessage(
     const XClientMessageEvent& event, WmIpc::Message* msg_out) {
   CHECK(msg_out);

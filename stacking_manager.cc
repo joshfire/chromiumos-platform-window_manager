@@ -115,8 +115,9 @@ const char* StackingManager::LayerToName(Layer layer) {
     case LAYER_DRAGGED_PANEL:            return "dragged panel";
     case LAYER_ACTIVE_TRANSIENT_WINDOW:  return "active transient window";
     case LAYER_PANEL_BAR_INPUT_WINDOW:   return "panel bar input window";
-    case LAYER_STATIONARY_PANEL_IN_BAR:  return "static panel in bar";
-    case LAYER_STATIONARY_PANEL_IN_DOCK: return "stationary panel in dock";
+    case LAYER_PACKED_PANEL_IN_BAR:      return "packed panel in bar";
+    case LAYER_FLOATING_PANEL_IN_BAR:    return "floating panel in bar";
+    case LAYER_PACKED_PANEL_IN_DOCK:     return "packed panel in dock";
     case LAYER_PANEL_DOCK:               return "panel dock";
     case LAYER_TOPLEVEL_WINDOW:          return "toplevel window";
     case LAYER_SNAPSHOT_WINDOW:          return "snapshot window";

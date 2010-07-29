@@ -199,8 +199,8 @@ TEST_F(PanelBarTest, FocusNewPanel) {
   EXPECT_EQ(panel->content_xid(), GetActiveWindowProperty());
 
   // The panel's address should be contained in 'desired_panel_to_focus_'.
-  ASSERT_EQ(1, panel_bar_->panels_.size());
-  EXPECT_EQ(panel_bar_->panels_[0], panel_bar_->desired_panel_to_focus_);
+  ASSERT_EQ(1, panel_bar_->packed_panels_.size());
+  EXPECT_EQ(panel_bar_->packed_panels_[0], panel_bar_->desired_panel_to_focus_);
 
   // Now send an unmap event for the content window.  The panel object
   // should be destroyed, and 'desired_panel_to_focus_' shouldn't refer to
@@ -208,7 +208,7 @@ TEST_F(PanelBarTest, FocusNewPanel) {
   XEvent event;
   xconn_->InitUnmapEvent(&event, panel->content_xid());
   wm_->HandleEvent(&event);
-  EXPECT_TRUE(panel_bar_->panels_.empty());
+  EXPECT_TRUE(panel_bar_->packed_panels_.empty());
   EXPECT_EQ(NULL, panel_bar_->desired_panel_to_focus_);
 }
 
@@ -445,7 +445,9 @@ TEST_F(PanelBarTest, DeferHidingDraggedCollapsedPanel) {
             panel_bar_->collapsed_panel_state_);
   EXPECT_EQ(shown_panel_y, panel->titlebar_y());
 
-  // Drag up again.
+  // Drag up again (drag to the left first to make sure that we're moving
+  // the panel within the bar rather than detaching it).
+  SendPanelDraggedMessage(panel, panel->right() - 200, panel->titlebar_y());
   SendPanelDraggedMessage(panel, 300, hide_pointer_y);
   xconn_->SetPointerPosition(300, hide_pointer_y);
   ASSERT_TRUE(panel_bar_->hide_collapsed_panels_pointer_watcher_.get() != NULL);
@@ -522,7 +524,10 @@ TEST_F(PanelBarTest, ReorderPanels) {
   EXPECT_EQ(40, panel1->right());
   EXPECT_EQ(rightmost_right_edge, panel2->right());
 
-  // Now end the drag and check that panel1 snaps to the leftmost position.
+  // Now drag back to the right (so that we don't end up with a floating
+  // panel), end the drag, and check that panel1 snaps to the leftmost
+  // position.
+  SendPanelDraggedMessage(panel1, drag_x - 0.5 * width, drag_y);
   SendPanelDragCompleteMessage(panel1);
   EXPECT_EQ(leftmost_right_edge, panel1->right());
   EXPECT_EQ(rightmost_right_edge, panel2->right());
@@ -585,6 +590,7 @@ TEST_F(PanelBarTest, ReorderDifferentlySizedPanels) {
 
   // After ending the drag, the small panel should jump to the leftmost
   // position.
+  SendPanelDraggedMessage(small_panel, leftmost_right_edge_for_small, drag_y);
   SendPanelDragCompleteMessage(small_panel);
   EXPECT_EQ(leftmost_right_edge_for_small, small_panel->right());
   EXPECT_EQ(rightmost_right_edge, big_panel->right());
@@ -850,6 +856,134 @@ TEST_F(PanelBarTest, OpenPanelNextToCreator) {
   EXPECT_EQ(panel5->content_x() - kSpacing, panel3->right());
   EXPECT_EQ(panel3->content_x() - kSpacing, panel6->right());
   EXPECT_EQ(panel6->content_x() - kSpacing, panel7->right());
+}
+
+TEST_F(PanelBarTest, FloatingPanels) {
+  const int kPanelWidth = 200, kTitlebarHeight = 20, kContentHeight = 300;
+  const int kFloatingThreshold = PanelBar::kFloatingPanelThresholdPixels;
+  const int kRightPadding = PanelBar::kRightPaddingPixels;
+  const int kSpacing = PanelBar::kPixelsBetweenPanels;
+
+  // Create a few panels.
+  //             +---++---++---+
+  //             | 3 || 2 || 1 |
+  // ------------+---++---++---+
+  Panel* panel1 = CreatePanel(kPanelWidth, kTitlebarHeight, kContentHeight);
+  Panel* panel2 = CreatePanel(kPanelWidth, kTitlebarHeight, kContentHeight);
+  Panel* panel3 = CreatePanel(kPanelWidth, kTitlebarHeight, kContentHeight);
+
+  // If we don't drag panel3 far enough to the left, it should snap back to
+  // the main group of packed panels.
+  //            +---+ +---++---+
+  //            | 3 | | 2 || 1 |
+  // -----------+---+-+---++---+
+  int right_edge = panel3->right();
+  int drag_y = panel3->titlebar_y();
+  SendPanelDraggedMessage(panel3, right_edge - kFloatingThreshold, drag_y);
+  SendPanelDragCompleteMessage(panel3);
+  EXPECT_EQ(right_edge, panel3->right());
+
+  // If we drag it further but return it before ending the drag, it should
+  // also snap back.
+  SendPanelDraggedMessage(panel3, right_edge - kFloatingThreshold - 20, drag_y);
+  SendPanelDraggedMessage(panel3, right_edge - kFloatingThreshold, drag_y);
+  SendPanelDragCompleteMessage(panel3);
+  EXPECT_EQ(right_edge, panel3->right());
+
+  // If we drag it further without returning it, it should stay there.
+  //           +---+  +---++---+
+  //           | 3 |  | 2 || 1 |
+  // ----------+---+--+---++---+
+  int drag_x = right_edge - kFloatingThreshold - 1;
+  SendPanelDraggedMessage(panel3, drag_x, drag_y);
+  SendPanelDragCompleteMessage(panel3);
+  EXPECT_EQ(drag_x, panel3->right());
+  EXPECT_TRUE(PanelClientAndCompositedWindowsHaveSamePositions(panel3));
+
+  // Drag panel2 to the left so it overlaps the right edge of panel3, and
+  // check that panel3 gets pushed to the left to make room.
+  //          +---++---+   +---+
+  //          | 3 || 2 |   | 1 |
+  // ---------+---++---+---+---+
+  drag_x = panel2->right() - kFloatingThreshold - 10;
+  SendPanelDraggedMessage(panel2, drag_x, drag_y);
+  SendPanelDragCompleteMessage(panel2);
+  EXPECT_EQ(drag_x, panel2->right());
+  EXPECT_EQ(panel2->content_x() - kSpacing, panel3->right());
+  EXPECT_TRUE(PanelClientAndCompositedWindowsHaveSamePositions(panel2));
+  EXPECT_TRUE(PanelClientAndCompositedWindowsHaveSamePositions(panel3));
+
+  // Drag panel2 further to the left, and check that panel3 jumps over to
+  // its right (where there should be enough room for it -- panel2 is 1.5
+  // panel widths from the left edge of panel 1).
+  //           +---++---+  +---+
+  //           | 2 || 3 |  | 1 |
+  // ----------+---++---+--+---+
+  drag_x = panel1->content_x() - 1.5 * kPanelWidth;
+  SendPanelDraggedMessage(panel2, drag_x, drag_y);
+  SendPanelDragCompleteMessage(panel2);
+  EXPECT_EQ(drag_x, panel2->right());
+  EXPECT_EQ(panel2->right() + kSpacing, panel3->content_x());
+
+  // Open another panel.  It should appear to the left of panel1 (the only
+  // packed panel) and push the two floating panels to the left.
+  //        +---++---++---++---+
+  //        | 2 || 3 || 4 || 1 |
+  // -------+---++---++---++---+
+  int prev_panel2_right = drag_x;
+  Panel* panel4 = CreatePanel(kPanelWidth, kTitlebarHeight, kContentHeight);
+  EXPECT_EQ(wm_->width() - kRightPadding, panel1->right());
+  EXPECT_EQ(panel1->content_x() - kSpacing, panel4->right());
+  EXPECT_EQ(panel4->content_x() - kSpacing, panel3->right());
+  EXPECT_EQ(panel3->content_x() - kSpacing, panel2->right());
+
+  // If panel4 is dragged to the far left, panel2 and panel3 should snap
+  // back to their previous locations.
+  // +---+     +---++---+  +---+
+  // | 4 |     | 2 || 3 |  | 1 |
+  // +---+-----+---++---+--+---+
+  SendPanelDraggedMessage(panel4, kPanelWidth, drag_y);
+  SendPanelDragCompleteMessage(panel4);
+  EXPECT_EQ(kPanelWidth, panel4->right());
+  EXPECT_EQ(prev_panel2_right, panel2->right());
+  EXPECT_EQ(panel2->right() + kSpacing, panel3->content_x());
+
+  // Drag panel3 to the right and check that it becomes a packed panel,
+  // displacing panel1 even before the drag has completed.
+  // +---+     +---+  +---++---+
+  // | 4 |     | 2 |  | 1 || 3 |
+  // +---+-----+---+--+---++---+
+  drag_x = wm_->width() - 0.25 * kPanelWidth;
+  SendPanelDraggedMessage(panel3, drag_x, drag_y);
+  EXPECT_EQ(drag_x, panel3->right());
+  EXPECT_EQ(wm_->width() - kRightPadding - kPanelWidth - kSpacing,
+            panel1->right());
+  EXPECT_EQ(prev_panel2_right, panel2->right());
+  SendPanelDragCompleteMessage(panel3);
+  EXPECT_EQ(wm_->width() - kRightPadding, panel3->right());
+
+  // Close panel4, and then start dragging panel1 to the left in small
+  // increments.  It should initially push panel2 to the left, but when
+  // panel1's left edge has passed the midpoint of panel2's desired
+  // position, panel2 should jump to the right.
+  //           +---++---+  +---+
+  //           | 1 || 2 |  | 3 |
+  // ----------+---++---+--+---+
+  XEvent event;
+  xconn_->InitUnmapEvent(&event, panel4->content_xid());
+  wm_->HandleEvent(&event);
+
+  drag_x = prev_panel2_right + 0.5 * kPanelWidth + 1;
+  SendPanelDraggedMessage(panel1, drag_x, drag_y);
+  SendPanelDragCompleteMessage(panel1);
+  EXPECT_EQ(drag_x, panel1->right());
+  EXPECT_EQ(panel1->content_x() - kSpacing, panel2->right());
+
+  drag_x = prev_panel2_right;
+  SendPanelDraggedMessage(panel1, drag_x, drag_y);
+  SendPanelDragCompleteMessage(panel1);
+  EXPECT_EQ(drag_x, panel1->right());
+  EXPECT_EQ(panel1->right() + kSpacing, panel2->content_x());
 }
 
 }  // namespace window_manager

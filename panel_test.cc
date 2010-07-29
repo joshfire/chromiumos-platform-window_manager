@@ -58,7 +58,7 @@ TEST_F(PanelTest, InputWindows) {
   // Restack the panel and check that its titlebar is stacked above the
   // content window, and that the content window is above all of the input
   // windows used for resizing.
-  panel.StackAtTopOfLayer(StackingManager::LAYER_STATIONARY_PANEL_IN_BAR);
+  panel.StackAtTopOfLayer(StackingManager::LAYER_PACKED_PANEL_IN_BAR);
   EXPECT_LT(xconn_->stacked_xids().GetIndex(titlebar_xid),
             xconn_->stacked_xids().GetIndex(content_xid));
   EXPECT_LT(xconn_->stacked_xids().GetIndex(content_xid),

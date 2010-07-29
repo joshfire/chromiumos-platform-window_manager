@@ -6,6 +6,7 @@
 #define WINDOW_MANAGER_PANEL_BAR_H_
 
 #include <map>
+#include <set>
 #include <tr1/memory>
 #include <vector>
 
@@ -96,6 +97,11 @@ class PanelBar : public PanelContainer {
   // from the bottom of the screen when it is hidden?
   static const int kHiddenCollapsedPanelHeightPixels;
 
+  // How far to the left of the main block of packed panels does a panel
+  // need to be dragged before it becomes a floating, "independently
+  // positioned" panel?
+  static const int kFloatingPanelThresholdPixels;
+
  private:
   friend class BasicWindowManagerTest;
   FRIEND_TEST(PanelBarTest, FocusNewPanel);
@@ -105,16 +111,28 @@ class PanelBar : public PanelContainer {
 
   // PanelBar-specific information about a panel.
   struct PanelInfo {
-    PanelInfo() : snapped_right(0) {}
+    PanelInfo() : desired_right(0), is_floating(false) {}
 
-    // X position of the right edge of where the panel wants to be.  For
-    // panels that are being dragged, this may be different from the actual
-    // composited position -- we only snap the panels to this position when
-    // the drag is complete.
-    int snapped_right;
+    // X position of the right edge of where the panel wants to be.
+    //
+    // For panels in 'packed_panels_', this is the panel's snapped
+    // position.  While the panel is being dragged, this may be different
+    // from its actual composited position -- we only snap the panels to
+    // this position when the drag is complete.
+    //
+    // For panels in 'floating_panels_', this is the position where the
+    // user last dropped the panel.  The panel may be displaced to either
+    // side if another panel is dropped on top of it, or may be pushed to
+    // the left by the main group of packed panels.
+    int desired_right;
+
+    // Is this panel in 'floating_panels_' (as opposed to
+    // 'packed_panels_')?
+    bool is_floating;
   };
 
-  typedef std::vector<Panel*> Panels;
+  typedef std::set<Panel*> PanelSet;
+  typedef std::vector<Panel*> PanelVector;
 
   // Is 'collapsed_panel_state_' such that collapsed panels are currently
   // hidden offscreen?
@@ -135,6 +153,14 @@ class PanelBar : public PanelContainer {
   // urgent flag is set, etc.).
   int ComputePanelY(const Panel& panel);
 
+  // Ensure that a panel is in either 'packed_panels_' or
+  // 'floating_panels_', removing it from the other array if we need to
+  // move it.  Also updates 'info->is_floating' and makes sure that the
+  // panel is inserted at the correct position in the vector.  Returns true
+  // if the panel was moved and false otherwise.
+  bool MovePanelToPackedVector(Panel* panel, PanelInfo* info);
+  bool MovePanelToFloatingVector(Panel* panel, PanelInfo* info);
+
   // Expand a panel.  If 'create_anchor' is true, we additionally create an
   // anchor for it.
   void ExpandPanel(Panel* panel, bool create_anchor, int anim_ms);
@@ -153,20 +179,45 @@ class PanelBar : public PanelContainer {
   // Get an iterator to the panel containing 'win' (either a content or
   // titlebar window) from the passed-in vector.  Returns panels.end() if
   // the panel isn't present.
-  static Panels::iterator FindPanelInVectorByWindow(
-      Panels& panels, const Window& win);
+  static PanelVector::iterator FindPanelInVectorByWindow(
+      PanelVector& panels, const Window& win);
 
   // Handle the end of a panel drag.
   void HandlePanelDragComplete(Panel* panel);
 
-  // Update the position of 'fixed_panel' within 'panels_' based on its
-  // current position and repack the other panels if necessary.
-  void ReorderPanel(Panel* fixed_panel);
+  // Update the position of 'panel_to_reorder' within 'panels' based on its
+  // current position.  Note that the panel doesn't actually get moved to a
+  // new position onscreen; we just rotate it to the spot where it should
+  // be in the vector -- ArrangePanels() must be called afterwards to pack
+  // the panels.  Returns true if the panel was reordered and false
+  // otherwise.
+  static bool ReorderPanelInVector(Panel* panel_to_reorder,
+                                   PanelVector* panels);
 
-  // Pack all panels with the exception of 'fixed_panel' (if non-NULL)
-  // towards the right.  We reserve space for 'fixed_panel' and update its
-  // snapped position, but we don't update its actual position.
-  void PackPanels(Panel* fixed_panel);
+  // Pack all panels in 'packed_panels_' with the exception of
+  // 'dragged_panel_' (if non-NULL) towards the right.  We reserve space
+  // for 'dragged_panel_' and update its desired/snapped position, but we
+  // don't update its actual position.
+  //
+  // If 'arrange_floating' is true, floating ("independently positioned")
+  // panels are also arranged.  All floating panels are shifted to the left
+  // as needed so as to not overlap the main group of packed panels, and
+  // they're also arranged so as to not overlap each other.  If
+  // 'fixed_floating_panel' is non-NULL, its current position takes
+  // precedence over that of other panels -- see
+  // UpdateFloatingPanelDesiredPositions() for details.
+  void ArrangePanels(bool arrange_floating, Panel* fixed_floating_panel);
+
+  // When a floating panel was just dropped (let's call it 'fixed_panel'
+  // here), we sometimes need to move some of the floating panels that are
+  // to its right to make room for it.  If there's not enough room for
+  // them, we may need to move some of them to the fixed panel's left.
+  // This method is used by ArrangePanels() to do that.  'right_boundary'
+  // is the rightmost position that a floating panel's right edge can take
+  // (typically the left edge of the main group of packed panels plus some
+  // padding).
+  void ShiftFloatingPanelsAroundFixedPanel(Panel* fixed_panel,
+                                           int right_boundary);
 
   // Create an anchor for a panel.  If there's a previous anchor, we
   // destroy it.
@@ -206,11 +257,19 @@ class PanelBar : public PanelContainer {
 
   PanelManager* panel_manager_;  // not owned
 
-  // Total width of all panels (including padding between them).
-  int total_panel_width_;
+  // All of our panels, in no particular order.
+  PanelSet all_panels_;
 
-  // Panels, in left-to-right order.
-  Panels panels_;
+  // Total width of all packed panels (including padding between them).
+  int packed_panel_width_;
+
+  // Panels that are packed against the right edge of the screen, in
+  // left-to-right order.
+  PanelVector packed_panels_;
+
+  // Panels that have been dragged off to the left and are now
+  // independently positioned, in left-to-right order.
+  PanelVector floating_panels_;
 
   // Information about our panels that doesn't belong in the Panel class
   // itself.

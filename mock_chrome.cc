@@ -20,7 +20,7 @@
 DEFINE_string(image_dir, "data/", "Path to static image files");
 DEFINE_string(new_panel_image, "data/panel_chat.png",
               "Image to use when creating a new panel");
-DEFINE_int32(num_panels, 3, "Number of panels to open");
+DEFINE_int32(num_panels, 5, "Number of panels to open");
 DEFINE_int32(num_windows, 3, "Number of windows to open");
 DEFINE_string(panel_images, "data/panel_chat.png",
               "Comma-separated images to use for panels");
@@ -48,7 +48,7 @@ using window_manager::WmIpc;
 
 namespace mock_chrome {
 
-const int PanelTitlebar::kWidth = 200;
+const int PanelTitlebar::kWidth = 150;
 const int PanelTitlebar::kHeight = 26;
 Glib::RefPtr<Gdk::Pixbuf> PanelTitlebar::image_bg_;
 Glib::RefPtr<Gdk::Pixbuf> PanelTitlebar::image_bg_focused_;

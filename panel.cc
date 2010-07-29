@@ -84,6 +84,7 @@ Panel::Panel(PanelManager* panel_manager,
       drag_orig_height_(1),
       drag_last_width_(1),
       drag_last_height_(1),
+      client_windows_have_correct_position_(false),
       event_consumer_registrar_(
           new EventConsumerRegistrar(wm(), panel_manager)),
       transients_(new TransientWindowCollection(content_win_, panel_manager)) {
@@ -301,6 +302,7 @@ void Panel::Move(int right, int y, bool move_client_windows, int anim_ms) {
   content_bounds_.y = y + titlebar_bounds_.height;
 
   transients_->CloseAllWindows();
+  client_windows_have_correct_position_ = move_client_windows;
 
   if (CanConfigureWindows()) {
     titlebar_win_->MoveComposited(
@@ -330,6 +332,7 @@ void Panel::MoveX(int right, bool move_client_windows, int anim_ms) {
   content_bounds_.x = right - content_bounds_.width;
 
   transients_->CloseAllWindows();
+  client_windows_have_correct_position_ = move_client_windows;
 
   if (CanConfigureWindows()) {
     titlebar_win_->MoveCompositedX(titlebar_bounds_.x, anim_ms);
@@ -349,6 +352,7 @@ void Panel::MoveY(int y, bool move_client_windows, int anim_ms) {
   content_bounds_.y = y + titlebar_bounds_.height;
 
   transients_->CloseAllWindows();
+  client_windows_have_correct_position_ = move_client_windows;
 
   if (CanConfigureWindows()) {
     titlebar_win_->MoveCompositedY(titlebar_bounds_.y, anim_ms);
@@ -473,6 +477,7 @@ void Panel::SetFullscreenState(bool fullscreen) {
         content_win_, StackingManager::LAYER_FULLSCREEN_WINDOW);
     content_win_->MoveComposited(0, 0, 0);
     content_win_->MoveClient(0, 0);
+    client_windows_have_correct_position_ = true;
     content_win_->ResizeClient(
         wm()->width(), wm()->height(), GRAVITY_NORTHWEST);
     if (!content_win_->IsFocused()) {
@@ -485,6 +490,7 @@ void Panel::SetFullscreenState(bool fullscreen) {
         content_bounds_.width, content_bounds_.height, GRAVITY_NORTHWEST);
     content_win_->MoveComposited(content_bounds_.x, content_bounds_.y, 0);
     content_win_->MoveClientToComposited();
+    client_windows_have_correct_position_ = true;
     titlebar_win_->ResizeClient(
         titlebar_bounds_.width, titlebar_bounds_.height, GRAVITY_NORTHWEST);
     titlebar_win_->MoveComposited(titlebar_bounds_.x, titlebar_bounds_.y, 0);

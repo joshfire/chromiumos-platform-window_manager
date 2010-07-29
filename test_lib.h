@@ -206,6 +206,9 @@ class BasicWindowManagerTest : public ::testing::Test {
   void TestPanelContentBounds(
       Panel* panel, int x, int y, int width, int height);
 
+  // Are a panel's client and composited windows at the same spot?
+  bool PanelClientAndCompositedWindowsHaveSamePositions(Panel* panel);
+
   // Decode the message from 'event' into 'msg'.  Returns false on failure.
   bool DecodeWmIpcMessage(const XClientMessageEvent& event,
                           WmIpc::Message* msg_out);

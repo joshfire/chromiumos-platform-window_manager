@@ -80,6 +80,10 @@ class Panel {
   int titlebar_height() const { return titlebar_bounds_.height; }
   int total_height() const { return content_height() + titlebar_height(); }
 
+  bool client_windows_have_correct_position() const {
+    return client_windows_have_correct_position_;
+  }
+
   bool IsFocused() const { return content_win_->IsFocused(); }
 
   // Is the user currently dragging one of the resize handles?
@@ -292,6 +296,11 @@ class Panel {
   // Most-recent content window size during a resize.
   int drag_last_width_;
   int drag_last_height_;
+
+  // Do the content and titlebar client windows match the onscreen position
+  // of the panel?  (That is, were they updated by the last call to one of
+  // the Move() methods, or otherwise updated?)
+  bool client_windows_have_correct_position_;
 
   // PanelManager event registrations related to this panel's windows.
   scoped_ptr<EventConsumerRegistrar> event_consumer_registrar_;

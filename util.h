@@ -5,6 +5,7 @@
 #ifndef WINDOW_MANAGER_UTIL_H_
 #define WINDOW_MANAGER_UTIL_H_
 
+#include <algorithm>
 #include <ctime>
 #include <list>
 #include <map>
@@ -201,6 +202,8 @@ class AutoReset {
 
 namespace util {
 
+// Look up a value in a map given the corresponding key, returning a
+// default value if the key isn't present.
 template<class K, class V>
 V FindWithDefault(const std::map<K, V>& the_map, const K& key, const V& def) {
   typename std::map<K, V>::const_iterator it = the_map.find(key);
@@ -220,6 +223,15 @@ V FindWithDefault(const base::hash_map<K, V>& the_map,
     return def;
   }
   return it->second;
+}
+
+// Move an iterator to another position.
+template<class ForwardIterator>
+void ReorderIterator(ForwardIterator src_it, ForwardIterator dest_it) {
+  if (dest_it > src_it)
+    std::rotate(src_it, src_it + 1, dest_it + 1);
+  else
+    std::rotate(dest_it, src_it, src_it + 1);
 }
 
 

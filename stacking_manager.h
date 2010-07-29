@@ -60,11 +60,16 @@ class StackingManager {
     // Panel bar's input windows.
     LAYER_PANEL_BAR_INPUT_WINDOW,
 
-    // A stationary panel in the panel bar.
-    LAYER_STATIONARY_PANEL_IN_BAR,
+    // A stationary, packed (that is, in the main group on the right) panel
+    // in the panel bar.
+    LAYER_PACKED_PANEL_IN_BAR,
+
+    // A stationary, floating ("independently positioned") panel in the
+    // panel bar.
+    LAYER_FLOATING_PANEL_IN_BAR,
 
     // A stationary panel in a panel dock.
-    LAYER_STATIONARY_PANEL_IN_DOCK,
+    LAYER_PACKED_PANEL_IN_DOCK,
 
     // Panel docks along the sides of the screen (specifically, their
     // backgrounds).

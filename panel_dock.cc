@@ -121,7 +121,7 @@ void PanelDock::AddPanel(Panel* panel, PanelSource source) {
   panel->StackAtTopOfLayer(
       source == PANEL_SOURCE_DRAGGED ?
         StackingManager::LAYER_DRAGGED_PANEL :
-        StackingManager::LAYER_STATIONARY_PANEL_IN_DOCK);
+        StackingManager::LAYER_PACKED_PANEL_IN_DOCK);
 
   // Try to make the panel fit vertically within our dimensions.
   int panel_y = panel->titlebar_y();
@@ -217,7 +217,7 @@ void PanelDock::HandleNotifyPanelDragCompleteMessage(Panel* panel) {
         type_ == DOCK_TYPE_RIGHT ?  GRAVITY_NORTHEAST : GRAVITY_NORTHWEST);
   }
   panel->SetShadowOpacity(0, kPanelShadowAnimMs);
-  panel->StackAtTopOfLayer(StackingManager::LAYER_STATIONARY_PANEL_IN_DOCK);
+  panel->StackAtTopOfLayer(StackingManager::LAYER_PACKED_PANEL_IN_DOCK);
   dragged_panel_ = NULL;
   PackPanels(NULL);
 }

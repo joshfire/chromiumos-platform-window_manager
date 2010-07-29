@@ -257,11 +257,11 @@ TEST_F(PanelManagerTest, Fullscreen) {
   EXPECT_EQ(middle_panel_right, panel2->right());
   EXPECT_EQ(leftmost_panel_right, panel3->right());
   EXPECT_TRUE(WindowIsInLayer(panel1->content_win(),
-                              StackingManager::LAYER_STATIONARY_PANEL_IN_BAR));
+                              StackingManager::LAYER_PACKED_PANEL_IN_BAR));
   EXPECT_TRUE(WindowIsInLayer(panel2->content_win(),
-                              StackingManager::LAYER_STATIONARY_PANEL_IN_BAR));
+                              StackingManager::LAYER_PACKED_PANEL_IN_BAR));
   EXPECT_TRUE(WindowIsInLayer(panel3->content_win(),
-                              StackingManager::LAYER_STATIONARY_PANEL_IN_BAR));
+                              StackingManager::LAYER_PACKED_PANEL_IN_BAR));
 
   const XAtom wm_state_atom = wm_->GetXAtom(ATOM_NET_WM_STATE);
   const XAtom fullscreen_atom = wm_->GetXAtom(ATOM_NET_WM_STATE_FULLSCREEN);
@@ -308,7 +308,7 @@ TEST_F(PanelManagerTest, Fullscreen) {
                          wm_->height() - content_height,      // y
                          content_width, content_height);
   EXPECT_TRUE(WindowIsInLayer(panel2->content_win(),
-                              StackingManager::LAYER_STATIONARY_PANEL_IN_BAR));
+                              StackingManager::LAYER_PACKED_PANEL_IN_BAR));
   TestIntArrayProperty(panel2->content_xid(), wm_state_atom, 0);
 
   // Unmap the first (rightmost) panel.  The third panel's content window
@@ -338,7 +338,7 @@ TEST_F(PanelManagerTest, Fullscreen) {
                          wm_->height() - content_height,      // y
                          content_width, content_height);
   EXPECT_TRUE(WindowIsInLayer(panel3->content_win(),
-                              StackingManager::LAYER_STATIONARY_PANEL_IN_BAR));
+                              StackingManager::LAYER_PACKED_PANEL_IN_BAR));
   TestIntArrayProperty(panel3->content_xid(), wm_state_atom, 0);
 
   // Fullscreen the second panel and then unmap one of its windows.  Check
@@ -518,7 +518,7 @@ TEST_F(PanelManagerTest, TransientWindows) {
   // Check that the transient is stacked within the same layer as the
   // panel, and that it's stacked above the content window.
   EXPECT_TRUE(WindowIsInLayer(transient_win,
-                              StackingManager::LAYER_STATIONARY_PANEL_IN_BAR));
+                              StackingManager::LAYER_PACKED_PANEL_IN_BAR));
   EXPECT_LT(xconn_->stacked_xids().GetIndex(transient_xid),
             xconn_->stacked_xids().GetIndex(panel->content_xid()));
   MockCompositor::StageActor* stage = compositor_->GetDefaultStage();

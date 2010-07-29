@@ -31,6 +31,7 @@ using std::min;
 using std::tr1::shared_ptr;
 using std::vector;
 using window_manager::util::FindWithDefault;
+using window_manager::util::ReorderIterator;
 using window_manager::util::XidStr;
 
 namespace window_manager {
@@ -40,6 +41,7 @@ const int PanelBar::kPixelsBetweenPanels = 6;
 const int PanelBar::kShowCollapsedPanelsDistancePixels = 1;
 const int PanelBar::kHideCollapsedPanelsDistancePixels = 30;
 const int PanelBar::kHiddenCollapsedPanelHeightPixels = 3;
+const int PanelBar::kFloatingPanelThresholdPixels = 30;
 
 // Amount of time to take when arranging panels.
 static const int kPanelArrangeAnimMs = 150;
@@ -70,7 +72,7 @@ static const int kShowCollapsedPanelsDelayMs = 200;
 
 PanelBar::PanelBar(PanelManager* panel_manager)
     : panel_manager_(panel_manager),
-      total_panel_width_(0),
+      packed_panel_width_(0),
       dragged_panel_(NULL),
       dragging_panel_horizontally_(false),
       anchor_input_xid_(wm()->CreateInputWindow(-1, -1, 1, 1, ButtonPressMask)),
@@ -129,51 +131,56 @@ void PanelBar::GetInputWindows(vector<XWindow>* windows_out) {
 
 void PanelBar::AddPanel(Panel* panel, PanelSource source) {
   DCHECK(panel);
+  CHECK(all_panels_.insert(panel).second)
+      << "Tried to add already-present panel " << panel->xid_str();
 
   shared_ptr<PanelInfo> info(new PanelInfo);
-  int padding = panels_.empty() ? kRightPaddingPixels : kPixelsBetweenPanels;
-  info->snapped_right = wm()->width() - total_panel_width_ - padding;
+  int padding =
+      packed_panels_.empty() ? kRightPaddingPixels : kPixelsBetweenPanels;
+  info->desired_right = wm()->width() - packed_panel_width_ - padding;
+  info->is_floating = false;
   CHECK(panel_infos_.insert(make_pair(panel, info)).second);
 
-  // Decide where we want to insert the panel.  If it requested to be
-  // opened to the left of its creator, we insert it in the correct spot
-  // in 'panels_' and place it to the left of its creator's fixed position.
-  Panels::iterator insert_it = panels_.begin();
+  // Decide where we want to insert the panel.  If Chrome requested that
+  // the panel be opened to the left of its creator, we insert it in the
+  // correct spot in 'packed_panels_' and place it to the left of its
+  // creator's fixed position.
+  PanelVector::iterator insert_it = packed_panels_.begin();
   if (source == PANEL_SOURCE_NEW &&
       panel->content_win()->type_params().size() >= 4 &&
       panel->content_win()->type_params()[3]) {
     XWindow creator_xid = panel->content_win()->type_params()[3];
     Window* creator_win = wm()->GetWindow(creator_xid);
     if (creator_win) {
-      Panels::iterator it = FindPanelInVectorByWindow(panels_, *creator_win);
-      if (it == panels_.end()) {
+      PanelVector::iterator it =
+          FindPanelInVectorByWindow(packed_panels_, *creator_win);
+      if (it == packed_panels_.end()) {
         LOG(WARNING) << "Unable to find creator panel " << XidStr(creator_xid)
                      << " for new panel " << panel->xid_str();
       } else {
         padding = kPixelsBetweenPanels;
-        info->snapped_right = GetPanelInfoOrDie(*it)->snapped_right -
+        info->desired_right = GetPanelInfoOrDie(*it)->desired_right -
                               (*it)->width() - padding;
         insert_it = it;
       }
     }
   }
 
-  const bool inserting_in_middle = insert_it != panels_.begin();
-  panels_.insert(insert_it, panel);
-  total_panel_width_ += panel->width() + padding;
+  packed_panels_.insert(insert_it, panel);
+  packed_panel_width_ += panel->width() + padding;
 
   // If the panel is being dragged, move it to the correct position within
-  // 'panels_' and repack all other panels.
+  // 'packed_panels_'.
   if (source == PANEL_SOURCE_DRAGGED) {
-    ReorderPanel(panel);
     DCHECK(!dragged_panel_);
     dragged_panel_ = panel;
     dragging_panel_horizontally_ = true;
+    ReorderPanelInVector(panel, &packed_panels_);
   }
 
   panel->StackAtTopOfLayer(source == PANEL_SOURCE_DRAGGED ?
                            StackingManager::LAYER_DRAGGED_PANEL :
-                           StackingManager::LAYER_STATIONARY_PANEL_IN_BAR);
+                           StackingManager::LAYER_PACKED_PANEL_IN_BAR);
 
   const int final_y = ComputePanelY(*panel);
 
@@ -181,23 +188,20 @@ void PanelBar::AddPanel(Panel* panel, PanelSource source) {
   switch (source) {
     case PANEL_SOURCE_NEW:
       // Make newly-created panels slide in from the bottom of the screen.
-      panel->Move(info->snapped_right, wm()->height(), false, 0);
+      panel->Move(info->desired_right, wm()->height(), false, 0);
       panel->MoveY(final_y, true, kPanelStateAnimMs);
-      // If we didn't insert it on the left, we'll have to move the other
-      // panels around to make room.
-      if (inserting_in_middle)
-        PackPanels(dragged_panel_);
       break;
     case PANEL_SOURCE_DRAGGED:
       panel->MoveY(final_y, true, 0);
       break;
     case PANEL_SOURCE_DROPPED:
-      panel->Move(info->snapped_right, final_y, true, kDroppedPanelAnimMs);
+      panel->Move(info->desired_right, final_y, true, kDroppedPanelAnimMs);
       break;
     default:
       NOTREACHED() << "Unknown panel source " << source;
   }
 
+  ArrangePanels(true, NULL);
   panel->SetResizable(panel->is_expanded());
 
   // If this is a new panel and it requested the focus, or it was already
@@ -224,6 +228,8 @@ void PanelBar::AddPanel(Panel* panel, PanelSource source) {
 
 void PanelBar::RemovePanel(Panel* panel) {
   DCHECK(panel);
+  CHECK(all_panels_.erase(panel) == static_cast<size_t>(1))
+      << "Tried to remove nonexistent panel " << panel->xid_str();
 
   if (anchor_panel_ == panel)
     DestroyAnchor();
@@ -236,24 +242,27 @@ void PanelBar::RemovePanel(Panel* panel) {
 
   bool was_collapsed = !panel->is_expanded();
   CHECK(panel_infos_.erase(panel) == 1);
-  Panels::iterator it =
-      FindPanelInVectorByWindow(panels_, *(panel->content_win()));
-  if (it == panels_.end()) {
-    LOG(WARNING) << "Got request to remove panel " << panel->xid_str()
-                 << " but didn't find it in panels_";
-    return;
+  PanelVector::iterator it =
+      FindPanelInVectorByWindow(packed_panels_, *(panel->content_win()));
+  if (it != packed_panels_.end()) {
+    packed_panels_.erase(it);
+  } else {
+    it = FindPanelInVectorByWindow(floating_panels_, *(panel->content_win()));
+    if (it != floating_panels_.end()) {
+      floating_panels_.erase(it);
+    } else {
+      LOG(WARNING) << "Got request to remove panel " << panel->xid_str()
+                   << " but didn't find it";
+      return;
+    }
   }
 
-  total_panel_width_ -= panel->width();
-  panels_.erase(it);
-  total_panel_width_ -=
-      (panels_.empty() ? kRightPaddingPixels : kPixelsBetweenPanels);
-  if (panels_.empty())
-    DCHECK_EQ(total_panel_width_, 0);
+  // This also recomputes the total width.
+  ArrangePanels(true, NULL);
 
-  PackPanels(dragged_panel_);
-  if (dragged_panel_)
-    ReorderPanel(dragged_panel_);
+  if (dragged_panel_ && !(GetPanelInfoOrDie(dragged_panel_)->is_floating))
+    if (ReorderPanelInVector(dragged_panel_, &packed_panels_))
+      ArrangePanels(false, NULL);
 
   // If this was the last collapsed panel, move the input window offscreen.
   if (was_collapsed && GetNumCollapsedPanels() == 0)
@@ -292,7 +301,7 @@ void PanelBar::HandleInputWindowPointerEnter(XWindow xid,
                                              XTime timestamp) {
   if (xid == show_collapsed_panels_input_xid_) {
     DLOG(INFO) << "Got mouse enter in show-collapsed-panels window";
-    if (x_root >= wm()->width() - total_panel_width_) {
+    if (x_root >= wm()->width() - packed_panel_width_) {
       // If the user moves the pointer down quickly to the bottom of the
       // screen, it's possible that it could end up below a collapsed panel
       // without us having received an enter event in the panel's titlebar.
@@ -384,10 +393,49 @@ bool PanelBar::HandleNotifyPanelDraggedMessage(Panel* panel,
 
   if (dragging_panel_horizontally_) {
     panel->MoveX(drag_x, false, 0);
-    ReorderPanel(panel);
+    PanelInfo* info = GetPanelInfoOrDie(panel);
+
+    // Make sure that the panel is in the correct vector (floating vs.
+    // packed) for its current position.
+
+    // We want to find the total width of all packed panels (except the
+    // dragged panel, if it's packed), plus the padding that would go to
+    // the right of the dragged panel (which differs depending on whether
+    // there are other packed panels or not).
+    int packed_width_with_padding = packed_panel_width_;
+    if (!info->is_floating) {
+      packed_width_with_padding -= panel->width();
+    } else {
+      packed_width_with_padding +=
+          packed_panels_.empty() ? kRightPaddingPixels : kPixelsBetweenPanels;
+    }
+
+    const int floating_threshold =
+        wm()->width() - packed_width_with_padding -
+        kFloatingPanelThresholdPixels;
+
+    bool moved_to_other_vector = false;
+    if (drag_x < floating_threshold) {
+      moved_to_other_vector = MovePanelToFloatingVector(panel, info);
+      info->desired_right = drag_x;
+      ArrangePanels(false, NULL);
+    } else {
+      moved_to_other_vector = MovePanelToPackedVector(panel, info);
+      ArrangePanels(false, NULL);
+    }
+
+    if (!moved_to_other_vector) {
+      // If we didn't move the panel to the other vector, then just make
+      // sure that it's in the correct position within its current vector.
+      PanelVector* panel_vector =
+          info->is_floating ? &floating_panels_ : &packed_panels_;
+      if (ReorderPanelInVector(panel, panel_vector) && !info->is_floating)
+        ArrangePanels(false, NULL);
+    }
+
   } else {
-    // Cap the Y value between the lowest and highest positions that the
-    // panel can take while in the bar.
+    // If we're dragging vertically, cap the Y value between the lowest and
+    // highest positions that the panel can take while in the bar.
     const int capped_y =
         max(min(drag_y, wm()->height() - panel->titlebar_height()),
             wm()->height() - panel->total_height());
@@ -412,22 +460,24 @@ void PanelBar::HandlePanelResizeRequest(Panel* panel,
                                         int req_width, int req_height) {
   DCHECK(panel);
   panel->ResizeContent(req_width, req_height, GRAVITY_SOUTHEAST);
-  PackPanels(NULL);
+  ArrangePanels(true, NULL);
 }
 
 void PanelBar::HandlePanelResizeByUser(Panel* panel) {
   DCHECK(panel);
-  PackPanels(NULL);
+  ArrangePanels(true, NULL);
 }
 
 void PanelBar::HandleScreenResize() {
   // Make all of the panels jump to their new Y positions first and then
   // repack them to animate them sliding to their new X positions.
-  for (Panels::iterator it = panels_.begin(); it != panels_.end(); ++it)
+  for (PanelSet::iterator it = all_panels_.begin();
+       it != all_panels_.end(); ++it) {
     (*it)->MoveY(ComputePanelY(**it), true, 0);
-  PackPanels(dragged_panel_);
-  if (dragged_panel_)
-    ReorderPanel(dragged_panel_);
+  }
+  if (dragged_panel_ && !(GetPanelInfoOrDie(dragged_panel_)->is_floating))
+    ReorderPanelInVector(dragged_panel_, &packed_panels_);
+  ArrangePanels(true, NULL);
 }
 
 void PanelBar::HandlePanelUrgencyChange(Panel* panel) {
@@ -446,9 +496,17 @@ bool PanelBar::TakeFocus(XTime timestamp) {
     return true;
   }
 
-  // Just focus the first expanded panel.
-  for (Panels::iterator it = panels_.begin(); it != panels_.end(); ++it) {
-    if ((*it)->is_expanded()) {
+  // Just focus the first onscreen, expanded panel.
+  for (PanelVector::iterator it = floating_panels_.begin();
+       it != floating_panels_.end(); ++it) {
+    if ((*it)->is_expanded() && (*it)->right() > 0) {
+      FocusPanel(*it, timestamp);
+      return true;
+    }
+  }
+  for (PanelVector::iterator it = packed_panels_.begin();
+       it != packed_panels_.end(); ++it) {
+    if ((*it)->is_expanded() && (*it)->right() > 0) {
       FocusPanel(*it, timestamp);
       return true;
     }
@@ -466,9 +524,11 @@ PanelBar::PanelInfo* PanelBar::GetPanelInfoOrDie(Panel* panel) {
 
 int PanelBar::GetNumCollapsedPanels() {
   int count = 0;
-  for (Panels::const_iterator it = panels_.begin(); it != panels_.end(); ++it)
+  for (PanelSet::const_iterator it = all_panels_.begin();
+       it != all_panels_.end(); ++it) {
     if (!(*it)->is_expanded())
       count++;
+  }
   return count;
 }
 
@@ -481,6 +541,45 @@ int PanelBar::ComputePanelY(const Panel& panel) {
     else
       return wm()->height() - panel.titlebar_height();
   }
+}
+
+bool PanelBar::MovePanelToPackedVector(Panel* panel, PanelInfo* info) {
+  DCHECK(panel);
+  DCHECK(info);
+  if (!info->is_floating)
+    return false;
+
+  DLOG(INFO) << "Moving panel " << panel->xid_str() << " to packed vector";
+  PanelVector::iterator it =
+      FindPanelInVectorByWindow(floating_panels_, *(panel->content_win()));
+  DCHECK(it != floating_panels_.end());
+  floating_panels_.erase(it);
+  // Add the panel to the beginning of the vector.  If it's getting dragged
+  // from the floating vector at the left edge of the screen, it's likely
+  // to end up at the left edge of the packed vector at the right edge of
+  // the screen.
+  packed_panels_.insert(packed_panels_.begin(), panel);
+  info->is_floating = false;
+  ReorderPanelInVector(panel, &packed_panels_);
+  return true;
+}
+
+bool PanelBar::MovePanelToFloatingVector(Panel* panel, PanelInfo* info) {
+  DCHECK(panel);
+  DCHECK(info);
+  if (info->is_floating)
+    return false;
+
+  DLOG(INFO) << "Moving panel " << panel->xid_str() << " to floating vector";
+  PanelVector::iterator it =
+      FindPanelInVectorByWindow(packed_panels_, *(panel->content_win()));
+  DCHECK(it != packed_panels_.end());
+  packed_panels_.erase(it);
+  // See MovePanelToPackedVector()'s comment.
+  floating_panels_.push_back(panel);
+  info->is_floating = true;
+  ReorderPanelInVector(panel, &floating_panels_);
+  return true;
 }
 
 void PanelBar::ExpandPanel(Panel* panel, bool create_anchor, int anim_ms) {
@@ -539,14 +638,18 @@ void PanelBar::FocusPanel(Panel* panel, XTime timestamp) {
 }
 
 Panel* PanelBar::GetPanelByWindow(const Window& win) {
-  Panels::iterator it = FindPanelInVectorByWindow(panels_, win);
-  return (it != panels_.end()) ? *it : NULL;
+  for (PanelSet::const_iterator it = all_panels_.begin();
+       it != all_panels_.end(); ++it) {
+    if ((*it)->titlebar_win() == &win || (*it)->content_win() == &win)
+      return (*it);
+  }
+  return NULL;
 }
 
 // static
-PanelBar::Panels::iterator PanelBar::FindPanelInVectorByWindow(
-    Panels& panels, const Window& win) {
-  for (Panels::iterator it = panels.begin(); it != panels.end(); ++it)
+PanelBar::PanelVector::iterator PanelBar::FindPanelInVectorByWindow(
+    PanelVector& panels, const Window& win) {
+  for (PanelVector::iterator it = panels.begin(); it != panels.end(); ++it)
     if ((*it)->titlebar_win() == &win || (*it)->content_win() == &win)
       return it;
   return panels.end();
@@ -560,9 +663,10 @@ void PanelBar::HandlePanelDragComplete(Panel* panel) {
     return;
 
   PanelInfo* info = GetPanelInfoOrDie(panel);
+  dragged_panel_ = NULL;
 
   if (dragging_panel_horizontally_) {
-    panel->MoveX(info->snapped_right, true, kPanelArrangeAnimMs);
+    ArrangePanels(true, info->is_floating ? panel : NULL);
   } else {
     // Move the panel back to the correct Y position, expanding or collapsing
     // it if needed.
@@ -581,8 +685,10 @@ void PanelBar::HandlePanelDragComplete(Panel* panel) {
     }
   }
 
-  panel->StackAtTopOfLayer(StackingManager::LAYER_STATIONARY_PANEL_IN_BAR);
-  dragged_panel_ = NULL;
+  panel->StackAtTopOfLayer(
+      info->is_floating ?
+      StackingManager::LAYER_FLOATING_PANEL_IN_BAR :
+      StackingManager::LAYER_PACKED_PANEL_IN_BAR);
 
   if (collapsed_panel_state_ == COLLAPSED_PANEL_STATE_WAITING_TO_HIDE) {
     // If the user moved the pointer up from the bottom of the screen while
@@ -602,62 +708,160 @@ void PanelBar::HandlePanelDragComplete(Panel* panel) {
   }
 }
 
-void PanelBar::ReorderPanel(Panel* fixed_panel) {
-  DCHECK(fixed_panel);
+// static
+bool PanelBar::ReorderPanelInVector(Panel* panel_to_reorder,
+                                    PanelVector* panels) {
+  DCHECK(panel_to_reorder);
+  DCHECK(panels);
 
-  Panels::iterator src_it = find(panels_.begin(), panels_.end(), fixed_panel);
-  DCHECK(src_it != panels_.end());
-  const int src_position = src_it - panels_.begin();
+  PanelVector::iterator src_it =
+      find(panels->begin(), panels->end(), panel_to_reorder);
+  DCHECK(src_it != panels->end());
 
-  int dest_position = src_position;
-  if (fixed_panel->right() < GetPanelInfoOrDie(fixed_panel)->snapped_right) {
-    // If we're to the left of our snapped position, look for the furthest
-    // panel whose midpoint has been passed by our left edge.
-    for (int i = src_position - 1; i >= 0; --i) {
-      Panel* panel = panels_[i];
-      if (fixed_panel->content_x() <= panel->content_center())
-        dest_position = i;
-      else
-        break;
-    }
-  } else {
-    // Otherwise, do the same check with our right edge to the right.
-    for (int i = src_position + 1; i < static_cast<int>(panels_.size()); ++i) {
-      Panel* panel = panels_[i];
-      if (fixed_panel->right() > panel->content_center())
-        dest_position = i;
-      else
-        break;
-    }
+  // Find the leftmost panel whose midpoint our left edge is to the left
+  // of, and the rightmost panel whose midpoint our right edge is to the
+  // right of.
+  PanelVector::iterator min_it = panels->end() - 1;
+  PanelVector::iterator max_it = panels->begin();
+  for (PanelVector::iterator it = panels->begin(); it != panels->end(); ++it) {
+    Panel* panel = *it;
+    if (panel_to_reorder == panel)
+      continue;
+    if (panel_to_reorder->content_x() <= panel->content_center())
+      min_it = min(min_it, it);
+    if (panel_to_reorder->right() > panel->content_center())
+      max_it = max(max_it, it);
   }
 
-  if (dest_position != src_position) {
-    Panels::iterator dest_it = panels_.begin() + dest_position;
-    if (dest_it > src_it)
-      rotate(src_it, src_it + 1, dest_it + 1);
-    else
-      rotate(dest_it, src_it, src_it + 1);
-    PackPanels(fixed_panel);
+  // If we found a range where it seems reasonable to stick the panel, put
+  // it as far right as we can.
+  if (max_it >= min_it && max_it != src_it) {
+    ReorderIterator(src_it, max_it);
+    return true;
   }
+  return false;
 }
 
-void PanelBar::PackPanels(Panel* fixed_panel) {
-  // Recalculate the total width; PackPanels() gets called after we receive
-  // notification that a panel has been resized.
-  total_panel_width_ = 0;
-
-  for (Panels::reverse_iterator it = panels_.rbegin();
-       it != panels_.rend(); ++it) {
-    const int padding =
-        (it == panels_.rbegin()) ? kRightPaddingPixels : kPixelsBetweenPanels;
+void PanelBar::ArrangePanels(bool arrange_floating,
+                             Panel* fixed_floating_panel) {
+  // Pack all of the packed panels to the right.
+  packed_panel_width_ = 0;
+  for (PanelVector::reverse_iterator it = packed_panels_.rbegin();
+       it != packed_panels_.rend(); ++it) {
+    // Calculate the padding needed to this panel's right.
+    const int padding = (it == packed_panels_.rbegin()) ?
+                        kRightPaddingPixels : kPixelsBetweenPanels;
     Panel* panel = *it;
     PanelInfo* info = GetPanelInfoOrDie(panel);
 
-    info->snapped_right = wm()->width() - total_panel_width_ - padding;
-    if (panel != fixed_panel && panel->right() != info->snapped_right)
-      panel->MoveX(info->snapped_right, true, kPanelArrangeAnimMs);
+    info->desired_right = wm()->width() - packed_panel_width_ - padding;
+    if (panel != dragged_panel_ &&
+        (panel->right() != info->desired_right ||
+         !panel->client_windows_have_correct_position())) {
+      panel->MoveX(info->desired_right, true, kPanelArrangeAnimMs);
+    }
 
-    total_panel_width_ += panel->width() + padding;
+    packed_panel_width_ += panel->width() + padding;
+  }
+
+  // Now make the floating panels not overlap using the space to the left
+  // of the group of packed panels.
+  if (arrange_floating) {
+    int right_boundary = wm()->width() - packed_panel_width_ -
+        (packed_panel_width_ == 0 ? kRightPaddingPixels : kPixelsBetweenPanels);
+
+    if (fixed_floating_panel)
+      ShiftFloatingPanelsAroundFixedPanel(fixed_floating_panel, right_boundary);
+
+    for (PanelVector::reverse_iterator it = floating_panels_.rbegin();
+         it != floating_panels_.rend(); ++it) {
+      Panel* panel = *it;
+      PanelInfo* info = GetPanelInfoOrDie(panel);
+
+      if (panel != dragged_panel_) {
+        const int panel_right = min(info->desired_right, right_boundary);
+        if (panel->right() != panel_right ||
+            !panel->client_windows_have_correct_position())
+          panel->MoveX(panel_right, true, kPanelArrangeAnimMs);
+      }
+      right_boundary = panel->content_x() - kPixelsBetweenPanels;
+    }
+  }
+}
+
+void PanelBar::ShiftFloatingPanelsAroundFixedPanel(Panel* fixed_panel,
+                                                   int right_boundary) {
+  DCHECK(fixed_panel);
+
+  // Make sure that the fixed panel is in the allowable area.
+  if (fixed_panel->right() > right_boundary)
+    fixed_panel->MoveX(right_boundary, true, kPanelArrangeAnimMs);
+
+  PanelVector::iterator fixed_it = FindPanelInVectorByWindow(
+      floating_panels_, *(fixed_panel->content_win()));
+  DCHECK(fixed_it != floating_panels_.end());
+
+  // Figure out the total amount of space that's available between the
+  // right edge of the floating panel and the right boundary, and the
+  // amount of space needed by the panels that are currently there.
+  int space_to_right_of_fixed = right_boundary - fixed_panel->right();
+  int panel_width_to_right_of_fixed = 0;
+  for (PanelVector::iterator it = fixed_it + 1;
+       it != floating_panels_.end(); ++it)
+    panel_width_to_right_of_fixed += (*it)->width() + kPixelsBetweenPanels;
+
+  // See how many panels we'll need to shift to the left of the fixed panel
+  // to make them fit in the space, and then shift them (by reordering the
+  // fixed panel in the vector).
+  PanelVector::iterator new_fixed_it = fixed_it;
+  for (PanelVector::iterator it = fixed_it + 1;
+       it != floating_panels_.end(); ++it) {
+    if (panel_width_to_right_of_fixed <= space_to_right_of_fixed)
+      break;
+    new_fixed_it = it;
+    panel_width_to_right_of_fixed -=
+        ((*it)->width() + kPixelsBetweenPanels);
+  }
+
+  // If we didn't need to shift any of the panels that were to our right,
+  // and there are panels to our left that want to be to the right, move
+  // them if we have space.
+  if (new_fixed_it == fixed_it && fixed_it != floating_panels_.begin()) {
+    for (PanelVector::iterator it = fixed_it - 1; ; it--) {
+      Panel* panel = *it;
+      PanelInfo* info = GetPanelInfoOrDie(panel);
+      if (info->desired_right - 0.5 * panel->width() < fixed_panel->content_x())
+        break;
+      int new_width_to_right =
+          panel_width_to_right_of_fixed + panel->width() + kPixelsBetweenPanels;
+      if (new_width_to_right > space_to_right_of_fixed)
+        break;
+      new_fixed_it = it;
+      panel_width_to_right_of_fixed = new_width_to_right;
+
+      if (it == floating_panels_.begin())
+        break;
+    }
+  }
+  DCHECK_LE(panel_width_to_right_of_fixed, space_to_right_of_fixed);
+
+  if (new_fixed_it != fixed_it)
+    ReorderIterator(fixed_it, new_fixed_it);
+
+  // Now make one more pass through all of the panels to the right, and
+  // shift their desired positions to the right as needed so they won't
+  // overlap.  (Note that it's possible that they'll extend beyond the
+  // right boundary now if they weren't packed efficiently; ArrangePanels()
+  // will take care of shifting them back to the left when it makes its
+  // final pass.)
+  int left_edge = fixed_panel->right() + kPixelsBetweenPanels;
+  for (PanelVector::iterator it = new_fixed_it + 1;
+       it != floating_panels_.end(); ++it) {
+    Panel* panel = *it;
+    PanelInfo* info = GetPanelInfoOrDie(panel);
+    if (info->desired_right - panel->width() < left_edge)
+      info->desired_right = left_edge + panel->width();
+    left_edge = info->desired_right + kPixelsBetweenPanels;
   }
 }
 
@@ -706,7 +910,8 @@ Panel* PanelBar::GetNearestExpandedPanel(Panel* panel) {
 
   Panel* nearest_panel = NULL;
   int best_distance = kint32max;
-  for (Panels::iterator it = panels_.begin(); it != panels_.end(); ++it) {
+  for (PanelSet::iterator it = all_panels_.begin();
+       it != all_panels_.end(); ++it) {
     if (*it == panel || !(*it)->is_expanded())
       continue;
 
@@ -756,7 +961,8 @@ void PanelBar::ShowCollapsedPanels() {
   DisableShowCollapsedPanelsTimeout();
   collapsed_panel_state_ = COLLAPSED_PANEL_STATE_SHOWN;
 
-  for (Panels::iterator it = panels_.begin(); it != panels_.end(); ++it) {
+  for (PanelSet::iterator it = all_panels_.begin();
+       it != all_panels_.end(); ++it) {
     Panel* panel = *it;
     if (panel->is_expanded())
       continue;
@@ -783,7 +989,8 @@ void PanelBar::HideCollapsedPanels() {
   }
 
   collapsed_panel_state_ = COLLAPSED_PANEL_STATE_HIDDEN;
-  for (Panels::iterator it = panels_.begin(); it != panels_.end(); ++it) {
+  for (PanelSet::iterator it = all_panels_.begin();
+       it != all_panels_.end(); ++it) {
     Panel* panel = *it;
     if (panel->is_expanded())
       continue;
