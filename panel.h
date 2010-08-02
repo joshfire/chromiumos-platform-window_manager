@@ -228,7 +228,7 @@ class Panel {
   StackingManager::Layer stacking_layer_;
 
   // Translucent resize box used when opaque resizing is disabled.
-  scoped_ptr<Compositor::Actor> resize_actor_;
+  scoped_ptr<Compositor::ColoredBoxActor> resize_actor_;
 
   // Batches motion events for resized panels so that we can rate-limit the
   // frequency of their processing.

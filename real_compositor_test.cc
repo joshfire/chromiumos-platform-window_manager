@@ -91,16 +91,15 @@ class RealCompositorTestTree : public RealCompositorTest {
     group2_.reset(compositor()->CreateGroup());
     group3_.reset(compositor()->CreateGroup());
     group4_.reset(compositor()->CreateGroup());
-    rect1_.reset(compositor()->CreateRectangle(Compositor::Color(),
-                                               Compositor::Color(), 0));
-    rect2_.reset(compositor()->CreateRectangle(Compositor::Color(),
-                                               Compositor::Color(), 0));
-    rect3_.reset(compositor()->CreateRectangle(Compositor::Color(),
-                                               Compositor::Color(), 0));
-
-    rect1_->SetSize(stage_->GetWidth(), stage_->GetHeight());
-    rect2_->SetSize(stage_->GetWidth(), stage_->GetHeight());
-    rect3_->SetSize(stage_->GetWidth(), stage_->GetHeight());
+    rect1_.reset(
+        compositor()->CreateColoredBox(
+            stage_->GetWidth(), stage_->GetHeight(), Compositor::Color()));
+    rect2_.reset(
+        compositor()->CreateColoredBox(
+            stage_->GetWidth(), stage_->GetHeight(), Compositor::Color()));
+    rect3_.reset(
+        compositor()->CreateColoredBox(
+            stage_->GetWidth(), stage_->GetHeight(), Compositor::Color()));
 
     stage_->SetName("stage");
     group1_->SetName("group1");
@@ -158,9 +157,9 @@ class RealCompositorTestTree : public RealCompositorTest {
   scoped_ptr<RealCompositor::ContainerActor> group2_;
   scoped_ptr<RealCompositor::ContainerActor> group3_;
   scoped_ptr<RealCompositor::ContainerActor> group4_;
-  scoped_ptr<RealCompositor::Actor> rect1_;
-  scoped_ptr<RealCompositor::Actor> rect2_;
-  scoped_ptr<RealCompositor::Actor> rect3_;
+  scoped_ptr<RealCompositor::ColoredBoxActor> rect1_;
+  scoped_ptr<RealCompositor::ColoredBoxActor> rect2_;
+  scoped_ptr<RealCompositor::ColoredBoxActor> rect3_;
 };
 
 TEST_F(RealCompositorTestTree, LayerDepth) {
@@ -527,8 +526,8 @@ TEST_F(RealCompositorTest, HandleXEvents) {
 // Check that we don't crash when we delete a group that contains a child.
 TEST_F(RealCompositorTest, DeleteGroup) {
   scoped_ptr<RealCompositor::ContainerActor> group(compositor()->CreateGroup());
-  scoped_ptr<RealCompositor::Actor> rect(
-    compositor()->CreateRectangle(Compositor::Color(), Compositor::Color(), 0));
+  scoped_ptr<RealCompositor::ColoredBoxActor> rect(
+      compositor()->CreateColoredBox(1, 1, Compositor::Color()));
 
   compositor()->GetDefaultStage()->AddActor(group.get());
   group->AddActor(rect.get());
@@ -553,8 +552,7 @@ TEST_F(RealCompositorTest, DrawTimeout) {
 
   // After we add an actor, we should draw another frame.
   scoped_ptr<RealCompositor::Actor> actor(
-      compositor()->CreateRectangle(
-          Compositor::Color(), Compositor::Color(), 0));
+      compositor()->CreateColoredBox(1, 1, Compositor::Color()));
   compositor()->GetDefaultStage()->AddActor(actor.get());
   EXPECT_TRUE(compositor()->draw_timeout_enabled());
   compositor()->Draw();
@@ -609,8 +607,7 @@ TEST_F(RealCompositorTest, ReplaceAnimations) {
   compositor()->set_current_time_ms_for_testing(now);
 
   scoped_ptr<RealCompositor::Actor> actor(
-      compositor()->CreateRectangle(
-          Compositor::Color(), Compositor::Color(), 0));
+      compositor()->CreateColoredBox(1, 1, Compositor::Color()));
   compositor()->GetDefaultStage()->AddActor(actor.get());
   compositor()->Draw();
 
@@ -672,8 +669,7 @@ TEST_F(RealCompositorTest, SkipUnneededAnimations) {
 
   // After we add an actor, we should draw a frame.
   scoped_ptr<RealCompositor::Actor> actor(
-      compositor()->CreateRectangle(
-          Compositor::Color(), Compositor::Color(), 0));
+      compositor()->CreateColoredBox(1, 1, Compositor::Color()));
   compositor()->GetDefaultStage()->AddActor(actor.get());
   EXPECT_TRUE(compositor()->draw_timeout_enabled());
   compositor()->Draw();
@@ -696,8 +692,7 @@ TEST_F(RealCompositorTest, SkipUnneededAnimations) {
 TEST_F(RealCompositorTest, VisibilityGroups) {
   // Add an actor and check that it's initially visible.
   scoped_ptr<RealCompositor::Actor> actor(
-      compositor()->CreateRectangle(
-          Compositor::Color(), Compositor::Color(), 0));
+      compositor()->CreateColoredBox(1, 1, Compositor::Color()));
   compositor()->GetDefaultStage()->AddActor(actor.get());
   EXPECT_TRUE(compositor()->dirty());
   compositor()->Draw();

@@ -702,9 +702,7 @@ void RealCompositor::ContainerActor::LowerChild(
 
 RealCompositor::QuadActor::QuadActor(RealCompositor* compositor)
     : RealCompositor::Actor(compositor),
-      color_(1.f, 1.f, 1.f),
-      border_color_(1.f, 1.f, 1.f),
-      border_width_(0) {
+      color_(1.f, 1.f, 1.f) {
 }
 
 RealCompositor::Actor* RealCompositor::QuadActor::Clone() {
@@ -715,14 +713,29 @@ RealCompositor::Actor* RealCompositor::QuadActor::Clone() {
 
 void RealCompositor::QuadActor::CloneImpl(QuadActor* clone) {
   Actor::CloneImpl(static_cast<RealCompositor::Actor*>(clone));
-  clone->SetColor(color_, border_color_, border_width_);
+  clone->color_ = color_;
   clone->texture_data_ = texture_data_;
+}
+
+void RealCompositor::QuadActor::SetColorInternal(
+    const Compositor::Color& color) {
+  color_ = color;
+  SetDirty();
+}
+
+
+RealCompositor::ColoredBoxActor::ColoredBoxActor(RealCompositor* compositor,
+                                                 int width, int height,
+                                                 const Compositor::Color& color)
+    : QuadActor(compositor) {
+  SetSizeInternal(width, height);
+  SetColorInternal(color);
 }
 
 
 RealCompositor::ImageActor::ImageActor(RealCompositor* compositor)
     : QuadActor(compositor) {
-  Actor::SetSize(0, 0);
+  SetSizeInternal(0, 0);
 }
 
 RealCompositor::Actor* RealCompositor::ImageActor::Clone() {
@@ -734,7 +747,7 @@ RealCompositor::Actor* RealCompositor::ImageActor::Clone() {
 void RealCompositor::ImageActor::SetImageData(
     const ImageContainer& image_container) {
   compositor()->draw_visitor()->BindImage(&image_container, this);
-  Actor::SetSize(image_container.width(), image_container.height());
+  SetSizeInternal(image_container.width(), image_container.height());
   SetDirty();
 }
 
@@ -744,7 +757,7 @@ RealCompositor::TexturePixmapActor::TexturePixmapActor(
     : RealCompositor::QuadActor(compositor),
       pixmap_(0),
       pixmap_is_opaque_(false) {
-  Actor::SetSize(0, 0);
+  SetSizeInternal(0, 0);
 }
 
 RealCompositor::TexturePixmapActor::~TexturePixmapActor() {
@@ -760,7 +773,7 @@ void RealCompositor::TexturePixmapActor::SetPixmap(XID pixmap) {
   if (pixmap_) {
     XConnection::WindowGeometry geometry;
     if (compositor()->x_conn()->GetWindowGeometry(pixmap_, &geometry)) {
-      Actor::SetSize(geometry.width, geometry.height);
+      SetSizeInternal(geometry.width, geometry.height);
       pixmap_is_opaque_ = (geometry.depth != 32);
     } else {
       LOG(WARNING) << "Unable to get geometry for pixmap " << XidStr(pixmap_);
@@ -769,7 +782,7 @@ void RealCompositor::TexturePixmapActor::SetPixmap(XID pixmap) {
   }
 
   if (!pixmap_)
-    Actor::SetSize(0, 0);
+    SetSizeInternal(0, 0);
 
   SetDirty();
 }
@@ -795,7 +808,7 @@ RealCompositor::StageActor::StageActor(RealCompositor* the_compositor,
       stage_color_changed_(true),
       was_resized_(true),
       stage_color_(0.f, 0.f, 0.f) {
-  Actor::SetSize(width, height);
+  SetSizeInternal(width, height);
   SetDirty();
 }
 
@@ -806,7 +819,7 @@ RealCompositor::StageActor::~StageActor() {
 void RealCompositor::StageActor::SetSize(int width, int height) {
   // Have to resize the window to match the stage.
   CHECK(window_) << "Missing window in StageActor::SetSize()";
-  Actor::SetSize(width, height);
+  SetSizeInternal(width, height);
   compositor()->x_conn()->ResizeWindow(window_, width, height);
   was_resized_ = true;
 }
@@ -893,13 +906,9 @@ RealCompositor::ContainerActor* RealCompositor::CreateGroup() {
   return new ContainerActor(this);
 }
 
-RealCompositor::Actor* RealCompositor::CreateRectangle(
-    const Compositor::Color& color,
-    const Compositor::Color& border_color,
-    int border_width) {
-  QuadActor* actor = new QuadActor(this);
-  actor->SetColor(color, border_color, border_width);
-  return actor;
+RealCompositor::ColoredBoxActor* RealCompositor::CreateColoredBox(
+    int width, int height, const Compositor::Color& color) {
+  return new ColoredBoxActor(this, width, height, color);
 }
 
 RealCompositor::ImageActor* RealCompositor::CreateImage() {

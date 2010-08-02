@@ -40,6 +40,7 @@ class XConnection;
 class RealCompositor : public Compositor {
  public:
   class Actor;
+  class ColoredBoxActor;
   class ContainerActor;
   class ImageActor;
   class QuadActor;
@@ -242,11 +243,6 @@ class RealCompositor : public Compositor {
     double GetYScale() { return scale_y_; }
     virtual void Show() { SetIsShown(true); }
     virtual void Hide() { SetIsShown(false); }
-    void SetSize(int width, int height) {
-      width_ = width;
-      height_ = height;
-      SetDirty();
-    }
     void SetName(const std::string& name) { name_ = name; }
     const std::string& name() const { return name_; }
 
@@ -337,11 +333,17 @@ class RealCompositor : public Compositor {
       SetDirty();
     }
 
+    void SetSizeInternal(int width, int height) {
+      width_ = width;
+      height_ = height;
+      SetDirty();
+    }
+
     void CloneImpl(Actor* clone);
 
     // Helper method that can be invoked by derived classes.  Returns a
     // string defining this actor, saying that its type is 'type_name'
-    // (e.g. "RectangleActor", "TexturePixmapActor", etc.).
+    // (e.g. "ColoredBoxActor", "TexturePixmapActor", etc.).
     std::string GetDebugStringInternal(const std::string& type_name,
                                        int indent_level);
 
@@ -482,30 +484,19 @@ class RealCompositor : public Compositor {
     DISALLOW_COPY_AND_ASSIGN(ContainerActor);
   };
 
-  // This class represents a quadrilateral.
+  // This is a base class for quadrilateral actors (ColoredBoxActor,
+  // TexturePixmapActor, and ImageActor).
   class QuadActor : public RealCompositor::Actor {
    public:
-    explicit QuadActor(RealCompositor* compositor);
+    virtual ~QuadActor() {}
+
+    const Compositor::Color& color() const { return color_; }
 
     // Begin Compositor::Actor methods.
     virtual std::string GetDebugString(int indent_level) {
       return GetDebugStringInternal("QuadActor", indent_level);
     }
     // End Compositor::Actor methods.
-
-    void SetColor(const Compositor::Color& color,
-                  const Compositor::Color& border_color,
-                  int border_width) {
-      DCHECK(border_width >= 0);
-      color_ = color;
-      border_color_ = color;
-      border_width_ = border_width;
-    }
-    const Compositor::Color& color() const { return color_; }
-    const Compositor::Color& border_color() const {
-      return border_color_;
-    }
-    const int border_width() const { return border_width_; }
 
     TextureData* texture_data() const { return texture_data_.get(); }
     void set_texture_data(TextureData* texture_data) {
@@ -521,15 +512,49 @@ class RealCompositor : public Compositor {
     virtual Actor* Clone();
 
    protected:
+    explicit QuadActor(RealCompositor* compositor);
+
     void CloneImpl(QuadActor* clone);
 
+    // Used by derived classes to change 'color_'.
+    void SetColorInternal(const Compositor::Color& color);
+
    private:
+    // Color used to draw the quad if it doesn't have any texture data
+    // associated with it.
     Compositor::Color color_;
-    Compositor::Color border_color_;
-    int border_width_;
+
+    // Texture drawn on the quad, or NULL if none should be drawn.
     std::tr1::shared_ptr<TextureData> texture_data_;
 
     DISALLOW_COPY_AND_ASSIGN(QuadActor);
+  };
+
+  class ColoredBoxActor : public RealCompositor::QuadActor,
+                          public Compositor::ColoredBoxActor {
+   public:
+    ColoredBoxActor(RealCompositor* compositor,
+                    int width, int height,
+                    const Compositor::Color& color);
+    virtual ~ColoredBoxActor() {}
+
+    // Begin Compositor::Actor methods.
+    virtual std::string GetDebugString(int indent_level) {
+      return GetDebugStringInternal("ColoredBoxActor", indent_level);
+    }
+    // End Compositor::Actor methods.
+
+    // Begin Compositor::ColoredBoxActor methods.
+    virtual void SetSize(int width, int height) {
+      SetSizeInternal(width, height);
+    }
+    virtual void SetColor(const Compositor::Color& color) {
+      SetColorInternal(color);
+    }
+    // End Compositor::ColoredBoxActor methods.
+
+   private:
+    DISALLOW_COPY_AND_ASSIGN(ColoredBoxActor);
   };
 
   class ImageActor : public RealCompositor::QuadActor,
@@ -539,10 +564,6 @@ class RealCompositor : public Compositor {
     virtual ~ImageActor() {}
 
     // Begin Compositor::Actor methods.
-    virtual void SetSize(int width, int height) {
-      // ImageActors just track the size of their image data.
-      LOG(WARNING) << "Ignoring request to set size of ImageActor";
-    }
     virtual Actor* Clone();
     virtual std::string GetDebugString(int indent_level) {
       return GetDebugStringInternal("ImageActor", indent_level);
@@ -575,10 +596,6 @@ class RealCompositor : public Compositor {
     // Begin Compositor::Actor methods.
     virtual std::string GetDebugString(int indent_level) {
       return GetDebugStringInternal("TexturePixmapActor", indent_level);
-    }
-    // TexturePixmapActors just track the size of their pixmaps.
-    virtual void SetSize(int width, int height) {
-      LOG(WARNING) << "Ignoring request to set size of TexturePixmapActor";
     }
     virtual Actor* Clone() {
       NOTIMPLEMENTED();
@@ -639,7 +656,6 @@ class RealCompositor : public Compositor {
     }
 
     // Begin Compositor::Actor methods.
-    virtual void SetSize(int width, int height);
     virtual Actor* Clone() {
       NOTIMPLEMENTED();
       return NULL;
@@ -656,10 +672,12 @@ class RealCompositor : public Compositor {
     // End RealCompositor::Actor methods.
 
     // Begin Compositor::StageActor methods.
+    virtual void SetSize(int width, int height);
     XWindow GetStageXWindow() { return window_; }
     void SetStageColor(const Compositor::Color& color);
-    void UpdateProjection();
     // End Compositor::StageActor methods.
+
+    void UpdateProjection();
 
     const Compositor::Color& stage_color() const { return stage_color_; }
     bool stage_color_changed() const { return stage_color_changed_; }
@@ -704,9 +722,8 @@ class RealCompositor : public Compositor {
     return texture_pixmap_actor_uses_fast_path_;
   }
   virtual ContainerActor* CreateGroup();
-  virtual Actor* CreateRectangle(const Compositor::Color& color,
-                                 const Compositor::Color& border_color,
-                                 int border_width);
+  virtual ColoredBoxActor* CreateColoredBox(
+      int width, int height, const Compositor::Color& color);
   virtual ImageActor* CreateImage();
   virtual ImageActor* CreateImageFromFile(const std::string& filename);
   virtual TexturePixmapActor* CreateTexturePixmap();

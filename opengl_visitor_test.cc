@@ -70,16 +70,15 @@ class OpenGlVisitorTestTree : public OpenGlVisitorTest {
     group2_.reset(compositor()->CreateGroup());
     group3_.reset(compositor()->CreateGroup());
     group4_.reset(compositor()->CreateGroup());
-    rect1_.reset(compositor()->CreateRectangle(Compositor::Color(),
-                                               Compositor::Color(), 0));
-    rect2_.reset(compositor()->CreateRectangle(Compositor::Color(),
-                                               Compositor::Color(), 0));
-    rect3_.reset(compositor()->CreateRectangle(Compositor::Color(),
-                                               Compositor::Color(), 0));
-
-    rect1_->SetSize(stage_->GetWidth(), stage_->GetHeight());
-    rect2_->SetSize(stage_->GetWidth(), stage_->GetHeight());
-    rect3_->SetSize(stage_->GetWidth(), stage_->GetHeight());
+    rect1_.reset(
+        compositor()->CreateColoredBox(
+            stage_->GetWidth(), stage_->GetHeight(), Compositor::Color()));
+    rect2_.reset(
+        compositor()->CreateColoredBox(
+            stage_->GetWidth(), stage_->GetHeight(), Compositor::Color()));
+    rect3_.reset(
+        compositor()->CreateColoredBox(
+            stage_->GetWidth(), stage_->GetHeight(), Compositor::Color()));
 
     stage_->SetName("stage");
     group1_->SetName("group1");
@@ -137,9 +136,9 @@ class OpenGlVisitorTestTree : public OpenGlVisitorTest {
   scoped_ptr<RealCompositor::ContainerActor> group2_;
   scoped_ptr<RealCompositor::ContainerActor> group3_;
   scoped_ptr<RealCompositor::ContainerActor> group4_;
-  scoped_ptr<RealCompositor::Actor> rect1_;
-  scoped_ptr<RealCompositor::Actor> rect2_;
-  scoped_ptr<RealCompositor::Actor> rect3_;
+  scoped_ptr<RealCompositor::ColoredBoxActor> rect1_;
+  scoped_ptr<RealCompositor::ColoredBoxActor> rect2_;
+  scoped_ptr<RealCompositor::ColoredBoxActor> rect3_;
 };
 
 TEST_F(OpenGlVisitorTestTree, LayerDepth) {
@@ -152,7 +151,7 @@ TEST_F(OpenGlVisitorTestTree, LayerDepth) {
   stage_->Accept(&visitor);
 
   // Code uses a depth range of kMinDepth to kMaxDepth.  Layers are
-  // disributed evenly within that range, except we don't use the
+  // distributed evenly within that range, except we don't use the
   // frontmost or backmost values in that range.
   uint32 max_count = NextPowerOfTwo(static_cast<uint32>(8 + 2));
   float thickness = (RealCompositor::LayerVisitor::kMaxDepth -

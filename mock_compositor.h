@@ -64,10 +64,6 @@ class MockCompositor : public Compositor {
     virtual int GetY() { return y_; }
     virtual double GetXScale() { return scale_x_; }
     virtual double GetYScale() { return scale_y_; }
-    virtual void SetSize(int width, int height) {
-      width_ = width;
-      height_ = height;
-    }
     virtual void Move(int x, int y, int anim_ms) {
       x_ = x;
       y_ = y;
@@ -100,6 +96,11 @@ class MockCompositor : public Compositor {
     // End Compositor::Actor methods.
 
    protected:
+    virtual void SetSizeInternal(int width, int height) {
+      width_ = width;
+      height_ = height;
+    }
+
     std::string name_;
     int x_, y_;
     int width_, height_;
@@ -156,6 +157,9 @@ class MockCompositor : public Compositor {
     virtual ~StageActor() {}
 
     // Begin Compositor::StageActor methods.
+    virtual void SetSize(int width, int height) {
+      SetSizeInternal(width, height);
+    }
     virtual XWindow GetStageXWindow() { return 0; }
     virtual void SetStageColor(const Compositor::Color& color) {}
     // End Compositor::StageActor methods.
@@ -164,23 +168,35 @@ class MockCompositor : public Compositor {
     DISALLOW_COPY_AND_ASSIGN(StageActor);
   };
 
+  class ColoredBoxActor : public MockCompositor::Actor,
+                          public Compositor::ColoredBoxActor {
+   public:
+    ColoredBoxActor(int width, int height, const Compositor::Color& color);
+    virtual ~ColoredBoxActor() {}
+
+    // Begin Compositor::ColoredBoxActor methods.
+    virtual void SetSize(int width, int height) {
+      SetSizeInternal(width, height);
+    }
+    virtual void SetColor(const Compositor::Color& color) { color_ = color; }
+    // End Compositor::ColoredBoxActor methods.
+
+   private:
+    Compositor::Color color_;
+
+    DISALLOW_COPY_AND_ASSIGN(ColoredBoxActor);
+  };
+
   class ImageActor : public MockCompositor::Actor,
                      public Compositor::ImageActor {
    public:
     ImageActor();
     virtual ~ImageActor() {}
 
-    // Begin Compositor::Actor methods.
-    virtual void SetSize(int width, int height) {
-      LOG(FATAL) << "Got attempt to resize ImageActor " << this
-                 << " to " << width << "x" << height
-                 << " (ImageActors must be scaled rather than resized)";
-    }
-    // End Compositor::Actor methods.
-
     // Begin Compositor::ImageActor methods.
     virtual void SetImageData(const ImageContainer& image_container);
     // End Compositor::ImageActor methods.
+
    private:
     DISALLOW_COPY_AND_ASSIGN(ImageActor);
   };
@@ -193,14 +209,6 @@ class MockCompositor : public Compositor {
     const uint8_t* alpha_mask_bytes() const { return alpha_mask_bytes_; }
     XID pixmap() const { return pixmap_; }
     int num_texture_updates() const { return num_texture_updates_; }
-
-    // Begin Compositor::Actor methods.
-    virtual void SetSize(int width, int height) {
-      LOG(FATAL) << "Got attempt to resize TexturePixmapActor " << this
-                 << " to " << width << "x" << height
-                 << " (TexturePixmapActor must be scaled rather than resized)";
-    }
-    // End Compositor::Actor methods.
 
     // Begin Compositor::TexturePixmapActor methods.
     virtual void SetPixmap(XID pixmap);
@@ -241,10 +249,9 @@ class MockCompositor : public Compositor {
   // Begin Compositor methods
   virtual bool TexturePixmapActorUsesFastPath() { return true; }
   virtual ContainerActor* CreateGroup() { return new ContainerActor; }
-  virtual Actor* CreateRectangle(const Compositor::Color& color,
-                                 const Compositor::Color& border_color,
-                                 int border_width) {
-    return new Actor;
+  virtual ColoredBoxActor* CreateColoredBox(int width, int height,
+                                            const Compositor::Color& color) {
+    return new ColoredBoxActor(width, height, color);
   }
   virtual ImageActor* CreateImage() { return new ImageActor; }
   // We always pretend like we successfully loaded a 1x1 image instead of

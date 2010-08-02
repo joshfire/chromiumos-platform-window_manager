@@ -43,7 +43,6 @@ static const int kResizeUpdateMs = 25;
 
 // Appearance of the box used for non-opaque resizing.
 static const char* kResizeBoxBgColor = "#4181f5";
-static const char* kResizeBoxBorderColor = "#234583";
 static const double kResizeBoxOpacity = 0.3;
 
 const int Panel::kResizeBorderWidth = 3;
@@ -240,13 +239,11 @@ void Panel::HandleInputWindowButtonPress(
 
   if (!FLAGS_panel_opaque_resize) {
     DCHECK(!resize_actor_.get());
-    resize_actor_.reset(wm()->compositor()->CreateRectangle(
-                            Compositor::Color(kResizeBoxBgColor),
-                            Compositor::Color(kResizeBoxBorderColor),
-                            1));  // border_width
+    resize_actor_.reset(wm()->compositor()->CreateColoredBox(
+                            content_width(), total_height(),
+                            Compositor::Color(kResizeBoxBgColor)));
     wm()->stage()->AddActor(resize_actor_.get());
     resize_actor_->Move(titlebar_x(), titlebar_y(), 0);
-    resize_actor_->SetSize(content_width(), total_height());
     resize_actor_->SetOpacity(0, 0);
     resize_actor_->SetOpacity(kResizeBoxOpacity, kResizeActorOpacityAnimMs);
     wm()->stacking_manager()->StackActorAtTopOfLayer(

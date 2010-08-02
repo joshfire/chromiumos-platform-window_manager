@@ -661,7 +661,6 @@ void WindowManager::UpdateClientWindowDebugging() {
     return;
 
   static const int kDebugFadeMs = 100;
-  static const Compositor::Color kFgColor(0.f, 0.f, 0.f);
 
   int cnt = 0;
   float step = 6.f / xids.size();
@@ -672,14 +671,14 @@ void WindowManager::UpdateClientWindowDebugging() {
     if (!xconn_->GetWindowGeometry(*it, &geometry))
       continue;
 
-    Compositor::Actor* rect =
-        compositor_->CreateRectangle(bg_color, kFgColor, 1);
+    Compositor::ColoredBoxActor* rect =
+        compositor_->CreateColoredBox(
+            geometry.width, geometry.height, bg_color);
     stage_->AddActor(rect);
     stacking_manager_->StackActorAtTopOfLayer(
         rect, StackingManager::LAYER_DEBUGGING);
     rect->SetName("debug box");
     rect->Move(geometry.x, geometry.y, 0);
-    rect->SetSize(geometry.width, geometry.height);
     rect->SetOpacity(0, 0);
     rect->SetOpacity(0.3, kDebugFadeMs);
     rect->Show();

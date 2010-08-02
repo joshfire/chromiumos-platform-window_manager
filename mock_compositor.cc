@@ -108,13 +108,20 @@ int MockCompositor::ContainerActor::GetStackingIndex(Compositor::Actor* actor) {
 }
 
 
+MockCompositor::ColoredBoxActor::ColoredBoxActor(int width, int height,
+                                                 const Compositor::Color& color)
+    : color_(color) {
+  SetSizeInternal(width, height);
+}
+
+
 MockCompositor::ImageActor::ImageActor() {
-  Actor::SetSize(0, 0);
+  SetSizeInternal(0, 0);
 }
 
 void MockCompositor::ImageActor::SetImageData(
     const ImageContainer& image_container) {
-  Actor::SetSize(image_container.width(), image_container.height());
+  SetSizeInternal(image_container.width(), image_container.height());
 }
 
 
@@ -124,7 +131,7 @@ MockCompositor::TexturePixmapActor::TexturePixmapActor(XConnection* xconn)
       pixmap_(0),
       num_texture_updates_(0),
       damaged_region_() {
-  Actor::SetSize(0, 0);
+  SetSizeInternal(0, 0);
 }
 
 MockCompositor::TexturePixmapActor::~TexturePixmapActor() {
@@ -135,11 +142,9 @@ void MockCompositor::TexturePixmapActor::SetPixmap(XWindow pixmap) {
   pixmap_ = pixmap;
   XConnection::WindowGeometry geometry;
   if (xconn_->GetWindowGeometry(pixmap_, &geometry)) {
-    width_ = geometry.width;
-    height_ = geometry.height;
+    SetSizeInternal(geometry.width, geometry.height);
   } else {
-    width_ = 0;
-    height_ = 0;
+    SetSizeInternal(0, 0);
   }
 }
 

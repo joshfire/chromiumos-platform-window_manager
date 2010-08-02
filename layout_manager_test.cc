@@ -530,10 +530,8 @@ TEST_F(LayoutManagerTest, Resize) {
   MockXConnection::WindowInfo* root_info = xconn_->GetWindowInfoOrDie(root_xid);
 
   // Set up a background Actor.
-  Compositor::Actor* background = compositor_->CreateRectangle(
-      Compositor::Color(0xff, 0xff, 0xff),
-      Compositor::Color(0xff, 0xff, 0xff), 0);
-  background->SetSize(root_info->width, root_info->height);
+  Compositor::ColoredBoxActor* background = compositor_->CreateColoredBox(
+      root_info->width, root_info->height, Compositor::Color());
   lm_->SetBackground(background);
   ASSERT_EQ(root_info->width, background->GetWidth());
   ASSERT_EQ(root_info->height, background->GetHeight());
@@ -892,10 +890,8 @@ TEST_F(LayoutManagerTest, OverviewSpacing) {
   const int window_height = 480;
 
   // Create a background actor.
-  Compositor::Actor* background = compositor_->CreateRectangle(
-      Compositor::Color(0xff, 0xff, 0xff),
-      Compositor::Color(0xff, 0xff, 0xff), 0);
-  background->SetSize(window_width, window_height);
+  Compositor::ColoredBoxActor* background = compositor_->CreateColoredBox(
+      window_width, window_height, Compositor::Color());
   lm_->SetBackground(background);
 
   // Create and map a toplevel window.

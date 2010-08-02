@@ -34,6 +34,7 @@ class Compositor {
     // Returns false if the conversion failed.
     bool SetHex(const std::string& hex_str);
 
+    // Color components in the range [0.0, 1.0].
     float red;
     float green;
     float blue;
@@ -57,7 +58,6 @@ class Compositor {
     virtual double GetXScale() = 0;
     virtual double GetYScale() = 0;
 
-    virtual void SetSize(int width, int height) = 0;
     virtual void Move(int x, int y, int anim_ms) = 0;
     virtual void MoveX(int x, int anim_ms) = 0;
     virtual void MoveY(int y, int anim_ms) = 0;
@@ -108,6 +108,7 @@ class Compositor {
     ContainerActor() {}
     virtual ~ContainerActor() {}
     virtual void AddActor(Actor* actor) = 0;
+
    private:
     DISALLOW_COPY_AND_ASSIGN(ContainerActor);
   };
@@ -116,13 +117,28 @@ class Compositor {
    public:
     StageActor() {}
     virtual ~StageActor() {}
+    virtual void SetSize(int width, int height) = 0;
     virtual XWindow GetStageXWindow() = 0;
     virtual void SetStageColor(const Color &color) = 0;
+
    private:
     DISALLOW_COPY_AND_ASSIGN(StageActor);
   };
 
-  // ImageActor displays static image onscreen.
+  // ColoredBoxActor displays a solid, colored rectangle.
+  class ColoredBoxActor : virtual public Actor {
+   public:
+    ColoredBoxActor() {}
+    virtual ~ColoredBoxActor() {}
+
+    virtual void SetSize(int width, int height) = 0;
+    virtual void SetColor(const Compositor::Color& color) = 0;
+
+   private:
+    DISALLOW_COPY_AND_ASSIGN(ColoredBoxActor);
+  };
+
+  // ImageActor displays a static image onscreen.
   class ImageActor : virtual public Actor {
    public:
     ImageActor() {}
@@ -130,6 +146,7 @@ class Compositor {
 
     // Make the actor display the passed-in image data.
     virtual void SetImageData(const ImageContainer& image_container) = 0;
+
    private:
     DISALLOW_COPY_AND_ASSIGN(ImageActor);
   };
@@ -180,8 +197,8 @@ class Compositor {
   // These methods create new Actor objects.  The caller is responsible for
   // deleting them, even after they have been added to a container.
   virtual ContainerActor* CreateGroup() = 0;
-  virtual Actor* CreateRectangle(const Color& color, const Color& border_color,
-                                 int border_width) = 0;
+  virtual ColoredBoxActor* CreateColoredBox(
+      int width, int height, const Compositor::Color& color) = 0;
   virtual ImageActor* CreateImage() = 0;
   // Convenience method that assigns an image loaded from disk to the actor.
   // TODO: This would ideally be implemented within this base class, but we
