@@ -332,14 +332,15 @@ void LoginController::HandleWindowUnmap(Window* win) {
           if (!guest_window_ && !entries_.empty()) {
             // Update other entries positions on screen.
             if (deleted_index < active_index ||
+                active_index == entries_.size() ||
                 (deleted_index == active_index &&
                  IsGuestEntryIndex(active_index) &&
                  entries_.size() > 1)) {
               // If selected entry was unmapped and next entry is a guest,
               // select previous one.
               --active_index;
-              DCHECK_LT(active_index, entries_.size());
             }
+            DCHECK_LT(active_index, entries_.size());
             SelectEntryAt(active_index);
           }
         }
@@ -420,6 +421,10 @@ void LoginController::HandleChromeMessage(const WmIpc::Message& msg) {
     case chromeos::WM_IPC_MESSAGE_WM_SELECT_LOGIN_USER: {
       if (is_entry_selection_enabled_) {
         size_t select_entry = static_cast<size_t>(msg.param(0));
+        if (select_entry >= entries_.size()) {
+          // Invalid index, just use some valid value instead.
+          select_entry = 0;
+        }
         SelectEntryAt(select_entry);
       }
       break;
@@ -513,6 +518,7 @@ void LoginController::SelectEntryAt(size_t index) {
 
   const size_t last_selected_index = selected_entry_index_;
 
+  DCHECK_LT(index, entries_.size());
   selected_entry_index_ = index;
 
   vector<Point> origins;

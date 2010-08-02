@@ -590,6 +590,21 @@ TEST_F(LoginControllerTest, NoCrashOnInconsistenEntry) {
   UnmapLoginEntry(2);
 }
 
+TEST_F(LoginControllerTest, NoCrashOnReverseOrderEntryDelete) {
+  // This testcase tests that there is no crash/DCHECK if guest entry is active
+  // and unmap event happens for some reason (for example Chrome crashes).
+  CreateLoginWindows(3, true, false);  // create_guest_window=false
+
+  // Select guest entry.
+  SelectEntry(2);
+
+  // Unmap windows in reverse order.
+  UnmapLoginEntry(2);
+  UnmapLoginEntry(1);
+  UnmapLoginEntry(0);
+}
+
+
 }  // namespace window_manager
 
 int main(int argc, char** argv) {
