@@ -16,17 +16,18 @@ extern "C" {
 #include "base/scoped_ptr.h"
 #include "base/logging.h"
 #include "cros/chromeos_wm_ipc_enums.h"
+#include "window_manager/event_loop.h"
 #include "window_manager/key_bindings.h"
 #include "window_manager/mock_compositor.h"
+#include "window_manager/mock_gl_interface.h"
+#include "window_manager/mock_x_connection.h"
+#include "window_manager/real_compositor.h"
 #include "window_manager/stacking_manager.h"
 #include "window_manager/wm_ipc.h"
 #include "window_manager/x_types.h"
 
 namespace window_manager {
 
-class EventLoop;
-class MockCompositor;
-class MockXConnection;
 class Panel;
 class WindowManager;
 
@@ -234,6 +235,66 @@ class BasicWindowManagerTest : public ::testing::Test {
   XWindow creator_content_xid_for_new_panels_;
   chromeos::WmIpcPanelUserResizeType resize_type_for_new_panels_;
 };
+
+
+// Base class for compositing-related tests.
+class BasicCompositingTest : public ::testing::Test {
+ public:
+  BasicCompositingTest() {}
+  virtual ~BasicCompositingTest();
+
+  virtual void SetUp();
+  virtual void TearDown() {}
+
+ protected:
+  scoped_ptr<MockGLInterface> gl_;
+  scoped_ptr<MockXConnection> xconn_;
+  scoped_ptr<EventLoop> event_loop_;
+  scoped_ptr<RealCompositor> compositor_;
+};
+
+class BasicCompositingTreeTest : public BasicCompositingTest {
+ public:
+  BasicCompositingTreeTest() {}
+  virtual ~BasicCompositingTreeTest();
+
+  virtual void SetUp();
+  virtual void TearDown() { BasicCompositingTest::TearDown(); }
+
+ protected:
+  //      stage
+  //      |   |
+  // group1   group3
+  //    |       |
+  // group2   group4
+  //    |     |    |
+  // rect1 rect2  rect3
+  //
+  // A container (with the exception of the stage)'s depth is further away
+  // than that of its children, and earlier-added children within each
+  // container will be further away than later-added children.
+  //
+  // Given the order in which these actors are added in test_lib.cc, the
+  // depths (in nearest to furthest order) should be:
+  //
+  // stage   0
+  // rect3   256
+  // rect2   (culled)
+  // group4  512
+  // group3  768
+  // rect1   (culled)
+  // group2  1024
+  // group1  1280
+  RealCompositor::StageActor* stage_;
+  scoped_ptr<RealCompositor::ContainerActor> group1_;
+  scoped_ptr<RealCompositor::ContainerActor> group2_;
+  scoped_ptr<RealCompositor::ContainerActor> group3_;
+  scoped_ptr<RealCompositor::ContainerActor> group4_;
+  scoped_ptr<RealCompositor::ColoredBoxActor> rect1_;
+  scoped_ptr<RealCompositor::ColoredBoxActor> rect2_;
+  scoped_ptr<RealCompositor::ColoredBoxActor> rect3_;
+};
+
 
 // Simple class that can be used to test callback invocation.
 class TestCallbackCounter {

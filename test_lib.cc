@@ -17,15 +17,12 @@ extern "C" {
 #include "base/string_util.h"
 #include "cros/chromeos_wm_ipc_enums.h"
 #include "window_manager/compositor.h"
-#include "window_manager/event_loop.h"
-#include "window_manager/mock_x_connection.h"
 #include "window_manager/motion_event_coalescer.h"
 #include "window_manager/panel.h"
 #include "window_manager/panel_bar.h"
 #include "window_manager/panel_manager.h"
 #include "window_manager/util.h"
 #include "window_manager/window_manager.h"
-#include "window_manager/wm_ipc.h"
 
 using std::string;
 using std::vector;
@@ -557,6 +554,64 @@ BasicWindowManagerTest::GetMockActorForWindow(Window* win) {
       dynamic_cast<MockCompositor::TexturePixmapActor*>(win->actor());
   CHECK(cast_actor);
   return cast_actor;
+}
+
+
+BasicCompositingTest::~BasicCompositingTest() {}
+
+void BasicCompositingTest::SetUp() {
+  // Make sure that RealCompositor's destructor isn't mucking around with
+  // an already-deleted EventLoop when we start a new test case.
+  // TODO: This originally happened in TearDown(), but that method doesn't
+  // appear to be getting invoked in all cases when it should be, or
+  // perhaps doesn't work as expected in derived classes.
+  compositor_.reset(NULL);
+
+  gl_.reset(new MockGLInterface);
+  xconn_.reset(new MockXConnection);
+  event_loop_.reset(new EventLoop);
+  compositor_.reset(
+      new RealCompositor(event_loop_.get(), xconn_.get(), gl_.get()));
+}
+
+
+BasicCompositingTreeTest::~BasicCompositingTreeTest() {}
+
+void BasicCompositingTreeTest::SetUp() {
+  BasicCompositingTest::SetUp();
+
+  // Create an actor tree to test.
+  stage_ = compositor_->GetDefaultStage();
+  group1_.reset(compositor_->CreateGroup());
+  group2_.reset(compositor_->CreateGroup());
+  group3_.reset(compositor_->CreateGroup());
+  group4_.reset(compositor_->CreateGroup());
+  rect1_.reset(
+      compositor_->CreateColoredBox(
+          stage_->GetWidth(), stage_->GetHeight(), Compositor::Color()));
+  rect2_.reset(
+      compositor_->CreateColoredBox(
+          stage_->GetWidth(), stage_->GetHeight(), Compositor::Color()));
+  rect3_.reset(
+      compositor_->CreateColoredBox(
+          stage_->GetWidth(), stage_->GetHeight(), Compositor::Color()));
+
+  stage_->SetName("stage");
+  group1_->SetName("group1");
+  group2_->SetName("group2");
+  group3_->SetName("group3");
+  group4_->SetName("group4");
+  rect1_->SetName("rect1");
+  rect2_->SetName("rect2");
+  rect3_->SetName("rect3");
+
+  stage_->AddActor(group1_.get());
+  stage_->AddActor(group3_.get());
+  group1_->AddActor(group2_.get());
+  group2_->AddActor(rect1_.get());
+  group3_->AddActor(group4_.get());
+  group4_->AddActor(rect2_.get());
+  group4_->AddActor(rect3_.get());
 }
 
 }  // namespace window_manager

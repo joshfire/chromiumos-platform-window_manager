@@ -781,7 +781,7 @@ class RealCompositor : public Compositor {
   void DecrementNumAnimations();
 
  private:
-  FRIEND_TEST(OpenGlVisitorTestTree, LayerDepth);  // sets actor count
+  FRIEND_TEST(OpenGlVisitorTreeTest, LayerDepth);  // sets actor count
 
   // Used by tests.
   void set_actor_count(int count) { actor_count_ = count; }

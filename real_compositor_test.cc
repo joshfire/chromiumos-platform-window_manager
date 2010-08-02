@@ -47,122 +47,10 @@ class NameCheckVisitor : virtual public RealCompositor::ActorVisitor {
   DISALLOW_COPY_AND_ASSIGN(NameCheckVisitor);
 };
 
-class RealCompositorTest : public ::testing::Test {
- public:
-  RealCompositorTest() {}
-  virtual ~RealCompositorTest() {}
+class RealCompositorTest : public BasicCompositingTest {};
+class RealCompositorTreeTest : public BasicCompositingTreeTest {};
 
-  virtual void SetUp() {
-    gl_interface_.reset(new MockGLInterface);
-    xconn_.reset(new MockXConnection);
-    event_loop_.reset(new EventLoop);
-    compositor_.reset(new RealCompositor(event_loop_.get(),
-                                         xconn_.get(),
-                                         gl_interface_.get()));
-  }
-
-  virtual void TearDown() {
-    compositor_.reset();
-  }
-
-  RealCompositor* compositor() { return compositor_.get(); }
-  MockXConnection* xconn() { return xconn_.get(); }
-  EventLoop* event_loop() { return event_loop_.get(); }
-  MockGLInterface* gl_interface() { return gl_interface_.get(); }
-
- private:
-  scoped_ptr<MockGLInterface> gl_interface_;
-  scoped_ptr<MockXConnection> xconn_;
-  scoped_ptr<EventLoop> event_loop_;
-  scoped_ptr<RealCompositor> compositor_;
-};
-
-class RealCompositorTestTree : public RealCompositorTest {
- public:
-  RealCompositorTestTree() {}
-  virtual ~RealCompositorTestTree() {}
-
-  virtual void SetUp() {
-    RealCompositorTest::SetUp();
-
-    // Create an actor tree to test.
-    stage_ = compositor()->GetDefaultStage();
-    group1_.reset(compositor()->CreateGroup());
-    group2_.reset(compositor()->CreateGroup());
-    group3_.reset(compositor()->CreateGroup());
-    group4_.reset(compositor()->CreateGroup());
-    rect1_.reset(
-        compositor()->CreateColoredBox(
-            stage_->GetWidth(), stage_->GetHeight(), Compositor::Color()));
-    rect2_.reset(
-        compositor()->CreateColoredBox(
-            stage_->GetWidth(), stage_->GetHeight(), Compositor::Color()));
-    rect3_.reset(
-        compositor()->CreateColoredBox(
-            stage_->GetWidth(), stage_->GetHeight(), Compositor::Color()));
-
-    stage_->SetName("stage");
-    group1_->SetName("group1");
-    group2_->SetName("group2");
-    group3_->SetName("group3");
-    group4_->SetName("group4");
-    rect1_->SetName("rect1");
-    rect2_->SetName("rect2");
-    rect3_->SetName("rect3");
-
-    //     stage (0)
-    //     |          |
-    // group1(256)  group3(1024)
-    //    |            |
-    // group2(512)    group4(1280)
-    //   |              |      |
-    // rect1(768)  rect2(1536) rect3(1792)
-
-    // depth order (furthest to nearest) should be:
-    // rect3 = 1792
-    // rect2 = 1536
-    // group4 = 1280
-    // group3 = 1024
-    // rect1 = 768
-    // group2 = 512
-    // group1 = 256
-    // stage = 0
-
-    stage_->AddActor(group1_.get());
-    stage_->AddActor(group3_.get());
-    group1_->AddActor(group2_.get());
-    group2_->AddActor(rect1_.get());
-    group3_->AddActor(group4_.get());
-    group4_->AddActor(rect2_.get());
-    group4_->AddActor(rect3_.get());
-  }
-
-  virtual void TearDown() {
-    // This is in reverse order of creation on purpose...
-    rect3_.reset(NULL);
-    rect2_.reset(NULL);
-    group4_.reset(NULL);
-    rect1_.reset(NULL);
-    group2_.reset(NULL);
-    group3_.reset(NULL);
-    group1_.reset(NULL);
-    stage_ = NULL;
-
-    RealCompositorTest::TearDown();
-  }
-
- protected:
-  RealCompositor::StageActor* stage_;
-  scoped_ptr<RealCompositor::ContainerActor> group1_;
-  scoped_ptr<RealCompositor::ContainerActor> group2_;
-  scoped_ptr<RealCompositor::ContainerActor> group3_;
-  scoped_ptr<RealCompositor::ContainerActor> group4_;
-  scoped_ptr<RealCompositor::ColoredBoxActor> rect1_;
-  scoped_ptr<RealCompositor::ColoredBoxActor> rect2_;
-  scoped_ptr<RealCompositor::ColoredBoxActor> rect3_;
-};
-
-TEST_F(RealCompositorTestTree, LayerDepth) {
+TEST_F(RealCompositorTreeTest, LayerDepth) {
   // Test lower-level layer-setting routines
   int32 count = 0;
   stage_->Update(&count, 0LL);
@@ -195,8 +83,8 @@ TEST_F(RealCompositorTestTree, LayerDepth) {
 
   // Now we test higher-level layer depth results.
   depth = RealCompositor::LayerVisitor::kMinDepth + thickness;
-  compositor()->Draw();
-  EXPECT_EQ(8, compositor()->actor_count());
+  compositor_->Draw();
+  EXPECT_EQ(8, compositor_->actor_count());
 
   EXPECT_FLOAT_EQ(depth, rect3_->z());
   depth += thickness;
@@ -211,7 +99,7 @@ TEST_F(RealCompositorTestTree, LayerDepth) {
   EXPECT_FLOAT_EQ(depth, group1_->z());
 }
 
-TEST_F(RealCompositorTestTree, LayerDepthWithOpacity) {
+TEST_F(RealCompositorTreeTest, LayerDepthWithOpacity) {
   rect3_->SetOpacity(0.5f, 0);
 
   // Test lower-level layer-setting routines
@@ -247,8 +135,8 @@ TEST_F(RealCompositorTestTree, LayerDepthWithOpacity) {
 
   // Now we test higher-level layer depth results.
   depth = RealCompositor::LayerVisitor::kMinDepth + thickness;
-  compositor()->Draw();
-  EXPECT_EQ(8, compositor()->actor_count());
+  compositor_->Draw();
+  EXPECT_EQ(8, compositor_->actor_count());
 
   EXPECT_FLOAT_EQ(depth, rect3_->z());
   depth += thickness;
@@ -264,7 +152,7 @@ TEST_F(RealCompositorTestTree, LayerDepthWithOpacity) {
   EXPECT_FLOAT_EQ(depth, group1_->z());
 }
 
-TEST_F(RealCompositorTestTree, ActorVisitor) {
+TEST_F(RealCompositorTreeTest, ActorVisitor) {
   NameCheckVisitor visitor;
   stage_->Accept(&visitor);
 
@@ -292,8 +180,8 @@ TEST_F(RealCompositorTestTree, ActorVisitor) {
   EXPECT_EQ(expected[7], results[7]);
 }
 
-TEST_F(RealCompositorTestTree, ActorAttributes) {
-  RealCompositor::LayerVisitor layer_visitor(compositor()->actor_count(),
+TEST_F(RealCompositorTreeTest, ActorAttributes) {
+  RealCompositor::LayerVisitor layer_visitor(compositor_->actor_count(),
                                              false);
   stage_->Accept(&layer_visitor);
 
@@ -350,8 +238,8 @@ TEST_F(RealCompositorTestTree, ActorAttributes) {
   EXPECT_FALSE(rect1_->IsVisible());
 }
 
-TEST_F(RealCompositorTestTree, ContainerActorAttributes) {
-  RealCompositor::LayerVisitor layer_visitor(compositor()->actor_count(),
+TEST_F(RealCompositorTreeTest, ContainerActorAttributes) {
+  RealCompositor::LayerVisitor layer_visitor(compositor_->actor_count(),
                                              false);
   stage_->Accept(&layer_visitor);
   rect1_->SetSize(10, 5);
@@ -448,7 +336,7 @@ TEST_F(RealCompositorTest, IntAnimation) {
   EXPECT_EQ(10, value);
 }
 
-TEST_F(RealCompositorTestTree, CloneTest) {
+TEST_F(RealCompositorTreeTest, CloneTest) {
   rect1_->Move(10, 20, 0);
   rect1_->SetSize(100, 200);
   RealCompositor::Actor* clone = rect1_->Clone();
@@ -461,31 +349,31 @@ TEST_F(RealCompositorTestTree, CloneTest) {
 // Test RealCompositor's handling of X events concerning composited windows.
 TEST_F(RealCompositorTest, HandleXEvents) {
   // Draw once initially to make sure that the compositor isn't dirty.
-  compositor()->Draw();
-  EXPECT_FALSE(compositor()->dirty());
+  compositor_->Draw();
+  EXPECT_FALSE(compositor_->dirty());
 
   // Now create an texture pixmap actor and add it to the stage.
   scoped_ptr<Compositor::TexturePixmapActor> actor(
-      compositor()->CreateTexturePixmap());
+      compositor_->CreateTexturePixmap());
 
   RealCompositor::TexturePixmapActor* cast_actor =
       dynamic_cast<RealCompositor::TexturePixmapActor*>(actor.get());
   CHECK(cast_actor);
   cast_actor->Show();
-  compositor()->GetDefaultStage()->AddActor(cast_actor);
-  EXPECT_TRUE(compositor()->dirty());
-  compositor()->Draw();
-  EXPECT_FALSE(compositor()->dirty());
+  compositor_->GetDefaultStage()->AddActor(cast_actor);
+  EXPECT_TRUE(compositor_->dirty());
+  compositor_->Draw();
+  EXPECT_FALSE(compositor_->dirty());
 
-  XWindow xid = xconn()->CreateWindow(
-      xconn()->GetRootWindow(),  // parent
+  XWindow xid = xconn_->CreateWindow(
+      xconn_->GetRootWindow(),  // parent
       0, 0,      // x, y
       400, 300,  // width, height
       false,     // override_redirect=false
       false,     // input_only=false
       0, 0);     // event_mask, visual
-  MockXConnection::WindowInfo* info = xconn()->GetWindowInfoOrDie(xid);
-  XID pixmap_id = xconn()->GetCompositingPixmapForWindow(xid);
+  MockXConnection::WindowInfo* info = xconn_->GetWindowInfoOrDie(xid);
+  XID pixmap_id = xconn_->GetCompositingPixmapForWindow(xid);
 
   // After we bind the actor to the window's pixmap, the actor's size
   // should be updated and the compositor should be marked dirty.
@@ -494,108 +382,108 @@ TEST_F(RealCompositorTest, HandleXEvents) {
   EXPECT_EQ(info->width, cast_actor->GetWidth());
   EXPECT_EQ(info->height, cast_actor->GetHeight());
   EXPECT_TRUE(cast_actor->texture_data() == NULL);
-  EXPECT_TRUE(compositor()->dirty());
+  EXPECT_TRUE(compositor_->dirty());
 
   // The visitor should initialize the texture data from the actor's pixmap.
-  compositor()->Draw();
+  compositor_->Draw();
   EXPECT_TRUE(cast_actor->texture_data() != NULL);
-  EXPECT_FALSE(compositor()->dirty());
+  EXPECT_FALSE(compositor_->dirty());
 
   // Now resize the window.  The new pixmap should be loaded and the old
   // texture data should be discarded.
-  ASSERT_TRUE(xconn()->ResizeWindow(xid, info->width + 20, info->height + 10));
-  ASSERT_TRUE(xconn()->FreePixmap(pixmap_id));
-  pixmap_id = xconn()->GetCompositingPixmapForWindow(xid);
+  ASSERT_TRUE(xconn_->ResizeWindow(xid, info->width + 20, info->height + 10));
+  ASSERT_TRUE(xconn_->FreePixmap(pixmap_id));
+  pixmap_id = xconn_->GetCompositingPixmapForWindow(xid);
   actor->SetPixmap(pixmap_id);
   EXPECT_EQ(pixmap_id, cast_actor->pixmap());
   EXPECT_EQ(info->width, cast_actor->GetWidth());
   EXPECT_EQ(info->height, cast_actor->GetHeight());
   EXPECT_FALSE(cast_actor->texture_data());
-  EXPECT_TRUE(compositor()->dirty());
+  EXPECT_TRUE(compositor_->dirty());
 
   // Now tell the actor to stop tracking the window.
   cast_actor->SetPixmap(0);
   EXPECT_EQ(0, cast_actor->pixmap());
   EXPECT_FALSE(cast_actor->texture_data());
-  EXPECT_TRUE(compositor()->dirty());
+  EXPECT_TRUE(compositor_->dirty());
 
   actor.reset();
-  EXPECT_TRUE(compositor()->dirty());
+  EXPECT_TRUE(compositor_->dirty());
 }
 
 // Check that we don't crash when we delete a group that contains a child.
 TEST_F(RealCompositorTest, DeleteGroup) {
-  scoped_ptr<RealCompositor::ContainerActor> group(compositor()->CreateGroup());
+  scoped_ptr<RealCompositor::ContainerActor> group(compositor_->CreateGroup());
   scoped_ptr<RealCompositor::ColoredBoxActor> rect(
-      compositor()->CreateColoredBox(1, 1, Compositor::Color()));
+      compositor_->CreateColoredBox(1, 1, Compositor::Color()));
 
-  compositor()->GetDefaultStage()->AddActor(group.get());
+  compositor_->GetDefaultStage()->AddActor(group.get());
   group->AddActor(rect.get());
 
   EXPECT_TRUE(rect->parent() == group.get());
   group.reset();
   EXPECT_TRUE(rect->parent() == NULL);
-  compositor()->Draw();
+  compositor_->Draw();
 }
 
 // Test that we enable and disable the draw timeout as needed.
 TEST_F(RealCompositorTest, DrawTimeout) {
   int64_t now = 1000;  // arbitrary
-  compositor()->set_current_time_ms_for_testing(now);
+  compositor_->set_current_time_ms_for_testing(now);
 
   // The compositor should create a draw timeout and draw just once
   // initially.
-  EXPECT_GE(compositor()->draw_timeout_id(), 0);
-  EXPECT_TRUE(compositor()->draw_timeout_enabled());
-  compositor()->Draw();
-  EXPECT_FALSE(compositor()->draw_timeout_enabled());
+  EXPECT_GE(compositor_->draw_timeout_id(), 0);
+  EXPECT_TRUE(compositor_->draw_timeout_enabled());
+  compositor_->Draw();
+  EXPECT_FALSE(compositor_->draw_timeout_enabled());
 
   // After we add an actor, we should draw another frame.
   scoped_ptr<RealCompositor::Actor> actor(
-      compositor()->CreateColoredBox(1, 1, Compositor::Color()));
-  compositor()->GetDefaultStage()->AddActor(actor.get());
-  EXPECT_TRUE(compositor()->draw_timeout_enabled());
-  compositor()->Draw();
-  EXPECT_FALSE(compositor()->draw_timeout_enabled());
+      compositor_->CreateColoredBox(1, 1, Compositor::Color()));
+  compositor_->GetDefaultStage()->AddActor(actor.get());
+  EXPECT_TRUE(compositor_->draw_timeout_enabled());
+  compositor_->Draw();
+  EXPECT_FALSE(compositor_->draw_timeout_enabled());
 
   // Now animate the actor's X position over 100 ms and its Y position over
   // 200 ms.
   actor->MoveX(300, 100);
   actor->MoveY(400, 150);
-  EXPECT_TRUE(compositor()->draw_timeout_enabled());
+  EXPECT_TRUE(compositor_->draw_timeout_enabled());
 
   // If we draw 50 ms later, both animations should still be active, as
   // well as the timeout.
   now += 50;
-  compositor()->set_current_time_ms_for_testing(now);
-  compositor()->Draw();
-  EXPECT_TRUE(compositor()->draw_timeout_enabled());
+  compositor_->set_current_time_ms_for_testing(now);
+  compositor_->Draw();
+  EXPECT_TRUE(compositor_->draw_timeout_enabled());
 
   // After drawing 51 ms later, the first animation will be gone, but we
   // still keep the timeout alive for the second animation.
   now += 51;
-  compositor()->set_current_time_ms_for_testing(now);
-  compositor()->Draw();
-  EXPECT_TRUE(compositor()->draw_timeout_enabled());
+  compositor_->set_current_time_ms_for_testing(now);
+  compositor_->Draw();
+  EXPECT_TRUE(compositor_->draw_timeout_enabled());
 
   // 100 ms later, the second animation has ended, so we should remove the
   // timeout after drawing.
   now += 100;
-  compositor()->set_current_time_ms_for_testing(now);
-  compositor()->Draw();
-  EXPECT_FALSE(compositor()->draw_timeout_enabled());
+  compositor_->set_current_time_ms_for_testing(now);
+  compositor_->Draw();
+  EXPECT_FALSE(compositor_->draw_timeout_enabled());
 
   // If we move the actor instantaneously, we should draw a single frame.
   actor->Move(500, 600, 0);
-  EXPECT_TRUE(compositor()->draw_timeout_enabled());
-  compositor()->Draw();
-  EXPECT_FALSE(compositor()->draw_timeout_enabled());
+  EXPECT_TRUE(compositor_->draw_timeout_enabled());
+  compositor_->Draw();
+  EXPECT_FALSE(compositor_->draw_timeout_enabled());
 
   // We should also draw one more time after deleting the actor.
   actor.reset();
-  EXPECT_TRUE(compositor()->draw_timeout_enabled());
-  compositor()->Draw();
-  EXPECT_FALSE(compositor()->draw_timeout_enabled());
+  EXPECT_TRUE(compositor_->draw_timeout_enabled());
+  compositor_->Draw();
+  EXPECT_FALSE(compositor_->draw_timeout_enabled());
 
   // TODO: Test the durations that we set for for the timeout.
 }
@@ -604,12 +492,12 @@ TEST_F(RealCompositorTest, DrawTimeout) {
 // overlapping animations for the same field.
 TEST_F(RealCompositorTest, ReplaceAnimations) {
   int64_t now = 1000;  // arbitrary
-  compositor()->set_current_time_ms_for_testing(now);
+  compositor_->set_current_time_ms_for_testing(now);
 
   scoped_ptr<RealCompositor::Actor> actor(
-      compositor()->CreateColoredBox(1, 1, Compositor::Color()));
-  compositor()->GetDefaultStage()->AddActor(actor.get());
-  compositor()->Draw();
+      compositor_->CreateColoredBox(1, 1, Compositor::Color()));
+  compositor_->GetDefaultStage()->AddActor(actor.get());
+  compositor_->Draw();
 
   // Create 500-ms animations of the actor's X position to 200 and its
   // Y position to 300, but then replace the Y animation with one that goes
@@ -620,8 +508,8 @@ TEST_F(RealCompositorTest, ReplaceAnimations) {
   // 101 ms later, the actor should be at the final Y position but not yet
   // at the final X position.
   now += 101;
-  compositor()->set_current_time_ms_for_testing(now);
-  compositor()->Draw();
+  compositor_->set_current_time_ms_for_testing(now);
+  compositor_->Draw();
   EXPECT_EQ(800, actor->GetY());
   EXPECT_LT(actor->GetX(), 200);
 
@@ -630,8 +518,8 @@ TEST_F(RealCompositorTest, ReplaceAnimations) {
   // (i.e. the longer-running animation to 300 was replaced by the one to
   // 800).
   now += 400;
-  compositor()->set_current_time_ms_for_testing(now);
-  compositor()->Draw();
+  compositor_->set_current_time_ms_for_testing(now);
+  compositor_->Draw();
   EXPECT_EQ(200, actor->GetX());
   EXPECT_EQ(800, actor->GetY());
 
@@ -639,8 +527,8 @@ TEST_F(RealCompositorTest, ReplaceAnimations) {
   // After 100 ms, we should be halfway to the final scale (at 3/4 scale).
   actor->Scale(0.5, 0.5, 200);
   now += 100;
-  compositor()->set_current_time_ms_for_testing(now);
-  compositor()->Draw();
+  compositor_->set_current_time_ms_for_testing(now);
+  compositor_->Draw();
   EXPECT_FLOAT_EQ(0.75, actor->GetXScale());
   EXPECT_FLOAT_EQ(0.75, actor->GetYScale());
 
@@ -650,101 +538,101 @@ TEST_F(RealCompositorTest, ReplaceAnimations) {
   // scale.
   actor->Scale(1.0, 1.0, 200);
   now += 100;
-  compositor()->set_current_time_ms_for_testing(now);
-  compositor()->Draw();
+  compositor_->set_current_time_ms_for_testing(now);
+  compositor_->Draw();
   EXPECT_FLOAT_EQ(0.875, actor->GetXScale());
   EXPECT_FLOAT_EQ(0.875, actor->GetYScale());
 
   // After another 100 ms, we should be back at the original scale.
   now += 100;
-  compositor()->set_current_time_ms_for_testing(now);
-  compositor()->Draw();
+  compositor_->set_current_time_ms_for_testing(now);
+  compositor_->Draw();
   EXPECT_FLOAT_EQ(1, actor->GetXScale());
   EXPECT_FLOAT_EQ(1, actor->GetYScale());
 }
 
 TEST_F(RealCompositorTest, SkipUnneededAnimations) {
   int64_t now = 1000;  // arbitrary
-  compositor()->set_current_time_ms_for_testing(now);
+  compositor_->set_current_time_ms_for_testing(now);
 
   // After we add an actor, we should draw a frame.
   scoped_ptr<RealCompositor::Actor> actor(
-      compositor()->CreateColoredBox(1, 1, Compositor::Color()));
-  compositor()->GetDefaultStage()->AddActor(actor.get());
-  EXPECT_TRUE(compositor()->draw_timeout_enabled());
-  compositor()->Draw();
-  EXPECT_FALSE(compositor()->draw_timeout_enabled());
+      compositor_->CreateColoredBox(1, 1, Compositor::Color()));
+  compositor_->GetDefaultStage()->AddActor(actor.get());
+  EXPECT_TRUE(compositor_->draw_timeout_enabled());
+  compositor_->Draw();
+  EXPECT_FALSE(compositor_->draw_timeout_enabled());
 
   // Set the actor's X position.  We should draw just once.
   // 200 ms.
   actor->MoveX(300, 0);
-  EXPECT_TRUE(compositor()->draw_timeout_enabled());
-  compositor()->Draw();
-  EXPECT_FALSE(compositor()->draw_timeout_enabled());
+  EXPECT_TRUE(compositor_->draw_timeout_enabled());
+  compositor_->Draw();
+  EXPECT_FALSE(compositor_->draw_timeout_enabled());
 
   // We shouldn't do any drawing if we animate to the same position that
   // we're already in.
   actor->MoveX(300, 200);
-  EXPECT_FALSE(compositor()->draw_timeout_enabled());
+  EXPECT_FALSE(compositor_->draw_timeout_enabled());
 }
 
 // Test that the compositor handles visibility groups correctly.
 TEST_F(RealCompositorTest, VisibilityGroups) {
   // Add an actor and check that it's initially visible.
   scoped_ptr<RealCompositor::Actor> actor(
-      compositor()->CreateColoredBox(1, 1, Compositor::Color()));
-  compositor()->GetDefaultStage()->AddActor(actor.get());
-  EXPECT_TRUE(compositor()->dirty());
-  compositor()->Draw();
-  EXPECT_FALSE(compositor()->dirty());
+      compositor_->CreateColoredBox(1, 1, Compositor::Color()));
+  compositor_->GetDefaultStage()->AddActor(actor.get());
+  EXPECT_TRUE(compositor_->dirty());
+  compositor_->Draw();
+  EXPECT_FALSE(compositor_->dirty());
   EXPECT_TRUE(actor->IsVisible());
 
   // Adding or removing the actor from a visibility group while the
   // compositor isn't using visibility groups should have no effect.
   actor->AddToVisibilityGroup(1);
-  EXPECT_FALSE(compositor()->dirty());
+  EXPECT_FALSE(compositor_->dirty());
   EXPECT_TRUE(actor->IsVisible());
   actor->RemoveFromVisibilityGroup(1);
-  EXPECT_FALSE(compositor()->dirty());
+  EXPECT_FALSE(compositor_->dirty());
 
   // Now tell the compositor to only show visibility group 1.  The actor
   // isn't in that group anymore, so it should be invisible.
   unordered_set<int> groups;
   groups.insert(1);
-  compositor()->SetActiveVisibilityGroups(groups);
-  EXPECT_TRUE(compositor()->dirty());
+  compositor_->SetActiveVisibilityGroups(groups);
+  EXPECT_TRUE(compositor_->dirty());
   EXPECT_FALSE(actor->IsVisible());
-  compositor()->Draw();
+  compositor_->Draw();
 
   // The stage shouldn't care about visibility groups.
-  EXPECT_TRUE(compositor()->GetDefaultStage()->IsVisible());
+  EXPECT_TRUE(compositor_->GetDefaultStage()->IsVisible());
 
   // Add the actor to visibility group 2 and make sure that it's still hidden.
   actor->AddToVisibilityGroup(2);
-  EXPECT_TRUE(compositor()->dirty());
+  EXPECT_TRUE(compositor_->dirty());
   EXPECT_FALSE(actor->IsVisible());
-  compositor()->Draw();
+  compositor_->Draw();
 
   // Now add it to visibility group 1 and make sure that it gets shown.
   actor->AddToVisibilityGroup(1);
-  EXPECT_TRUE(compositor()->dirty());
+  EXPECT_TRUE(compositor_->dirty());
   EXPECT_TRUE(actor->IsVisible());
-  compositor()->Draw();
+  compositor_->Draw();
 
   // Remove it from both groups and check that it's hidden again.
   actor->RemoveFromVisibilityGroup(1);
   actor->RemoveFromVisibilityGroup(2);
-  EXPECT_TRUE(compositor()->dirty());
+  EXPECT_TRUE(compositor_->dirty());
   EXPECT_FALSE(actor->IsVisible());
-  compositor()->Draw();
+  compositor_->Draw();
 
   // Now disable visibility groups in the compositor and check that the
   // actor is visible.
   groups.clear();
-  compositor()->SetActiveVisibilityGroups(groups);
-  EXPECT_TRUE(compositor()->dirty());
+  compositor_->SetActiveVisibilityGroups(groups);
+  EXPECT_TRUE(compositor_->dirty());
   EXPECT_TRUE(actor->IsVisible());
-  compositor()->Draw();
+  compositor_->Draw();
 }
 
 // Test RealCompositor's handling of partial updates.
@@ -752,55 +640,55 @@ TEST_F(RealCompositorTest, PartialUpdates) {
   // Need to set the stage actor's size large enough to test partial updates.
   const int stage_width = 1366;
   const int stage_height = 768;
-  compositor()->GetDefaultStage()->SetSize(stage_width, stage_height);
-  ASSERT_EQ(stage_width, compositor()->GetDefaultStage()->GetWidth());
-  ASSERT_EQ(stage_height, compositor()->GetDefaultStage()->GetHeight());
+  compositor_->GetDefaultStage()->SetSize(stage_width, stage_height);
+  ASSERT_EQ(stage_width, compositor_->GetDefaultStage()->GetWidth());
+  ASSERT_EQ(stage_height, compositor_->GetDefaultStage()->GetHeight());
 
   // Now create an texture pixmap actor and add it to the stage.
   scoped_ptr<Compositor::TexturePixmapActor> actor(
-      compositor()->CreateTexturePixmap());
+      compositor_->CreateTexturePixmap());
 
   RealCompositor::TexturePixmapActor* cast_actor =
       dynamic_cast<RealCompositor::TexturePixmapActor*>(actor.get());
   CHECK(cast_actor);
   cast_actor->Show();
-  compositor()->GetDefaultStage()->AddActor(cast_actor);
-  compositor()->Draw();
-  EXPECT_FALSE(compositor()->dirty());
+  compositor_->GetDefaultStage()->AddActor(cast_actor);
+  compositor_->Draw();
+  EXPECT_FALSE(compositor_->dirty());
 
-  XWindow xid = xconn()->CreateWindow(
-      xconn()->GetRootWindow(),  // parent
+  XWindow xid = xconn_->CreateWindow(
+      xconn_->GetRootWindow(),  // parent
       0, 0,       // x, y
       1366, 768,  // width, height
       false,      // override_redirect=false
       false,      // input_only=false
       0, 0);      // event_mask, visual
-  XID pixmap_id = xconn()->GetCompositingPixmapForWindow(xid);
+  XID pixmap_id = xconn_->GetCompositingPixmapForWindow(xid);
 
   // After we bind the actor to the window's pixmap, the actor's size
   // should be updated and the compositor should be marked dirty.
   cast_actor->SetPixmap(pixmap_id);
-  int full_updates_count = gl_interface()->full_updates_count();
-  int partial_updates_count = gl_interface()->partial_updates_count();
-  compositor()->Draw();
-  EXPECT_FALSE(compositor()->dirty());
+  int full_updates_count = gl_->full_updates_count();
+  int partial_updates_count = gl_->partial_updates_count();
+  compositor_->Draw();
+  EXPECT_FALSE(compositor_->dirty());
   ++full_updates_count;
-  EXPECT_EQ(gl_interface()->full_updates_count(), full_updates_count);
-  EXPECT_EQ(gl_interface()->partial_updates_count(), partial_updates_count);
+  EXPECT_EQ(gl_->full_updates_count(), full_updates_count);
+  EXPECT_EQ(gl_->partial_updates_count(), partial_updates_count);
 
   // Mark part of the window as dirty. The next time we draw, partial updates
   // should happen.
-  EXPECT_TRUE(gl_interface()->IsCapableOfPartialUpdates());
+  EXPECT_TRUE(gl_->IsCapableOfPartialUpdates());
   Rect damaged_region(44, 28, 12, 13);
   cast_actor->MergeDamagedRegion(damaged_region);
-  compositor()->SetPartiallyDirty();
-  EXPECT_FALSE(compositor()->dirty());
-  compositor()->Draw();
+  compositor_->SetPartiallyDirty();
+  EXPECT_FALSE(compositor_->dirty());
+  compositor_->Draw();
   ++partial_updates_count;
-  EXPECT_FALSE(compositor()->dirty());
-  EXPECT_EQ(gl_interface()->full_updates_count(), full_updates_count);
-  EXPECT_EQ(gl_interface()->partial_updates_count(), partial_updates_count);
-  const Rect& updated_region = gl_interface()->partial_updates_region();
+  EXPECT_FALSE(compositor_->dirty());
+  EXPECT_EQ(gl_->full_updates_count(), full_updates_count);
+  EXPECT_EQ(gl_->partial_updates_count(), partial_updates_count);
+  const Rect& updated_region = gl_->partial_updates_region();
   // Damaged region is defined relative to the window where (0, 0) is top_left
   // and (w, h) is bottom_right.  CopyGlxSubBuffer's region is defined relative
   // to the screen where (0, 0) is bottom_left and (w, h) is top_right.
