@@ -324,6 +324,29 @@ void KeyBindings::UngrabKey(KeyCode keycode, uint32_t modifiers) {
 }
 
 
+KeyBindingsActionRegistrar::~KeyBindingsActionRegistrar() {
+  for (set<string>::const_iterator it = action_names_.begin();
+       it != action_names_.end(); ++it) {
+    bindings_->RemoveAction(*it);
+  }
+}
+
+bool KeyBindingsActionRegistrar::AddAction(const std::string& action_name,
+                                           Closure* begin_closure,
+                                           Closure* repeat_closure,
+                                           Closure* end_closure) {
+  bool result = bindings_->AddAction(action_name,
+                                     begin_closure,
+                                     repeat_closure,
+                                     end_closure);
+  if (result) {
+    CHECK(action_names_.insert(action_name).second)
+        << "Action " << action_name << " has already been registered";
+  }
+  return result;
+}
+
+
 KeyBindingsGroup::KeyBindingsGroup(KeyBindings* bindings)
     : bindings_(bindings),
       enabled_(true) {

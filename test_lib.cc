@@ -6,6 +6,9 @@
 
 #include <vector>
 
+extern "C" {
+#include <X11/XF86keysym.h>
+}
 #include <gflags/gflags.h>
 
 #include "base/command_line.h"
@@ -96,20 +99,7 @@ void BasicWindowManagerTest::SetUp() {
   SetCurrentTimeForTest(-1, 0);
   event_loop_.reset(new EventLoop);
   xconn_.reset(new MockXConnection);
-
-  // Register some fake mappings for common keysyms so that we won't get a
-  // bunch of errors in the logs when we try to add bindings for them.
-  KeyCode next_keycode = 1;
-  for (int i = 0; i < 26; ++i, ++next_keycode) {
-    xconn_->AddKeyMapping(next_keycode, XK_A + i);
-    xconn_->AddKeyMapping(next_keycode, XK_a + i);
-  }
-  for (int i = 0; i < 10; ++i, ++next_keycode)
-    xconn_->AddKeyMapping(next_keycode, XK_0 + i);
-  for (int i = 0; i < 12; ++i, ++next_keycode)
-    xconn_->AddKeyMapping(next_keycode, XK_F1 + i);
-  xconn_->AddKeyMapping(next_keycode++, XK_Print);
-  xconn_->AddKeyMapping(next_keycode++, XK_Tab);
+  RegisterCommonKeySyms();
 
   SetLoggedInState(true);
   compositor_.reset(new MockCompositor(xconn_.get()));
@@ -128,6 +118,31 @@ void BasicWindowManagerTest::SetUp() {
   // Make the PanelManager's event coalescer run in synchronous mode; its
   // timer will never get triggered from within a test.
   wm_->panel_manager_->dragged_panel_event_coalescer_->set_synchronous(true);
+}
+
+void BasicWindowManagerTest::RegisterCommonKeySyms() {
+  CHECK(xconn_.get());
+
+  // Register some fake mappings for common keysyms so that we won't get a
+  // bunch of errors in the logs when we try to add bindings for them.
+  KeyCode next_keycode = 1;
+  for (int i = 0; i < 26; ++i, ++next_keycode) {
+    xconn_->AddKeyMapping(next_keycode, XK_A + i);
+    xconn_->AddKeyMapping(next_keycode, XK_a + i);
+  }
+  for (int i = 0; i < 10; ++i, ++next_keycode)
+    xconn_->AddKeyMapping(next_keycode, XK_0 + i);
+  for (int i = 0; i < 12; ++i, ++next_keycode)
+    xconn_->AddKeyMapping(next_keycode, XK_F1 + i);
+  xconn_->AddKeyMapping(next_keycode++, XK_Print);
+  xconn_->AddKeyMapping(next_keycode++, XK_Tab);
+  xconn_->AddKeyMapping(next_keycode++, XK_Return);
+  xconn_->AddKeyMapping(next_keycode++, XK_Escape);
+  xconn_->AddKeyMapping(next_keycode++, XK_Left);
+  xconn_->AddKeyMapping(next_keycode++, XK_Right);
+  xconn_->AddKeyMapping(next_keycode++, XF86XK_AudioLowerVolume);
+  xconn_->AddKeyMapping(next_keycode++, XF86XK_AudioMute);
+  xconn_->AddKeyMapping(next_keycode++, XF86XK_AudioRaiseVolume);
 }
 
 void BasicWindowManagerTest::CreateAndInitNewWm() {

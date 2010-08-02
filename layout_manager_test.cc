@@ -702,7 +702,6 @@ TEST_F(LayoutManagerTest, ChangeCurrentSnapshot) {
 
   // Now change snapshots by moving "back" one using the left arrow key.
   long event_time = wm_->GetCurrentTimeFromServer();
-  xconn_->AddKeyMapping(74, XK_Left);
   KeyBindings::KeyCombo left_key(XK_Left, 0);
   SendKey(xconn_->GetRootWindow(), left_key, event_time - 1, event_time);
 
@@ -1028,6 +1027,7 @@ TEST_F(LayoutManagerTest, InitialWindowStacking) {
   // Reset everything so we can start from scratch.
   wm_.reset(NULL);
   xconn_.reset(new MockXConnection);
+  RegisterCommonKeySyms();
   event_loop_.reset(new EventLoop);
   compositor_.reset(new MockCompositor(xconn_.get()));
   lm_ = NULL;

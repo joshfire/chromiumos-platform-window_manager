@@ -27,6 +27,7 @@
 namespace window_manager {
 
 class EventConsumerRegistrar;
+class KeyBindingsActionRegistrar;
 class KeyBindingsGroup;
 class MotionEventCoalescer;
 class PanelManager;
@@ -478,6 +479,9 @@ class LayoutManager : public EventConsumer,
 
   // Event registrations for the layout manager itself.
   scoped_ptr<EventConsumerRegistrar> event_consumer_registrar_;
+
+  // Key binding actions that we've registered.
+  scoped_ptr<KeyBindingsActionRegistrar> key_bindings_actions_;
 
   // Groups of key bindings that are relevant to different modes.
   scoped_ptr<KeyBindingsGroup> active_mode_key_bindings_group_;

@@ -58,6 +58,26 @@ static const double kSeparatorHeightRatio = 0.8;
 // The width of the separator in pixels.
 static const int kSeparatorWidth = 2;
 
+// Various keybinding action names (finally made into static globals since
+// they keep getting typoed).
+static const char* kSwitchToOverviewModeAction = "switch-to-overview-mode";
+static const char* kSwitchToActiveModeAction = "switch-to-active-mode";
+static const char* kCycleToplevelForwardAction = "cycle-toplevel-forward";
+static const char* kCycleToplevelBackwardAction = "cycle-toplevel-backward";
+static const char* kCycleSnapshotForwardAction = "cycle-snapshot-forward";
+static const char* kCycleSnapshotBackwardAction = "cycle-snapshot-backward";
+static const char* kSwitchToActiveModeForSelectedAction =
+    "switch-to-active-mode-for-selected";
+static const char* kSelectToplevelWithIndexActionFormat =
+    "select-toplevel-with-index-%d";
+static const char* kSelectSnapshotWithIndexActionFormat =
+    "select-snapshot-with-index-%d";
+static const char* kSelectLastToplevelAction = "select-last-toplevel";
+static const char* kSelectLastSnapshotAction = "select-last-snapshot";
+static const char* kCloseCurrentToplevelAction = "close-current-toplevel";
+static const char* kPanOverviewModeLeftAction = "pan-overview-mode-left";
+static const char* kPanOverviewModeRightAction = "pan-overview-mode-right";
+
 const double LayoutManager::kOverviewGroupSpacing = 0.03;
 const double LayoutManager::kOverviewSelectedPadding = 4.0;
 const double LayoutManager::kOverviewWindowMaxSizeRatio = 0.7;
@@ -95,6 +115,7 @@ LayoutManager::LayoutManager(WindowManager* wm, PanelManager* panel_manager)
       saw_map_request_(false),
       first_toplevel_chrome_window_mapped_(false),
       event_consumer_registrar_(new EventConsumerRegistrar(wm, this)),
+      key_bindings_actions_(new KeyBindingsActionRegistrar(wm->key_bindings())),
       active_mode_key_bindings_group_(new KeyBindingsGroup(wm->key_bindings())),
       overview_mode_key_bindings_group_(
           new KeyBindingsGroup(wm->key_bindings())),
@@ -122,168 +143,149 @@ LayoutManager::LayoutManager(WindowManager* wm, PanelManager* panel_manager)
       background_xid_, 1, event_mask, false);
   event_consumer_registrar_->RegisterForWindowEvents(background_xid_);
 
-  KeyBindings* kb = wm_->key_bindings();
-
-  kb->AddAction(
-      "switch-to-overview-mode",
+  key_bindings_actions_->AddAction(
+      kSwitchToOverviewModeAction,
       NewPermanentCallback(this, &LayoutManager::SetMode, MODE_OVERVIEW),
       NULL, NULL);
   active_mode_key_bindings_group_->AddBinding(
-      KeyBindings::KeyCombo(XK_F3, 0), "switch-to-overview-mode");
+      KeyBindings::KeyCombo(XK_F3, 0), kSwitchToOverviewModeAction);
 
-  kb->AddAction(
-      "switch-to-active-mode",
+  key_bindings_actions_->AddAction(
+      kSwitchToActiveModeAction,
       NewPermanentCallback(this, &LayoutManager::SetMode,
                            MODE_ACTIVE_CANCELLED),
       NULL, NULL);
   overview_mode_key_bindings_group_->AddBinding(
-      KeyBindings::KeyCombo(XK_Escape, 0), "switch-to-active-mode");
+      KeyBindings::KeyCombo(XK_Escape, 0), kSwitchToActiveModeAction);
 
-  kb->AddAction(
-      "cycle-toplevel-forward",
+  key_bindings_actions_->AddAction(
+      kCycleToplevelForwardAction,
       NewPermanentCallback(
           this, &LayoutManager::CycleCurrentToplevelWindow, true),
       NULL, NULL);
   active_mode_key_bindings_group_->AddBinding(
       KeyBindings::KeyCombo(XK_Tab, KeyBindings::kAltMask),
-      "cycle-toplevel-forward");
+      kCycleToplevelForwardAction);
 
-  kb->AddAction(
-      "cycle-toplevel-backward",
+  key_bindings_actions_->AddAction(
+      kCycleToplevelBackwardAction,
       NewPermanentCallback(
           this, &LayoutManager::CycleCurrentToplevelWindow, false),
       NULL, NULL);
   active_mode_key_bindings_group_->AddBinding(
       KeyBindings::KeyCombo(
           XK_Tab, KeyBindings::kAltMask | KeyBindings::kShiftMask),
-      "cycle-toplevel-backward");
+      kCycleToplevelBackwardAction);
 
-  kb->AddAction(
-      "cycle-snapshot-forward",
+  key_bindings_actions_->AddAction(
+      kCycleSnapshotForwardAction,
       NewPermanentCallback(
           this, &LayoutManager::CycleCurrentSnapshotWindow, true),
       NULL, NULL);
   overview_mode_key_bindings_group_->AddBinding(
-      KeyBindings::KeyCombo(XK_Right, 0), "cycle-snapshot-forward");
+      KeyBindings::KeyCombo(XK_Right, 0), kCycleSnapshotForwardAction);
   overview_mode_key_bindings_group_->AddBinding(
       KeyBindings::KeyCombo(XK_Tab, KeyBindings::kAltMask),
-      "cycle-snapshot-forward");
+      kCycleSnapshotForwardAction);
   overview_mode_key_bindings_group_->AddBinding(
-      KeyBindings::KeyCombo(XK_F2, 0), "cycle-snapshot-forward");
+      KeyBindings::KeyCombo(XK_F2, 0), kCycleSnapshotForwardAction);
 
-  kb->AddAction(
-      "cycle-snapshot-backward",
+  key_bindings_actions_->AddAction(
+      kCycleSnapshotBackwardAction,
       NewPermanentCallback(
           this, &LayoutManager::CycleCurrentSnapshotWindow, false),
       NULL, NULL);
   overview_mode_key_bindings_group_->AddBinding(
-      KeyBindings::KeyCombo(XK_Left, 0), "cycle-snapshot-backward");
+      KeyBindings::KeyCombo(XK_Left, 0), kCycleSnapshotBackwardAction);
   overview_mode_key_bindings_group_->AddBinding(
       KeyBindings::KeyCombo(
           XK_Tab, KeyBindings::kAltMask | KeyBindings::kShiftMask),
-      "cycle-snapshot-backward");
+      kCycleSnapshotBackwardAction);
   overview_mode_key_bindings_group_->AddBinding(
-      KeyBindings::KeyCombo(XK_F1, 0), "cycle-snapshot-backward");
+      KeyBindings::KeyCombo(XK_F1, 0), kCycleSnapshotBackwardAction);
 
-  kb->AddAction(
-      "switch-to-active-mode-for-selected",
+  key_bindings_actions_->AddAction(
+      kSwitchToActiveModeForSelectedAction,
       NewPermanentCallback(this, &LayoutManager::SetMode, MODE_ACTIVE),
       NULL, NULL);
   overview_mode_key_bindings_group_->AddBinding(
       KeyBindings::KeyCombo(XK_Return, 0),
-      "switch-to-active-mode-for-selected");
+      kSwitchToActiveModeForSelectedAction);
   overview_mode_key_bindings_group_->AddBinding(
-      KeyBindings::KeyCombo(XK_F3, 0), "switch-to-active-mode-for-selected");
+      KeyBindings::KeyCombo(XK_F3, 0), kSwitchToActiveModeForSelectedAction);
 
   for (int i = 0; i < 8; ++i) {
-    kb->AddAction(
-        StringPrintf("activate-toplevel-with-index-%d", i),
+    key_bindings_actions_->AddAction(
+        StringPrintf(kSelectToplevelWithIndexActionFormat, i),
         NewPermanentCallback(
             this, &LayoutManager::HandleToplevelChangeRequest, i),
         NULL, NULL);
     active_mode_key_bindings_group_->AddBinding(
         KeyBindings::KeyCombo(XK_1 + i, KeyBindings::kAltMask),
-        StringPrintf("activate-toplevel-with-index-%d", i));
+        StringPrintf(kSelectToplevelWithIndexActionFormat, i));
 
-    kb->AddAction(
-        StringPrintf("select-snapshot-with-index-%d", i),
+    key_bindings_actions_->AddAction(
+        StringPrintf(kSelectSnapshotWithIndexActionFormat, i),
         NewPermanentCallback(
             this, &LayoutManager::HandleSnapshotChangeRequest, i),
         NULL, NULL);
     overview_mode_key_bindings_group_->AddBinding(
         KeyBindings::KeyCombo(XK_1 + i, KeyBindings::kAltMask),
-        StringPrintf("select-snapshot-with-index-%d", i));
+        StringPrintf(kSelectSnapshotWithIndexActionFormat, i));
   }
 
-  kb->AddAction(
-      "activate-last-toplevel",
+  key_bindings_actions_->AddAction(
+      kSelectLastToplevelAction,
       NewPermanentCallback(
           this, &LayoutManager::HandleToplevelChangeRequest, -1),
       NULL, NULL);
   active_mode_key_bindings_group_->AddBinding(
       KeyBindings::KeyCombo(XK_9, KeyBindings::kAltMask),
-      "activate-last-toplevel");
+      kSelectLastToplevelAction);
 
-  kb->AddAction(
-      "select-last-snapshot",
+  key_bindings_actions_->AddAction(
+      kSelectLastSnapshotAction,
       NewPermanentCallback(
           this, &LayoutManager::HandleSnapshotChangeRequest, -1),
       NULL, NULL);
   overview_mode_key_bindings_group_->AddBinding(
       KeyBindings::KeyCombo(XK_9, KeyBindings::kAltMask),
-      "select-last-snapshot");
+      kSelectLastToplevelAction);
 
   // TODO: When we support closing tabs in snapshot mode, we should
   // bind that function to ctrl-w here.
-  kb->AddAction(
-      "delete-active-window",
+  key_bindings_actions_->AddAction(
+      kCloseCurrentToplevelAction,
       NewPermanentCallback(
           this, &LayoutManager::SendDeleteRequestToCurrentToplevel),
       NULL, NULL);
   active_mode_key_bindings_group_->AddBinding(
       KeyBindings::KeyCombo(
           XK_w, KeyBindings::kControlMask | KeyBindings::kShiftMask),
-      "delete-active-window");
+      kCloseCurrentToplevelAction);
 
   // TODO: Choose better key bindings for panning in overview mode; these
   // were just stupid placeholders that were used for testing.
-  kb->AddAction(
-      "pan-overview-mode-left",
+  key_bindings_actions_->AddAction(
+      kPanOverviewModeLeftAction,
       NewPermanentCallback(this, &LayoutManager::PanOverviewMode, -50),
       NULL, NULL);
   overview_mode_key_bindings_group_->AddBinding(
       KeyBindings::KeyCombo(XK_h, KeyBindings::kAltMask),
-      "pan-overview-mode-left");
+      kPanOverviewModeLeftAction);
 
-  kb->AddAction(
-      "pan-overview-mode-right",
+  key_bindings_actions_->AddAction(
+      kPanOverviewModeRightAction,
       NewPermanentCallback(this, &LayoutManager::PanOverviewMode, 50),
       NULL, NULL);
   overview_mode_key_bindings_group_->AddBinding(
       KeyBindings::KeyCombo(XK_l, KeyBindings::kAltMask),
-      "pan-overview-mode-right");
+      kPanOverviewModeRightAction);
 }
 
 LayoutManager::~LayoutManager() {
   wm_->focus_manager()->UnregisterFocusChangeListener(this);
   panel_manager_->UnregisterAreaChangeListener(this);
-
-  KeyBindings* kb = wm_->key_bindings();
-  kb->RemoveAction("switch-to-overview-mode");
-  kb->RemoveAction("switch-to-active-mode");
-  kb->RemoveAction("cycle-active-forward");
-  kb->RemoveAction("cycle-active-backward");
-  kb->RemoveAction("cycle-magnification-forward");
-  kb->RemoveAction("cycle-magnification-backward");
-  kb->RemoveAction("switch-to-active-mode-for-selected");
-  for (int i = 0; i < 8; ++i) {
-    kb->RemoveAction(StringPrintf("activate-toplevel-with-index-%d", i));
-    kb->RemoveAction(StringPrintf("select-snapshot-with-index-%d", i));
-  }
-  kb->RemoveAction("activate-last-toplevel");
-  kb->RemoveAction("delete-active-window");
-  kb->RemoveAction("pan-overview-mode-left");
-  kb->RemoveAction("pan-overview-mode-right");
 
   toplevels_.clear();
   snapshots_.clear();
@@ -1483,7 +1485,6 @@ void LayoutManager::DisableKeyBindingsForMode(Mode mode) {
 void LayoutManager::UpdateCurrentSnapshot() {
   if (snapshots_.empty()) {
     current_snapshot_ = NULL;
-    LOG(WARNING) << "Set current snapshot to NULL.";
     return;
   }
 

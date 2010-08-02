@@ -39,6 +39,7 @@ class EventLoop;
 class FocusManager;
 class HotkeyOverlay;
 class KeyBindings;
+class KeyBindingsActionRegistrar;
 class KeyBindingsGroup;
 class LayoutManager;
 class LoginController;
@@ -449,6 +450,9 @@ class WindowManager : public PanelManagerAreaChangeListener {
   // WM_IPC_MESSAGE_WM_NOTIFY_IPC_VERSION in libcros's
   // chromeos_wm_ipc_enums.h for details.
   int wm_ipc_version_;
+
+  // Key binding actions that we've registered.
+  scoped_ptr<KeyBindingsActionRegistrar> key_bindings_actions_;
 
   // Key bindings that should only be enabled when a user is logged in (e.g.
   // starting a terminal).

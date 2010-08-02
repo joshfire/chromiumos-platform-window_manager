@@ -20,5 +20,4 @@ xprop -root -f _CHROME_LOGGED_IN 32i -set _CHROME_LOGGED_IN 1
 
 exec $XTRACE ./wm \
   --background_image=../assets/images/background_1024x768.png \
-  --logged_in_log_dir=/tmp \
-  --logged_out_log_dir=/tmp
+  --logtostderr

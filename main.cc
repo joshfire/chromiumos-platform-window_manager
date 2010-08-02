@@ -34,6 +34,8 @@ extern "C" {
 
 DEFINE_string(display, "",
               "X Display to connect to (overrides DISPLAY env var).");
+DEFINE_bool(logtostderr, false,
+            "Log to stderr (see --logged_{in,out}_log_dir otherwise)");
 DEFINE_string(profile_dir, "./profile",
               "Directory where profiles should be written; created if it "
               "doesn't exist.");
@@ -77,7 +79,8 @@ int main(int argc, char** argv) {
     sleep(FLAGS_pause_at_start);
 
   // Just log to stderr initially; WindowManager will re-initialize to
-  // switch to a file once we know whether we're logged in or not.
+  // switch to a file once we know whether we're logged in or not if
+  // --logtostderr is false.
   logging::InitLogging(NULL,
                        logging::LOG_ONLY_TO_SYSTEM_DEBUG_LOG,
                        logging::DONT_LOCK_LOG_FILE,
@@ -131,7 +134,7 @@ int main(int argc, char** argv) {
   RealCompositor compositor(&event_loop, &xconn, &gl_interface);
 
   WindowManager wm(&event_loop, &xconn, &compositor);
-  wm.set_initialize_logging(true);
+  wm.set_initialize_logging(!FLAGS_logtostderr);
   wm.Init();
 
   // TODO: Need to also use XAddConnectionWatch()?

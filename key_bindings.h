@@ -132,6 +132,30 @@ class KeyBindings {
   DISALLOW_COPY_AND_ASSIGN(KeyBindings);
 };
 
+// This RAII class can be used to track key binding actions.  When the
+// class is destroyed, all of the actions that were registered through it
+// are removed.
+class KeyBindingsActionRegistrar {
+ public:
+  explicit KeyBindingsActionRegistrar(KeyBindings* bindings)
+      : bindings_(bindings) {}
+  ~KeyBindingsActionRegistrar();
+
+  // Register an action.  See KeyBindings::AddAction().
+  bool AddAction(const std::string& action_name,
+                 Closure* begin_closure,
+                 Closure* repeat_closure,
+                 Closure* end_closure);
+
+ private:
+  KeyBindings* bindings_;  // not owned
+
+  // Names of actions that have been registered.
+  std::set<std::string> action_names_;
+
+  DISALLOW_COPY_AND_ASSIGN(KeyBindingsActionRegistrar);
+};
+
 // This helper class can be used to easily enable or disable a group of key
 // bindings.
 class KeyBindingsGroup {

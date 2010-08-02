@@ -68,6 +68,9 @@ class BasicWindowManagerTest : public ::testing::Test {
 
   virtual void SetUp();
 
+  // Register keycodes corresponding to common keysyms.
+  void RegisterCommonKeySyms();
+
   // Create a new WindowManager object with a logged-in state and store it
   // in 'wm_'.  Helper method for a bunch of tests that need to do this
   // repeatedly.

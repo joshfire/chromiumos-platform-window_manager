@@ -97,6 +97,20 @@ static const int kUnacceleratedGraphicsActorHideTimeoutMs = 15000;
 // hiding it?
 static const int kUnacceleratedGraphicsActorHideAnimMs = 500;
 
+// Names of key binding actions that we register.
+static const char* kLaunchTerminalAction = "launch-terminal";
+static const char* kToggleClientWindowDebuggingAction =
+    "toggle-client-window-debugging";
+static const char* kToggleProfilerAction = "toggle-profiler";
+static const char* kLockScreenAction = "lock-screen";
+static const char* kConfigureMonitorAction = "configure-monitor";
+static const char* kToggleHotkeyOverlayAction = "toggle-hotkey-overlay";
+static const char* kTakeRootScreenshotAction = "take-root-screenshot";
+static const char* kTakeWindowScreenshotAction = "take-window-screenshot";
+static const char* kIncreaseAudioVolumeAction = "increase-audio-volume";
+static const char* kDecreaseAudioVolumeAction = "decrease-audio-volume";
+static const char* kMuteAudioAction = "mute-audio";
+
 const int WindowManager::kVideoTimePropertyUpdateSec = 5;
 
 // Invoke 'function_call' for each event consumer in 'consumers' (a set).
@@ -294,6 +308,8 @@ bool WindowManager::Init() {
   }
 
   key_bindings_.reset(new KeyBindings(xconn()));
+  key_bindings_actions_.reset(
+      new KeyBindingsActionRegistrar(key_bindings_.get()));
   logged_in_key_bindings_group_.reset(
       new KeyBindingsGroup(key_bindings_.get()));
   if (!logged_in_)
@@ -844,110 +860,110 @@ bool WindowManager::SetEwmhWorkareaProperty() {
 }
 
 void WindowManager::RegisterKeyBindings() {
-  key_bindings_->AddAction(
-      "launch-terminal",
+  key_bindings_actions_->AddAction(
+      kLaunchTerminalAction,
       NewPermanentCallback(
           this, &WindowManager::RunCommand, FLAGS_xterm_command),
       NULL, NULL);
   logged_in_key_bindings_group_->AddBinding(
       KeyBindings::KeyCombo(
           XK_t, KeyBindings::kControlMask | KeyBindings::kAltMask),
-      "launch-terminal");
+      kLaunchTerminalAction);
 
-  key_bindings_->AddAction(
-      "toggle-client-window-debugging",
+  key_bindings_actions_->AddAction(
+      kToggleClientWindowDebuggingAction,
       NewPermanentCallback(this, &WindowManager::ToggleClientWindowDebugging),
       NULL, NULL);
   key_bindings_->AddBinding(
       KeyBindings::KeyCombo(
           XK_d, KeyBindings::kControlMask | KeyBindings::kAltMask),
-      "toggle-client-window-debugging");
+      kToggleClientWindowDebuggingAction);
 
-  key_bindings_->AddAction(
-      "toggle-profiler",
+  key_bindings_actions_->AddAction(
+      kToggleProfilerAction,
       NewPermanentCallback(this, &WindowManager::ToggleProfiler),
       NULL, NULL);
   key_bindings_->AddBinding(
       KeyBindings::KeyCombo(
           XK_p, KeyBindings::kControlMask | KeyBindings::kAltMask),
-      "toggle-profiler");
+      kToggleProfilerAction);
 
-  key_bindings_->AddAction(
-      "lock-screen",
+  key_bindings_actions_->AddAction(
+      kLockScreenAction,
       NewPermanentCallback(
           this, &WindowManager::RunCommand, FLAGS_lock_screen_command),
       NULL, NULL);
   logged_in_key_bindings_group_->AddBinding(
       KeyBindings::KeyCombo(
           XK_l, KeyBindings::kControlMask | KeyBindings::kAltMask),
-      "lock-screen");
+      kLockScreenAction);
 
-  key_bindings_->AddAction(
-      "configure-monitor",
+  key_bindings_actions_->AddAction(
+      kConfigureMonitorAction,
       NewPermanentCallback(this, &WindowManager::RunCommand,
                            FLAGS_configure_monitor_command),
       NULL, NULL);
   key_bindings_->AddBinding(
       KeyBindings::KeyCombo(
           XK_m, KeyBindings::kControlMask | KeyBindings::kAltMask),
-      "configure-monitor");
+      kConfigureMonitorAction);
 
-  key_bindings_->AddAction(
-      "toggle-hotkey-overlay",
+  key_bindings_actions_->AddAction(
+      kToggleHotkeyOverlayAction,
       NewPermanentCallback(this, &WindowManager::ToggleHotkeyOverlay),
       NULL, NULL);
   // TODO: We don't have any keys bound to this for now; it'll be added
   // back via another means later.
 
-  key_bindings_->AddAction(
-      "take-root-screenshot",
+  key_bindings_actions_->AddAction(
+      kTakeRootScreenshotAction,
       NewPermanentCallback(this, &WindowManager::TakeScreenshot, false),
       NULL, NULL);
   key_bindings_->AddBinding(
-      KeyBindings::KeyCombo(XK_Print, 0), "take-root-screenshot");
+      KeyBindings::KeyCombo(XK_Print, 0), kTakeRootScreenshotAction);
 
-  key_bindings_->AddAction(
-      "take-window-screenshot",
+  key_bindings_actions_->AddAction(
+      kTakeWindowScreenshotAction,
       NewPermanentCallback(this, &WindowManager::TakeScreenshot, true),
       NULL, NULL);
   key_bindings_->AddBinding(
       KeyBindings::KeyCombo(XK_Print, KeyBindings::kShiftMask),
-      "take-window-screenshot");
+      kTakeWindowScreenshotAction);
 
-  key_bindings_->AddAction(
-      "increase-audio-volume",
+  key_bindings_actions_->AddAction(
+      kIncreaseAudioVolumeAction,
       NewPermanentCallback(
           this, &WindowManager::SendNotifySyskeyMessage,
           chromeos::WM_IPC_SYSTEM_KEY_VOLUME_UP),
       NULL, NULL);
   key_bindings_->AddBinding(
       KeyBindings::KeyCombo(XF86XK_AudioRaiseVolume, 0),
-      "increase-audio-volume");
+      kIncreaseAudioVolumeAction);
   key_bindings_->AddBinding(
-      KeyBindings::KeyCombo(XK_F10, 0), "increase-audio-volume");
+      KeyBindings::KeyCombo(XK_F10, 0), kIncreaseAudioVolumeAction);
 
-  key_bindings_->AddAction(
-      "decrease-audio-volume",
+  key_bindings_actions_->AddAction(
+      kDecreaseAudioVolumeAction,
       NewPermanentCallback(
           this, &WindowManager::SendNotifySyskeyMessage,
           chromeos::WM_IPC_SYSTEM_KEY_VOLUME_DOWN),
       NULL, NULL);
   key_bindings_->AddBinding(
       KeyBindings::KeyCombo(XF86XK_AudioLowerVolume, 0),
-      "decrease-audio-volume");
+      kDecreaseAudioVolumeAction);
   key_bindings_->AddBinding(
-      KeyBindings::KeyCombo(XK_F9, 0), "decrease-audio-volume");
+      KeyBindings::KeyCombo(XK_F9, 0), kDecreaseAudioVolumeAction);
 
-  key_bindings_->AddAction(
-      "mute-audio",
+  key_bindings_actions_->AddAction(
+      kMuteAudioAction,
       NewPermanentCallback(
           this, &WindowManager::SendNotifySyskeyMessage,
           chromeos::WM_IPC_SYSTEM_KEY_VOLUME_MUTE),
       NULL, NULL);
   key_bindings_->AddBinding(
-      KeyBindings::KeyCombo(XF86XK_AudioMute, 0), "mute-audio");
+      KeyBindings::KeyCombo(XF86XK_AudioMute, 0), kMuteAudioAction);
   key_bindings_->AddBinding(
-      KeyBindings::KeyCombo(XK_F8, 0), "mute-audio");
+      KeyBindings::KeyCombo(XK_F8, 0), kMuteAudioAction);
 }
 
 bool WindowManager::ManageExistingWindows() {

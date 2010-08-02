@@ -204,6 +204,7 @@ TEST_F(WindowManagerTest, ExistingWindows) {
   // event is sent.
   wm_.reset(NULL);
   xconn_.reset(new MockXConnection);
+  RegisterCommonKeySyms();
   event_loop_.reset(new EventLoop);
   compositor_.reset(new MockCompositor(xconn_.get()));
   XWindow xid = CreateSimpleWindow();
@@ -220,6 +221,7 @@ TEST_F(WindowManagerTest, ExistingWindows) {
   // MapRequest (and subsequent MapNotify).
   wm_.reset(NULL);
   xconn_.reset(new MockXConnection);
+  RegisterCommonKeySyms();
   event_loop_.reset(new EventLoop);
   compositor_.reset(new MockCompositor(xconn_.get()));
   xid = CreateSimpleWindow();
@@ -245,6 +247,7 @@ TEST_F(WindowManagerTest, ExistingWindows) {
   // WindowManager has been initialized.
   wm_.reset(NULL);
   xconn_.reset(new MockXConnection);
+  RegisterCommonKeySyms();
   event_loop_.reset(new EventLoop);
   compositor_.reset(new MockCompositor(xconn_.get()));
   xid = None;
@@ -811,6 +814,7 @@ TEST_F(WindowManagerTest, RedirectWindows) {
   // started.
   wm_.reset(NULL);
   xconn_.reset(new MockXConnection);
+  RegisterCommonKeySyms();
   event_loop_.reset(new EventLoop);
   compositor_.reset(new MockCompositor(xconn_.get()));
   XWindow existing_xid = CreateSimpleWindow();
