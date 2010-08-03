@@ -623,6 +623,7 @@ void OpenGlDrawVisitor::VisitStage(RealCompositor::StageActor* actor) {
       stage_ = NULL;
       return;
     }
+    gl_interface_->Enable(GL_SCISSOR_TEST);
     gl_interface_->Scissor(damaged_region.x, damaged_region.y,
                            damaged_region.width, damaged_region.height);
   }
@@ -685,8 +686,8 @@ void OpenGlDrawVisitor::VisitStage(RealCompositor::StageActor* actor) {
     DrawNeedle();
   }
   PROFILER_MARKER_BEGIN(Swap_Buffer);
-  if (use_partial_updates_ &&
-      !damaged_region.empty()) {
+  if (use_partial_updates_) {
+    gl_interface_->Disable(GL_SCISSOR_TEST);
     gl_interface_->CopyGlxSubBuffer(actor->GetStageXWindow(),
                                     damaged_region.x,
                                     damaged_region.y,
