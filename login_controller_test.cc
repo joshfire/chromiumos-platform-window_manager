@@ -171,6 +171,17 @@ class LoginControllerTest : public BasicWindowManagerTest {
     SendWmIpcMessage(msg);
   }
 
+  // Checks if composited window for the specified xid is shown.
+  bool IsCompositedShown(XWindow xid) const {
+    Window* window = wm_->GetWindowOrDie(xid);
+    return window->composited_shown();
+  }
+
+  double GetCompositedOpacity(XWindow xid) const {
+    Window* window = wm_->GetWindowOrDie(xid);
+    return window->composited_opacity();
+  }
+
   // A collection of windows for a single login entry.
   struct EntryWindows {
     EntryWindows()
@@ -568,6 +579,79 @@ TEST_F(LoginControllerTest, ClientOnOffScreen) {
   EXPECT_TRUE(WindowIsOffscreen(entries_[1].controls_xid));
   EXPECT_TRUE(WindowIsOffscreen(entries_[1].label_xid));
   EXPECT_TRUE(WindowIsOffscreen(entries_[1].unselected_label_xid));
+}
+
+TEST_F(LoginControllerTest, SelectTwice) {
+  CreateLoginWindows(2, true, false);
+
+  // The first entry is selected now by default.
+  EXPECT_TRUE(IsCompositedShown(entries_[0].border_xid));
+  EXPECT_TRUE(IsCompositedShown(entries_[0].image_xid));
+  EXPECT_TRUE(IsCompositedShown(entries_[0].controls_xid));
+  EXPECT_TRUE(IsCompositedShown(entries_[0].label_xid));
+  EXPECT_FALSE(IsCompositedShown(entries_[0].unselected_label_xid));
+  EXPECT_EQ(1.0, GetCompositedOpacity(entries_[0].controls_xid));
+
+  EXPECT_TRUE(IsCompositedShown(entries_[1].border_xid));
+  EXPECT_TRUE(IsCompositedShown(entries_[1].image_xid));
+  EXPECT_FALSE(IsCompositedShown(entries_[1].controls_xid));
+  EXPECT_FALSE(IsCompositedShown(entries_[1].label_xid));
+  EXPECT_TRUE(IsCompositedShown(entries_[1].unselected_label_xid));
+  EXPECT_EQ(0.0, GetCompositedOpacity(entries_[1].controls_xid));
+
+  // Select it again.
+  SelectEntry(0);
+  login_controller_->ProcessSelectionChangeCompleted(0);
+
+  EXPECT_TRUE(IsCompositedShown(entries_[0].border_xid));
+  EXPECT_TRUE(IsCompositedShown(entries_[0].image_xid));
+  EXPECT_TRUE(IsCompositedShown(entries_[0].controls_xid));
+  EXPECT_TRUE(IsCompositedShown(entries_[0].label_xid));
+  EXPECT_FALSE(IsCompositedShown(entries_[0].unselected_label_xid));
+  EXPECT_EQ(1.0, GetCompositedOpacity(entries_[0].controls_xid));
+
+  EXPECT_TRUE(IsCompositedShown(entries_[1].border_xid));
+  EXPECT_TRUE(IsCompositedShown(entries_[1].image_xid));
+  EXPECT_FALSE(IsCompositedShown(entries_[1].controls_xid));
+  EXPECT_FALSE(IsCompositedShown(entries_[1].label_xid));
+  EXPECT_TRUE(IsCompositedShown(entries_[1].unselected_label_xid));
+  EXPECT_EQ(0.0, GetCompositedOpacity(entries_[1].controls_xid));
+
+  // And again.
+  SelectEntry(0);
+  login_controller_->ProcessSelectionChangeCompleted(0);
+
+  EXPECT_TRUE(IsCompositedShown(entries_[0].border_xid));
+  EXPECT_TRUE(IsCompositedShown(entries_[0].image_xid));
+  EXPECT_TRUE(IsCompositedShown(entries_[0].controls_xid));
+  EXPECT_TRUE(IsCompositedShown(entries_[0].label_xid));
+  EXPECT_FALSE(IsCompositedShown(entries_[0].unselected_label_xid));
+  EXPECT_EQ(1.0, GetCompositedOpacity(entries_[0].controls_xid));
+
+  EXPECT_TRUE(IsCompositedShown(entries_[1].border_xid));
+  EXPECT_TRUE(IsCompositedShown(entries_[1].image_xid));
+  EXPECT_FALSE(IsCompositedShown(entries_[1].controls_xid));
+  EXPECT_FALSE(IsCompositedShown(entries_[1].label_xid));
+  EXPECT_TRUE(IsCompositedShown(entries_[1].unselected_label_xid));
+  EXPECT_EQ(0.0, GetCompositedOpacity(entries_[1].controls_xid));
+
+  // Now select the guest entry and check that selection is actually changed.
+  // Check that image window is hidden for selected guest entry.
+  SelectEntry(1);
+  login_controller_->ProcessSelectionChangeCompleted(0);
+
+  // Some changes to windows happen when timer shoots which doesn't work when
+  // running the test manually, so we check for properties that change without
+  // timer only.
+  EXPECT_FALSE(IsCompositedShown(entries_[0].label_xid));
+  EXPECT_EQ(0.0, GetCompositedOpacity(entries_[0].label_xid));
+  EXPECT_TRUE(IsCompositedShown(entries_[0].unselected_label_xid));
+  EXPECT_FALSE(IsCompositedShown(entries_[0].controls_xid));
+  EXPECT_EQ(0.0, GetCompositedOpacity(entries_[0].controls_xid));
+
+  EXPECT_TRUE(IsCompositedShown(entries_[1].label_xid));
+  EXPECT_FALSE(IsCompositedShown(entries_[1].image_xid));
+  EXPECT_FALSE(IsCompositedShown(entries_[1].unselected_label_xid));
 }
 
 TEST_F(LoginControllerTest, NoCrashOnInconsistenEntry) {

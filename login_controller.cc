@@ -514,6 +514,12 @@ void LoginController::StackWindows() {
 }
 
 void LoginController::SelectEntryAt(size_t index) {
+  LOG(INFO) << "Selecting entry with index " << index
+            << ". Current selection is " << selected_entry_index_;
+
+  if (index == selected_entry_index_)
+    return;
+
   // Process any pending selection change.
   if (selection_changed_manager_.is_scheduled()) {
     ProcessSelectionChangeCompleted(
@@ -533,9 +539,11 @@ void LoginController::SelectEntryAt(size_t index) {
       continue;
 
     if (i == selected_entry_index_) {
+      LOG(INFO) << "Calling Select for entry with index " << i;
       entries_[i]->Select(origins[i], kAnimationTimeInMs);
       FocusLoginWindow(entries_[i]->controls_window());
     } else if (i == last_selected_index) {
+      LOG(INFO) << "Calling Deselect for entry with index " << i;
       entries_[i]->Deselect(origins[i], kAnimationTimeInMs);
     } else {
       entries_[i]->UpdatePositionAndScale(origins[i], false,
@@ -562,6 +570,7 @@ void LoginController::SetEntrySelectionEnabled(bool enable) {
 }
 
 void LoginController::SelectGuest() {
+  LOG(INFO) << "Switching to wizard screen window.";
   DCHECK(guest_window_);
 
   DCHECK(!entries_.empty());
@@ -654,10 +663,14 @@ LoginEntry* LoginController::GetEntryAt(size_t index) {
 
 void LoginController::ProcessSelectionChangeCompleted(
     size_t last_selected_index) {
+  LOG(INFO) << "Selection change completed. Last selected entry: "
+            << last_selected_index << ". New selected entry: "
+            << selected_entry_index_;
   if (last_selected_index >= entries_.size())
     return;
 
-  if (entries_[last_selected_index]->has_all_windows())
+  if (last_selected_index != selected_entry_index_ &&
+      entries_[last_selected_index]->has_all_windows())
     entries_[last_selected_index]->ProcessSelectionChangeCompleted(false);
 
   if (selected_entry_index_ != kNoSelection &&
