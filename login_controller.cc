@@ -336,8 +336,13 @@ void LoginController::HandleWindowUnmap(Window* win) {
                 (deleted_index == active_index &&
                  IsGuestEntryIndex(active_index) &&
                  entries_.size() > 1)) {
-              // If selected entry was unmapped and next entry is a guest,
-              // select previous one.
+              // We need to decrement active_index in 3 cases:
+              // 1. removed entry was located prior to active entry,
+              //    decrement is needed to preserve the same selected entry
+              // 2. removed entry was last entry so new active entry will be
+              //    previous one
+              // 3. if selected entry was unmapped and next entry is a guest,
+              //    select previous one to avoid undesired guest activation
               --active_index;
             }
             DCHECK_LT(active_index, entries_.size());
