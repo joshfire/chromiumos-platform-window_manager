@@ -275,8 +275,8 @@ bool OpenGlDrawVisitor::OpenGlStateCache::ColorStateChanged(
 OpenGlDrawVisitor::OpenGlDrawVisitor(GLInterface* gl_interface,
                                      RealCompositor* compositor,
                                      Compositor::StageActor* stage)
-    : gl_interface_(gl_interface),
-      compositor_(compositor),
+    : compositor_(compositor),
+      gl_interface_(gl_interface),
       xconn_(compositor_->x_conn()),
       stage_(NULL),
       framebuffer_config_rgb_(0),
@@ -614,6 +614,16 @@ void OpenGlDrawVisitor::VisitStage(RealCompositor::StageActor* actor) {
       compositor_->actor_count(),
       use_partial_updates_);
   actor->Accept(&layer_visitor);
+
+  // Updating the top fullscreen actor before checking should_draw_frame()
+  // permits optimizations where we avoid compositing (drawing via DrawVisitor)
+  // when there's a single fullscreen actor onscreen.
+  compositor_->UpdateTopFullscreenActor(layer_visitor.top_fullscreen_actor());
+
+  if (!compositor_->should_draw_frame()) {
+    PROFILER_MARKER_END(VisitStage);
+    return;
+  }
 
   Rect damaged_region = layer_visitor.GetDamagedRegion(actor->width(),
                                                        actor->height());

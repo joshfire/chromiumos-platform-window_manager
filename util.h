@@ -169,6 +169,9 @@ class ByteMap {
                     int rect_width, int rect_height,
                     unsigned char value);
 
+  // Check if the bytes from 'other' match the bytes from this.
+  bool operator==(const ByteMap& other);
+
  private:
   int width_;
   int height_;

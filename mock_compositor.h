@@ -247,6 +247,10 @@ class MockCompositor : public Compositor {
   ~MockCompositor() {}
 
   // Begin Compositor methods
+  virtual void RegisterCompositionChangeListener(
+      CompositionChangeListener* listener) {}
+  virtual void UnregisterCompositionChangeListener(
+      CompositionChangeListener* listener) {}
   virtual bool TexturePixmapActorUsesFastPath() { return true; }
   virtual ContainerActor* CreateGroup() { return new ContainerActor; }
   virtual ColoredBoxActor* CreateColoredBox(int width, int height,

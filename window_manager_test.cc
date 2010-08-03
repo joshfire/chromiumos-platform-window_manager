@@ -34,6 +34,7 @@ DEFINE_bool(logtostderr, false,
             "Print debugging messages to stderr (suppressed otherwise)");
 
 // From window_manager.cc.
+DECLARE_bool(unredirect_fullscreen_window);
 DECLARE_string(logged_in_log_dir);
 DECLARE_string(logged_out_log_dir);
 
@@ -1166,6 +1167,88 @@ TEST_F(WindowManagerTest, VideoTimeProperty) {
                                      atom, &video_time));
   EXPECT_EQ(start_time + WindowManager::kVideoTimePropertyUpdateSec + 1,
             video_time);
+}
+
+// Test the unredirect fullscreen window optimization.  Check the windows
+// get properly directed/unredirected when the fullscreen actor changes.
+TEST_F(WindowManagerTest, HandleTopFullscreenActorChange) {
+  XWindow xwin1 = xconn_->CreateWindow(
+        xconn_->GetRootWindow(),
+        0, 0,    // x, y
+        wm_->width(), wm_->height(),
+        true,    // override redirect
+        false,   // input only
+        0, 0);   // event mask, visual
+
+  XWindow xwin2 = xconn_->CreateWindow(
+        xconn_->GetRootWindow(),
+        0, 0,    // x, y
+        wm_->width(), wm_->height(),
+        true,    // override redirect
+        false,   // input only
+        0, 0);   // event mask, visual
+
+  MockXConnection::WindowInfo* info1 = xconn_->GetWindowInfoOrDie(xwin1);
+  MockXConnection::WindowInfo* info2 = xconn_->GetWindowInfoOrDie(xwin2);
+  SendInitialEventsForWindow(xwin1);
+  SendInitialEventsForWindow(xwin2);
+
+  MockCompositor::TexturePixmapActor* actor1 = GetMockActorForWindow(
+      wm_->GetWindowOrDie(xwin1));
+  MockCompositor::TexturePixmapActor* actor2 = GetMockActorForWindow(
+      wm_->GetWindowOrDie(xwin2));
+
+  // Move and scale the two windows to fit the screen.
+  xconn_->ConfigureWindow(xwin1, 0, 0, wm_->width(), wm_->height());
+  xconn_->ConfigureWindow(xwin2, 0, 0, wm_->width(), wm_->height());
+  XEvent event;
+  xconn_->InitConfigureNotifyEvent(&event, xwin1);
+  wm_->HandleEvent(&event);
+  xconn_->InitConfigureNotifyEvent(&event, xwin2);
+  wm_->HandleEvent(&event);
+
+  // Set up overlay regions for comparison.
+  MockXConnection::WindowInfo* overlay_info =
+    xconn_->GetWindowInfoOrDie(wm_->overlay_xid_);
+  scoped_ptr<ByteMap> expected_overlay(new ByteMap(overlay_info->width,
+                                                   overlay_info->height));
+  scoped_ptr<ByteMap> actual_overlay(new ByteMap(overlay_info->width,
+                                                 overlay_info->height));
+
+  // Make sure no window is unredirected.
+  FLAGS_unredirect_fullscreen_window = true;
+  EXPECT_TRUE(wm_->unredirected_fullscreen_xid_ == 0);
+  EXPECT_TRUE(info1->redirected);
+  EXPECT_TRUE(info2->redirected);
+  expected_overlay->Clear(0xff);
+  xconn_->GetWindowBoundingRegion(wm_->overlay_xid_, actual_overlay.get());
+  EXPECT_TRUE(*expected_overlay.get() == *actual_overlay.get());
+
+  // Test transition from no fullscreen actor to have fullscreen actor.
+  wm_->HandleTopFullscreenActorChange(actor1);
+  EXPECT_EQ(wm_->unredirected_fullscreen_xid_, xwin1);
+  EXPECT_FALSE(info1->redirected);
+  EXPECT_TRUE(info2->redirected);
+  expected_overlay->Clear(0);
+  xconn_->GetWindowBoundingRegion(wm_->overlay_xid_, actual_overlay.get());
+  EXPECT_TRUE(*expected_overlay.get() == *actual_overlay.get());
+
+  // Test change from one to another top fullscreen actor.
+  wm_->HandleTopFullscreenActorChange(actor2);
+  EXPECT_EQ(wm_->unredirected_fullscreen_xid_, xwin2);
+  EXPECT_TRUE(info1->redirected);
+  EXPECT_FALSE(info2->redirected);
+  xconn_->GetWindowBoundingRegion(wm_->overlay_xid_, actual_overlay.get());
+  EXPECT_TRUE(*expected_overlay.get() == *actual_overlay.get());
+
+  // Test transition from having fullscreen actor to not.
+  wm_->HandleTopFullscreenActorChange(NULL);
+  EXPECT_TRUE(wm_->unredirected_fullscreen_xid_ == 0);
+  EXPECT_TRUE(info1->redirected);
+  EXPECT_TRUE(info2->redirected);
+  expected_overlay->Clear(0xff);
+  xconn_->GetWindowBoundingRegion(wm_->overlay_xid_, actual_overlay.get());
+  EXPECT_TRUE(*expected_overlay.get() == *actual_overlay.get());
 }
 
 }  // namespace window_manager

@@ -179,11 +179,13 @@ class RealCompositor : public Compositor {
     static const float kMinDepth;
     static const float kMaxDepth;
 
-    explicit LayerVisitor(int32 count, bool use_partial_updates)
+    LayerVisitor(int32 count, bool use_partial_updates)
         : depth_(0.0f),
           layer_thickness_(0.0f),
           count_(count),
           has_fullscreen_actor_(false),
+          visiting_top_visible_actor_(true),
+          top_fullscreen_actor_(NULL),
           updated_area_(0.0f, 0.0f, 0.0f, 0.0f),
           use_partial_updates_(use_partial_updates) {}
     virtual ~LayerVisitor() {}
@@ -199,6 +201,9 @@ class RealCompositor : public Compositor {
                                 bool is_texture_opaque);
 
     bool has_fullscreen_actor() const { return has_fullscreen_actor_; }
+    const RealCompositor::TexturePixmapActor* top_fullscreen_actor() const {
+      return top_fullscreen_actor_;
+    }
 
     // Get the damaged region in screen coordinates where (0, 0) is bottom_left
     // and (w-1, h-1) is top_right.
@@ -209,6 +214,15 @@ class RealCompositor : public Compositor {
     float layer_thickness_;
     int32 count_;
     bool has_fullscreen_actor_;
+
+    // This flag indicates whether the actor being visited is the topmost
+    // visible actor.
+    bool visiting_top_visible_actor_;
+
+    // This keeps track of the actor that is fullscreen and topmost visible
+    // during the traversal. It is set to NULL if either of the criteria is
+    // not satisfied.
+    const RealCompositor::TexturePixmapActor* top_fullscreen_actor_;
 
     // This restores the dirty region union of all actors from the most
     // recent VisitStage.  It's defined in GL coordinates where (-1, -1) is
@@ -718,6 +732,10 @@ class RealCompositor : public Compositor {
   ~RealCompositor();
 
   // Begin Compositor methods.
+  virtual void RegisterCompositionChangeListener(
+      CompositionChangeListener* listener);
+  virtual void UnregisterCompositionChangeListener(
+      CompositionChangeListener* listener);
   virtual bool TexturePixmapActorUsesFastPath() {
     return texture_pixmap_actor_uses_fast_path_;
   }
@@ -774,6 +792,11 @@ class RealCompositor : public Compositor {
   // Mark the scene as partially dirty, enabling the draw timeout if needed.
   void SetPartiallyDirty();
 
+  // Given the fullscreen actor on top of the current frame (NULL
+  // means no actor satisfies the criteria), notify the composition change
+  // listeners if necessary.
+  void UpdateTopFullscreenActor(const TexturePixmapActor* top_fullscreen_actor);
+
   // Increment or decrement the number of in-progress actors.  This is
   // invoked by Actor as animations start or stop.  The increment method
   // enables the draw timeout if needed.
@@ -809,16 +832,6 @@ class RealCompositor : public Compositor {
   // This is the default stage where the actors are placed.
   scoped_ptr<StageActor> default_stage_;
 
-  // This is the current time used to evaluate the currently active animations.
-  AnimationTime now_;
-
-  typedef base::hash_map<XWindow, TexturePixmapActor*>
-      XIDToTexturePixmapActorMap;
-
-  // This is a map that allows us to look up the texture associated
-  // with an XWindow.
-  XIDToTexturePixmapActorMap texture_pixmaps_;
-
   // This is the count of actors in the tree as of the last time
   // Update was called.  It is used to compute the depth delta for
   // layer depth calculations.
@@ -850,6 +863,16 @@ class RealCompositor : public Compositor {
   // False if we're using OpenGL and GLX_EXT_texture_from_pixmap is
   // unavailable; true otherwise.
   bool texture_pixmap_actor_uses_fast_path_;
+
+  // Top fullscreen actor that was present in the last frame.  Tracked so we
+  // know when we need to HandleTopFullscreenActorChange.  It is set to NULL
+  // if there wasn't a TexturePixmapActor satisfying the criteria.
+  const TexturePixmapActor* prev_top_fullscreen_actor_;
+
+  // Listeners that will be notified when the screen area consumed by the
+  // actors changes.  Listener objects aren't owned by us.
+  std::tr1::unordered_set<CompositionChangeListener*>
+      composition_change_listeners_;
 
   DISALLOW_COPY_AND_ASSIGN(RealCompositor);
 };

@@ -49,7 +49,8 @@ class Window;
 class WmIpc;
 template<class T> class Stacker;
 
-class WindowManager : public PanelManagerAreaChangeListener {
+class WindowManager : public PanelManagerAreaChangeListener,
+                      public CompositionChangeListener {
  public:
   // Visibility groups that actors can be added to.
   // See Compositor::SetActiveVisibilityGroups().
@@ -96,6 +97,11 @@ class WindowManager : public PanelManagerAreaChangeListener {
   virtual void HandlePanelManagerAreaChange();
   // End PanelManagerAreaChangeListener implementation.
 
+  // Begin CompositionChangeListener implementation.
+  virtual void HandleTopFullscreenActorChange(
+      const Compositor::TexturePixmapActor* top_fullscreen_actor);
+  // End CompositionChangeListener implementation.
+
   // Perform initial setup.  This must be called immediately after the
   // WindowManager object is created.
   bool Init();
@@ -135,6 +141,8 @@ class WindowManager : public PanelManagerAreaChangeListener {
   // if the window doesn't exist, while the second crashes.
   Window* GetWindow(XWindow xid);
   Window* GetWindowOrDie(XWindow xid);
+
+  Window* GetWindowOwningActor(const Compositor::TexturePixmapActor& actor);
 
   // Focus a window.  Convenience method that just calls
   // focus_manager_->FocusWindow().
@@ -227,6 +235,7 @@ class WindowManager : public PanelManagerAreaChangeListener {
   FRIEND_TEST(WindowManagerTest, LoggedIn);
   FRIEND_TEST(WindowManagerTest, ConfigureBackground);
   FRIEND_TEST(WindowManagerTest, VideoTimeProperty);
+  FRIEND_TEST(WindowManagerTest, HandleTopFullscreenActorChange);
 
   typedef std::map<XWindow, std::set<EventConsumer*> > WindowEventConsumerMap;
   typedef std::map<std::pair<XWindow, XAtom>, std::set<EventConsumer*> >
@@ -442,6 +451,12 @@ class WindowManager : public PanelManagerAreaChangeListener {
 
   // Is the hotkey overlay currently being shown?
   bool showing_hotkey_overlay_;
+
+  // Window that has currently been unredirected (in conjunction with
+  // disabling compositing) as a performance optimization because it's
+  // fullscreen and covering all other windows.  The value will be zero
+  // whenever compositing is enabled, non-zero otherwise.
+  XWindow unredirected_fullscreen_xid_;
 
   // Shows overlayed images containing hotkeys.
   scoped_ptr<HotkeyOverlay> hotkey_overlay_;

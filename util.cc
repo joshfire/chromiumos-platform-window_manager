@@ -62,6 +62,12 @@ void ByteMap::SetRectangle(int rect_x, int rect_y,
     memset(bytes_ + y * width_ + rect_x, value, limit_x - rect_x);
 }
 
+bool ByteMap::operator==(const ByteMap& other) {
+  if (width_ != other.width_ || height_ != other.height_)
+    return false;
+  return memcmp(bytes_, other.bytes_, width_ * height_) == 0;
+}
+
 
 namespace util {
 

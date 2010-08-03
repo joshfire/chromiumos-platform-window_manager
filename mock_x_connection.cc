@@ -11,6 +11,7 @@
 
 #include "base/logging.h"
 #include "base/eintr_wrapper.h"
+#include "window_manager/geometry.h"
 #include "window_manager/image_enums.h"
 #include "window_manager/util.h"
 
@@ -128,6 +129,7 @@ bool MockXConnection::ResizeWindow(XWindow xid, int width, int height) {
   info->height = height;
   info->changed = true;
   info->num_configures++;
+  info->shape.reset(NULL);
   return true;
 }
 
@@ -290,6 +292,14 @@ bool MockXConnection::RedirectSubwindowsForCompositing(XWindow xid) {
   return true;
 }
 
+bool MockXConnection::RedirectWindowForCompositing(XWindow xid) {
+  WindowInfo* info = GetWindowInfo(xid);
+  if (!info)
+    return false;
+  info->redirected = true;
+  return true;
+}
+
 bool MockXConnection::UnredirectWindowForCompositing(XWindow xid) {
   WindowInfo* info = GetWindowInfo(xid);
   if (!info)
@@ -397,6 +407,34 @@ bool MockXConnection::GetWindowBoundingRegion(XWindow xid, ByteMap* bytemap) {
     bytemap->Copy(*(info->shape.get()));
   else
     bytemap->SetRectangle(0, 0, info->width, info->height, 0xff);
+  return true;
+}
+
+bool MockXConnection::SetWindowBoundingRegionToRect(
+    XWindow xid, const Rect& region) {
+  WindowInfo* info = GetWindowInfo(xid);
+  if (!info)
+    return false;
+  if (region.x == 0 && region.y == 0 &&
+      region.width == info->width && region.height == info->height) {
+    info->shape.reset(NULL);
+  } else {
+    if (info->shape.get() == NULL)
+      info->shape.reset(new ByteMap(info->width, info->height));
+    info->shape->Clear(0);
+    info->shape->SetRectangle(
+        region.x, region.y, region.width, region.height, 0xff);
+  }
+  return true;
+}
+
+bool MockXConnection::RemoveWindowBoundingRegion(XWindow xid) {
+  WindowInfo* info = GetWindowInfo(xid);
+  if (!info)
+    return false;
+  if (info->shape.get() == NULL)
+    info->shape.reset(new ByteMap(info->width, info->height));
+  info->shape->Clear(0);
   return true;
 }
 

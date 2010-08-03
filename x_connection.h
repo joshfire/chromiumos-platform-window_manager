@@ -255,6 +255,9 @@ class XConnection {
   // offscreen pixmaps so they can be composited.
   virtual bool RedirectSubwindowsForCompositing(XWindow xid) = 0;
 
+  // Redirect one window for compositing.
+  virtual bool RedirectWindowForCompositing(XWindow xid) = 0;
+
   // Un-redirect a previously-redirected window.  This is useful when a
   // plugin window gets reparented away from the root and we realize that
   // we won't need to composite it after all.
@@ -316,6 +319,11 @@ class XConnection {
 
   // Get the rectangles defining a window's bounding region.
   virtual bool GetWindowBoundingRegion(XWindow xid, ByteMap* bytemap) = 0;
+
+  // Set/remove bounding region for a window.
+  virtual bool SetWindowBoundingRegionToRect(
+      XWindow xid, const Rect& region) = 0;
+  virtual bool RemoveWindowBoundingRegion(XWindow xid) = 0;
 
   // Select RandR events on a window.
   virtual bool SelectRandREventsOnWindow(XWindow xid) = 0;

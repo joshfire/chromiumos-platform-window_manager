@@ -663,6 +663,10 @@ void Window::HandleUnmapNotify() {
   mapped_ = false;
 }
 
+void Window::HandleRedirect() {
+  ResetPixmap();
+}
+
 void Window::HandleConfigureNotify(int width, int height) {
   if (actor_->GetWidth() != width || actor_->GetHeight() != height)
     ResetPixmap();

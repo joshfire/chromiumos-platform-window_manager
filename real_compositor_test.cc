@@ -69,6 +69,8 @@ TEST_F(RealCompositorTreeTest, LayerDepth) {
   RealCompositor::LayerVisitor layer_visitor(count, false);
   stage_->Accept(&layer_visitor);
 
+  // rect3 is fullscreen and opaque, so rect2 and rect1 are culled.
+  EXPECT_TRUE(layer_visitor.has_fullscreen_actor());
   EXPECT_FLOAT_EQ(depth, rect3_->z());
   depth += thickness;
   EXPECT_TRUE(rect2_->culled());
@@ -120,6 +122,9 @@ TEST_F(RealCompositorTreeTest, LayerDepthWithOpacity) {
   RealCompositor::LayerVisitor layer_visitor(count, false);
   stage_->Accept(&layer_visitor);
 
+  // rect3 is fullscreen but not opaque, so rect2 is not culled.
+  // rect2 is fullscreen and opaque, so rect1 is culled.
+  EXPECT_TRUE(layer_visitor.has_fullscreen_actor());
   EXPECT_FLOAT_EQ(depth, rect3_->z());
   depth += thickness;
   EXPECT_FLOAT_EQ(depth, rect2_->z());
@@ -215,7 +220,6 @@ TEST_F(RealCompositorTreeTest, ActorAttributes) {
   rect1_->set_z(14.0f);
   EXPECT_EQ(14.0f, rect1_->z());
 
-  // TODO: add test cases to test the new LayerVisitor implementation.
   // Test opacity setting.
   rect1_->SetOpacity(0.6f, 0);
   // Have to traverse the tree to update is_opaque.
@@ -278,7 +282,6 @@ TEST_F(RealCompositorTreeTest, ContainerActorAttributes) {
   group1_->set_z(14.0f);
   EXPECT_EQ(14.0f, group1_->z());
 
-  // TODO: add test cases to test the new LayerVisitor implementation.
   // Test opacity setting.
   group1_->SetOpacity(0.6f, 0);
   stage_->Accept(&layer_visitor);
@@ -702,6 +705,92 @@ TEST_F(RealCompositorTest, PartialUpdates) {
   EXPECT_GE(expected_min_y, updated_region.y);
   EXPECT_LE(expected_max_x, updated_region.x + updated_region.width);
   EXPECT_LE(expected_max_y, updated_region.y + updated_region.height);
+}
+
+// Test LayerVisitor's top fullscreen window.
+TEST_F(RealCompositorTest, LayerVisitorTopFullscreenWindow) {
+  // Now create texture pixmap actors and add them to the stage.
+  scoped_ptr<RealCompositor::TexturePixmapActor> actor1(
+      compositor_->CreateTexturePixmap());
+  scoped_ptr<RealCompositor::TexturePixmapActor> actor2(
+      compositor_->CreateTexturePixmap());
+  scoped_ptr<RealCompositor::TexturePixmapActor> actor3(
+      compositor_->CreateTexturePixmap());
+  actor1->Show();
+  actor2->Show();
+  actor3->Show();
+
+  // The order from top to bottom is: actor3, actor2, and actor1.
+  RealCompositor::StageActor* stage = compositor_->GetDefaultStage();
+  stage->AddActor(actor1.get());
+  stage->AddActor(actor2.get());
+  stage->AddActor(actor3.get());
+
+  // xwin1 is fullscreen and opaque.
+  // xwin2 is fullscreen and transparent.
+  // xwin3 is non-fullscreen and opaque.
+  XWindow xwin1 = xconn_->CreateWindow(
+      xconn_->GetRootWindow(),  // parent
+      0, 0,      // x, y
+      stage->width(), stage->height(),
+      false,     // override_redirect=false
+      false,     // input_only=false
+      0, 0);     // event_mask, visual
+  XWindow xwin2 = xconn_->CreateWindow(
+      xconn_->GetRootWindow(),  // parent
+      0, 0,      // x, y
+      stage->width(), stage->height(),
+      false,     // override_redirect=false
+      false,     // input_only=false
+      0, 0);     // event_mask, visual
+  XWindow xwin3 = xconn_->CreateWindow(
+      xconn_->GetRootWindow(),  // parent
+      0, 0,      // x, y
+      300, 400,  // width, height
+      false,     // override_redirect=false
+      false,     // input_only=false
+      0, 0);     // event_mask, visual
+
+  // Force xwin1 and xwin3 to be opaque.
+  xconn_->GetWindowInfoOrDie(xwin1)->depth = 24;
+  xconn_->GetWindowInfoOrDie(xwin3)->depth = 24;
+
+  actor1->SetPixmap(xconn_->GetCompositingPixmapForWindow(xwin1));
+  actor2->SetPixmap(xconn_->GetCompositingPixmapForWindow(xwin2));
+  actor3->SetPixmap(xconn_->GetCompositingPixmapForWindow(xwin3));
+
+  compositor_->Draw();
+  EXPECT_TRUE(actor1->is_opaque());
+  EXPECT_FALSE(actor2->is_opaque());
+  EXPECT_TRUE(actor3->is_opaque());
+
+  // Test a fullscreen transparent actor on top of another fullscreen actor.
+  actor3->Hide();
+  RealCompositor::LayerVisitor layer_visitor(compositor_->actor_count(), false);
+  stage->Accept(&layer_visitor);
+  EXPECT_TRUE(layer_visitor.has_fullscreen_actor());
+  EXPECT_TRUE(layer_visitor.top_fullscreen_actor() == NULL);
+
+  // Test a non-fullscreen opaque actor on top of a fullscreen actor.
+  actor2->Hide();
+  actor3->Show();
+  stage->Accept(&layer_visitor);
+  EXPECT_TRUE(layer_visitor.has_fullscreen_actor());
+  EXPECT_TRUE(layer_visitor.top_fullscreen_actor() == NULL);
+
+  // Test a fullscreen opaque actor on top.
+  actor3->Hide();
+  stage->Accept(&layer_visitor);
+  EXPECT_TRUE(layer_visitor.has_fullscreen_actor());
+  EXPECT_EQ(layer_visitor.top_fullscreen_actor(), actor1.get());
+
+  // Test no fullscreen opaque actor on top.
+  actor1->Hide();
+  actor2->Show();
+  actor3->Show();
+  stage->Accept(&layer_visitor);
+  EXPECT_FALSE(layer_visitor.has_fullscreen_actor());
+  EXPECT_TRUE(layer_visitor.top_fullscreen_actor() == NULL);
 }
 
 }  // end namespace window_manager

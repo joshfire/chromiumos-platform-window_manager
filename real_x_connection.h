@@ -58,6 +58,7 @@ class RealXConnection : public XConnection {
   virtual bool GetTransientHintForWindow(XWindow xid, XWindow* owner_out);
   virtual bool GetWindowAttributes(XWindow xid, WindowAttributes* attr_out);
   virtual bool RedirectSubwindowsForCompositing(XWindow xid);
+  virtual bool RedirectWindowForCompositing(XWindow xid);
   virtual bool UnredirectWindowForCompositing(XWindow xid);
   virtual XWindow GetCompositingOverlayWindow(XWindow root);
   virtual XPixmap CreatePixmap(XDrawable drawable,
@@ -78,6 +79,8 @@ class RealXConnection : public XConnection {
   virtual bool IsWindowShaped(XWindow xid);
   virtual bool SelectShapeEventsOnWindow(XWindow xid);
   virtual bool GetWindowBoundingRegion(XWindow xid, ByteMap* bytemap);
+  virtual bool SetWindowBoundingRegionToRect(XWindow xid, const Rect& region);
+  virtual bool RemoveWindowBoundingRegion(XWindow xid);
   virtual bool SelectRandREventsOnWindow(XWindow xid);
   virtual bool GetAtoms(const std::vector<std::string>& names,
                         std::vector<XAtom>* atoms_out);

@@ -493,6 +493,11 @@ bool RealXConnection::RedirectSubwindowsForCompositing(XWindow xid) {
   return true;
 }
 
+bool RealXConnection::RedirectWindowForCompositing(XWindow xid) {
+  xcb_composite_redirect_window(xcb_conn_, xid, XCB_COMPOSITE_REDIRECT_MANUAL);
+  return true;
+}
+
 bool RealXConnection::UnredirectWindowForCompositing(XWindow xid) {
   xcb_composite_unredirect_window(
       xcb_conn_, xid, XCB_COMPOSITE_REDIRECT_MANUAL);
@@ -692,6 +697,38 @@ bool RealXConnection::GetWindowBoundingRegion(XWindow xid, ByteMap* bytemap) {
   }
 #endif
 
+  return true;
+}
+
+bool RealXConnection::SetWindowBoundingRegionToRect(
+    XWindow xid, const Rect& region) {
+  xcb_rectangle_t rect;
+  rect.x = region.x;
+  rect.y = region.y;
+  rect.width = region.width;
+  rect.height = region.height;
+  xcb_shape_rectangles(xcb_conn_,
+                       XCB_SHAPE_SO_SET,
+                       XCB_SHAPE_SK_BOUNDING,
+                       0,    // ordering
+                       xid,
+                       0,    // x_offset
+                       0,    // y_offset
+                       1,    // rectangles_len
+                       &rect);
+  return true;
+}
+
+bool RealXConnection::RemoveWindowBoundingRegion(XWindow xid) {
+  xcb_shape_rectangles(xcb_conn_,
+                       XCB_SHAPE_SO_SET,
+                       XCB_SHAPE_SK_BOUNDING,
+                       0,    // ordering
+                       xid,
+                       0,    // x_offset
+                       0,    // y_offset
+                       0,    // rectangles_len
+                       NULL);
   return true;
 }
 

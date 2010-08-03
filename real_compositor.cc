@@ -183,6 +183,8 @@ void RealCompositor::LayerVisitor::VisitStage(
   // Don't start at the very edge of the z-buffer depth.
   depth_ = kMinDepth + layer_thickness_;
 
+  top_fullscreen_actor_ = NULL;
+  visiting_top_visible_actor_ = true;
   has_fullscreen_actor_ = false;
 
   if (use_partial_updates_)
@@ -218,16 +220,9 @@ void RealCompositor::LayerVisitor::VisitContainer(
 
 void RealCompositor::LayerVisitor::VisitTexturedQuadActor(
     RealCompositor::QuadActor* actor, bool is_texture_opaque) {
-  // Reset culled_ state so that IsVisible will not use the state from
-  // previous frame.
-  actor->set_culled(false);
+  actor->set_culled(has_fullscreen_actor_);
   if (!actor->IsVisible())
     return;
-
-  if (has_fullscreen_actor_) {
-    actor->set_culled(true);
-    return;
-  }
 
   VisitActor(actor);
   actor->set_is_opaque(actor->is_opaque() && is_texture_opaque);
@@ -237,10 +232,14 @@ void RealCompositor::LayerVisitor::VisitTexturedQuadActor(
   CullingResult result =
       PerformActorCullingTest(actor->compositor()->GetDefaultStage(), actor);
 
+  actor->set_culled(result == CULLING_WINDOW_OFFSCREEN);
+  if (actor->culled())
+    return;
+
   if (actor->is_opaque() && result == CULLING_WINDOW_FULLSCREEN)
     has_fullscreen_actor_ = true;
 
-  actor->set_culled(result == CULLING_WINDOW_OFFSCREEN);
+  visiting_top_visible_actor_ = false;
 }
 
 void RealCompositor::LayerVisitor::VisitQuad(
@@ -258,6 +257,7 @@ void RealCompositor::LayerVisitor::VisitImage(
 
 void RealCompositor::LayerVisitor::VisitTexturePixmap(
     RealCompositor::TexturePixmapActor* actor) {
+  bool visiting_top_visible_actor = visiting_top_visible_actor_;
   // OpenGlPixmapData is not created until OpenGlDrawVisitor has traversed
   // through the tree, which happens after the LayerVisitor, so we cannot rely
   // on actor->texture_data()->has_alpha() because texture_data() is NULL
@@ -267,6 +267,9 @@ void RealCompositor::LayerVisitor::VisitTexturePixmap(
 
   if (!actor->IsVisible() || actor->width() <= 0 || actor->height() <= 0)
     return;
+
+  if (visiting_top_visible_actor && has_fullscreen_actor_)
+    top_fullscreen_actor_ = actor;
 
   if (use_partial_updates_) {
     RealCompositor::BoundingBox region = MapRegionToGlCoordinates(
@@ -855,7 +858,8 @@ RealCompositor::RealCompositor(EventLoop* event_loop,
       last_draw_time_ms_(-1),
       draw_timeout_id_(-1),
       draw_timeout_enabled_(false),
-      texture_pixmap_actor_uses_fast_path_(true) {
+      texture_pixmap_actor_uses_fast_path_(true),
+      prev_top_fullscreen_actor_(NULL) {
   CHECK(event_loop_);
   XWindow root = x_conn()->GetRootWindow();
   XConnection::WindowGeometry geometry;
@@ -900,6 +904,19 @@ RealCompositor::~RealCompositor() {
     event_loop_->RemoveTimeout(draw_timeout_id_);
     draw_timeout_id_ = -1;
   }
+}
+
+void RealCompositor::RegisterCompositionChangeListener(
+      CompositionChangeListener* listener) {
+  DCHECK(listener);
+  bool added = composition_change_listeners_.insert(listener).second;
+  DCHECK(added) << "Listener " << listener << " was already registered";
+}
+
+void RealCompositor::UnregisterCompositionChangeListener(
+      CompositionChangeListener* listener) {
+  int num_removed = composition_change_listeners_.erase(listener);
+  DCHECK_EQ(num_removed, 1) << "Listener " << listener << " wasn't registered";
 }
 
 RealCompositor::ContainerActor* RealCompositor::CreateGroup() {
@@ -970,6 +987,20 @@ void RealCompositor::SetPartiallyDirty() {
     return;
   EnableDrawTimeout();
   partially_dirty_ = true;
+}
+
+void RealCompositor::UpdateTopFullscreenActor(
+    const RealCompositor::TexturePixmapActor* top_fullscreen_actor) {
+  // The top fullscreen actor has not changed from previous frame to
+  // current frame, no need to notify the listeners.
+  if (prev_top_fullscreen_actor_ == top_fullscreen_actor)
+    return;
+  prev_top_fullscreen_actor_ = top_fullscreen_actor;
+
+  for (unordered_set<CompositionChangeListener*>::const_iterator it =
+         composition_change_listeners_.begin();
+       it != composition_change_listeners_.end(); ++it)
+    (*it)->HandleTopFullscreenActorChange(top_fullscreen_actor);
 }
 
 void RealCompositor::IncrementNumAnimations() {

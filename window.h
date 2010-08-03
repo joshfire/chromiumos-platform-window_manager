@@ -248,6 +248,11 @@ class Window {
 
   void HandleUnmapNotify();
 
+  // This method is called when this window is redirected for compositing
+  // after it has been unredirected.  The previously stored pixmap is no
+  // longer valid, so it updates the pixmap by calling ResetPixmap.
+  void HandleRedirect();
+
   // Handle a ConfigureNotify event about this window.
   // Currently, we just pass the window's width and height so we can resize
   // the actor if needed.

@@ -62,6 +62,10 @@ DEFINE_string(logged_out_log_dir,
 DEFINE_string(unaccelerated_graphics_image,
               "../assets/images/unaccelerated_graphics.png",
               "Image to display when using unaccelerated rendering");
+DEFINE_bool(unredirect_fullscreen_window,
+            false,
+            "Enable/disable compositing optimization that automatically turns"
+            "off compositing if a topmost fullscreen window is present");
 
 using chromeos::WmIpcMessageType;
 using std::list;
@@ -202,6 +206,7 @@ WindowManager::WindowManager(EventLoop* event_loop,
       active_window_xid_(0),
       query_keyboard_state_timeout_id_(-1),
       showing_hotkey_overlay_(false),
+      unredirected_fullscreen_xid_(0),
       wm_ipc_version_(1),
       logged_in_(false),
       initialize_logging_(false),
@@ -223,10 +228,66 @@ WindowManager::~WindowManager() {
     event_loop_->RemoveTimeout(hide_unaccelerated_graphics_actor_timeout_id_);
   if (panel_manager_.get())
     panel_manager_->UnregisterAreaChangeListener(this);
+  if (compositor_)
+    compositor_->UnregisterCompositionChangeListener(this);
 }
 
 void WindowManager::HandlePanelManagerAreaChange() {
   SetEwmhWorkareaProperty();
+}
+
+void WindowManager::HandleTopFullscreenActorChange(
+    const Compositor::TexturePixmapActor* top_fullscreen_actor) {
+  if (!FLAGS_unredirect_fullscreen_window)
+    return;
+
+  const bool was_compositing = unredirected_fullscreen_xid_ == 0;
+  bool should_composite = true;
+  XWindow window_to_unredirect = 0;
+
+  if (top_fullscreen_actor) {
+    Window* win = GetWindowOwningActor(*top_fullscreen_actor);
+    if (win != NULL &&
+        win->client_x() == win->composited_x() &&
+        win->client_y() == win->composited_y() &&
+        win->composited_scale_x() == 1.0 &&
+        win->composited_scale_y() == 1.0) {
+      window_to_unredirect = win->xid();
+      should_composite = false;
+    }
+  }
+
+  if (unredirected_fullscreen_xid_) {
+    if (unredirected_fullscreen_xid_ == window_to_unredirect) {
+      window_to_unredirect = 0;
+    } else {
+      Window* win = GetWindow(unredirected_fullscreen_xid_);
+      if (win) {
+        xconn_->RedirectWindowForCompositing(unredirected_fullscreen_xid_);
+        win->HandleRedirect();
+      } else {
+        DLOG(WARNING) << "The previously unredirected window with XID="
+                      << unredirected_fullscreen_xid_ << " no longer exists";
+      }
+      unredirected_fullscreen_xid_ = 0;
+    }
+  }
+
+  if (window_to_unredirect) {
+    xconn_->UnredirectWindowForCompositing(window_to_unredirect);
+    unredirected_fullscreen_xid_ = window_to_unredirect;
+  }
+
+  if (!was_compositing && should_composite) {
+    xconn_->SetWindowBoundingRegionToRect(overlay_xid_,
+                                          Rect(0, 0, width_, height_));
+    compositor_->set_should_draw_frame(true);
+    DLOG(INFO) << "Turned compositing on";
+  } else if (was_compositing && !should_composite) {
+    xconn_->RemoveWindowBoundingRegion(overlay_xid_);
+    compositor_->set_should_draw_frame(false);
+    DLOG(INFO) << "Turned compositing off";
+  }
 }
 
 bool WindowManager::Init() {
@@ -306,6 +367,8 @@ bool WindowManager::Init() {
                 this, &WindowManager::HideUnacceleratedGraphicsActor),
             kUnacceleratedGraphicsActorHideTimeoutMs, 0);
   }
+
+  compositor_->RegisterCompositionChangeListener(this);
 
   key_bindings_.reset(new KeyBindings(xconn()));
   key_bindings_actions_.reset(
@@ -523,6 +586,16 @@ Window* WindowManager::GetWindowOrDie(XWindow xid) {
   Window* win = GetWindow(xid);
   CHECK(win) << "Unable to find window " << XidStr(xid);
   return win;
+}
+
+Window* WindowManager::GetWindowOwningActor(
+    const Compositor::TexturePixmapActor& actor) {
+  for (WindowMap::const_iterator it = client_windows_.begin();
+       it != client_windows_.end(); it++) {
+    if (it->second->actor() == &actor)
+      return it->second.get();
+  }
+  return NULL;
 }
 
 void WindowManager::FocusWindow(Window* win, XTime timestamp) {

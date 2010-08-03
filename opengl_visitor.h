@@ -140,8 +140,11 @@ class OpenGlDrawVisitor : virtual public RealCompositor::ActorVisitor {
   // display.  Sets framebuffer_config_rgba_ and framebuffer_config_rgb_.
   void FindFramebufferConfigurations();
 
-  GLInterface* gl_interface_;  // Not owned.
+  // The visitor should not change settings in the compositor while visiting
+  // actors throughout the drawing process because the compositor may decide
+  // to skip drawing frames as an optimization.
   RealCompositor* compositor_;  // Not owned.
+  GLInterface* gl_interface_;  // Not owned.
   XConnection* xconn_;  // Not owned.
   RealCompositor::StageActor* stage_; // Not owned.
 

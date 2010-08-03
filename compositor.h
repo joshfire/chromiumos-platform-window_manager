@@ -15,6 +15,7 @@
 
 namespace window_manager {
 
+class CompositionChangeListener;
 class ImageContainer;
 class XConnection;
 
@@ -187,8 +188,18 @@ class Compositor {
     DISALLOW_COPY_AND_ASSIGN(TexturePixmapActor);
   };
 
-  Compositor() {}
+  Compositor() : should_draw_frame_(true) {}
   virtual ~Compositor() {}
+
+  bool should_draw_frame() const { return should_draw_frame_; }
+  void set_should_draw_frame(bool should_draw_frame) {
+    should_draw_frame_ = should_draw_frame;
+  }
+
+  virtual void RegisterCompositionChangeListener(
+      CompositionChangeListener* listener) = 0;
+  virtual void UnregisterCompositionChangeListener(
+      CompositionChangeListener* listener) = 0;
 
   // Can we get windows' contents to the GPU without having to copy them to
   // userspace and then upload them to GL?
@@ -224,7 +235,28 @@ class Compositor {
   virtual void Draw() = 0;
 
  private:
+  // This flag indicates whether the GL draw visitor should draw the frame
+  // or it should skip the drawing.  The Draw() method is still invoked and
+  // the LayerVisitor will still tranverse the tree, only the actual drawing
+  // part is skipped.
+  bool should_draw_frame_;
+
   DISALLOW_COPY_AND_ASSIGN(Compositor);
+};
+
+// Interface for classes that need to be notified when the composition
+// of actors changes.
+class CompositionChangeListener {
+ public:
+  // This method is called whenever the compositor notices a change in the
+  // topmost visible fullscreen actor or a transition from having a fullscreen
+  // actor on top to not having one (in which case top_fullscreen_actor is
+  // NULL).  This is only called for TexturePixmapActor.
+  virtual void HandleTopFullscreenActorChange(
+      const Compositor::TexturePixmapActor* top_fullscreen_actor) = 0;
+
+ protected:
+  ~CompositionChangeListener() {}
 };
 
 }  // namespace window_manager
