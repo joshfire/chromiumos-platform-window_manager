@@ -277,12 +277,12 @@ bool RealXConnection::AddButtonGrabOnWindow(
                   XCB_NONE,             // confine_to
                   XCB_NONE,             // cursor
                   button,
-                  XCB_NONE);            // modifiers
+                  XCB_MOD_MASK_ANY);    // modifiers
   return true;
 }
 
 bool RealXConnection::RemoveButtonGrabOnWindow(XWindow xid, int button) {
-  xcb_ungrab_button(xcb_conn_, button, xid, XCB_NONE);
+  xcb_ungrab_button(xcb_conn_, button, xid, XCB_MOD_MASK_ANY);
   return true;
 }
 
