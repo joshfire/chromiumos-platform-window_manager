@@ -362,15 +362,14 @@ void BasicWindowManagerTest::SendKey(XWindow xid,
                                      KeyBindings::KeyCombo key,
                                      XTime press_timestamp,
                                      XTime release_timestamp) {
-  XEvent key_event;
-  unsigned int keycode = xconn_->GetKeyCodeFromKeySym(key.keysym);
-  unsigned int keymask = key.modifiers;
-  xconn_->InitKeyPressEvent(&key_event, xid, keycode, keymask, press_timestamp);
-  wm_->HandleEvent(&key_event);
+  const KeyCode key_code = xconn_->GetKeyCodeFromKeySym(key.keysym);
+  const uint32_t mods = key.modifiers;
 
-  xconn_->InitKeyReleaseEvent(&key_event, xid, keycode, keymask,
-                              release_timestamp);
-  wm_->HandleEvent(&key_event);
+  XEvent event;
+  xconn_->InitKeyPressEvent(&event, xid, key_code, mods, press_timestamp);
+  wm_->HandleEvent(&event);
+  xconn_->InitKeyReleaseEvent(&event, xid, key_code, mods, release_timestamp);
+  wm_->HandleEvent(&event);
 }
 
 void BasicWindowManagerTest::SendActiveWindowMessage(XWindow xid) {

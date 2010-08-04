@@ -764,9 +764,10 @@ void MockXConnection::InitButtonEvent(
   button_event->button = button;
 }
 
-void MockXConnection::InitKeyEvent(XEvent* event, XWindow xid,
-                                   unsigned int keycode,
-                                   unsigned int key_mask,
+void MockXConnection::InitKeyEvent(XEvent* event,
+                                   XWindow xid,
+                                   KeyCode key_code,
+                                   uint32_t modifiers,
                                    XTime time,
                                    bool press) const {
   CHECK(event);
@@ -774,8 +775,8 @@ void MockXConnection::InitKeyEvent(XEvent* event, XWindow xid,
   memset(key_event, 0, sizeof(*key_event));
   key_event->type = press ? KeyPress : KeyRelease;
   key_event->window = xid;
-  key_event->state = key_mask;
-  key_event->keycode = keycode;
+  key_event->state = modifiers;
+  key_event->keycode = key_code;
   key_event->time = time;
 }
 

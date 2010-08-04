@@ -310,22 +310,25 @@ class MockXConnection : public XConnection {
   // |key_mask| can be any combination of: ShiftMask, LockMask,
   // ControlMask, Mod1Mask, Mod2Mask, Mod3Mask, Mod4Mask, and Mod5Mask
   // (where Mod1Mask is the Alt key mask).
-  void InitKeyEvent(XEvent* event, XWindow xid,
-                    unsigned int keycode,
-                    unsigned int key_mask,
+  void InitKeyEvent(XEvent* event,
+                    XWindow xid,
+                    KeyCode key_code,
+                    uint32_t modifiers,
                     XTime time,
                     bool press) const;
-  void InitKeyPressEvent(XEvent* event, XWindow xid,
-                         unsigned int keycode,
-                         unsigned int key_mask,
+  void InitKeyPressEvent(XEvent* event,
+                         XWindow xid,
+                         KeyCode key_code,
+                         uint32_t modifiers,
                          XTime time) const {
-    InitKeyEvent(event, xid, keycode, key_mask, time, true);
+    InitKeyEvent(event, xid, key_code, modifiers, time, true);
   }
-  void InitKeyReleaseEvent(XEvent* event, XWindow xid,
-                           unsigned int keycode,
-                           unsigned int key_mask,
+  void InitKeyReleaseEvent(XEvent* event,
+                           XWindow xid,
+                           KeyCode key_code,
+                           uint32_t modifiers,
                            XTime time) const {
-    InitKeyEvent(event, xid, keycode, key_mask, time, false);
+    InitKeyEvent(event, xid, key_code, modifiers, time, false);
   }
   // This just creates a message with 32-bit values.
   void InitClientMessageEvent(

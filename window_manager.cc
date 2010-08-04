@@ -1008,7 +1008,10 @@ void WindowManager::RegisterKeyBindings() {
       NewPermanentCallback(
           this, &WindowManager::SendNotifySyskeyMessage,
           chromeos::WM_IPC_SYSTEM_KEY_VOLUME_UP),
-      NULL, NULL);
+      NewPermanentCallback(
+          this, &WindowManager::SendNotifySyskeyMessage,
+          chromeos::WM_IPC_SYSTEM_KEY_VOLUME_UP),
+      NULL);
   key_bindings_->AddBinding(
       KeyBindings::KeyCombo(XF86XK_AudioRaiseVolume, 0),
       kIncreaseAudioVolumeAction);
@@ -1020,7 +1023,10 @@ void WindowManager::RegisterKeyBindings() {
       NewPermanentCallback(
           this, &WindowManager::SendNotifySyskeyMessage,
           chromeos::WM_IPC_SYSTEM_KEY_VOLUME_DOWN),
-      NULL, NULL);
+      NewPermanentCallback(
+          this, &WindowManager::SendNotifySyskeyMessage,
+          chromeos::WM_IPC_SYSTEM_KEY_VOLUME_DOWN),
+      NULL);
   key_bindings_->AddBinding(
       KeyBindings::KeyCombo(XF86XK_AudioLowerVolume, 0),
       kDecreaseAudioVolumeAction);
