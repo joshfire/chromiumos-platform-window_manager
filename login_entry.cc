@@ -50,6 +50,7 @@ void LoginEntry::SetBorderWindow(Window* win) {
   }
 
   border_window_ = win;
+  border_window_->SetShouldHaveShadow(true);
   if (has_all_windows())
     InitSizes();
 }

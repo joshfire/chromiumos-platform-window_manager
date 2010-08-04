@@ -25,6 +25,7 @@
 #include "window_manager/panel.h"
 #include "window_manager/panel_bar.h"
 #include "window_manager/panel_manager.h"
+#include "window_manager/shadow.h"
 #include "window_manager/test_lib.h"
 #include "window_manager/util.h"
 #include "window_manager/window.h"
@@ -1093,6 +1094,53 @@ TEST_F(WindowManagerTest, StartNewLogAfterLogin) {
   EXPECT_GT(GetTotalFileSizeInDirectory(logged_in_dir.path()), logged_in_size);
   EXPECT_EQ(logged_out_size,
             GetTotalFileSizeInDirectory(logged_out_dir.path()));
+}
+
+// Check that we don't display drop shadows for most types of
+// override-redirect windows.
+TEST_F(WindowManagerTest, OverrideRedirectShadows) {
+  XAtom win_type_xatom = wm_->GetXAtom(ATOM_NET_WM_WINDOW_TYPE);
+  XAtom atom_xatom = wm_->GetXAtom(ATOM_ATOM);
+  XAtom menu_xatom = wm_->GetXAtom(ATOM_NET_WM_WINDOW_TYPE_MENU);
+  XAtom popup_xatom = wm_->GetXAtom(ATOM_NET_WM_WINDOW_TYPE_POPUP_MENU);
+
+  // An override-redirect window with no _NET_WM_WINDOW_TYPE property
+  // shouldn't get a shadow.
+  const XWindow root = xconn_->GetRootWindow();
+  XWindow xid1 = xconn_->CreateWindow(root, 0, 0, 10, 10, true, false, 0, 0);
+  ASSERT_TRUE(xconn_->MapWindow(xid1));
+  SendInitialEventsForWindow(xid1);
+  EXPECT_TRUE(wm_->GetWindowOrDie(xid1)->shadow() == NULL);
+
+  // _NET_WM_WINDOW_TYPE_MENU (or several other menu-related types) should
+  // result in a shadow getting shown.
+  XWindow xid2 = xconn_->CreateWindow(root, 0, 0, 10, 10, true, false, 0, 0);
+  xconn_->SetIntProperty(xid2, win_type_xatom, atom_xatom, menu_xatom);
+  ASSERT_TRUE(xconn_->MapWindow(xid2));
+  SendInitialEventsForWindow(xid2);
+  ASSERT_TRUE(wm_->GetWindowOrDie(xid2)->shadow() != NULL);
+  EXPECT_TRUE(wm_->GetWindowOrDie(xid2)->shadow()->is_shown());
+
+  XAtom normal_xatom = 0;
+  ASSERT_TRUE(xconn_->GetAtom("_NET_WM_WINDOW_TYPE_NORMAL", &normal_xatom));
+
+  // A non-menu type should result in no shadow getting shown...
+  XWindow xid3 = xconn_->CreateWindow(root, 0, 0, 10, 10, true, false, 0, 0);
+  xconn_->SetIntProperty(xid3, win_type_xatom, atom_xatom, normal_xatom);
+  ASSERT_TRUE(xconn_->MapWindow(xid3));
+  SendInitialEventsForWindow(xid3);
+  EXPECT_TRUE(wm_->GetWindowOrDie(xid3)->shadow() == NULL);
+
+  // ...unless there's another menu type in the property.
+  XWindow xid4 = xconn_->CreateWindow(root, 0, 0, 10, 10, true, false, 0, 0);
+  vector<int> values;
+  values.push_back(normal_xatom);
+  values.push_back(popup_xatom);
+  xconn_->SetIntArrayProperty(xid4, win_type_xatom, atom_xatom, values);
+  ASSERT_TRUE(xconn_->MapWindow(xid4));
+  SendInitialEventsForWindow(xid4);
+  ASSERT_TRUE(wm_->GetWindowOrDie(xid4)->shadow() != NULL);
+  EXPECT_TRUE(wm_->GetWindowOrDie(xid4)->shadow()->is_shown());
 }
 
 // Check that we try to guess when is a video is playing by looking at the

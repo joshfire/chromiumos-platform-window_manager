@@ -14,6 +14,7 @@
 #include "window_manager/event_loop.h"
 #include "window_manager/login_controller.h"
 #include "window_manager/mock_x_connection.h"
+#include "window_manager/shadow.h"
 #include "window_manager/stacking_manager.h"
 #include "window_manager/test_lib.h"
 #include "window_manager/util.h"
@@ -211,6 +212,21 @@ const int LoginControllerTest::kGapBetweenImageAndControls = 5;
 const int LoginControllerTest::kImageSize = 260;
 const int LoginControllerTest::kControlsSize = 30;
 
+// Check that border windows have shadows but other login windows don't.
+TEST_F(LoginControllerTest, Shadow) {
+  CreateLoginWindows(2, true, true);
+
+  EXPECT_TRUE(wm_->GetWindowOrDie(entries_[0].border_xid)->shadow() != NULL);
+  EXPECT_TRUE(wm_->GetWindowOrDie(entries_[0].image_xid)->shadow() == NULL);
+  EXPECT_TRUE(wm_->GetWindowOrDie(entries_[0].controls_xid)->shadow() == NULL);
+  EXPECT_TRUE(wm_->GetWindowOrDie(entries_[0].label_xid)->shadow() == NULL);
+  EXPECT_TRUE(wm_->GetWindowOrDie(entries_[0].unselected_label_xid)->
+                  shadow() == NULL);
+
+  EXPECT_TRUE(wm_->GetWindowOrDie(guest_xid_)->shadow() == NULL);
+  EXPECT_TRUE(wm_->GetWindowOrDie(background_xid_)->shadow() == NULL);
+}
+
 // Check that LoginController does some half-baked handling of any other
 // windows that get mapped before Chrome is in a logged-in state.
 TEST_F(LoginControllerTest, OtherWindows) {
@@ -240,7 +256,7 @@ TEST_F(LoginControllerTest, OtherWindows) {
   EXPECT_EQ(initial_height, info->height);
 
   // The window should still be in the same spot after it's mapped, and it
-  // should be visible too.
+  // should be visible and have a shadow too.
   xconn_->InitMapEvent(&event, xid);
   wm_->HandleEvent(&event);
   EXPECT_EQ(initial_x, info->x);
@@ -253,6 +269,8 @@ TEST_F(LoginControllerTest, OtherWindows) {
   EXPECT_EQ(initial_height, actor->GetHeight());
   EXPECT_TRUE(actor->is_shown());
   EXPECT_DOUBLE_EQ(1, actor->opacity());
+  ASSERT_TRUE(win->shadow() != NULL);
+  EXPECT_TRUE(win->shadow()->is_shown());
 
   // Check that the client is able to move and resize itself.
   const int new_x = 40;
@@ -277,6 +295,15 @@ TEST_F(LoginControllerTest, OtherWindows) {
   xconn_->InitUnmapEvent(&event, xid);
   wm_->HandleEvent(&event);
   EXPECT_FALSE(actor->is_shown());
+
+  // Info bubbles shouldn't get shadows.
+  XWindow info_bubble_xid = CreateSimpleWindow();
+  ASSERT_TRUE(wm_->wm_ipc()->SetWindowType(
+      info_bubble_xid,
+      chromeos::WM_IPC_WINDOW_CHROME_INFO_BUBBLE,
+      NULL));
+  SendInitialEventsForWindow(info_bubble_xid);
+  EXPECT_TRUE(wm_->GetWindowOrDie(info_bubble_xid)->shadow() == NULL);
 }
 
 // Test that the login controller assigns the focus correctly in a few cases.

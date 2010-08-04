@@ -35,24 +35,17 @@ TEST_F(WindowTest, WindowType) {
   XConnection::WindowGeometry geometry;
   ASSERT_TRUE(xconn_->GetWindowGeometry(xid, &geometry));
   Window win(wm_.get(), xid, false, geometry);
-
-  // Without a window type, we should have a shadow.
   EXPECT_EQ(chromeos::WM_IPC_WINDOW_UNKNOWN, win.type());
-  EXPECT_TRUE(win.using_shadow());
 
-  // Toplevel windows shouldn't have shadows.
   ASSERT_TRUE(wm_->wm_ipc()->SetWindowType(
                   xid, chromeos::WM_IPC_WINDOW_CHROME_TOPLEVEL, NULL));
-  EXPECT_TRUE(win.FetchAndApplyWindowType(true));  // update_shadow
+  EXPECT_TRUE(win.FetchAndApplyWindowType());
   EXPECT_EQ(chromeos::WM_IPC_WINDOW_CHROME_TOPLEVEL, win.type());
-  EXPECT_FALSE(win.using_shadow());
 
-  // Info bubbles shouldn't have shadows.
   ASSERT_TRUE(wm_->wm_ipc()->SetWindowType(
                   xid, chromeos::WM_IPC_WINDOW_CHROME_INFO_BUBBLE, NULL));
-  EXPECT_TRUE(win.FetchAndApplyWindowType(true));  // update_shadow
+  EXPECT_TRUE(win.FetchAndApplyWindowType());
   EXPECT_EQ(chromeos::WM_IPC_WINDOW_CHROME_INFO_BUBBLE, win.type());
-  EXPECT_FALSE(win.using_shadow());
 }
 
 TEST_F(WindowTest, ChangeClient) {
@@ -354,64 +347,6 @@ TEST_F(WindowTest, WmState) {
   EXPECT_EQ(max_vert_atom, values[1]);
 }
 
-TEST_F(WindowTest, WmWindowType) {
-  const XAtom wm_window_type_atom = wm_->GetXAtom(ATOM_NET_WM_WINDOW_TYPE);
-  const XAtom combo_atom = wm_->GetXAtom(ATOM_NET_WM_WINDOW_TYPE_COMBO);
-  const XAtom menu_atom = wm_->GetXAtom(ATOM_NET_WM_WINDOW_TYPE_MENU);
-  const XAtom dropdown_atom = wm_->GetXAtom(
-      ATOM_NET_WM_WINDOW_TYPE_DROPDOWN_MENU);
-  const XAtom popup_atom = wm_->GetXAtom(ATOM_NET_WM_WINDOW_TYPE_POPUP_MENU);
-
-  // Create an override redirect X window.
-  XWindow xid = xconn_->CreateWindow(
-      xconn_->GetRootWindow(),
-      0, 0, 640, 480,
-      true,   // override redirect
-      false,  // input only
-      0, 0);  // event mask, visual
-  xconn_->SetIntProperty(xid,
-                         wm_window_type_atom,  // atom
-                         wm_window_type_atom,  // type
-                         combo_atom);  // combo type
-
-  // Attach our Window to the X window
-  XConnection::WindowGeometry geometry;
-  ASSERT_TRUE(xconn_->GetWindowGeometry(xid, &geometry));
-  Window win(wm_.get(), xid, true, geometry);
-  EXPECT_TRUE(win.using_shadow());  // use shadow for combo
-
-  xconn_->SetIntProperty(xid,
-                         wm_window_type_atom,  // atom
-                         wm_window_type_atom,  // type
-                         menu_atom);  // menu type
-  win.FetchAndApplyWmWindowType(true);
-  EXPECT_TRUE(win.using_shadow());  // use shadow for menu
-
-  xconn_->SetIntProperty(xid,
-                         wm_window_type_atom,  // atom
-                         wm_window_type_atom,  // type
-                         dropdown_atom);  // dropdown menu type
-  win.FetchAndApplyWmWindowType(true);
-  EXPECT_TRUE(win.using_shadow());  // use shadow for dropdown menu
-
-  xconn_->SetIntProperty(xid,
-                         wm_window_type_atom,  // atom
-                         wm_window_type_atom,  // type
-                         popup_atom);  // popup menu type
-  win.FetchAndApplyWmWindowType(true);
-  EXPECT_TRUE(win.using_shadow());  // use shadow for popup menu
-
-  XAtom normal_atom = 0;
-  ASSERT_TRUE(xconn_->GetAtom("_NET_WM_WINDOW_TYPE_NORMAL", &normal_atom));
-
-  xconn_->SetIntProperty(xid,
-                         wm_window_type_atom,  // atom
-                         wm_window_type_atom,  // type
-                         normal_atom);  // normal type
-  win.FetchAndApplyWmWindowType(true);
-  EXPECT_FALSE(win.using_shadow());  // not use shadow for normal
-}
-
 TEST_F(WindowTest, ChromeState) {
   const XAtom state_atom = wm_->GetXAtom(ATOM_CHROME_STATE);
   const XAtom collapsed_atom = wm_->GetXAtom(ATOM_CHROME_STATE_COLLAPSED_PANEL);
@@ -473,9 +408,16 @@ TEST_F(WindowTest, Shape) {
   XConnection::WindowGeometry geometry;
   ASSERT_TRUE(xconn_->GetWindowGeometry(xid, &geometry));
   Window win(wm_.get(), xid, false, geometry);
+  win.SetShouldHaveShadow(true);
   EXPECT_TRUE(info->shape_events_selected);
   EXPECT_TRUE(win.shaped());
-  EXPECT_FALSE(win.using_shadow());
+  win.HandleMapNotify();
+  win.ShowComposited();
+
+  // We should have created a shadow (since SetShouldHaveShadow() was
+  // called), but we shouldn't be showing it (since the window is shaped).
+  ASSERT_TRUE(win.shadow() != NULL);
+  EXPECT_FALSE(win.shadow()->is_shown());
 
   // Set the opacity for the window's shadow (even though it's not using a
   // shadow right now).
@@ -493,9 +435,9 @@ TEST_F(WindowTest, Shape) {
   // Change the shape and check that the window updates its actor.
   info->shape->Clear(0xff);
   info->shape->SetRectangle(width - 3, height - 3, 3, 3, 0x0);
-  win.FetchAndApplyShape(true);  // update_shadow
+  win.FetchAndApplyShape();
   EXPECT_TRUE(win.shaped());
-  EXPECT_FALSE(win.using_shadow());
+  EXPECT_FALSE(win.shadow()->is_shown());
   ASSERT_TRUE(mock_actor->alpha_mask_bytes() != NULL);
   EXPECT_PRED_FORMAT3(BytesAreEqual,
                       info->shape->bytes(),
@@ -505,13 +447,13 @@ TEST_F(WindowTest, Shape) {
   // Now clear the shape and make sure that the mask is removed from the
   // actor.
   info->shape.reset();
-  win.FetchAndApplyShape(true);  // update_shadow
+  win.FetchAndApplyShape();
   EXPECT_FALSE(win.shaped());
   EXPECT_TRUE(mock_actor->alpha_mask_bytes() == NULL);
 
-  // The newly-created shadow should have the opacity that we set earlier.
-  EXPECT_TRUE(win.using_shadow());
-  ASSERT_TRUE(win.shadow() != NULL);
+  // Since the shape is gone, the shadow should now be shown using the
+  // opacity that was specified earlier.
+  EXPECT_TRUE(win.shadow()->is_shown());
   EXPECT_EQ(shadow_opacity, win.shadow()->opacity());
 }
 
@@ -579,6 +521,7 @@ TEST_F(WindowTest, UpdatePixmapAndShadowSizes) {
   XConnection::WindowGeometry geometry;
   ASSERT_TRUE(xconn_->GetWindowGeometry(xid, &geometry));
   Window win(wm_.get(), xid, false, geometry);
+  win.SetShouldHaveShadow(true);
 
   // Resize the window once before it gets mapped, to make sure that we get
   // the updated size later after the window is mapped.
@@ -623,6 +566,38 @@ TEST_F(WindowTest, UpdatePixmapAndShadowSizes) {
   EXPECT_EQ(fourth_height, actor->GetHeight());
   EXPECT_EQ(fourth_width, win.shadow()->width());
   EXPECT_EQ(fourth_height, win.shadow()->height());
+}
+
+// Test that we show and hide shadows under the proper conditions (note
+// that a portion of this is covered by the Shape test).
+TEST_F(WindowTest, ShadowVisibility) {
+  XWindow xid = CreateSimpleWindow();
+  XConnection::WindowGeometry geometry;
+  ASSERT_TRUE(xconn_->GetWindowGeometry(xid, &geometry));
+  Window win(wm_.get(), xid, false, geometry);
+
+  // First, turn on the window's shadow before it's been mapped.  Since we
+  // can't draw the window yet, we shouldn't draw its shadow either.
+  win.SetShouldHaveShadow(true);
+  win.ShowComposited();
+  ASSERT_TRUE(win.shadow() != NULL);
+  EXPECT_FALSE(win.shadow()->is_shown());
+
+  // After the window gets mapped, we should show the shadow.
+  win.HandleMapNotify();
+  EXPECT_TRUE(win.shadow()->is_shown());
+
+  // If we hide the window, the shadow should also be hidden.
+  win.HideComposited();
+  EXPECT_FALSE(win.shadow()->is_shown());
+
+  // We should show the shadow again after the window is shown.
+  win.ShowComposited();
+  EXPECT_TRUE(win.shadow()->is_shown());
+
+  // We should destroy the Shadow object when requested.
+  win.SetShouldHaveShadow(false);
+  EXPECT_TRUE(win.shadow() == NULL);
 }
 
 }  // namespace window_manager

@@ -17,6 +17,7 @@
 #include "window_manager/panel_bar.h"
 #include "window_manager/panel_dock.h"
 #include "window_manager/panel_manager.h"
+#include "window_manager/shadow.h"
 #include "window_manager/stacking_manager.h"
 #include "window_manager/test_lib.h"
 #include "window_manager/window.h"
@@ -501,6 +502,10 @@ TEST_F(PanelManagerTest, TransientWindows) {
   transient_info->transient_for = panel->content_xid();
   SendInitialEventsForWindow(transient_xid);
   Window* transient_win = wm_->GetWindowOrDie(transient_xid);
+
+  // The transient window should have a shadow.
+  ASSERT_TRUE(transient_win->shadow() != NULL);
+  EXPECT_TRUE(transient_win->shadow()->is_shown());
 
   // We should try to center the transient window over the panel (at least
   // to the degree that we can while still keeping the transient onscreen).

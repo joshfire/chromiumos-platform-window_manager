@@ -1134,6 +1134,23 @@ void WindowManager::HandleMappedWindow(Window* win) {
   FOR_EACH_EVENT_CONSUMER(event_consumers_, HandleWindowMap(win));
 
   if (win->override_redirect()) {
+    // Check if this window has a menu hint; if so, display a shadow under it.
+    const static XAtom combo_xatom = GetXAtom(ATOM_NET_WM_WINDOW_TYPE_COMBO);
+    const static XAtom dropdown_xatom =
+        GetXAtom(ATOM_NET_WM_WINDOW_TYPE_DROPDOWN_MENU);
+    const static XAtom menu_xatom = GetXAtom(ATOM_NET_WM_WINDOW_TYPE_MENU);
+    const static XAtom popup_xatom =
+        GetXAtom(ATOM_NET_WM_WINDOW_TYPE_POPUP_MENU);
+    for (vector<XAtom>::const_iterator it =
+           win->wm_window_type_xatoms().begin();
+         it != win->wm_window_type_xatoms().end(); ++it) {
+      if (*it == combo_xatom || *it == dropdown_xatom || *it == menu_xatom ||
+          *it == popup_xatom) {
+        win->SetShouldHaveShadow(true);
+        break;
+      }
+    }
+
     win->ShowComposited();
     return;
   }
@@ -1649,9 +1666,9 @@ void WindowManager::HandlePropertyNotify(const XPropertyEvent& e) {
     } else if (e.atom == GetXAtom(ATOM_WM_TRANSIENT_FOR)) {
       win->FetchAndApplyTransientHint();
     } else if (e.atom == GetXAtom(ATOM_CHROME_WINDOW_TYPE)) {
-      win->FetchAndApplyWindowType(true);  // update_shadow
+      win->FetchAndApplyWindowType();
     } else if (e.atom == GetXAtom(ATOM_NET_WM_WINDOW_TYPE)) {
-      win->FetchAndApplyWmWindowType(true);  // update_shadow
+      win->FetchAndApplyWmWindowType();
     } else if (e.atom == GetXAtom(ATOM_NET_WM_WINDOW_OPACITY)) {
       win->FetchAndApplyWindowOpacity();
     } else if (e.atom == GetXAtom(ATOM_NET_WM_STATE)) {
@@ -1727,7 +1744,7 @@ void WindowManager::HandleShapeNotify(const XShapeEvent& e) {
   DLOG(INFO) << "Handling " << (e.kind == ShapeBounding ? "bounding" : "clip")
              << " shape notify for " << XidStr(e.window);
   if (e.kind == ShapeBounding)
-    win->FetchAndApplyShape(true);  // update_shadow
+    win->FetchAndApplyShape();
 }
 
 void WindowManager::HandleUnmapNotify(const XUnmapEvent& e) {

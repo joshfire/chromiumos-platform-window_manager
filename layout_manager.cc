@@ -442,6 +442,9 @@ void LayoutManager::HandleWindowMap(Window* win) {
         if (!toplevel_owner)
           return;
 
+        if (win->type() != chromeos::WM_IPC_WINDOW_CHROME_INFO_BUBBLE)
+          win->SetShouldHaveShadow(true);
+
         transient_to_toplevel_[win->xid()] = toplevel_owner;
         toplevel_owner->HandleTransientWindowMap(win, mode_ == MODE_OVERVIEW);
 

@@ -301,16 +301,26 @@ TEST_F(PanelTest, ChromeState) {
 TEST_F(PanelTest, Shadows) {
   // Create a collapsed panel.
   XWindow titlebar_xid = CreatePanelTitlebarWindow(200, 20);
+  ASSERT_TRUE(xconn_->MapWindow(titlebar_xid));
   XConnection::WindowGeometry geometry;
   ASSERT_TRUE(xconn_->GetWindowGeometry(titlebar_xid, &geometry));
   Window titlebar_win(wm_.get(), titlebar_xid, false, geometry);
+  titlebar_win.HandleMapNotify();
+
   new_panels_should_be_expanded_ = false;
   new_panels_should_take_focus_ = false;
   XWindow content_xid = CreatePanelContentWindow(200, 400, titlebar_xid);
+  ASSERT_TRUE(xconn_->MapWindow(content_xid));
   ASSERT_TRUE(xconn_->GetWindowGeometry(content_xid, &geometry));
   Window content_win(wm_.get(), content_xid, false, geometry);
+  content_win.HandleMapNotify();
+
   Panel panel(panel_manager_, &content_win, &titlebar_win, true);
   panel.Move(0, 0, true, 0);
+
+  // Check that Panel's constructor enabled shadows for both windows.
+  ASSERT_TRUE(titlebar_win.shadow() != NULL);
+  ASSERT_TRUE(content_win.shadow() != NULL);
 
   // Both the titlebar and content windows' shadows should be visible
   // initially.

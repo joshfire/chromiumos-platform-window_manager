@@ -120,6 +120,7 @@ void PanelManager::HandleWindowMap(Window* win) {
     if (owner_panel) {
       transient_xids_by_owner_[win->xid()] = owner_panel;
       owner_panel->HandleTransientWindowMap(win);
+      win->SetShouldHaveShadow(true);
     }
     return;
   }

@@ -84,9 +84,11 @@ TEST_F(StackingManagerTest, StackWindowAtTopOfLayer) {
   XConnection::WindowGeometry geometry;
   ASSERT_TRUE(xconn_->GetWindowGeometry(xid, &geometry));
   Window win(wm_.get(), xid, false, geometry);
+  win.SetShouldHaveShadow(true);
   XWindow xid2 = CreateSimpleWindow();
   ASSERT_TRUE(xconn_->GetWindowGeometry(xid2, &geometry));
   Window win2(wm_.get(), xid2, false, geometry);
+  win2.SetShouldHaveShadow(true);
 
   // Stack both of the windows in the same layer and make sure that their
   // relative positions are correct.

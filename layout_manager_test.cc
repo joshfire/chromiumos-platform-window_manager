@@ -17,6 +17,7 @@
 #include "window_manager/layout_manager.h"
 #include "window_manager/mock_x_connection.h"
 #include "window_manager/panel.h"
+#include "window_manager/shadow.h"
 #include "window_manager/snapshot_window.h"
 #include "window_manager/stacking_manager.h"
 #include "window_manager/test_lib.h"
@@ -1583,6 +1584,49 @@ TEST_F(LayoutManagerTest, DontGrabBackAndForwardKeysInActiveMode) {
   lm_->SetMode(LayoutManager::MODE_ACTIVE);
   EXPECT_FALSE(xconn_->KeyIsGrabbed(xconn_->GetKeyCodeFromKeySym(XK_F1), 0));
   EXPECT_FALSE(xconn_->KeyIsGrabbed(xconn_->GetKeyCodeFromKeySym(XK_F2), 0));
+}
+
+// Check that shadows only get displayed for transient windows.
+TEST_F(LayoutManagerTest, Shadows) {
+  // Chrome toplevel windows shouldn't have shadows.
+  XWindow toplevel_xid = CreateToplevelWindow(2, 0, 0, 0, 200, 200);
+  SendInitialEventsForWindow(toplevel_xid);
+  EXPECT_TRUE(wm_->GetWindowOrDie(toplevel_xid)->shadow() == NULL);
+
+  // Neither should non-Chrome toplevel windows.
+  XWindow other_xid = CreateSimpleWindow();
+  SendInitialEventsForWindow(other_xid);
+  EXPECT_TRUE(wm_->GetWindowOrDie(other_xid)->shadow() == NULL);
+
+  // Or snapshot windows, or their title and fav icons windows.
+  XWindow snapshot_xid = CreateSimpleSnapshotWindow(toplevel_xid, 0);
+  SendInitialEventsForWindow(snapshot_xid);
+  EXPECT_TRUE(wm_->GetWindowOrDie(snapshot_xid)->shadow() == NULL);
+
+  XWindow title_xid = CreateTitleWindow(snapshot_xid, 200, 16);
+  SendInitialEventsForWindow(title_xid);
+  EXPECT_TRUE(wm_->GetWindowOrDie(title_xid)->shadow() == NULL);
+
+  XWindow fav_icon_xid = CreateFavIconWindow(snapshot_xid, 16, 16);
+  SendInitialEventsForWindow(fav_icon_xid);
+  EXPECT_TRUE(wm_->GetWindowOrDie(fav_icon_xid)->shadow() == NULL);
+
+  // Transient windows should get shadows, though...
+  XWindow transient_xid = CreateSimpleWindow();
+  xconn_->GetWindowInfoOrDie(transient_xid)->transient_for = toplevel_xid;
+  SendInitialEventsForWindow(transient_xid);
+  ASSERT_TRUE(wm_->GetWindowOrDie(transient_xid)->shadow() != NULL);
+  EXPECT_TRUE(wm_->GetWindowOrDie(transient_xid)->shadow()->is_shown());
+
+  // ...unless they're info bubbles.
+  XWindow info_bubble_xid = CreateSimpleWindow();
+  xconn_->GetWindowInfoOrDie(info_bubble_xid)->transient_for = toplevel_xid;
+  ASSERT_TRUE(wm_->wm_ipc()->SetWindowType(
+      info_bubble_xid,
+      chromeos::WM_IPC_WINDOW_CHROME_INFO_BUBBLE,
+      NULL));
+  SendInitialEventsForWindow(info_bubble_xid);
+  EXPECT_TRUE(wm_->GetWindowOrDie(info_bubble_xid)->shadow() == NULL);
 }
 
 }  // namespace window_manager

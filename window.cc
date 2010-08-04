@@ -19,8 +19,6 @@
 #include "window_manager/window_manager.h"
 #include "window_manager/x_connection.h"
 
-DEFINE_bool(window_drop_shadows, true, "Display drop shadows under windows");
-
 using std::map;
 using std::max;
 using std::min;
@@ -42,7 +40,6 @@ Window::Window(WindowManager* wm, XWindow xid, bool override_redirect,
       xid_str_(XidStr(xid_)),
       wm_(wm),
       actor_(wm_->compositor()->CreateTexturePixmap()),
-      shadow_(FLAGS_window_drop_shadows ? new Shadow(wm->compositor()) : NULL),
       transient_for_xid_(None),
       override_redirect_(override_redirect),
       mapped_(false),
@@ -59,7 +56,6 @@ Window::Window(WindowManager* wm, XWindow xid, bool override_redirect,
       composited_scale_x_(1.0),
       composited_scale_y_(1.0),
       composited_opacity_(1.0),
-      using_shadow_(false),
       shadow_opacity_(1.0),
       supports_wm_take_focus_(false),
       supports_wm_delete_window_(false),
@@ -68,7 +64,6 @@ Window::Window(WindowManager* wm, XWindow xid, bool override_redirect,
       wm_state_maximized_vert_(false),
       wm_state_modal_(false),
       wm_hint_urgent_(false),
-      wm_window_type_(WM_WINDOW_TYPE_NORMAL),
       damage_(0),
       pixmap_(0),
       num_video_damage_events_(0),
@@ -104,20 +99,11 @@ Window::Window(WindowManager* wm, XWindow xid, bool override_redirect,
   SetTitle(title_);
   wm_->stage()->AddActor(actor_.get());
 
-  if (shadow_.get()) {
-    shadow_->group()->SetName(string("shadow group for window " + xid_str()));
-    wm_->stage()->AddActor(shadow_->group());
-    shadow_->Move(composited_x_, composited_y_, 0);
-    shadow_->SetOpacity(shadow_opacity_, 0);
-    shadow_->Resize(composited_scale_x_ * client_width_,
-                    composited_scale_y_ * client_height_, 0);
-  }
-
   // Various properties could've been set on this window after it was
   // created but before we selected PropertyChangeMask, so we need to query
   // them here.
-  FetchAndApplyWindowType(false);
-  FetchAndApplyShape(false);
+  FetchAndApplyWindowType();
+  FetchAndApplyShape();
   FetchAndApplyWindowOpacity();
   FetchAndApplySizeHints();
   FetchAndApplyWmProtocols();
@@ -125,7 +111,7 @@ Window::Window(WindowManager* wm, XWindow xid, bool override_redirect,
   FetchAndApplyChromeState();
   FetchAndApplyTransientHint();
   FetchAndApplyWmHints();
-  FetchAndApplyWmWindowType(true);
+  FetchAndApplyWmWindowType();
 }
 
 Window::~Window() {
@@ -178,11 +164,9 @@ bool Window::FetchAndApplyTransientHint() {
   return true;
 }
 
-bool Window::FetchAndApplyWindowType(bool update_shadow) {
+bool Window::FetchAndApplyWindowType() {
   bool result = wm_->wm_ipc()->GetWindowType(xid_, &type_, &type_params_);
   DLOG(INFO) << "Window " << xid_str() << " has type " << type_;
-  if (update_shadow)
-    UpdateShadowIfNecessary();
   return result;
 }
 
@@ -273,34 +257,19 @@ void Window::FetchAndApplyWmState() {
              << " modal=" << wm_state_modal_;
 }
 
-void Window::FetchAndApplyWmWindowType(bool update_shadow) {
-  wm_window_type_ = WM_WINDOW_TYPE_NORMAL;
+void Window::FetchAndApplyWmWindowType() {
+  wm_window_type_xatoms_.clear();
 
-  int window_type_int = 0;
-  if (wm_->xconn()->GetIntProperty(
-      xid_, wm_->GetXAtom(ATOM_NET_WM_WINDOW_TYPE), &window_type_int)) {
-    XAtom window_type_atom = static_cast<XAtom>(window_type_int);
-    XAtom combo_atom = wm_->GetXAtom(ATOM_NET_WM_WINDOW_TYPE_COMBO);
-    XAtom menu_atom = wm_->GetXAtom(ATOM_NET_WM_WINDOW_TYPE_MENU);
-    XAtom dropdown_menu_atom = wm_->GetXAtom(
-        ATOM_NET_WM_WINDOW_TYPE_DROPDOWN_MENU);
-    XAtom popup_menu_atom = wm_->GetXAtom(ATOM_NET_WM_WINDOW_TYPE_POPUP_MENU);
-
-    if (window_type_atom == combo_atom) {
-      wm_window_type_ = WM_WINDOW_TYPE_COMBO;
-    } else if (window_type_atom == menu_atom ||
-               window_type_atom == dropdown_menu_atom ||
-               window_type_atom == popup_menu_atom) {
-      wm_window_type_ = WM_WINDOW_TYPE_MENU;
-    }
-
-    DLOG(INFO) << "Fetched _NET_WM_WINDOW_TYPE for " << xid_str() << ":"
-               << " atom=" << window_type_atom
-               << " wm_window_type=" << wm_window_type_;
+  vector<int> window_type_ints;
+  if (!wm_->xconn()->GetIntArrayProperty(
+          xid_, wm_->GetXAtom(ATOM_NET_WM_WINDOW_TYPE), &window_type_ints)) {
+    return;
   }
 
-  if (update_shadow)
-    UpdateShadowIfNecessary();
+  for (vector<int>::const_iterator it = window_type_ints.begin();
+       it != window_type_ints.end(); ++it) {
+    wm_window_type_xatoms_.push_back(static_cast<XAtom>(*it));
+  }
 }
 
 void Window::FetchAndApplyChromeState() {
@@ -322,7 +291,7 @@ void Window::FetchAndApplyChromeState() {
              << xid_str() << ": " << debug_str;
 }
 
-void Window::FetchAndApplyShape(bool update_shadow) {
+void Window::FetchAndApplyShape() {
   shaped_ = false;
   ByteMap bytemap(client_width_, client_height_);
 
@@ -342,8 +311,7 @@ void Window::FetchAndApplyShape(bool update_shadow) {
     DLOG(INFO) << "Got shape for " << xid_str();
     actor_->SetAlphaMask(bytemap.bytes(), bytemap.width(), bytemap.height());
   }
-  if (update_shadow)
-    UpdateShadowIfNecessary();
+  UpdateShadowVisibility();
 }
 
 bool Window::FetchMapState() {
@@ -613,34 +581,25 @@ void Window::ShowComposited() {
   DLOG(INFO) << "Showing " << xid_str() << "'s composited window";
   actor_->Show();
   composited_shown_ = true;
-  if (shadow_.get() && using_shadow_)
-    shadow_->Show();
+  UpdateShadowVisibility();
 }
 
 void Window::HideComposited() {
   DLOG(INFO) << "Hiding " << xid_str() << "'s composited window";
   actor_->Hide();
   composited_shown_ = false;
-  if (shadow_.get() && using_shadow_)
-    shadow_->Hide();
+  UpdateShadowVisibility();
 }
 
 void Window::SetCompositedOpacity(double opacity, int anim_ms) {
   composited_opacity_ = opacity;
-
-  // The client might've already requested that the window be translucent.
-  double combined_opacity = composited_opacity_ * client_opacity_;
-
-  // Reset the shadow's opacity as well.
-  shadow_opacity_ = combined_opacity;
-
   DLOG(INFO) << "Setting " << xid_str() << "'s composited window opacity to "
-             << opacity << " (combined is " << combined_opacity << ") over "
+             << opacity << " (combined is " << combined_opacity() << ") over "
              << anim_ms << " ms";
 
-  actor_->SetOpacity(combined_opacity, anim_ms);
+  actor_->SetOpacity(combined_opacity(), anim_ms);
   if (shadow_.get())
-    shadow_->SetOpacity(shadow_opacity_, anim_ms);
+    shadow_->SetOpacity(combined_opacity() * shadow_opacity_, anim_ms);
 }
 
 void Window::ScaleComposited(double scale_x, double scale_y, int anim_ms) {
@@ -657,10 +616,13 @@ void Window::ScaleComposited(double scale_x, double scale_y, int anim_ms) {
 void Window::HandleMapNotify() {
   mapped_ = true;
   ResetPixmap();
+  UpdateShadowVisibility();
 }
 
 void Window::HandleUnmapNotify() {
   mapped_ = false;
+  // We could potentially show a window onscreen even after it's been
+  // unmapped, so we avoid hiding the shadow here.
 }
 
 void Window::HandleRedirect() {
@@ -691,12 +653,27 @@ void Window::HandleDamageNotify(const Rect& bounding_box) {
   }
 }
 
+void Window::SetShouldHaveShadow(bool should_have_shadow) {
+  if (!should_have_shadow && shadow_.get()) {
+    shadow_.reset(NULL);
+  } else if (should_have_shadow && !shadow_.get()) {
+    shadow_.reset(new Shadow(wm_->compositor()));
+    shadow_->group()->SetName(string("shadow group for window " + xid_str()));
+    wm_->stage()->AddActor(shadow_->group());
+    shadow_->Move(composited_x_, composited_y_, 0);
+    shadow_->SetOpacity(combined_opacity() * shadow_opacity_, 0);
+    shadow_->Resize(composited_scale_x_ * client_width_,
+                    composited_scale_y_ * client_height_, 0);
+    UpdateShadowVisibility();
+  }
+}
+
 void Window::SetShadowOpacity(double opacity, int anim_ms) {
   DLOG(INFO) << "Setting " << xid_str() << "'s shadow opacity to " << opacity
              << " over " << anim_ms << " ms";
   shadow_opacity_ = opacity;
   if (shadow_.get())
-    shadow_->SetOpacity(opacity, anim_ms);
+    shadow_->SetOpacity(combined_opacity() * shadow_opacity_, anim_ms);
 }
 
 void Window::StackCompositedAbove(Compositor::Actor* actor,
@@ -737,37 +714,6 @@ void Window::CopyClientBoundsToRect(Rect* rect) const {
   rect->y = client_y_;
   rect->width = client_width_;
   rect->height = client_height_;
-}
-
-void Window::UpdateShadowIfNecessary() {
-  if (!shadow_.get())
-    return;
-
-  // TODO: make this a setter that the EventConsumer sets.
-  bool should_use_shadow =
-      (!override_redirect_ ||
-       wm_window_type_ == WM_WINDOW_TYPE_MENU ||    // Let menu and combo
-       wm_window_type_ == WM_WINDOW_TYPE_COMBO) &&  // dropdown list pass.
-      type_ != chromeos::WM_IPC_WINDOW_CHROME_INFO_BUBBLE &&
-      type_ != chromeos::WM_IPC_WINDOW_LOGIN_IMAGE &&
-      type_ != chromeos::WM_IPC_WINDOW_LOGIN_CONTROLS &&
-      type_ != chromeos::WM_IPC_WINDOW_LOGIN_LABEL &&
-      type_ != chromeos::WM_IPC_WINDOW_LOGIN_UNSELECTED_LABEL &&
-      type_ != chromeos::WM_IPC_WINDOW_LOGIN_GUEST &&
-      type_ != chromeos::WM_IPC_WINDOW_CHROME_TAB_SNAPSHOT &&
-      type_ != chromeos::WM_IPC_WINDOW_CHROME_TAB_TITLE &&
-      type_ != chromeos::WM_IPC_WINDOW_CHROME_TAB_FAV_ICON &&
-      type_ != chromeos::WM_IPC_WINDOW_CHROME_TOPLEVEL &&
-      !shaped_;
-
-  if (!should_use_shadow && using_shadow_) {
-    shadow_->Hide();
-    using_shadow_ = false;
-  } else if (should_use_shadow && !using_shadow_) {
-    if (composited_shown_)
-      shadow_->Show();
-    using_shadow_ = true;
-  }
 }
 
 void Window::SetWmStateInternal(int action, bool* value) const {
@@ -842,6 +788,22 @@ void Window::ResetPixmap() {
   }
   if (old_pixmap)
     wm_->xconn()->FreePixmap(old_pixmap);
+}
+
+void Window::UpdateShadowVisibility() {
+  // If nobody requested that this window have a shadow, shadow_ will just
+  // be NULL.
+  if (!shadow_.get())
+    return;
+
+  // Even if it was requested, there may be other reasons not to show it
+  // (maybe the window isn't mapped yet, or it's shaped, or it's hidden).
+  const bool should_show = pixmap_ && !shaped_ && composited_shown_;
+
+  if (!shadow_->is_shown() && should_show)
+    shadow_->Show();
+  else if (shadow_->is_shown() && !should_show)
+    shadow_->Hide();
 }
 
 }  // namespace window_manager

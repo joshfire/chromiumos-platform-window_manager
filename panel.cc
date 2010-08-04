@@ -182,6 +182,9 @@ Panel::Panel(PanelManager* panel_manager,
     }
   }
 
+  content_win_->SetShouldHaveShadow(true);
+  titlebar_win_->SetShouldHaveShadow(true);
+
   // Notify Chrome about the panel's state.  If we crash and get restarted,
   // we want to make sure that Chrome thinks it's in the same state that we do.
   SendStateMessageToChrome();

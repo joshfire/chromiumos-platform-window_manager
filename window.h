@@ -51,15 +51,6 @@ class WindowManager;
 // the composited window.
 class Window {
  public:
-  // Mapped type from EWMH _NET_WM_WINDOW_TYPE
-  enum WmWindowType {
-    WM_WINDOW_TYPE_NORMAL = 0,  // All other types.
-    WM_WINDOW_TYPE_MENU,        // _NET_WM_WINDOW_TYPE_MENU,
-                                // _NET_WM_WINDOW_TYPE_DROPDOWN_MENU,
-                                // _NET_WM_WINDOW_TYPE_POPUP_MENU
-    WM_WINDOW_TYPE_COMBO,       // _NET_WM_WINDOW_TYPE_COMBO
-  };
-
   Window(WindowManager* wm, XWindow xid, bool override_redirect,
          const XConnection::WindowGeometry& geometry);
   ~Window();
@@ -69,7 +60,6 @@ class Window {
   WindowManager* wm() { return wm_; }
   Compositor::TexturePixmapActor* actor() { return actor_.get(); }
   const Shadow* shadow() const { return shadow_.get(); }
-  bool using_shadow() const { return using_shadow_; }
   XWindow transient_for_xid() const { return transient_for_xid_; }
   bool override_redirect() const { return override_redirect_; }
   chromeos::WmIpcWindowType type() const { return type_; }
@@ -91,9 +81,18 @@ class Window {
   double composited_scale_y() const { return composited_scale_y_; }
   double composited_opacity() const { return composited_opacity_; }
 
+  // The client might've already requested that the window be translucent,
+  // in addition to whatever level has been set on the composited window.
+  double combined_opacity() const {
+    return composited_opacity_ * client_opacity_;
+  }
+
   const std::string& title() const { return title_; }
   void SetTitle(const std::string& title);
 
+  const std::vector<XAtom>& wm_window_type_xatoms() const {
+    return wm_window_type_xatoms_;
+  }
   bool wm_state_fullscreen() const { return wm_state_fullscreen_; }
   bool wm_state_modal() const { return wm_state_modal_; }
   bool wm_hint_urgent() const { return wm_hint_urgent_; }
@@ -107,8 +106,7 @@ class Window {
   bool FetchAndApplyTransientHint();
 
   // Update the window based on its Chrome OS window type property.
-  // If 'update_shadow' is true, add or remove a drop shadow as needed.
-  bool FetchAndApplyWindowType(bool update_shadow);
+  bool FetchAndApplyWindowType();
 
   // Update the window's opacity in response to the current value of its
   // _NET_WM_WINDOW_OPACITY property.
@@ -129,17 +127,17 @@ class Window {
   void FetchAndApplyWmState();
 
   // Fetch the window's _NET_WM_WINDOW_TYPE property and update
-  // wm_window_type_.
-  void FetchAndApplyWmWindowType(bool update_shadow);
+  // wm_window_type_atoms_.
+  void FetchAndApplyWmWindowType();
 
   // Fetch the window's _CHROME_STATE property and update our internal copy
   // of it.
   void FetchAndApplyChromeState();
 
   // Check if the window has been shaped using the Shape extension and
-  // update its compositing actor accordingly.  If 'update_shadow' is true,
-  // add or remove a drop shadow as needed.
-  void FetchAndApplyShape(bool update_shadow);
+  // update its compositing actor accordingly.  If the window is shaped, we
+  // hide its shadow if it has one.
+  void FetchAndApplyShape();
 
   // Query the X server to see if this window is currently mapped or not.
   // This should only be used for checking the state of an existing window
@@ -261,10 +259,14 @@ class Window {
   // Handle the window's contents being changed.
   void HandleDamageNotify(const Rect& bounding_box);
 
-  // Change the opacity of the window's shadow, overriding any previous
-  // setting from SetCompositedOpacity().  This just temporarily changes
-  // the opacity; the next call to SetCompositedOpacity() will restore the
-  // shadow's opacity to the composited window's.
+  // Should this window have a shadow?  By default, it won't.  Note that
+  // even if true is passed to this method, the shadow may not be visible
+  // (shadows aren't drawn for shaped windows, for instance) -- see
+  // UpdateShadowVisibility().
+  void SetShouldHaveShadow(bool should_use_shadow);
+
+  // Change the opacity of the window's shadow.  The shadow's opacity is
+  // multiplied by that of the window itself.
   void SetShadowOpacity(double opacity, int anim_ms);
 
   // Stack the window directly above 'actor' and its shadow directly above
@@ -303,9 +305,6 @@ class Window {
   static const int kVideoMinHeight;
   static const int kVideoMinFramerate;
 
-  // Hide or show the window's shadow if necessary.
-  void UpdateShadowIfNecessary();
-
   // Helper method for ParseWmStateMessage() and ChangeWmState().  Given an
   // action from a _NET_WM_STATE message (i.e. the XClientMessageEvent's
   // data.l[0] field), updates 'value' accordingly.
@@ -323,10 +322,20 @@ class Window {
   // contents in it, and notify 'actor_' that the pixmap has changed.
   void ResetPixmap();
 
+  // Update the visibility of 'shadow_' if it's non-NULL.  This window's
+  // shadow can be enabled or disabled via SetShouldUseShadow(), but there
+  // are still other reasons that we may not draw the shadow (e.g. the
+  // window is shaped or not yet mapped).  This method is called when
+  // various states that can prevent us from drawing the shadow are changed.
+  void UpdateShadowVisibility();
+
   XWindow xid_;
   std::string xid_str_;  // hex for debugging
   WindowManager* wm_;
   scoped_ptr<Compositor::TexturePixmapActor> actor_;
+
+  // This contains a shadow if SetShouldUseShadow(true) has been called and
+  // is NULL otherwise.
   scoped_ptr<Shadow> shadow_;
 
   // The XID that this window says it's transient for.  Note that the
@@ -371,12 +380,7 @@ class Window {
   double composited_scale_y_;
   double composited_opacity_;
 
-  // Are we currently displaying a drop shadow beneath this window?
-  bool using_shadow_;
-
-  // Current shadow opacity.  Usually just 'client_opacity_' *
-  // 'composited_opacity_', but can be overrided temporarily via
-  // SetShadowOpacity().
+  // Current opacity requested for the window's shadow.
   double shadow_opacity_;
 
   std::string title_;
@@ -401,8 +405,10 @@ class Window {
   // WM_HINTS property?
   bool wm_hint_urgent_;
 
-  // Mapped EWMH window type from the window's _NET_WM_WINDOW_TYPE property.
-  WmWindowType wm_window_type_;
+  // EWMH window types from the window's _NET_WM_WINDOW_TYPE property, in
+  // the order in which they appear (which is the window's preference for
+  // which type should be used).
+  std::vector<XAtom> wm_window_type_xatoms_;
 
   // Chrome window state, as exposed in the window's _CHROME_STATE
   // property.

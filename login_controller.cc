@@ -253,6 +253,9 @@ void LoginController::HandleWindowMap(Window* win) {
             win->CenterClientOverWindow(owner_win);
         }
 
+        if (win->type() != chromeos::WM_IPC_WINDOW_CHROME_INFO_BUBBLE)
+          win->SetShouldHaveShadow(true);
+
         wm_->focus_manager()->UseClickToFocusForWindow(win);
         wm_->FocusWindow(win, wm_->GetCurrentTimeFromServer());
         win->MoveCompositedToClient();
