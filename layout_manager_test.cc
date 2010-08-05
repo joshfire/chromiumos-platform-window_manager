@@ -1514,6 +1514,25 @@ TEST_F(LayoutManagerTest, Fullscreen) {
   EXPECT_EQ(PanelManager::kPanelDockWidth, win->composited_x());
   EXPECT_EQ(new_width - PanelManager::kPanelDockWidth, win->client_width());
   EXPECT_EQ(new_width - PanelManager::kPanelDockWidth, win->composited_width());
+
+  // If the fullscreen hint is already set on a window when it's mapped
+  // (Flash does this), we should honor it.
+  XWindow initially_fullscreen_xid = CreateSimpleWindow();
+  xconn_->SetIntProperty(
+      initially_fullscreen_xid,
+      wm_->GetXAtom(ATOM_NET_WM_STATE),
+      wm_->GetXAtom(ATOM_ATOM),
+      wm_->GetXAtom(ATOM_NET_WM_STATE_FULLSCREEN));
+  SendInitialEventsForWindow(initially_fullscreen_xid);
+  Window* initially_fullscreen_win =
+      wm_->GetWindowOrDie(initially_fullscreen_xid);
+  EXPECT_TRUE(initially_fullscreen_win->wm_state_fullscreen());
+  EXPECT_TRUE(WindowIsInLayer(initially_fullscreen_win,
+                              StackingManager::LAYER_FULLSCREEN_WINDOW));
+  // Also check that the window is visible -- we forgo initializing the
+  // layout of fullscreen windows, so it's easy to miss doing this.
+  EXPECT_TRUE(initially_fullscreen_win->composited_shown());
+  EXPECT_DOUBLE_EQ(1.0, initially_fullscreen_win->composited_opacity());
 }
 
 // This just checks that we don't crash when changing modes while there

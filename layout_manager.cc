@@ -490,10 +490,13 @@ void LayoutManager::HandleWindowMap(Window* win) {
       // Tell the newly mapped window what the mode is so it'll map
       // the snapshot windows it has if we're in overview mode.
       SendModeMessage(toplevel.get(), false);  // cancelled=false
-
       SetCurrentToplevel(toplevel.get());
-
       AddOrRemoveSeparatorsAsNeeded();
+
+      // Clients can set the fullscreen hint on a window before mapping it.
+      if (win->wm_state_fullscreen())
+        MakeToplevelFullscreen(toplevel.get());
+
       break;
     }
     default:

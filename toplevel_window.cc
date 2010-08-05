@@ -230,6 +230,10 @@ void LayoutManager::ToplevelWindow::SetFullscreenState(bool fullscreen) {
     win_->ResizeClient(wm()->width(), wm()->height(), GRAVITY_NORTHWEST);
     win_->MoveClient(0, 0);
     win_->MoveCompositedToClient();
+    // If a window has its fullscreen hint set when it's first mapped,
+    // LayoutManager will avoid calling ConfigureForActiveMode(), so we
+    // need to manually make sure that the window is visible here.
+    win_->SetCompositedOpacity(1, 0);
   } else {
     wm()->stacking_manager()->StackWindowAtTopOfLayer(
         win_, StackingManager::LAYER_TOPLEVEL_WINDOW);
