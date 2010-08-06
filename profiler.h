@@ -126,10 +126,11 @@
 
 namespace window_manager {
 
-class Marker;
 class DynamicMarker;
+class Marker;
 class Profiler;
 class ProfilerWriter;
+class ScopedMarker;
 
 class Marker {
  public:
@@ -141,7 +142,9 @@ class Marker {
  private:
   Profiler* profiler_;
   unsigned int symbol_id_;
-};  // Marker
+
+  DISALLOW_COPY_AND_ASSIGN(Marker);
+};
 
 class DynamicMarker {
  public:
@@ -162,7 +165,22 @@ class DynamicMarker {
   Profiler* profiler_;
   std::stack<unsigned int> recent_symbol_ids_;
   base::hash_map<std::string, unsigned int> symbol_table_;
-};  // DynamicMarker
+
+  DISALLOW_COPY_AND_ASSIGN(DynamicMarker);
+};
+
+class ScopedMarker {
+ public:
+  explicit ScopedMarker(const char* name) {
+    PROFILER_DYNAMIC_MARKER_BEGIN(name);
+  }
+
+  ~ScopedMarker() {
+    PROFILER_DYNAMIC_MARKER_END();
+  }
+ private:
+  DISALLOW_COPY_AND_ASSIGN(ScopedMarker);
+};
 
 class Profiler {
  public:
@@ -201,7 +219,9 @@ class Profiler {
   unsigned int num_samples_;
   scoped_array<profiler::Symbol> symbols_;
   scoped_array<profiler::Sample> samples_;
-};  // Profiler
+
+  DISALLOW_COPY_AND_ASSIGN(Profiler);
+};
 
 class ProfilerWriter {
  public:
@@ -212,7 +232,9 @@ class ProfilerWriter {
   unsigned int num_written_samples_;
   unsigned int num_written_symbols_;
   FilePath file_path_;
-};  // ProfilerWriter
+
+  DISALLOW_COPY_AND_ASSIGN(ProfilerWriter);
+};
 
 }  // namespace window_manager
 
