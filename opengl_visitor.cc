@@ -285,7 +285,7 @@ OpenGlDrawVisitor::OpenGlDrawVisitor(GLInterface* gl_interface,
       visit_opaque_(false),
       ancestor_opacity_(1.0f),
       num_frames_drawn_(0),
-      use_partial_updates_(false) {
+      has_fullscreen_actor_(false) {
   CHECK(gl_interface_);
   context_ = gl_interface_->CreateGlxContext();
   CHECK(context_) << "Unable to create a context from the available visuals.";
@@ -432,10 +432,6 @@ void OpenGlDrawVisitor::BindImage(const ImageContainer* container,
   data->SetTexture(new_texture);
   data->set_has_alpha(ImageFormatUsesAlpha(container->format()));
   actor->set_texture_data(data);
-}
-
-void OpenGlDrawVisitor::VisitActor(RealCompositor::Actor* actor) {
-  // Base actors actually don't have anything to draw.
 }
 
 void OpenGlDrawVisitor::VisitImage(RealCompositor::ImageActor* actor) {
@@ -607,39 +603,14 @@ void OpenGlDrawVisitor::VisitStage(RealCompositor::StageActor* actor) {
 
   state_cache_.Invalidate();
 
-  // Set the z-depths for the actors, update is_opaque, model view matrices,
-  // projection matrix, and perform culling test.  Also checks if the screen
-  // will be covered by an opaque actor.
-  RealCompositor::LayerVisitor layer_visitor(
-      compositor_->actor_count(),
-      use_partial_updates_);
-  actor->Accept(&layer_visitor);
-
-  // Updating the top fullscreen actor before checking should_draw_frame()
-  // permits optimizations where we avoid compositing (drawing via DrawVisitor)
-  // when there's a single fullscreen actor onscreen.
-  compositor_->UpdateTopFullscreenActor(layer_visitor.top_fullscreen_actor());
-
-  if (!compositor_->should_draw_frame()) {
-    PROFILER_MARKER_END(VisitStage);
-    return;
-  }
-
-  Rect damaged_region = layer_visitor.GetDamagedRegion(actor->width(),
-                                                       actor->height());
-  if (use_partial_updates_) {
-    if (damaged_region.empty()) {
-      PROFILER_MARKER_END(VisitStage);
-      stage_ = NULL;
-      return;
-    }
+  if (gl_interface_->IsCapableOfPartialUpdates() && !damaged_region_.empty()) {
     gl_interface_->Enable(GL_SCISSOR_TEST);
-    gl_interface_->Scissor(damaged_region.x, damaged_region.y,
-                           damaged_region.width, damaged_region.height);
+    gl_interface_->Scissor(damaged_region_.x, damaged_region_.y,
+                           damaged_region_.width, damaged_region_.height);
   }
 
   // No need to clear color buffer if something will cover up the screen.
-  if (layer_visitor.has_fullscreen_actor())
+  if (has_fullscreen_actor_)
     gl_interface_->Clear(GL_DEPTH_BUFFER_BIT);
   else
     gl_interface_->Clear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -692,23 +663,23 @@ void OpenGlDrawVisitor::VisitStage(RealCompositor::StageActor* actor) {
   gl_interface_->DepthMask(GL_TRUE);
   CHECK_GL_ERROR(gl_interface_);
 
-  if (FLAGS_compositor_display_debug_needle) {
+  if (FLAGS_compositor_display_debug_needle)
     DrawNeedle();
-  }
+
   PROFILER_MARKER_BEGIN(Swap_Buffer);
-  if (use_partial_updates_) {
+  if (gl_interface_->IsCapableOfPartialUpdates() && !damaged_region_.empty()) {
     gl_interface_->Disable(GL_SCISSOR_TEST);
     gl_interface_->CopyGlxSubBuffer(actor->GetStageXWindow(),
-                                    damaged_region.x,
-                                    damaged_region.y,
-                                    damaged_region.width,
-                                    damaged_region.height);
+                                    damaged_region_.x,
+                                    damaged_region_.y,
+                                    damaged_region_.width,
+                                    damaged_region_.height);
 #ifdef EXTRA_LOGGING
     DLOG(INFO) << "Partial updates: "
-               << damaged_region.x << ", "
-               << damaged_region.y << ", "
-               << damaged_region.width << ", "
-               << damaged_region.height << ".";
+               << damaged_region_.x << ", "
+               << damaged_region_.y << ", "
+               << damaged_region_.width << ", "
+               << damaged_region_.height << ".";
 #endif
   } else {
     gl_interface_->SwapGlxBuffers(actor->GetStageXWindow());
@@ -724,9 +695,8 @@ void OpenGlDrawVisitor::VisitStage(RealCompositor::StageActor* actor) {
   PROFILER_MARKER_END(VisitStage);
   // The profiler is flushed explicitly every 100 frames, or flushed
   // implicitly when the internal buffer is full.
-  if (num_frames_drawn_ % 100 == 0) {
+  if (num_frames_drawn_ % 100 == 0)
     PROFILER_FLUSH();
-  }
   stage_ = NULL;
 }
 

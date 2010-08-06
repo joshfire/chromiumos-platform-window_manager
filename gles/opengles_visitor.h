@@ -33,6 +33,12 @@ class OpenGlesDrawVisitor : virtual public RealCompositor::ActorVisitor {
                       RealCompositor* compositor,
                       Compositor::StageActor* stage);
   virtual ~OpenGlesDrawVisitor();
+  void set_has_fullscreen_actor(bool has_fullscreen_actor) {
+    has_fullscreen_actor_ = has_fullscreen_actor;
+  }
+  void set_damaged_region(Rect damaged_region) {
+    NOTIMPLEMENTED();
+  }
 
   void BindImage(const ImageContainer* container,
                  RealCompositor::QuadActor* actor);
@@ -42,10 +48,6 @@ class OpenGlesDrawVisitor : virtual public RealCompositor::ActorVisitor {
   virtual void VisitContainer(RealCompositor::ContainerActor* actor);
   virtual void VisitTexturePixmap(RealCompositor::TexturePixmapActor* actor);
   virtual void VisitQuad(RealCompositor::QuadActor* actor);
-
-  void SetUsePartialUpdates(bool use_partial_updates) {
-    NOTIMPLEMENTED();
-  }
 
  private:
   Gles2Interface* gl_;  // Not owned.
@@ -73,6 +75,10 @@ class OpenGlesDrawVisitor : virtual public RealCompositor::ActorVisitor {
 
   // Temporary storage for client side vertex colors
   GLfloat colors_[4 * 4];
+
+  // This is used to indicate whether the entire screen will be covered by an
+  // actor so we can optimize by not clearing the COLOR_BUFFER_BIT.
+  bool has_fullscreen_actor_;
 
   DISALLOW_COPY_AND_ASSIGN(OpenGlesDrawVisitor);
 };

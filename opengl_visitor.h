@@ -21,7 +21,6 @@ namespace window_manager {
 
 class ImageContainer;
 
-
 class OpenGlTextureData : public TextureData {
  public:
   explicit OpenGlTextureData(GLInterface* gl_interface);
@@ -78,21 +77,22 @@ class OpenGlDrawVisitor : virtual public RealCompositor::ActorVisitor {
   virtual ~OpenGlDrawVisitor();
 
   XConnection* xconn() { return xconn_; }
+  void set_has_fullscreen_actor(bool has_fullscreen_actor) {
+    has_fullscreen_actor_ = has_fullscreen_actor;
+  }
+  void set_damaged_region(Rect damaged_region) {
+    damaged_region_ = damaged_region;
+  }
 
   void BindImage(const ImageContainer* container,
                  RealCompositor::ImageActor* actor);
 
-  virtual void VisitActor(RealCompositor::Actor* actor);
+  virtual void VisitActor(RealCompositor::Actor* actor) {}
   virtual void VisitStage(RealCompositor::StageActor* actor);
   virtual void VisitContainer(RealCompositor::ContainerActor* actor);
   virtual void VisitImage(RealCompositor::ImageActor* actor);
   virtual void VisitTexturePixmap(RealCompositor::TexturePixmapActor* actor);
   virtual void VisitQuad(RealCompositor::QuadActor* actor);
-
-  void SetUsePartialUpdates(bool use_partial_updates) {
-    use_partial_updates_ = gl_interface_->IsCapableOfPartialUpdates() &&
-                           use_partial_updates;
-  }
 
  private:
   class OpenGlQuadDrawingData {
@@ -178,9 +178,13 @@ class OpenGlDrawVisitor : virtual public RealCompositor::ActorVisitor {
   // state changes.
   OpenGlStateCache state_cache_;
 
-  // This indicates whether we should perform a partial update of the stage's
-  // contents (as opposed to a full update)."
-  bool use_partial_updates_;
+  // The rectangular region of the screen that is damaged in the frame.
+  // This information allows the draw visitor to perform partial updates.
+  Rect damaged_region_;
+
+  // This is used to indicate whether the entire screen will be covered by an
+  // actor so we can optimize by not clearing the COLOR_BUFFER_BIT.
+  bool has_fullscreen_actor_;
 
   DISALLOW_COPY_AND_ASSIGN(OpenGlDrawVisitor);
 };

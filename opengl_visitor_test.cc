@@ -29,37 +29,6 @@ using window_manager::util::NextPowerOfTwo;
 namespace window_manager {
 
 class OpenGlVisitorTest : public BasicCompositingTest {};
-class OpenGlVisitorTreeTest : public BasicCompositingTreeTest {};
-
-TEST_F(OpenGlVisitorTreeTest, LayerDepth) {
-  int32 count = 0;
-  stage_->Update(&count, 0LL);
-  EXPECT_EQ(8, count);
-  compositor_->set_actor_count(count);
-
-  OpenGlDrawVisitor visitor(gl_.get(), compositor_.get(), stage_);
-  stage_->Accept(&visitor);
-
-  // Code uses a depth range of kMinDepth to kMaxDepth.  Layers are
-  // distributed evenly within that range, except we don't use the
-  // frontmost or backmost values in that range.
-  uint32 max_count = NextPowerOfTwo(static_cast<uint32>(8 + 2));
-  float thickness = (RealCompositor::LayerVisitor::kMaxDepth -
-                     RealCompositor::LayerVisitor::kMinDepth) / max_count;
-  float depth = RealCompositor::LayerVisitor::kMinDepth + thickness;
-
-  EXPECT_FLOAT_EQ(depth, rect3_->z());
-  depth += thickness;
-  EXPECT_TRUE(rect2_->culled());
-  EXPECT_FLOAT_EQ(depth, group4_->z());
-  depth += thickness;
-  EXPECT_FLOAT_EQ(depth, group3_->z());
-  depth += thickness;
-  EXPECT_TRUE(rect1_->culled());
-  EXPECT_FLOAT_EQ(depth, group2_->z());
-  depth += thickness;
-  EXPECT_FLOAT_EQ(depth, group1_->z());
-}
 
 // Check that the viewport gets resized correctly when the stage is resized.
 TEST_F(OpenGlVisitorTest, ResizeViewport) {

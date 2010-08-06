@@ -158,6 +158,7 @@ void RealCompositor::ActorVisitor::VisitContainer(ContainerActor* actor) {
   }
 }
 
+
 void RealCompositor::LayerVisitor::VisitActor(RealCompositor::Actor* actor) {
   actor->set_z(depth_);
   depth_ += layer_thickness_;
@@ -166,6 +167,9 @@ void RealCompositor::LayerVisitor::VisitActor(RealCompositor::Actor* actor) {
 
 void RealCompositor::LayerVisitor::VisitStage(
     RealCompositor::StageActor* actor) {
+  if (!actor->IsVisible())
+    return;
+
   // This calculates the next power of two for the actor count, so
   // that we can avoid roundoff errors when computing the depth.
   // Also, add two empty layers at the front and the back that we
@@ -1025,10 +1029,27 @@ void RealCompositor::Draw() {
   }
   if (dirty_ || partially_dirty_) {
     last_draw_time_ms_ = now;
-    PROFILER_MARKER_BEGIN(RealCompositor_Draw_Render);
-    draw_visitor_->SetUsePartialUpdates(!dirty_ && partially_dirty_);
-    default_stage_->Accept(draw_visitor_.get());
-    PROFILER_MARKER_END(RealCompositor_Draw_Render);
+
+    const bool use_partial_updates = !dirty_ && partially_dirty_;
+    LayerVisitor layer_visitor(actor_count(), use_partial_updates);
+    default_stage_->Accept(&layer_visitor);
+    UpdateTopFullscreenActor(layer_visitor.top_fullscreen_actor());
+    Rect damaged_region = layer_visitor.GetDamagedRegion(
+        default_stage_->width(), default_stage_->height());
+
+    // It is possible to receive partially_dirty_ notifications for actors
+    // that are covered or offscreen, in which case, the damaged_region_
+    // will be empty, and we can only check that after the LayerVisitor has
+    // traversed through the tree.
+    if ((!use_partial_updates || !damaged_region.empty()) &&
+        should_draw_frame()) {
+      PROFILER_MARKER_BEGIN(RealCompositor_Draw_Render);
+      draw_visitor_->set_damaged_region(damaged_region);
+      draw_visitor_->set_has_fullscreen_actor(
+          layer_visitor.has_fullscreen_actor());
+      default_stage_->Accept(draw_visitor_.get());
+      PROFILER_MARKER_END(RealCompositor_Draw_Render);
+    }
     dirty_ = false;
     partially_dirty_ = false;
   }
