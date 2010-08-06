@@ -54,7 +54,8 @@ enum CullingResult {
   CULLING_WINDOW_FULLSCREEN
 };
 
-const float kMaxDimmedOpacity = 0.6f;
+const float kDimmedOpacityBegin = 0.2f;
+const float kDimmedOpacityEnd = 0.6f;
 
 const float RealCompositor::LayerVisitor::kMinDepth = 0.0f;
 const float RealCompositor::LayerVisitor::kMaxDepth =
@@ -321,7 +322,8 @@ RealCompositor::Actor::Actor(RealCompositor* compositor)
       is_opaque_(false),
       has_children_(false),
       is_shown_(true),
-      dimmed_opacity_(0.f) {
+      dimmed_opacity_begin_(0.f),
+      dimmed_opacity_end_(0.f) {
   compositor_->AddActor(this);
 }
 
@@ -427,8 +429,10 @@ void RealCompositor::Actor::LowerToBottom() {
 }
 
 void RealCompositor::Actor::ShowDimmed(bool dimmed, int anim_ms) {
-  AnimateField(&float_animations_, &dimmed_opacity_,
-               dimmed ? kMaxDimmedOpacity : 0.f, anim_ms);
+  AnimateField(&float_animations_, &dimmed_opacity_begin_,
+               dimmed ? kDimmedOpacityBegin : 0.f, anim_ms);
+  AnimateField(&float_animations_, &dimmed_opacity_end_,
+               dimmed ? kDimmedOpacityEnd : 0.f, anim_ms);
 }
 
 void RealCompositor::Actor::AddToVisibilityGroup(int group_id) {

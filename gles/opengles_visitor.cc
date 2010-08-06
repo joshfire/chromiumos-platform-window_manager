@@ -239,7 +239,8 @@ void OpenGlesDrawVisitor::VisitQuad(RealCompositor::QuadActor* actor) {
                                    true;
 
   // shader
-  if (actor->dimmed_opacity() == 0.f) {
+  if (actor->dimmed_opacity_begin() == 0.f &&
+      actor->dimmed_opacity_end() == 0.f) {
     if (texture_has_alpha) {
       gl_->UseProgram(tex_color_shader_->program());
       gl_->UniformMatrix4fv(tex_color_shader_->MvpLocation(), 1, GL_FALSE,
@@ -274,28 +275,29 @@ void OpenGlesDrawVisitor::VisitQuad(RealCompositor::QuadActor* actor) {
     }
   } else {
     const float actor_opacity = actor->opacity() * ancestor_opacity_;
-    const float dimmed_transparency = 1.f - actor->dimmed_opacity();
+    const float dimmed_transparency_begin = 1.f - actor->dimmed_opacity_begin();
+    const float dimmed_transparency_end = 1.f - actor->dimmed_opacity_end();
 
-    // TODO: Consider managing a ring buffer in a VBO ourselfs.  Could be
+    // TODO: Consider managing a ring buffer in a VBO ourselves.  Could be
     // better performance depending on driver quality.
-    colors_[ 0] = actor->color().red;
-    colors_[ 1] = actor->color().green;
-    colors_[ 2] = actor->color().blue;
+    colors_[ 0] = dimmed_transparency_begin * actor->color().red;
+    colors_[ 1] = dimmed_transparency_begin * actor->color().green;
+    colors_[ 2] = dimmed_transparency_begin * actor->color().blue;
     colors_[ 3] = actor_opacity;
 
-    colors_[ 4] = actor->color().red;
-    colors_[ 5] = actor->color().green;
-    colors_[ 6] = actor->color().blue;
+    colors_[ 4] = dimmed_transparency_begin * actor->color().red;
+    colors_[ 5] = dimmed_transparency_begin * actor->color().green;
+    colors_[ 6] = dimmed_transparency_begin * actor->color().blue;
     colors_[ 7] = actor_opacity;
 
-    colors_[ 8] = dimmed_transparency * actor->color().red;
-    colors_[ 9] = dimmed_transparency * actor->color().green;
-    colors_[10] = dimmed_transparency * actor->color().blue;
+    colors_[ 8] = dimmed_transparency_end * actor->color().red;
+    colors_[ 9] = dimmed_transparency_end * actor->color().green;
+    colors_[10] = dimmed_transparency_end * actor->color().blue;
     colors_[11] = actor_opacity;
 
-    colors_[12] = dimmed_transparency * actor->color().red;
-    colors_[13] = dimmed_transparency * actor->color().green;
-    colors_[14] = dimmed_transparency * actor->color().blue;
+    colors_[12] = dimmed_transparency_end * actor->color().red;
+    colors_[13] = dimmed_transparency_end * actor->color().green;
+    colors_[14] = dimmed_transparency_end * actor->color().blue;
     colors_[15] = actor_opacity;
 
     if (texture_has_alpha) {

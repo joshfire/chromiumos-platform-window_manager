@@ -331,8 +331,9 @@ class RealCompositor : public Compositor {
     float scale_y() const { return scale_y_; }
     void SetDirty() { compositor_->SetDirty(); }
 
-    bool is_dimmed() const { return dimmed_opacity_ > 0.001f; }
-    float dimmed_opacity() const { return dimmed_opacity_; }
+    bool is_dimmed() const { return dimmed_opacity_end_ > 0.001f; }
+    float dimmed_opacity_begin() const { return dimmed_opacity_begin_; }
+    float dimmed_opacity_end() const { return dimmed_opacity_end_; }
 
    protected:
     // Needs to update the opacity flag.
@@ -428,8 +429,9 @@ class RealCompositor : public Compositor {
     // This says whether or not to show this actor.
     bool is_shown_;
 
-    // The opacity of the dimming quad.
-    float dimmed_opacity_;
+    // The opacities of the dimming quad.
+    float dimmed_opacity_begin_;
+    float dimmed_opacity_end_;
 
     // Name used for identifying the actor (useful for debugging).
     std::string name_;

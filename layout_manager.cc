@@ -78,11 +78,11 @@ static const char* kCloseCurrentToplevelAction = "close-current-toplevel";
 static const char* kPanOverviewModeLeftAction = "pan-overview-mode-left";
 static const char* kPanOverviewModeRightAction = "pan-overview-mode-right";
 
-const double LayoutManager::kOverviewGroupSpacing = 0.03;
+const double LayoutManager::kOverviewGroupSpacing = 0.06;
 const double LayoutManager::kOverviewSelectedPadding = 4.0;
 const double LayoutManager::kOverviewWindowMaxSizeRatio = 0.7;
 const double LayoutManager::kSideMarginRatio = 0.7;
-const double LayoutManager::kOverviewExposedWindowRatio = 0.06;
+const double LayoutManager::kOverviewExposedWindowRatio = 0.09;
 const int LayoutManager::kWindowAnimMs = 200;
 const double LayoutManager::kOverviewNotSelectedScale = 0.95;
 const int LayoutManager::kWindowOpacityAnimMs =

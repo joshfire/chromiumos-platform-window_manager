@@ -250,20 +250,25 @@ OpenGlDrawVisitor::OpenGlStateCache::OpenGlStateCache() {
 
 void OpenGlDrawVisitor::OpenGlStateCache::Invalidate() {
   actor_opacity_ = -1.f;
-  dimmed_transparency_ = -1.f;
+  dimmed_transparency_begin_ = -1.f;
+  dimmed_transparency_end_ = -1.f;
   red_ = -1.f;
   green_ = -1.f;
   blue_ = -1.f;
 }
 
 bool OpenGlDrawVisitor::OpenGlStateCache::ColorStateChanged(
-    float actor_opacity, float dimmed_transparency,
+    float actor_opacity,
+    float dimmed_transparency_begin,
+    float dimmed_transparency_end,
     float red, float green, float blue) {
   if (actor_opacity != actor_opacity_ ||
-      dimmed_transparency != dimmed_transparency_ ||
+      dimmed_transparency_begin != dimmed_transparency_begin_ ||
+      dimmed_transparency_end != dimmed_transparency_end_ ||
       red != red_ || green != green_ || blue != blue_) {
     actor_opacity_ = actor_opacity;
-    dimmed_transparency_ = dimmed_transparency;
+    dimmed_transparency_begin_ = dimmed_transparency_begin;
+    dimmed_transparency_end_ = dimmed_transparency_end;
     red_ = red;
     green_ = green;
     blue_ = blue;
@@ -488,39 +493,47 @@ void OpenGlDrawVisitor::VisitQuad(RealCompositor::QuadActor* actor) {
   // opacity and the dimming gradient.
   float actor_opacity = actor->is_opaque() ? 1.0f :
                         actor->opacity() * ancestor_opacity_;
-  float dimmed_transparency = 1.f - actor->dimmed_opacity();
+  float dimmed_transparency_begin = 1.f - actor->dimmed_opacity_begin();
+  float dimmed_transparency_end = 1.f - actor->dimmed_opacity_end();
   float red = actor->color().red;
   float green = actor->color().green;
   float blue = actor->color().blue;
-  DCHECK(actor_opacity <= 1.f);
-  DCHECK(actor_opacity >= 0.f);
-  DCHECK(dimmed_transparency <= 1.f);
-  DCHECK(dimmed_transparency >= 0.f);
-  DCHECK(red <= 1.f);
-  DCHECK(red >= 0.f);
-  DCHECK(green <= 1.f);
-  DCHECK(green >= 0.f);
-  DCHECK(blue <= 1.f);
-  DCHECK(blue >= 0.f);
+  DCHECK_LE(actor_opacity, 1.f);
+  DCHECK_GE(actor_opacity, 0.f);
+  DCHECK_LE(dimmed_transparency_begin, 1.f);
+  DCHECK_GE(dimmed_transparency_begin, 0.f);
+  DCHECK_LE(dimmed_transparency_end, 1.f);
+  DCHECK_GE(dimmed_transparency_end, 0.f);
+  DCHECK_LE(red, 1.f);
+  DCHECK_GE(red, 0.f);
+  DCHECK_LE(green, 1.f);
+  DCHECK_GE(green, 0.f);
+  DCHECK_LE(blue, 1.f);
+  DCHECK_GE(blue, 0.f);
 
-  if (state_cache_.ColorStateChanged(actor_opacity, dimmed_transparency,
+  if (state_cache_.ColorStateChanged(actor_opacity,
+                                     dimmed_transparency_begin,
+                                     dimmed_transparency_end,
                                      red, green, blue)) {
     // Scale the vertex colors on the right by the transparency, since
     // we want it to fade to black as transparency of the dimming
     // overlay goes to zero. (note that the dimming is not *really* an
     // overlay -- it's just multiplied in here to simulate that).
-    float dim_red = red * dimmed_transparency;
-    float dim_green = green * dimmed_transparency;
-    float dim_blue = blue * dimmed_transparency;
+    float dim_red_begin = red * dimmed_transparency_begin;
+    float dim_green_begin = green * dimmed_transparency_begin;
+    float dim_blue_begin = blue * dimmed_transparency_begin;
+    float dim_red_end = red * dimmed_transparency_end;
+    float dim_green_end = green * dimmed_transparency_end;
+    float dim_blue_end = blue * dimmed_transparency_end;
 
     quad_drawing_data_->set_vertex_color(
-        0, red, green, blue, actor_opacity);
+        0, dim_red_begin, dim_green_begin, dim_blue_begin, actor_opacity);
     quad_drawing_data_->set_vertex_color(
-        1, red, green, blue, actor_opacity);
+        1, dim_red_begin, dim_green_begin, dim_blue_begin, actor_opacity);
     quad_drawing_data_->set_vertex_color(
-        2, dim_red, dim_green, dim_blue, actor_opacity);
+        2, dim_red_end, dim_green_end, dim_blue_end, actor_opacity);
     quad_drawing_data_->set_vertex_color(
-        3, dim_red, dim_green, dim_blue, actor_opacity);
+        3, dim_red_end, dim_green_end, dim_blue_end, actor_opacity);
 
     gl_interface_->EnableClientState(GL_COLOR_ARRAY);
     // Have to un-bind the array buffer to set the color pointer so that

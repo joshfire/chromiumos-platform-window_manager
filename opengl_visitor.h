@@ -122,11 +122,14 @@ class OpenGlDrawVisitor : virtual public RealCompositor::ActorVisitor {
    public:
     OpenGlStateCache();
     void Invalidate();
-    bool ColorStateChanged(float actor_opacity, float dimmed_transparency,
+    bool ColorStateChanged(float actor_opacity,
+                           float dimmed_transparency_begin,
+                           float dimmed_transparency_end,
                            float red, float green, float blue);
    private:
     float actor_opacity_;
-    float dimmed_transparency_;
+    float dimmed_transparency_begin_;
+    float dimmed_transparency_end_;
     float red_, green_, blue_;
   };
 
