@@ -52,44 +52,6 @@ class RealCompositor : public Compositor {
   // This is in milliseconds.
   typedef int64_t AnimationTime;
 
-  struct BoundingBox {
-    BoundingBox() : x_min(0.0f), x_max(0.0f), y_min(0.0f), y_max(0.0f) {}
-    BoundingBox(float x0, float x1, float y0, float y1)
-        : x_min(x0),
-          x_max(x1),
-          y_min(y0),
-          y_max(y1) {
-    }
-
-    void merge(const BoundingBox& other) {
-      if (other.x_min == other.x_max || other.y_min == other.y_max)
-        return;
-      if (x_min == x_max || y_min == y_max) {
-        x_min = other.x_min;
-        x_max = other.x_max;
-        y_min = other.y_min;
-        y_max = other.y_max;
-      } else {
-        x_min = std::min(x_min, other.x_min);
-        x_max = std::max(x_max, other.x_max);
-        y_min = std::min(y_min, other.y_min);
-        y_max = std::max(y_max, other.y_max);
-      }
-    }
-
-    void clear() {
-      x_min = 0.f;
-      x_max = 0.f;
-      y_min = 0.f;
-      y_max = 0.f;
-    }
-
-    float x_min;
-    float x_max;
-    float y_min;
-    float y_max;
-  };
-
   template<class T>
   class Animation {
    public:
@@ -172,66 +134,6 @@ class RealCompositor : public Compositor {
     virtual void Accept(ActorVisitor* visitor) = 0;
    private:
     DISALLOW_COPY_AND_ASSIGN(VisitorDestination);
-  };
-
-  class LayerVisitor : virtual public RealCompositor::ActorVisitor {
-   public:
-    static const float kMinDepth;
-    static const float kMaxDepth;
-
-    LayerVisitor(int32 count, bool use_partial_updates)
-        : depth_(0.0f),
-          layer_thickness_(0.0f),
-          count_(count),
-          has_fullscreen_actor_(false),
-          visiting_top_visible_actor_(true),
-          top_fullscreen_actor_(NULL),
-          updated_area_(0.0f, 0.0f, 0.0f, 0.0f),
-          use_partial_updates_(use_partial_updates) {}
-    virtual ~LayerVisitor() {}
-
-    virtual void VisitActor(RealCompositor::Actor* actor);
-    virtual void VisitStage(RealCompositor::StageActor* actor);
-    virtual void VisitContainer(RealCompositor::ContainerActor* actor);
-    virtual void VisitQuad(RealCompositor::QuadActor* actor);
-    virtual void VisitImage(RealCompositor::ImageActor* actor);
-    virtual void VisitTexturePixmap(RealCompositor::TexturePixmapActor* actor);
-
-    void VisitTexturedQuadActor(RealCompositor::QuadActor* actor,
-                                bool is_texture_opaque);
-
-    bool has_fullscreen_actor() const { return has_fullscreen_actor_; }
-    const RealCompositor::TexturePixmapActor* top_fullscreen_actor() const {
-      return top_fullscreen_actor_;
-    }
-
-    // Get the damaged region in screen coordinates where (0, 0) is bottom_left
-    // and (w-1, h-1) is top_right.
-    Rect GetDamagedRegion(int stage_width, int stage_height);
-
-   private:
-    float depth_;
-    float layer_thickness_;
-    int32 count_;
-    bool has_fullscreen_actor_;
-
-    // This flag indicates whether the actor being visited is the topmost
-    // visible actor.
-    bool visiting_top_visible_actor_;
-
-    // This keeps track of the actor that is fullscreen and topmost visible
-    // during the traversal. It is set to NULL if either of the criteria is
-    // not satisfied.
-    const RealCompositor::TexturePixmapActor* top_fullscreen_actor_;
-
-    // This restores the dirty region union of all actors from the most
-    // recent VisitStage.  It's defined in GL coordinates where (-1, -1) is
-    // bottom_left and (1, 1) is top_right.
-    BoundingBox updated_area_;
-
-    bool use_partial_updates_;
-
-    DISALLOW_COPY_AND_ASSIGN(LayerVisitor);
   };
 
   class Actor : virtual public Compositor::Actor,
@@ -336,9 +238,6 @@ class RealCompositor : public Compositor {
     float dimmed_opacity_end() const { return dimmed_opacity_end_; }
 
    protected:
-    // Needs to update the opacity flag.
-    friend class RealCompositor::LayerVisitor;
-
     RealCompositor* compositor() { return compositor_; }
     bool is_shown() const { return is_shown_; }
     void SetIsShown(bool is_shown) {
@@ -578,6 +477,8 @@ class RealCompositor : public Compositor {
    public:
     explicit ImageActor(RealCompositor* compositor);
     virtual ~ImageActor() {}
+
+    bool IsImageOpaque() const;
 
     // Begin Compositor::Actor methods.
     virtual Actor* Clone();

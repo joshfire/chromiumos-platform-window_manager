@@ -90,6 +90,7 @@ srcs = Split('''\
   hotkey_overlay.cc
   image_container.cc
   key_bindings.cc
+  layer_visitor.cc
   layout_manager.cc
   login_controller.cc
   login_entry.cc

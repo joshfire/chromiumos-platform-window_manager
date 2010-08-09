@@ -17,6 +17,7 @@
 #include "base/logging.h"
 #include "window_manager/compositor.h"
 #include "window_manager/event_loop.h"
+#include "window_manager/layer_visitor.h"
 #include "window_manager/mock_gl_interface.h"
 #include "window_manager/mock_x_connection.h"
 #include "window_manager/real_compositor.h"
@@ -61,12 +62,12 @@ TEST_F(RealCompositorTreeTest, LayerDepth) {
   // disributed evenly within that range, except we don't use the
   // frontmost or backmost values in that range.
   uint32 max_count = NextPowerOfTwo(static_cast<uint32>(count + 2));
-  float thickness = (RealCompositor::LayerVisitor::kMaxDepth -
-                     RealCompositor::LayerVisitor::kMinDepth) / max_count;
-  float depth = RealCompositor::LayerVisitor::kMinDepth + thickness;
+  float thickness = (LayerVisitor::kMaxDepth -
+                     LayerVisitor::kMinDepth) / max_count;
+  float depth = LayerVisitor::kMinDepth + thickness;
 
   // First we test the layer visitor directly.
-  RealCompositor::LayerVisitor layer_visitor(count, false);
+  LayerVisitor layer_visitor(count, false);
   stage_->Accept(&layer_visitor);
 
   // rect3 is fullscreen and opaque, so rect2 and rect1 are culled.
@@ -84,7 +85,7 @@ TEST_F(RealCompositorTreeTest, LayerDepth) {
   EXPECT_FLOAT_EQ(depth, group1_->z());
 
   // Now we test higher-level layer depth results.
-  depth = RealCompositor::LayerVisitor::kMinDepth + thickness;
+  depth = LayerVisitor::kMinDepth + thickness;
   compositor_->Draw();
   EXPECT_EQ(8, compositor_->actor_count());
 
@@ -114,12 +115,12 @@ TEST_F(RealCompositorTreeTest, LayerDepthWithOpacity) {
   // disributed evenly within that range, except we don't use the
   // frontmost or backmost values in that range.
   uint32 max_count = NextPowerOfTwo(static_cast<uint32>(count + 2));
-  float thickness = (RealCompositor::LayerVisitor::kMaxDepth -
-                     RealCompositor::LayerVisitor::kMinDepth) / max_count;
-  float depth = RealCompositor::LayerVisitor::kMinDepth + thickness;
+  float thickness = (LayerVisitor::kMaxDepth -
+                     LayerVisitor::kMinDepth) / max_count;
+  float depth = LayerVisitor::kMinDepth + thickness;
 
   // First we test the layer visitor directly.
-  RealCompositor::LayerVisitor layer_visitor(count, false);
+  LayerVisitor layer_visitor(count, false);
   stage_->Accept(&layer_visitor);
 
   // rect3 is fullscreen but not opaque, so rect2 is not culled.
@@ -139,7 +140,7 @@ TEST_F(RealCompositorTreeTest, LayerDepthWithOpacity) {
   EXPECT_FLOAT_EQ(depth, group1_->z());
 
   // Now we test higher-level layer depth results.
-  depth = RealCompositor::LayerVisitor::kMinDepth + thickness;
+  depth = LayerVisitor::kMinDepth + thickness;
   compositor_->Draw();
   EXPECT_EQ(8, compositor_->actor_count());
 
@@ -186,7 +187,7 @@ TEST_F(RealCompositorTreeTest, ActorVisitor) {
 }
 
 TEST_F(RealCompositorTreeTest, ActorAttributes) {
-  RealCompositor::LayerVisitor layer_visitor(compositor_->actor_count(),
+  LayerVisitor layer_visitor(compositor_->actor_count(),
                                              false);
   stage_->Accept(&layer_visitor);
 
@@ -243,7 +244,7 @@ TEST_F(RealCompositorTreeTest, ActorAttributes) {
 }
 
 TEST_F(RealCompositorTreeTest, ContainerActorAttributes) {
-  RealCompositor::LayerVisitor layer_visitor(compositor_->actor_count(),
+  LayerVisitor layer_visitor(compositor_->actor_count(),
                                              false);
   stage_->Accept(&layer_visitor);
   rect1_->SetSize(10, 5);
@@ -766,7 +767,7 @@ TEST_F(RealCompositorTest, LayerVisitorTopFullscreenWindow) {
 
   // Test a fullscreen transparent actor on top of another fullscreen actor.
   actor3->Hide();
-  RealCompositor::LayerVisitor layer_visitor(compositor_->actor_count(), false);
+  LayerVisitor layer_visitor(compositor_->actor_count(), false);
   stage->Accept(&layer_visitor);
   EXPECT_TRUE(layer_visitor.has_fullscreen_actor());
   EXPECT_TRUE(layer_visitor.top_fullscreen_actor() == NULL);
