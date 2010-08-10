@@ -74,6 +74,7 @@ void EventLoop::Run() {
     for (CallbackVector::iterator it = pre_poll_callbacks_.begin();
          it != pre_poll_callbacks_.end(); ++it) {
       (*it)->Run();
+      RunAllPostedTasks();
     }
 
     if (exit_requested_) {
@@ -117,6 +118,7 @@ void EventLoop::Run() {
       shared_ptr<Closure> callback = *(callbacks_to_run_.begin());
       callbacks_to_run_.erase(callbacks_to_run_.begin());
       callback->Run();
+      RunAllPostedTasks();
     }
   }
 }
@@ -182,6 +184,11 @@ void EventLoop::RemoveTimeout(int id) {
   PCHECK(HANDLE_EINTR(close(id)) == 0);
 }
 
+void EventLoop::PostTask(Closure* cb) {
+  DCHECK(cb);
+  posted_tasks_.push_back(shared_ptr<Closure>(cb));
+}
+
 void EventLoop::SuspendTimeout(int id) {
   if (!timerfd_supported_)
     return;
@@ -215,6 +222,17 @@ bool EventLoop::IsTimerFdSupported() {
   } else {
     PCHECK(HANDLE_EINTR(close(timer_fd)) != -1);
     return true;
+  }
+}
+
+void EventLoop::RunAllPostedTasks() {
+  while (!posted_tasks_.empty()) {
+    vector<shared_ptr<Closure> > tasks_to_run;
+    tasks_to_run.swap(posted_tasks_);
+    for (vector<shared_ptr<Closure> >::iterator it = tasks_to_run.begin();
+         it != tasks_to_run.end(); ++it) {
+      (*it)->Run();
+    }
   }
 }
 

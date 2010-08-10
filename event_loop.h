@@ -65,6 +65,13 @@ class EventLoop {
   // the timeout that's being removed.
   void RemoveTimeout(int id);
 
+  // Run 'cb' once immediately after control is returned to the event loop.
+  //
+  // Takes ownership of 'cb', which must be a repeatable
+  // (non-self-deleting) callback.  Note that other not-yet-run tasks
+  // previously posted via PostTask() will be run before this one.
+  void PostTask(Closure* cb);
+
   // Suspend a previously-registered timeout.  Use ResetTimeout() to
   // unsuspend it.
   void SuspendTimeout(int fd);
@@ -83,6 +90,11 @@ class EventLoop {
   typedef std::vector<std::tr1::shared_ptr<Closure> > CallbackVector;
   typedef std::map<int, std::tr1::shared_ptr<Closure> > FdCallbackMap;
 
+  // Run all callbacks from 'posted_tasks_' and clear the vector.
+  // If the existing callbacks post additional tasks, they will be run as
+  // well.
+  void RunAllPostedTasks();
+
   // Should we exit the loop?
   bool exit_requested_;
 
@@ -95,6 +107,11 @@ class EventLoop {
   // Callbacks that get called before we poll.  See AddPrePollCallback()
   // for details.
   CallbackVector pre_poll_callbacks_;
+
+  // Callbacks that have been posted via PostTask() to be run immediately
+  // after control is returned to the event loop, in the order in which
+  // they'll be run.
+  CallbackVector posted_tasks_;
 
   // timerfd file descriptors that we've created (a subset of the keys in
   // 'callbacks_'.
