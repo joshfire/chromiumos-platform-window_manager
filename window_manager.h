@@ -367,6 +367,13 @@ class WindowManager : public PanelManagerAreaChangeListener,
   // Callback that fades out 'unaccelerated_graphics_actor_'.
   void HideUnacceleratedGraphicsActor();
 
+  // Reshape 'overlay_xid_' to be transparent, redirect
+  // 'unredirected_fullscreen_xid_', and tell the compositor to stop drawing.
+  // We want Compositor::Draw() to finish drawing the current frame before we
+  // disable compositing, so that the content on screen is refreshed.  We post
+  // this method to the event loop from HandleTopFullscreenActorChange().
+  void DisableCompositing();
+
   EventLoop* event_loop_;   // not owned
   XConnection* xconn_;      // not owned
   Compositor* compositor_;  // not owned

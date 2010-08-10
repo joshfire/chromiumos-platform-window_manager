@@ -247,8 +247,12 @@ class Window {
   void HandleUnmapNotify();
 
   // This method is called when this window is redirected for compositing
-  // after it has been unredirected.  The previously stored pixmap is no
-  // longer valid, so it updates the pixmap by calling ResetPixmap.
+  // after it has been unredirected.  The previously stored pixmap is no longer
+  // valid, so it updates the pixmap by calling ResetPixmap.  The content of
+  // the root window is copied to the new pixmap, so that the new pixmap's
+  // uninitialized contents are not briefly visible.  This method can only be
+  // called if this window's contents are currently painted on the entire root
+  // window at (0, 0).
   void HandleRedirect();
 
   // Handle a ConfigureNotify event about this window.

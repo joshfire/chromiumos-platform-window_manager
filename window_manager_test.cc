@@ -1275,6 +1275,10 @@ TEST_F(WindowManagerTest, HandleTopFullscreenActorChange) {
   // Test transition from no fullscreen actor to have fullscreen actor.
   wm_->HandleTopFullscreenActorChange(actor1);
   EXPECT_EQ(wm_->unredirected_fullscreen_xid_, xwin1);
+  // We would expect this method to be posted to the event loop via
+  // HandleTopFullscreenActorChange(), but it is called manually here since
+  // the event loop isn't started in the tests.
+  wm_->DisableCompositing();
   EXPECT_FALSE(info1->redirected);
   EXPECT_TRUE(info2->redirected);
   expected_overlay->Clear(0);
@@ -1284,6 +1288,7 @@ TEST_F(WindowManagerTest, HandleTopFullscreenActorChange) {
   // Test change from one to another top fullscreen actor.
   wm_->HandleTopFullscreenActorChange(actor2);
   EXPECT_EQ(wm_->unredirected_fullscreen_xid_, xwin2);
+  wm_->DisableCompositing();
   EXPECT_TRUE(info1->redirected);
   EXPECT_FALSE(info2->redirected);
   xconn_->GetWindowBoundingRegion(wm_->overlay_xid_, actual_overlay.get());

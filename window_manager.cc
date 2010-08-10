@@ -274,19 +274,20 @@ void WindowManager::HandleTopFullscreenActorChange(
   }
 
   if (window_to_unredirect) {
-    xconn_->UnredirectWindowForCompositing(window_to_unredirect);
     unredirected_fullscreen_xid_ = window_to_unredirect;
+    // TODO: change to use PostTask after it is finished.
+    event_loop_->AddTimeout(
+        NewPermanentCallback(this, &WindowManager::DisableCompositing), 0, 0);
+    // Don't update should_draw_frame here because we want to draw the current
+    // frame before we disable compositing.  The flag is updated in the
+    // DisableCompositing callback, which does the actual disabling.
   }
 
   if (!was_compositing && should_composite) {
     xconn_->SetWindowBoundingRegionToRect(overlay_xid_,
                                           Rect(0, 0, width_, height_));
-    compositor_->set_should_draw_frame(true);
     DLOG(INFO) << "Turned compositing on";
-  } else if (was_compositing && !should_composite) {
-    xconn_->RemoveWindowBoundingRegion(overlay_xid_);
-    compositor_->set_should_draw_frame(false);
-    DLOG(INFO) << "Turned compositing off";
+    compositor_->set_should_draw_frame(true);
   }
 }
 
@@ -1891,6 +1892,18 @@ void WindowManager::HideUnacceleratedGraphicsActor() {
         0.f, kUnacceleratedGraphicsActorHideAnimMs );
   event_loop_->RemoveTimeout(hide_unaccelerated_graphics_actor_timeout_id_);
   hide_unaccelerated_graphics_actor_timeout_id_ = 0;
+}
+
+void WindowManager::DisableCompositing() {
+  // Make sure to remove window bounding region before unredirect window
+  // because unredirect window will not create exposure events, so we need
+  // to remove bounding region first to let X know that it should refresh
+  // the content, otherwise the content will stay stale.
+  DCHECK(unredirected_fullscreen_xid_);
+  xconn_->RemoveWindowBoundingRegion(overlay_xid_);
+  xconn_->UnredirectWindowForCompositing(unredirected_fullscreen_xid_);
+  compositor_->set_should_draw_frame(false);
+  DLOG(INFO) << "Turned compositing off";
 }
 
 }  // namespace window_manager

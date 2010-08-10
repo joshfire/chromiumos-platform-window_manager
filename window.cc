@@ -626,7 +626,20 @@ void Window::HandleUnmapNotify() {
 }
 
 void Window::HandleRedirect() {
+  if (!mapped_)
+    return;
   ResetPixmap();
+  // If the window is in the middle of an animation (sliding offscreen),
+  // its client position is already updated to the final position, and its
+  // composited position is one frame into the animation because we've
+  // already updated the coordinates prior to calling this method. However,
+  // the content of the root window has not yet repainted, so using the
+  // coordinates of the root window (0, 0)-(width, height) for the copying
+  // will work while the coordinates of the window will not.
+  wm_->xconn()->CopyArea(wm_->root(), pixmap_,
+                         0, 0,  // src_x, src_y
+                         0, 0,  // dest_x, dest_y
+                         wm_->width(), wm_->height());
 }
 
 void Window::HandleConfigureNotify(int width, int height) {
