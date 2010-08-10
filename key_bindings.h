@@ -119,8 +119,10 @@ class KeyBindings {
   BindingsMap bindings_;
 
   // Map from a keysym to the names of all of the actions that use it as
-  // their non-modifier key.
-  typedef std::map<KeySym, std::set<std::string> > KeySymMap;
+  // their non-modifier key and the number of combos triggering them (e.g.
+  // if Alt-Tab and Ctrl-Tab both trigger "cycle-window", then the map will
+  // contain { XK_Tab: { "cycle-window": 2 } }.
+  typedef std::map<KeySym, std::map<std::string, int> > KeySymMap;
   KeySymMap action_names_by_keysym_;
 
   // Map from keysyms that we need to watch for to the corresponding

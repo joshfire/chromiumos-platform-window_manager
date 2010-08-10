@@ -145,7 +145,7 @@ bool KeyBindings::AddBinding(const KeyCombo& combo, const string& action_name) {
   Action* const action = iter->second;
   CHECK(action->bindings.insert(combo).second);
   CHECK(bindings_.insert(make_pair(combo, action_name)).second);
-  CHECK(action_names_by_keysym_[combo.keysym].insert(action_name).second);
+  action_names_by_keysym_[combo.keysym][action_name]++;
 
   KeyCode keycode = FindWithDefault(
       keysyms_to_grabbed_keycodes_, combo.keysym, static_cast<KeyCode>(0));
@@ -175,12 +175,21 @@ bool KeyBindings::RemoveBinding(const KeyCombo& combo) {
   Action* action = action_iter->second;
   CHECK(action->bindings.erase(combo) == 1);
 
+  // Decrement the count of bindings for this action in the
+  // keysym-to-action map, and remove the entry if it was the only one.
   KeySymMap::iterator keysym_iter = action_names_by_keysym_.find(combo.keysym);
   CHECK(keysym_iter != action_names_by_keysym_.end());
-  CHECK(keysym_iter->second.erase(bindings_iter->second) == 1);
-  if (keysym_iter->second.empty()) {
-    action_names_by_keysym_.erase(keysym_iter);
+  map<string, int>::iterator count_iter =
+      keysym_iter->second.find(bindings_iter->second);
+  CHECK(count_iter != keysym_iter->second.end());
+  count_iter->second--;
+  DCHECK_GE(count_iter->second, 0);
+  if (count_iter->second == 0) {
+    keysym_iter->second.erase(count_iter);
+    if (keysym_iter->second.empty())
+      action_names_by_keysym_.erase(keysym_iter);
   }
+
   bindings_.erase(bindings_iter);
 
   // If this action triggered its own binding's removal we won't know what
@@ -292,10 +301,10 @@ bool KeyBindings::HandleKeyRelease(KeyCode keycode,
     return false;
 
   bool ran_end_closure = false;
-  for (set<string>::const_iterator action_name_iter =
+  for (map<string, int>::const_iterator action_name_iter =
          keysym_iter->second.begin();
        action_name_iter != keysym_iter->second.end(); ++action_name_iter) {
-    ActionMap::iterator action_iter = actions_.find(*action_name_iter);
+    ActionMap::iterator action_iter = actions_.find(action_name_iter->first);
     CHECK(action_iter != actions_.end());
     Action* const action = action_iter->second;
     if (action->running) {

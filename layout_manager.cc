@@ -188,6 +188,9 @@ LayoutManager::LayoutManager(WindowManager* wm, PanelManager* panel_manager)
       KeyBindings::KeyCombo(XK_Tab, KeyBindings::kAltMask),
       kCycleSnapshotForwardAction);
   overview_mode_key_bindings_group_->AddBinding(
+      KeyBindings::KeyCombo(XK_Tab, KeyBindings::kControlMask),
+      kCycleSnapshotForwardAction);
+  overview_mode_key_bindings_group_->AddBinding(
       KeyBindings::KeyCombo(XK_F2, 0), kCycleSnapshotForwardAction);
 
   key_bindings_actions_->AddAction(
@@ -200,6 +203,10 @@ LayoutManager::LayoutManager(WindowManager* wm, PanelManager* panel_manager)
   overview_mode_key_bindings_group_->AddBinding(
       KeyBindings::KeyCombo(
           XK_Tab, KeyBindings::kAltMask | KeyBindings::kShiftMask),
+      kCycleSnapshotBackwardAction);
+  overview_mode_key_bindings_group_->AddBinding(
+      KeyBindings::KeyCombo(
+          XK_Tab, KeyBindings::kControlMask | KeyBindings::kShiftMask),
       kCycleSnapshotBackwardAction);
   overview_mode_key_bindings_group_->AddBinding(
       KeyBindings::KeyCombo(XK_F1, 0), kCycleSnapshotBackwardAction);
