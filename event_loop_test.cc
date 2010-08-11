@@ -109,7 +109,8 @@ struct RemoveScheduledTimeoutData {
 struct PostTaskData {
   PostTaskData(EventLoop* event_loop)
       : event_loop(event_loop),
-        prepoll_called(false) {
+        prepoll_called(false),
+        timeout_called(false) {
     event_loop->AddPrePollCallback(
         NewPermanentCallback(this, &PostTaskData::HandlePrePollCallback));
     event_loop->AddTimeout(
