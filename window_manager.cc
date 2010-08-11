@@ -275,9 +275,8 @@ void WindowManager::HandleTopFullscreenActorChange(
 
   if (window_to_unredirect) {
     unredirected_fullscreen_xid_ = window_to_unredirect;
-    // TODO: change to use PostTask after it is finished.
-    event_loop_->AddTimeout(
-        NewPermanentCallback(this, &WindowManager::DisableCompositing), 0, 0);
+    event_loop_->PostTask(
+        NewPermanentCallback(this, &WindowManager::DisableCompositing));
     // Don't update should_draw_frame here because we want to draw the current
     // frame before we disable compositing.  The flag is updated in the
     // DisableCompositing callback, which does the actual disabling.
