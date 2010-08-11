@@ -69,6 +69,7 @@ class LoginController : public EventConsumer {
                                    XAtom message_type,
                                    const long data[5]);
   virtual void HandleWindowPropertyChange(XWindow xid, XAtom xatom);
+  virtual void OwnDestroyedWindow(DestroyedWindow* destroyed_win);
   // End EventConsumer implementation.
 
  private:
@@ -187,8 +188,10 @@ class LoginController : public EventConsumer {
   // Focus a window and save it to login_window_to_focus_.
   void FocusLoginWindow(Window* win);
 
-  // Hide all of our windows and give up the focus if we have it.
-  // Invoked after we see the initial non-login Chrome window get mapped.
+  // Hide all of our windows and give up the focus if we have it.  We also
+  // clear 'destroyed_windows_', so as to stop showing already-destroyed
+  // login windows.  Invoked after we see the initial non-login Chrome
+  // window get mapped.
   void HideWindowsAfterLogin();
 
   WindowManager* wm_;
@@ -231,6 +234,11 @@ class LoginController : public EventConsumer {
 
   // Determines if entry selection is enabled at the moment.
   bool is_entry_selection_enabled_;
+
+  // Login windows that have been destroyed post-login but that we're
+  // holding on to, so we can continue displaying their actors onscreen
+  // until the initial browser window has been mapped.
+  std::set<std::tr1::shared_ptr<DestroyedWindow> > destroyed_windows_;
 
   DISALLOW_COPY_AND_ASSIGN(LoginController);
 };

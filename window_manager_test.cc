@@ -4,6 +4,8 @@
 
 #include <algorithm>
 #include <cstdarg>
+#include <set>
+#include <tr1/memory>
 #include <vector>
 
 #include <sys/stat.h>
@@ -41,7 +43,9 @@ DECLARE_string(logged_out_log_dir);
 
 using file_util::FileEnumerator;
 using std::find;
+using std::set;
 using std::string;
+using std::tr1::shared_ptr;
 using std::vector;
 using window_manager::util::SetCurrentTimeForTest;
 
@@ -96,52 +100,58 @@ class TestEventConsumer : public EventConsumer {
   const vector<WmIpc::Message>& chrome_messages() const {
     return chrome_messages_;
   }
+  const set<shared_ptr<DestroyedWindow> >& destroyed_windows() const {
+    return destroyed_windows_;
+  }
 
   // Begin overridden EventConsumer virtual methods.
-  bool IsInputWindow(XWindow xid) { return false; }
-  void HandleScreenResize() {}
-  void HandleLoggedInStateChange() { num_logged_in_state_changes_++; }
-  bool HandleWindowMapRequest(Window* win) {
+  virtual bool IsInputWindow(XWindow xid) { return false; }
+  virtual void HandleScreenResize() {}
+  virtual void HandleLoggedInStateChange() { num_logged_in_state_changes_++; }
+  virtual bool HandleWindowMapRequest(Window* win) {
     num_map_requests_++;
     return should_return_true_for_map_requests_;
   }
-  void HandleWindowMap(Window* win) { num_mapped_windows_++; }
-  void HandleWindowUnmap(Window* win) { num_unmapped_windows_++; }
-  void HandleWindowConfigureRequest(Window* win,
-                                    int req_x, int req_y,
-                                    int req_width, int req_height) {}
-  void HandleButtonPress(XWindow xid,
-                         int x, int y,
-                         int x_root, int y_root,
-                         int button,
-                         XTime timestamp) {
+  virtual void HandleWindowMap(Window* win) { num_mapped_windows_++; }
+  virtual void HandleWindowUnmap(Window* win) { num_unmapped_windows_++; }
+  virtual void HandleWindowConfigureRequest(Window* win,
+                                            int req_x, int req_y,
+                                            int req_width, int req_height) {}
+  virtual void HandleButtonPress(XWindow xid,
+                                 int x, int y,
+                                 int x_root, int y_root,
+                                 int button,
+                                 XTime timestamp) {
     num_button_presses_++;
   }
-  void HandleButtonRelease(XWindow xid,
-                           int x, int y,
-                           int x_root, int y_root,
-                           int button,
-                           XTime timestamp) {}
-  void HandlePointerEnter(XWindow xid,
-                          int x, int y,
-                          int x_root, int y_root,
-                          XTime timestamp) {}
-  void HandlePointerLeave(XWindow xid,
-                          int x, int y,
-                          int x_root, int y_root,
-                          XTime timestamp) {}
-  void HandlePointerMotion(XWindow xid,
-                           int x, int y,
-                           int x_root, int y_root,
-                           XTime timestamp) {}
-  void HandleChromeMessage(const WmIpc::Message& msg) {
+  virtual void HandleButtonRelease(XWindow xid,
+                                   int x, int y,
+                                   int x_root, int y_root,
+                                   int button,
+                                   XTime timestamp) {}
+  virtual void HandlePointerEnter(XWindow xid,
+                                  int x, int y,
+                                  int x_root, int y_root,
+                                  XTime timestamp) {}
+  virtual void HandlePointerLeave(XWindow xid,
+                                  int x, int y,
+                                  int x_root, int y_root,
+                                  XTime timestamp) {}
+  virtual void HandlePointerMotion(XWindow xid,
+                                   int x, int y,
+                                   int x_root, int y_root,
+                                   XTime timestamp) {}
+  virtual void HandleChromeMessage(const WmIpc::Message& msg) {
     chrome_messages_.push_back(msg);
   }
-  void HandleClientMessage(XWindow xid,
-                           XAtom message_type,
-                           const long data[5]) {}
-  void HandleFocusChange(XWindow xid, bool focus_in) {}
-  void HandleWindowPropertyChange(XWindow xid, XAtom xatom) {}
+  virtual void HandleClientMessage(XWindow xid,
+                                   XAtom message_type,
+                                   const long data[5]) {}
+  virtual void HandleFocusChange(XWindow xid, bool focus_in) {}
+  virtual void HandleWindowPropertyChange(XWindow xid, XAtom xatom) {}
+  virtual void OwnDestroyedWindow(DestroyedWindow* destroyed_win) {
+    destroyed_windows_.insert(shared_ptr<DestroyedWindow>(destroyed_win));
+  }
   // End overridden EventConsumer virtual methods.
 
  private:
@@ -156,6 +166,9 @@ class TestEventConsumer : public EventConsumer {
 
   // Messages received via HandleChromeMessage().
   vector<WmIpc::Message> chrome_messages_;
+
+  // DestroyedWindow objects that WindowManager has given to us.
+  set<shared_ptr<DestroyedWindow> > destroyed_windows_;
 };
 
 TEST_F(WindowManagerTest, RegisterExistence) {
@@ -1340,6 +1353,37 @@ TEST_F(WindowManagerTest, ForwardSystemKeysToChrome) {
               msg.type());
     EXPECT_EQ(chromeos::WM_IPC_SYSTEM_KEY_VOLUME_DOWN, msg.param(0));
   }
+}
+
+// Check that WindowManager passes ownership of destroyed windows to
+// EventConsumers who asked for them.
+TEST_F(WindowManagerTest, DestroyedWindows) {
+  TestEventConsumer ec;
+  XWindow xid = CreateSimpleWindow();
+  wm_->RegisterEventConsumerForDestroyedWindow(xid, &ec);
+
+  SendInitialEventsForWindow(xid);
+  Window* win = wm_->GetWindowOrDie(xid);
+  win->SetShouldHaveShadow(true);
+
+  Compositor::TexturePixmapActor* actor = win->actor();
+  const Shadow* shadow = win->shadow();
+  ASSERT_TRUE(shadow != NULL);
+
+  XEvent event;
+  xconn_->InitUnmapEvent(&event, xid);
+  wm_->HandleEvent(&event);
+  xconn_->InitDestroyWindowEvent(&event, xid);
+  wm_->HandleEvent(&event);
+
+  // After we destroy the X window, WindowManager should no longer have a
+  // Window object tracking it, but our EventConsumer should've received a
+  // DestroyedWindow object containing the original actor and shadow.
+  EXPECT_TRUE(wm_->GetWindow(xid) == NULL);
+  ASSERT_EQ(static_cast<size_t>(1), ec.destroyed_windows().size());
+  DestroyedWindow* destroyed_win = ec.destroyed_windows().begin()->get();
+  EXPECT_EQ(actor, destroyed_win->actor());
+  EXPECT_EQ(shadow, destroyed_win->shadow());
 }
 
 }  // namespace window_manager

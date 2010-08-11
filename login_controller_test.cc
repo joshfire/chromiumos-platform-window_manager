@@ -478,6 +478,38 @@ TEST_F(LoginControllerTest, HideAfterLogin) {
   EXPECT_TRUE(WindowIsOffscreen(background_xid_));
 }
 
+TEST_F(LoginControllerTest, ShowDestroyedWindows) {
+  // Create some login windows and then tell the window manager that the
+  // user has logged in.
+  CreateLoginWindows(2, true, false);
+  MockCompositor::TexturePixmapActor* background_actor =
+      GetMockActorForWindow(wm_->GetWindowOrDie(background_xid_));
+  SetLoggedInState(true);
+
+  EXPECT_TRUE(wm_->GetWindow(background_xid_) != NULL);
+  MockCompositor::StageActor* stage = compositor_->GetDefaultStage();
+  EXPECT_TRUE(stage->stacked_children()->Contains(background_actor));
+
+  // Now unmap and destroy the background window.
+  XEvent event;
+  xconn_->InitUnmapEvent(&event, background_xid_);
+  wm_->HandleEvent(&event);
+  xconn_->InitDestroyWindowEvent(&event, background_xid_);
+  wm_->HandleEvent(&event);
+
+  // Even though the background window has been destroyed, its actor should
+  // still be displayed.
+  EXPECT_TRUE(wm_->GetWindow(background_xid_) == NULL);
+  EXPECT_TRUE(stage->stacked_children()->Contains(background_actor));
+
+  // After the initial browser window gets mapped, the login actors should
+  // get destroyed.
+  XWindow xid = CreateToplevelWindow(1, 0,  // tab_count, selected_tab
+                                     0, 0, 200, 200);  // position and size
+  SendInitialEventsForWindow(xid);
+  EXPECT_FALSE(stage->stacked_children()->Contains(background_actor));
+}
+
 TEST_F(LoginControllerTest, SelectGuest) {
   // Create two entries for new Chrome.
   CreateLoginWindows(2, true, false);  // create_guest_window=false

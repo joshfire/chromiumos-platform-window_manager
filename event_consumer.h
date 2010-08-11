@@ -10,6 +10,7 @@
 
 namespace window_manager {
 
+class DestroyedWindow;
 class Window;
 
 // This is an interface for things that want to receive X events from the
@@ -129,6 +130,12 @@ class EventConsumer {
   // have expressed interest in the (xid, xatom) pair with
   // WindowManager::RegisterEventConsumerForPropertyChanges().
   virtual void HandleWindowPropertyChange(XWindow xid, XAtom xatom) = 0;
+
+  // Take ownership of a DestroyedWindow object after the underlying X
+  // window has been destroyed.  Use
+  // WindowManager::RegisterEventConsumerForDestroyedWindow() to register
+  // interest in owning a not-yet-destroyed window.
+  virtual void OwnDestroyedWindow(DestroyedWindow* destroyed_win) = 0;
 };
 
 }  // namespace window_manager

@@ -27,6 +27,7 @@
 namespace window_manager {
 
 struct Rect;
+class DestroyedWindow;
 class Shadow;
 template<class T> class Stacker;  // from util.h
 class WindowManager;
@@ -263,6 +264,19 @@ class Window {
   // Handle the window's contents being changed.
   void HandleDamageNotify(const Rect& bounding_box);
 
+  // Handle the underlying X window being destroyed.  If this method is
+  // invoked before destroying this Window object, a few
+  // compositing-related resources (actor, shadow, X pixmap) will be
+  // jettisoned via the returned DestroyedWindow object, ownership of which
+  // passes to the caller.
+  //
+  // Attempts to continue using the Window object after invoking this
+  // method will end in heartbreak -- almost every method will crash.  Only
+  // call this when you're about to destroy the Window object.  Just
+  // destroying the Window without calling this method first is fine if you
+  // have no desire to continue displaying the window's contents onscreen.
+  DestroyedWindow* HandleDestroyNotify();
+
   // Should this window have a shadow?  By default, it won't.  Note that
   // even if true is passed to this method, the shadow may not be visible
   // (shadows aren't drawn for shaped windows, for instance) -- see
@@ -432,6 +446,46 @@ class Window {
   time_t video_damage_start_time_;
 
   DISALLOW_COPY_AND_ASSIGN(Window);
+};
+
+// We sometimes want to continue displaying a window's contents onscreen
+// even after receiving a DestroyNotify event indicating that the
+// underlying X window was closed.  DestroyedWindow contains a subset of
+// compositing-related resources that have been released from an
+// about-to-be-deleted Window object.
+class DestroyedWindow {
+ public:
+  DestroyedWindow(WindowManager* wm,
+                  XWindow xid,
+                  Compositor::TexturePixmapActor* actor,
+                  Shadow* shadow,
+                  XID pixmap);
+  ~DestroyedWindow();
+
+  WindowManager* wm() { return wm_; }
+  Compositor::TexturePixmapActor* actor() { return actor_.get(); }
+  Shadow* shadow() { return shadow_.get(); }
+
+ private:
+  WindowManager* wm_;  // not owned
+
+  // Compositing actor being used to display 'pixmap_'.  This object
+  // initially uses the same position, scaling, stacking, opacity, etc.
+  // that it had when owned by the Window.
+  scoped_ptr<Compositor::TexturePixmapActor> actor_;
+
+  // Drop shadow that was set for the window, or NULL if no shadow was set.
+  // Note that changes made to 'actor_' will need to be manually applied to
+  // 'shadow_' as well.
+  scoped_ptr<Shadow> shadow_;
+
+  // X pixmap displayed by 'actor_'; freed in our destructor.
+  // TODO: Can this be freed when the Window object is destroyed, or even
+  // earlier?  The actor is displaying a GL texture bound to a GLX pixmap
+  // that was created from this X pixmap.
+  XID pixmap_;
+
+  DISALLOW_COPY_AND_ASSIGN(DestroyedWindow);
 };
 
 }  // namespace window_manager

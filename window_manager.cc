@@ -706,6 +706,16 @@ void WindowManager::RegisterEventConsumerForChromeMessages(
   }
 }
 
+void WindowManager::RegisterEventConsumerForDestroyedWindow(
+    XWindow xid, EventConsumer* event_consumer) {
+  DCHECK(xid);
+  DCHECK(event_consumer);
+  CHECK(destroyed_window_event_consumers_.insert(
+            make_pair(xid, event_consumer)).second)
+      << "Another EventConsumer already requested ownership of window "
+      << XidStr(xid) << " after it gets destroyed";
+}
+
 void WindowManager::UnregisterEventConsumerForChromeMessages(
     WmIpcMessageType message_type, EventConsumer* event_consumer) {
   DCHECK(event_consumer);
@@ -1539,10 +1549,16 @@ void WindowManager::HandleDestroyNotify(const XDestroyWindowEvent& e) {
   if (!win->override_redirect())
     UpdateClientListStackingProperty();
 
-  // TODO: If the code to remove a window gets more involved, move it into
-  // a separate RemoveWindow() method -- window_test.cc currently erases
-  // windows from 'client_windows_' directly to simulate windows being
-  // destroyed.
+  map<XWindow, EventConsumer*>::iterator ec_it =
+      destroyed_window_event_consumers_.find(e.window);
+  if (ec_it != destroyed_window_event_consumers_.end()) {
+    // Transfer ownership of the window's compositing-related resources to
+    // the event consumer that wanted it.
+    DestroyedWindow* destroyed_win = win->HandleDestroyNotify();
+    ec_it->second->OwnDestroyedWindow(destroyed_win);
+    destroyed_window_event_consumers_.erase(ec_it);
+  }
+
   client_windows_.erase(e.window);
   win = NULL;  // erasing from client_windows_ deletes window.
 }

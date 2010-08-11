@@ -60,6 +60,9 @@ class ScreenLockerHandler : public EventConsumer {
                                    XAtom message_type,
                                    const long data[5]) {}
   virtual void HandleWindowPropertyChange(XWindow xid, XAtom xatom) {}
+  virtual void OwnDestroyedWindow(DestroyedWindow* destroyed_win) {
+    NOTREACHED();
+  }
   // End EventConsumer implementation.
 
  private:

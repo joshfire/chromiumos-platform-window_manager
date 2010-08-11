@@ -6,6 +6,7 @@
 
 #include <map>
 #include <string>
+#include <tr1/memory>
 
 #include "cros/chromeos_wm_ipc_enums.h"
 #include "window_manager/callback.h"
@@ -20,6 +21,7 @@
 using std::map;
 using std::set;
 using std::string;
+using std::tr1::shared_ptr;
 using std::vector;
 using window_manager::util::XidStr;
 
@@ -137,9 +139,8 @@ void LoginController::HandleScreenResize() {
 }
 
 void LoginController::HandleLoggedInStateChange() {
-  if (wm_->logged_in()) {
+  if (wm_->logged_in())
     waiting_to_hide_windows_ = true;
-  }
 }
 
 bool LoginController::HandleWindowMapRequest(Window* win) {
@@ -268,6 +269,10 @@ void LoginController::HandleWindowMap(Window* win) {
   login_xids_.insert(win->xid());
   wm_->stacking_manager()->StackWindowAtTopOfLayer(
       win, StackingManager::LAYER_LOGIN_WINDOW);
+
+  // Register our interest in taking ownership of this window after the
+  // underlying X window gets destroyed.
+  wm_->RegisterEventConsumerForDestroyedWindow(win->xid(), this);
 
   OnGotNewWindowOrPropertyChange();
 
@@ -471,8 +476,18 @@ void LoginController::HandleClientMessage(XWindow xid,
 void LoginController::HandleWindowPropertyChange(XWindow xid, XAtom xatom) {
   // Currently only listen for property changes on the background window.
   DCHECK(background_window_ && background_window_->xid() == xid);
-
   OnGotNewWindowOrPropertyChange();
+}
+
+void LoginController::OwnDestroyedWindow(DestroyedWindow* destroyed_win) {
+  DCHECK(destroyed_win);
+  // If the user has logged in and we're waiting for the initial browser
+  // window to get mapped before hiding the login windows, then hang on to
+  // this destroyed window so we can keep displaying it a bit longer.
+  if (waiting_to_hide_windows_)
+    destroyed_windows_.insert(shared_ptr<DestroyedWindow>(destroyed_win));
+  else
+    delete destroyed_win;
 }
 
 void LoginController::InitialShow() {
@@ -752,6 +767,9 @@ void LoginController::HideWindowsAfterLogin() {
       wm_->xconn()->ConfigureWindowOffscreen(*it);
     }
   }
+
+  // Also ditch any already-destroyed windows that we were hanging on to.
+  destroyed_windows_.clear();
 
   // Give up the focus if we have it.
   Window* focused_win = wm_->focus_manager()->focused_win();

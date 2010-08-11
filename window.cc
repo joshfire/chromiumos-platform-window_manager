@@ -68,6 +68,8 @@ Window::Window(WindowManager* wm, XWindow xid, bool override_redirect,
       pixmap_(0),
       num_video_damage_events_(0),
       video_damage_start_time_(-1) {
+  DCHECK(xid_);
+
   // Listen for property and shape changes on this window.
   wm_->xconn()->SelectInputOnWindow(xid_, PropertyChangeMask, true);
   wm_->xconn()->SelectShapeEventsOnWindow(xid_);
@@ -122,13 +124,12 @@ Window::~Window() {
 }
 
 void Window::SetTitle(const string& title) {
+  DCHECK(actor_.get());
   title_ = title;
-  if (actor_.get() != NULL) {
-    if (title_.empty()) {
-      actor_->SetName(string("window ") + xid_str());
-    } else {
-      actor_->SetName(string("window '") + title_ + "' (" + xid_str() + ")");
-    }
+  if (title_.empty()) {
+    actor_->SetName(string("window ") + xid_str());
+  } else {
+    actor_->SetName(string("window '") + title_ + "' (" + xid_str() + ")");
   }
 }
 
@@ -137,6 +138,7 @@ bool Window::IsFocused() const {
 }
 
 bool Window::FetchAndApplySizeHints() {
+  DCHECK(xid_);
   if (!wm_->xconn()->GetSizeHintsForWindow(xid_, &size_hints_))
     return false;
 
@@ -154,6 +156,7 @@ bool Window::FetchAndApplySizeHints() {
 }
 
 bool Window::FetchAndApplyTransientHint() {
+  DCHECK(xid_);
   XWindow prev_transient_for_xid = transient_for_xid_;
   if (!wm_->xconn()->GetTransientHintForWindow(xid_, &transient_for_xid_))
     return false;
@@ -165,12 +168,14 @@ bool Window::FetchAndApplyTransientHint() {
 }
 
 bool Window::FetchAndApplyWindowType() {
+  DCHECK(xid_);
   bool result = wm_->wm_ipc()->GetWindowType(xid_, &type_, &type_params_);
   DLOG(INFO) << "Window " << xid_str() << " has type " << type_;
   return result;
 }
 
 void Window::FetchAndApplyWindowOpacity() {
+  DCHECK(xid_);
   static const uint32 kMaxOpacity = 0xffffffffU;
 
   uint32 opacity = kMaxOpacity;
@@ -187,6 +192,7 @@ void Window::FetchAndApplyWindowOpacity() {
 }
 
 void Window::FetchAndApplyWmHints() {
+  DCHECK(xid_);
   vector<int> wm_hints;
   if (!wm_->xconn()->GetIntArrayProperty(
           xid_, wm_->GetXAtom(ATOM_WM_HINTS), &wm_hints)) {
@@ -198,6 +204,7 @@ void Window::FetchAndApplyWmHints() {
 }
 
 void Window::FetchAndApplyWmProtocols() {
+  DCHECK(xid_);
   supports_wm_take_focus_ = false;
   supports_wm_delete_window_ = false;
 
@@ -222,6 +229,7 @@ void Window::FetchAndApplyWmProtocols() {
 }
 
 void Window::FetchAndApplyWmState() {
+  DCHECK(xid_);
   wm_state_fullscreen_ = false;
   wm_state_maximized_horz_ = false;
   wm_state_maximized_vert_ = false;
@@ -258,6 +266,7 @@ void Window::FetchAndApplyWmState() {
 }
 
 void Window::FetchAndApplyWmWindowType() {
+  DCHECK(xid_);
   wm_window_type_xatoms_.clear();
 
   vector<int> window_type_ints;
@@ -273,6 +282,7 @@ void Window::FetchAndApplyWmWindowType() {
 }
 
 void Window::FetchAndApplyChromeState() {
+  DCHECK(xid_);
   XAtom state_xatom = wm_->GetXAtom(ATOM_CHROME_STATE);
   chrome_state_xatoms_.clear();
   vector<int> state_xatoms;
@@ -292,6 +302,8 @@ void Window::FetchAndApplyChromeState() {
 }
 
 void Window::FetchAndApplyShape() {
+  DCHECK(xid_);
+  DCHECK(actor_.get());
   shaped_ = false;
   ByteMap bytemap(client_width_, client_height_);
 
@@ -315,6 +327,7 @@ void Window::FetchAndApplyShape() {
 }
 
 bool Window::FetchMapState() {
+  DCHECK(xid_);
   XConnection::WindowAttributes attr;
   if (!wm_->xconn()->GetWindowAttributes(xid_, &attr))
     return false;
@@ -323,6 +336,7 @@ bool Window::FetchMapState() {
 
 void Window::ParseWmStateMessage(const long data[5],
                                  map<XAtom, bool>* states_out) const {
+  DCHECK(xid_);
   DCHECK(states_out);
   states_out->clear();
 
@@ -345,6 +359,7 @@ void Window::ParseWmStateMessage(const long data[5],
 }
 
 bool Window::ChangeWmState(const map<XAtom, bool>& states) {
+  DCHECK(xid_);
   for (map<XAtom, bool>::const_iterator it = states.begin();
        it != states.end(); ++it) {
     XAtom xatom = it->first;
@@ -366,6 +381,7 @@ bool Window::ChangeWmState(const map<XAtom, bool>& states) {
 }
 
 bool Window::ChangeChromeState(const map<XAtom, bool>& states) {
+  DCHECK(xid_);
   for (map<XAtom, bool>::const_iterator it = states.begin();
        it != states.end(); ++it) {
     if (it->second)
@@ -376,9 +392,9 @@ bool Window::ChangeChromeState(const map<XAtom, bool>& states) {
   return UpdateChromeStateProperty();
 }
 
-
 bool Window::TakeFocus(XTime timestamp) {
   DLOG(INFO) << "Focusing " << xid_str() << " using time " << timestamp;
+  DCHECK(xid_);
   if (supports_wm_take_focus_) {
     long data[5];
     memset(data, 0, sizeof(data));
@@ -398,6 +414,7 @@ bool Window::TakeFocus(XTime timestamp) {
 bool Window::SendDeleteRequest(XTime timestamp) {
   DLOG(INFO) << "Maybe asking " << xid_str() << " to delete itself with time "
              << timestamp;
+  DCHECK(xid_);
   if (!supports_wm_delete_window_)
     return false;
 
@@ -411,12 +428,14 @@ bool Window::SendDeleteRequest(XTime timestamp) {
 
 bool Window::AddButtonGrab() {
   DLOG(INFO) << "Adding button grab for " << xid_str();
+  DCHECK(xid_);
   return wm_->xconn()->AddButtonGrabOnWindow(
       xid_, AnyButton, ButtonPressMask, true);  // synchronous=true
 }
 
 bool Window::RemoveButtonGrab() {
   DLOG(INFO) << "Removing button grab for " << xid_str();
+  DCHECK(xid_);
   return wm_->xconn()->RemoveButtonGrabOnWindow(xid_, AnyButton);
 }
 
@@ -467,6 +486,7 @@ void Window::GetMaxSize(int desired_width, int desired_height,
 
 bool Window::MapClient() {
   DLOG(INFO) << "Mapping " << xid_str();
+  DCHECK(xid_);
   if (!wm_->xconn()->MapWindow(xid_))
     return false;
   return true;
@@ -474,6 +494,7 @@ bool Window::MapClient() {
 
 bool Window::UnmapClient() {
   DLOG(INFO) << "Unmapping " << xid_str();
+  DCHECK(xid_);
   if (!wm_->xconn()->UnmapWindow(xid_))
     return false;
   return true;
@@ -482,6 +503,7 @@ bool Window::UnmapClient() {
 bool Window::MoveClient(int x, int y) {
   DLOG(INFO) << "Moving " << xid_str() << "'s client window to ("
              << x << ", " << y << ")";
+  DCHECK(xid_);
   if (!wm_->xconn()->MoveWindow(xid_, x, y))
     return false;
   SaveClientPosition(x, y);
@@ -512,6 +534,7 @@ bool Window::ResizeClient(int width, int height, Gravity gravity) {
 
   DLOG(INFO) << "Resizing " << xid_str() << "'s client window to "
              << width << "x" << height;
+  DCHECK(xid_);
   if (dx || dy) {
     // If we need to move the window as well due to gravity, do it all in
     // one ConfigureWindow request to the server.
@@ -534,12 +557,14 @@ bool Window::ResizeClient(int width, int height, Gravity gravity) {
 }
 
 bool Window::StackClientAbove(XWindow sibling_xid) {
+  DCHECK(xid_);
   CHECK(sibling_xid != None);
   bool result = wm_->xconn()->StackWindow(xid_, sibling_xid, true);
   return result;
 }
 
 bool Window::StackClientBelow(XWindow sibling_xid) {
+  DCHECK(xid_);
   CHECK(sibling_xid != None);
   bool result = wm_->xconn()->StackWindow(xid_, sibling_xid, false);
   return result;
@@ -548,6 +573,7 @@ bool Window::StackClientBelow(XWindow sibling_xid) {
 void Window::MoveComposited(int x, int y, int anim_ms) {
   DLOG(INFO) << "Moving " << xid_str() << "'s composited window to ("
              << x << ", " << y << ") over " << anim_ms << " ms";
+  DCHECK(actor_.get());
   composited_x_ = x;
   composited_y_ = y;
   actor_->Move(x, y, anim_ms);
@@ -558,6 +584,7 @@ void Window::MoveComposited(int x, int y, int anim_ms) {
 void Window::MoveCompositedX(int x, int anim_ms) {
   DLOG(INFO) << "Setting " << xid_str() << "'s composited window's X "
              << "position to " << x << " over " << anim_ms << " ms";
+  DCHECK(actor_.get());
   composited_x_ = x;
   actor_->MoveX(x, anim_ms);
   if (shadow_.get())
@@ -567,6 +594,7 @@ void Window::MoveCompositedX(int x, int anim_ms) {
 void Window::MoveCompositedY(int y, int anim_ms) {
   DLOG(INFO) << "Setting " << xid_str() << "'s composited window's Y "
              << "position to " << y << " over " << anim_ms << " ms";
+  DCHECK(actor_.get());
   composited_y_ = y;
   actor_->MoveY(y, anim_ms);
   if (shadow_.get())
@@ -579,6 +607,7 @@ void Window::MoveCompositedToClient() {
 
 void Window::ShowComposited() {
   DLOG(INFO) << "Showing " << xid_str() << "'s composited window";
+  DCHECK(actor_.get());
   actor_->Show();
   composited_shown_ = true;
   UpdateShadowVisibility();
@@ -586,6 +615,7 @@ void Window::ShowComposited() {
 
 void Window::HideComposited() {
   DLOG(INFO) << "Hiding " << xid_str() << "'s composited window";
+  DCHECK(actor_.get());
   actor_->Hide();
   composited_shown_ = false;
   UpdateShadowVisibility();
@@ -596,6 +626,7 @@ void Window::SetCompositedOpacity(double opacity, int anim_ms) {
   DLOG(INFO) << "Setting " << xid_str() << "'s composited window opacity to "
              << opacity << " (combined is " << combined_opacity() << ") over "
              << anim_ms << " ms";
+  DCHECK(actor_.get());
 
   actor_->SetOpacity(combined_opacity(), anim_ms);
   if (shadow_.get())
@@ -605,6 +636,7 @@ void Window::SetCompositedOpacity(double opacity, int anim_ms) {
 void Window::ScaleComposited(double scale_x, double scale_y, int anim_ms) {
   DLOG(INFO) << "Scaling " << xid_str() << "'s composited window by ("
              << scale_x << ", " << scale_y << ") over " << anim_ms << " ms";
+  DCHECK(actor_.get());
   composited_scale_x_ = scale_x;
   composited_scale_y_ = scale_y;
 
@@ -614,12 +646,14 @@ void Window::ScaleComposited(double scale_x, double scale_y, int anim_ms) {
 }
 
 void Window::HandleMapNotify() {
+  DCHECK(xid_);
   mapped_ = true;
   ResetPixmap();
   UpdateShadowVisibility();
 }
 
 void Window::HandleUnmapNotify() {
+  DCHECK(xid_);
   mapped_ = false;
   // We could potentially show a window onscreen even after it's been
   // unmapped, so we avoid hiding the shadow here.
@@ -643,11 +677,13 @@ void Window::HandleRedirect() {
 }
 
 void Window::HandleConfigureNotify(int width, int height) {
+  DCHECK(actor_.get());
   if (actor_->GetWidth() != width || actor_->GetHeight() != height)
     ResetPixmap();
 }
 
 void Window::HandleDamageNotify(const Rect& bounding_box) {
+  DCHECK(actor_.get());
   wm_->xconn()->ClearDamage(damage_);
   actor_->UpdateTexture();
   actor_->MergeDamagedRegion(bounding_box);
@@ -666,7 +702,19 @@ void Window::HandleDamageNotify(const Rect& bounding_box) {
   }
 }
 
+DestroyedWindow* Window::HandleDestroyNotify() {
+  DCHECK(xid_);
+  DCHECK(actor_.get());
+  DestroyedWindow* destroyed_win =
+      new DestroyedWindow(
+          wm_, xid_, actor_.release(), shadow_.release(), pixmap_);
+  pixmap_ = 0;
+  xid_ = 0;
+  return destroyed_win;
+}
+
 void Window::SetShouldHaveShadow(bool should_have_shadow) {
+  DCHECK(actor_.get());
   if (!should_have_shadow && shadow_.get()) {
     shadow_.reset(NULL);
   } else if (should_have_shadow && !shadow_.get()) {
@@ -692,6 +740,7 @@ void Window::SetShadowOpacity(double opacity, int anim_ms) {
 void Window::StackCompositedAbove(Compositor::Actor* actor,
                                   Compositor::Actor* shadow_actor,
                                   bool stack_above_shadow_actor) {
+  DCHECK(actor_.get());
   if (actor)
     actor_->Raise(actor);
   if (shadow_.get()) {
@@ -706,6 +755,7 @@ void Window::StackCompositedAbove(Compositor::Actor* actor,
 void Window::StackCompositedBelow(Compositor::Actor* actor,
                                   Compositor::Actor* shadow_actor,
                                   bool stack_above_shadow_actor) {
+  DCHECK(actor_.get());
   if (actor)
     actor_->Lower(actor);
   if (shadow_.get()) {
@@ -718,6 +768,7 @@ void Window::StackCompositedBelow(Compositor::Actor* actor,
 }
 
 Compositor::Actor* Window::GetBottomActor() {
+  DCHECK(actor_.get());
   return (shadow_.get() ? shadow_->group() : actor_.get());
 }
 
@@ -747,6 +798,7 @@ void Window::SetWmStateInternal(int action, bool* value) const {
 }
 
 bool Window::UpdateWmStateProperty() {
+  DCHECK(xid_);
   vector<int> values;
   if (wm_state_fullscreen_)
     values.push_back(wm_->GetXAtom(ATOM_NET_WM_STATE_FULLSCREEN));
@@ -772,6 +824,7 @@ bool Window::UpdateWmStateProperty() {
 }
 
 bool Window::UpdateChromeStateProperty() {
+  DCHECK(xid_);
   vector<int> values;
   for (set<XAtom>::const_iterator it = chrome_state_xatoms_.begin();
        it != chrome_state_xatoms_.end(); ++it) {
@@ -788,6 +841,8 @@ bool Window::UpdateChromeStateProperty() {
 }
 
 void Window::ResetPixmap() {
+  DCHECK(xid_);
+  DCHECK(actor_.get());
   if (!mapped_)
     return;
 
@@ -817,6 +872,26 @@ void Window::UpdateShadowVisibility() {
     shadow_->Show();
   else if (shadow_->is_shown() && !should_show)
     shadow_->Hide();
+}
+
+
+DestroyedWindow::DestroyedWindow(WindowManager* wm,
+                                 XWindow xid,
+                                 Compositor::TexturePixmapActor* actor,
+                                 Shadow* shadow,
+                                 XID pixmap)
+    : wm_(wm),
+      actor_(actor),
+      shadow_(shadow),
+      pixmap_(pixmap) {
+  DCHECK(wm);
+  DCHECK(actor);
+  actor_->SetName(string("destroyed window ") + XidStr(xid));
+}
+
+DestroyedWindow::~DestroyedWindow() {
+  if (pixmap_)
+    wm_->xconn()->FreePixmap(pixmap_);
 }
 
 }  // namespace window_manager

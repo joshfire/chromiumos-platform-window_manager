@@ -193,6 +193,13 @@ class WindowManager : public PanelManagerAreaChangeListener,
   void UnregisterEventConsumerForChromeMessages(
       chromeos::WmIpcMessageType message_type, EventConsumer* event_consumer);
 
+  // Register an event consumer's interest in taking ownership of a Window
+  // object after the underlying X window has been destroyed.  The
+  // registration will automatically be removed after the DestroyNotify
+  // event.
+  void RegisterEventConsumerForDestroyedWindow(
+      XWindow xid, EventConsumer* event_consumer);
+
   bool client_window_debugging_enabled() const {
     return !client_window_debugging_actors_.empty();
   }
@@ -437,6 +444,10 @@ class WindowManager : public PanelManagerAreaChangeListener,
   // Map from Chrome message types to event consumers that will receive
   // copies of the messages.
   ChromeMessageEventConsumerMap chrome_message_event_consumers_;
+
+  // Map from windows to the event consumer that will receive ownership of
+  // the Window object when the underlying X window is destroyed.
+  std::map<XWindow, EventConsumer*> destroyed_window_event_consumers_;
 
   // Actors that are currently being used to debug client windows.
   typedef std::vector<std::tr1::shared_ptr<Compositor::Actor> > ActorVector;
