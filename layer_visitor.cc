@@ -65,6 +65,11 @@ static LayerVisitor::BoundingBox ComputeTransformedBoundingBox(
   v2 = transform * v2;
   v3 = transform * v3;
 
+  v0 /= v0[3];
+  v1 /= v1[3];
+  v2 /= v2[3];
+  v3 /= v3[3];
+
   return LayerVisitor::BoundingBox(min4(v0[0], v1[0], v2[0], v3[0]),
                                    max4(v0[0], v1[0], v2[0], v3[0]),
                                    min4(v0[1], v1[1], v2[1], v3[1]),
