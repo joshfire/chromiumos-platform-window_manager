@@ -979,10 +979,20 @@ TEST_F(LayoutManagerTest, OverviewSpacing) {
             LayoutManager::SnapshotWindow::kTitlePadding,
             lm_->current_snapshot_->title()->composited_y());
 
+  // Make sure the input window region includes the snapshot window, title,
+  // and fav icon regions.
+  XWindow input_xid = lm_->GetInputXidForWindow(*lm_->current_snapshot_->win());
+
+  MockXConnection::WindowInfo* win_info = xconn_->GetWindowInfo(input_xid);
+  EXPECT_TRUE(win_info != NULL);
+  EXPECT_EQ(win_info->height,
+            lm_->current_snapshot_->win()->composited_height() +
+            lm_->current_snapshot_->title()->composited_height() +
+            LayoutManager::SnapshotWindow::kTitlePadding);
+
   // Now click on the second window and make sure things move appropriately.
   XEvent event;
-  XWindow input_xid = lm_->GetInputXidForWindow(
-      *(wm_->GetWindowOrDie(snapshot2)));
+  input_xid = lm_->GetInputXidForWindow(*wm_->GetWindowOrDie(snapshot2));
   xconn_->InitButtonPressEvent(&event, input_xid, 0, 0, 1);
   wm_->HandleEvent(&event);
   xconn_->InitButtonReleaseEvent(&event, input_xid, 0, 0, 1);

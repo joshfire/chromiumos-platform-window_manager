@@ -345,11 +345,6 @@ void LayoutManager::SnapshotWindow::ConfigureForOverviewMode(bool animate) {
 
   int input_width = Compositor::Actor::GetTiltedWidth(overview_width_,
                                                       new_tilt);
-  wm()->ConfigureInputWindow(input_xid_,
-                             absolute_overview_x,
-                             absolute_overview_y,
-                             input_width,
-                             overview_height_);
 
   win_->actor()->ShowDimmed(state_ == STATE_OVERVIEW_MODE_NORMAL, anim_ms);
   win_->actor()->SetTilt(new_tilt, anim_ms);
@@ -363,19 +358,27 @@ void LayoutManager::SnapshotWindow::ConfigureForOverviewMode(bool animate) {
     fav_icon_->MoveComposited(absolute_overview_x, title_y, anim_ms);
   }
 
+  int overview_height_with_title = overview_height_;
   if (title_) {
-    if (state_ == STATE_OVERVIEW_MODE_SELECTED) {
+    if (state_ == STATE_OVERVIEW_MODE_SELECTED)
       title_->SetCompositedOpacity(1.0f, opacity_anim_ms);
-    } else {
+    else
       title_->SetCompositedOpacity(0.0f, opacity_anim_ms);
-    }
+
     int x_position = absolute_overview_x;
-    if (fav_icon_) {
-      x_position += fav_icon_->composited_width() +
-                    kFavIconPadding;
-    }
+    if (fav_icon_)
+      x_position += fav_icon_->composited_width() + kFavIconPadding;
+
     title_->MoveComposited(x_position, title_y, anim_ms);
+    overview_height_with_title += kTitlePadding +
+                                  title_->client_height() * overview_scale_;
   }
+
+  wm()->ConfigureInputWindow(input_xid_,
+                             absolute_overview_x,
+                             absolute_overview_y,
+                             input_width,
+                             overview_height_with_title);
 }
 
 void LayoutManager::SnapshotWindow::SetSize(int max_width, int max_height) {
