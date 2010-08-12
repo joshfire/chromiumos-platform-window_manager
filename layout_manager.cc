@@ -1591,11 +1591,6 @@ void LayoutManager::RemoveToplevel(ToplevelWindow* toplevel) {
     snapshots_.swap(remaining);
   }
 
-  if (current_toplevel_ == toplevel)
-    current_toplevel_ = NULL;
-  if (fullscreen_toplevel_ == toplevel)
-    fullscreen_toplevel_ = NULL;
-
   // Find any transient windows associated with this toplevel window
   // and remove them.
   XWindowToToplevelMap::iterator transient_iter =
@@ -1606,22 +1601,27 @@ void LayoutManager::RemoveToplevel(ToplevelWindow* toplevel) {
     ++transient_iter;
   }
 
-  toplevels_.erase(toplevels_.begin() + index);
-
   // Find a new active toplevel window if needed.  If there's no
   // active window now, then this one was probably active previously.
   // Choose a new active window if possible; relinquish the focus
   // otherwise.
-  if (!current_toplevel_) {
-    if (!toplevels_.empty()) {
-      const int new_index =
-          (index + toplevels_.size() - 1) % toplevels_.size();
+  if (current_toplevel_ == toplevel) {
+    if (toplevels_.size() > 1) {
+      // If we close the first window in the cycle, we will activate the second
+      // window, otherwise we activate the previous window in the cycle.  Make
+      // sure the current_toplevel is removed after calling SetCurrentToplevel
+      // to get the proper animation.
+      const int new_index = index == 0 ? 1 : index - 1;
       SetCurrentToplevel(toplevels_[new_index].get());
     } else {
+      current_toplevel_ = NULL;
       if (mode_ == MODE_ACTIVE && win->IsFocused())
         wm_->TakeFocus(wm_->GetCurrentTimeFromServer());
     }
   }
+  if (fullscreen_toplevel_ == toplevel)
+    fullscreen_toplevel_ = NULL;
+  toplevels_.erase(toplevels_.begin() + index);
   UpdateCurrentSnapshot();
 }
 
