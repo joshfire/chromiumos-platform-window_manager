@@ -35,9 +35,11 @@ base_env.Append(CCFLAGS=['-fno-strict-aliasing'])
 
 base_env.Append(CPPPATH=['..'])
 
-base_env.Append(LIBS=Split('base gflags rt'))
+# We need glib-2.0 ONLY to satisfy libbase.
+# TODO(derat): Weep.
+base_env.Append(LIBS=Split('base gflags glib-2.0 rt'))
 
-base_env.ParseConfig('pkg-config --cflags --libs x11')
+base_env.ParseConfig('pkg-config --cflags --libs glib-2.0 x11')
 
 # Fork off a new environment, add Cairo to it, and build the screenshot
 # program.
