@@ -102,10 +102,9 @@ LoginController::LoginController(WindowManager* wm)
       guest_window_(NULL),
       background_window_(NULL),
       login_window_to_focus_(NULL),
-      waiting_to_hide_windows_(false),
+      waiting_for_initial_browser_window_(false),
+      requested_destruction_(false),
       is_entry_selection_enabled_(true) {
-  registrar_.RegisterForChromeMessages(
-      chromeos::WM_IPC_MESSAGE_WM_HIDE_LOGIN);
   registrar_.RegisterForChromeMessages(
       chromeos::WM_IPC_MESSAGE_WM_SET_LOGIN_STATE);
   registrar_.RegisterForChromeMessages(
@@ -120,30 +119,18 @@ bool LoginController::IsInputWindow(XWindow xid) {
 }
 
 void LoginController::HandleScreenResize() {
-  if (wm_->logged_in()) {
-    // Make sure that all of our client windows stay offscreen.
-    set<XWindow> xids;
-    get_all_xids(&xids);
-    for (set<XWindow>::iterator it = xids.begin(); it != xids.end(); ++it) {
-      Window* win = wm_->GetWindow(*it);
-      if (win) {
-        win->MoveClientOffscreen();
-      } else {
-        DCHECK(IsInputWindow(*it)) << "Window " << XidStr(*it);
-        wm_->xconn()->ConfigureWindowOffscreen(*it);
-      }
-    }
-  } else {
-    NOTIMPLEMENTED();
-  }
+  NOTIMPLEMENTED();
 }
 
 void LoginController::HandleLoggedInStateChange() {
   if (wm_->logged_in())
-    waiting_to_hide_windows_ = true;
+    waiting_for_initial_browser_window_ = true;
 }
 
 bool LoginController::HandleWindowMapRequest(Window* win) {
+  if (requested_destruction_)
+    return false;
+
   switch (win->type()) {
     case chromeos::WM_IPC_WINDOW_LOGIN_BACKGROUND:
     case chromeos::WM_IPC_WINDOW_LOGIN_GUEST:
@@ -157,22 +144,34 @@ bool LoginController::HandleWindowMapRequest(Window* win) {
       win->MoveClientOffscreen();
       win->MapClient();
       return true;
-    default:
-      if (wm_->logged_in())
+    case chromeos::WM_IPC_WINDOW_UNKNOWN:
+    case chromeos::WM_IPC_WINDOW_CHROME_INFO_BUBBLE: {
+      // Only map other windows that are transient for our windows.
+      if (!login_xids_.count(win->transient_for_xid()) &&
+          !non_login_xids_.count(win->transient_for_xid())) {
         return false;
-
-      // If we're not logged in yet, just map everything we see --
-      // LayoutManager's not going to do it for us.
+      }
       wm_->stacking_manager()->StackWindowAtTopOfLayer(
           win, StackingManager::LAYER_LOGIN_OTHER_WINDOW);
       win->MapClient();
       return true;
+    }
+    default:
+      return false;
   }
 }
 
 void LoginController::HandleWindowMap(Window* win) {
-  if (win->override_redirect())
+  if (requested_destruction_ || win->override_redirect())
     return;
+
+  // Destroy ourselves when we see the initial browser window get mapped.
+  if (waiting_for_initial_browser_window_ &&
+      win->type() == chromeos::WM_IPC_WINDOW_CHROME_TOPLEVEL) {
+    waiting_for_initial_browser_window_ = false;
+    HideWindowsAndRequestDestruction();
+    return;
+  }
 
   switch (win->type()) {
     case chromeos::WM_IPC_WINDOW_LOGIN_GUEST: {
@@ -224,45 +223,34 @@ void LoginController::HandleWindowMap(Window* win) {
       break;
     }
     default:
-      if (wm_->logged_in()) {
-        if (waiting_to_hide_windows_ &&
-            win->type() == chromeos::WM_IPC_WINDOW_CHROME_TOPLEVEL) {
-          waiting_to_hide_windows_ = false;
-          HideWindowsAfterLogin();
-        }
-      } else {
-        // If we're not logged in yet, just show other windows at the spot
-        // where they asked to be mapped.
-        if (!non_login_xids_.insert(win->xid()).second) {
-          LOG(ERROR) << "Already managing window " << win->xid_str();
-          return;
-        }
-        registrar_.RegisterForWindowEvents(win->xid());
+      const XWindow owner_xid = win->transient_for_xid();
+      if (!login_xids_.count(owner_xid) && !non_login_xids_.count(owner_xid))
+        return;
+      Window* owner_win = wm_->GetWindow(owner_xid);
+      DCHECK(owner_win);
 
-        // Restack the window again in case it was mapped before the
-        // window manager started.
-        wm_->stacking_manager()->StackWindowAtTopOfLayer(
-            win, StackingManager::LAYER_LOGIN_OTHER_WINDOW);
+      if (!non_login_xids_.insert(win->xid()).second) {
+        LOG(ERROR) << "Already managing window " << win->xid_str();
+        return;
+      }
+      registrar_.RegisterForWindowEvents(win->xid());
 
-        // If this is a transient window, center it over its owner
-        // (unless it's an infobubble, which we just let Chrome position
-        // wherever it wants).
-        if (win->transient_for_xid() &&
-            win->type() != chromeos::WM_IPC_WINDOW_CHROME_INFO_BUBBLE) {
-          Window* owner_win = wm_->GetWindow(win->transient_for_xid());
-          if (owner_win)
-            win->CenterClientOverWindow(owner_win);
-        }
+      // Restack the window again in case it was mapped before the
+      // window manager started.
+      wm_->stacking_manager()->StackWindowAtTopOfLayer(
+          win, StackingManager::LAYER_LOGIN_OTHER_WINDOW);
 
-        if (win->type() != chromeos::WM_IPC_WINDOW_CHROME_INFO_BUBBLE)
-          win->SetShouldHaveShadow(true);
-
-        wm_->focus_manager()->UseClickToFocusForWindow(win);
-        wm_->FocusWindow(win, wm_->GetCurrentTimeFromServer());
-        win->MoveCompositedToClient();
-        win->ShowComposited();
+      // Center the window over its owner (unless it's an infobubble, which
+      // we just let Chrome position wherever it wants).
+      if (win->type() != chromeos::WM_IPC_WINDOW_CHROME_INFO_BUBBLE) {
+        win->CenterClientOverWindow(owner_win);
+        win->SetShouldHaveShadow(true);
       }
 
+      wm_->focus_manager()->UseClickToFocusForWindow(win);
+      wm_->FocusWindow(win, wm_->GetCurrentTimeFromServer());
+      win->MoveCompositedToClient();
+      win->ShowComposited();
       return;
   }
 
@@ -272,7 +260,7 @@ void LoginController::HandleWindowMap(Window* win) {
 
   // Register our interest in taking ownership of this window after the
   // underlying X window gets destroyed.
-  wm_->RegisterEventConsumerForDestroyedWindow(win->xid(), this);
+  registrar_.RegisterForDestroyedWindow(win->xid());
 
   OnGotNewWindowOrPropertyChange();
 
@@ -299,7 +287,7 @@ void LoginController::HandleWindowUnmap(Window* win) {
     non_login_xids_.erase(*non_login_it);
     registrar_.UnregisterForWindowEvents(win->xid());
 
-    if (win->IsFocused()) {
+    if (win->IsFocused() && !wm_->logged_in()) {
       // If the window was transient, pass the focus to its owner (as long
       // as it's not the background window, which we never want to receive
       // the focus); otherwise just focus the previously-focused login
@@ -375,19 +363,19 @@ void LoginController::HandleWindowConfigureRequest(Window* win,
                                                    int req_y,
                                                    int req_width,
                                                    int req_height) {
-  if (!IsLoginWindow(win)) {
-    if (!wm_->logged_in()) {
-      // If Chrome isn't logged in, just make whatever changes the window
-      // asked for.
-      win->MoveClient(req_x, req_y);
-      win->MoveCompositedToClient();
-      win->ResizeClient(req_width, req_height, GRAVITY_NORTHWEST);
-    }
+  if (requested_destruction_)
     return;
-  }
 
-  // We manage the x/y, but let Chrome manage the width/height.
-  win->ResizeClient(req_width, req_height, GRAVITY_NORTHWEST);
+  if (IsLoginWindow(win)) {
+    // We manage the x/y, but let Chrome manage the width/height.
+    win->ResizeClient(req_width, req_height, GRAVITY_NORTHWEST);
+  } else if (non_login_xids_.count(win->xid())) {
+    // If this is a non-login window that we're managing, just make
+    // whatever changes the client asked for.
+    win->MoveClient(req_x, req_y);
+    win->MoveCompositedToClient();
+    win->ResizeClient(req_width, req_height, GRAVITY_NORTHWEST);
+  }
 }
 
 void LoginController::HandleButtonPress(XWindow xid,
@@ -395,6 +383,9 @@ void LoginController::HandleButtonPress(XWindow xid,
                                         int x_root, int y_root,
                                         int button,
                                         XTime timestamp) {
+  if (requested_destruction_)
+    return;
+
   // Ignore clicks if a modal window has the focus.
   if (wm_->focus_manager()->focused_win() &&
       wm_->focus_manager()->focused_win()->wm_state_modal()) {
@@ -420,12 +411,10 @@ void LoginController::HandleButtonPress(XWindow xid,
 }
 
 void LoginController::HandleChromeMessage(const WmIpc::Message& msg) {
-  switch (msg.type()) {
-    case chromeos::WM_IPC_MESSAGE_WM_HIDE_LOGIN: {
-      Hide();
-      break;
-    }
+  if (requested_destruction_)
+    return;
 
+  switch (msg.type()) {
     case chromeos::WM_IPC_MESSAGE_WM_SET_LOGIN_STATE: {
       SetEntrySelectionEnabled(msg.param(0) == 1);
       break;
@@ -451,7 +440,7 @@ void LoginController::HandleChromeMessage(const WmIpc::Message& msg) {
 void LoginController::HandleClientMessage(XWindow xid,
                                           XAtom message_type,
                                           const long data[5]) {
-  if (wm_->logged_in())
+  if (requested_destruction_)
     return;
 
   Window* win = wm_->GetWindow(xid);
@@ -474,20 +463,26 @@ void LoginController::HandleClientMessage(XWindow xid,
 }
 
 void LoginController::HandleWindowPropertyChange(XWindow xid, XAtom xatom) {
+  if (requested_destruction_)
+    return;
   // Currently only listen for property changes on the background window.
   DCHECK(background_window_ && background_window_->xid() == xid);
   OnGotNewWindowOrPropertyChange();
 }
 
-void LoginController::OwnDestroyedWindow(DestroyedWindow* destroyed_win) {
+void LoginController::OwnDestroyedWindow(DestroyedWindow* destroyed_win,
+                                         XWindow xid) {
   DCHECK(destroyed_win);
-  // If the user has logged in and we're waiting for the initial browser
-  // window to get mapped before hiding the login windows, then hang on to
-  // this destroyed window so we can keep displaying it a bit longer.
-  if (waiting_to_hide_windows_)
+  // If the user has already logged in, then hang on to this destroyed
+  // window so we can keep displaying it a bit longer.
+  if (wm_->logged_in())
     destroyed_windows_.insert(shared_ptr<DestroyedWindow>(destroyed_win));
   else
     delete destroyed_win;
+
+  // Let the registrar know that it no longer needs to unregister our
+  // interest in this window.
+  registrar_.HandleDestroyedWindow(xid);
 }
 
 void LoginController::InitialShow() {
@@ -550,6 +545,10 @@ void LoginController::SelectEntryAt(size_t index) {
   DCHECK_LT(index, entries_.size());
   selected_entry_index_ = index;
 
+  // Bail out before moving any entries around if we're waiting to go away.
+  if (wm_->logged_in())
+    return;
+
   vector<Point> origins;
   CalculateIdealOrigins(&origins);
   for (size_t i = 0; i < entries_.size(); ++i) {
@@ -571,16 +570,6 @@ void LoginController::SelectEntryAt(size_t index) {
 
   if (last_selected_index != kNoSelection)
     selection_changed_manager_.Schedule(last_selected_index);
-}
-
-void LoginController::Hide() {
-  selection_changed_manager_.Stop();
-  for (Entries::iterator it = entries_.begin(); it < entries_.end(); ++it) {
-    if (!(*it)->has_all_windows())
-      continue;
-
-    (*it)->FadeOut(kLoggedInTransitionAnimMs);
-  }
 }
 
 void LoginController::SetEntrySelectionEnabled(bool enable) {
@@ -752,7 +741,7 @@ void LoginController::FocusLoginWindow(Window* win) {
   login_window_to_focus_ = win;
 }
 
-void LoginController::HideWindowsAfterLogin() {
+void LoginController::HideWindowsAndRequestDestruction() {
   // Move all of our client windows offscreen and make the composited
   // representations invisible.
   set<XWindow> xids;
@@ -775,6 +764,9 @@ void LoginController::HideWindowsAfterLogin() {
   Window* focused_win = wm_->focus_manager()->focused_win();
   if (focused_win && xids.count(focused_win->xid()))
     wm_->FocusWindow(NULL, wm_->GetCurrentTimeFromServer());
+
+  requested_destruction_ = true;
+  wm_->DestroyLoginController();
 }
 
 }  // namespace window_manager

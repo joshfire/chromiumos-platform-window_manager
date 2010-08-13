@@ -127,16 +127,17 @@ LayoutManager::LayoutManager(WindowManager* wm, PanelManager* panel_manager)
                           &panel_manager_right_width_);
 
   // Disable the overview key bindings, since we start in active mode.
-  // Disable the active bindings as well if we're not logged in yet.
   overview_mode_key_bindings_group_->Disable();
-  if (!wm_->logged_in())
-    active_mode_key_bindings_group_->Disable();
 
   MoveAndResizeForAvailableArea();
 
   wm_->stacking_manager()->StackXidAtTopOfLayer(
       background_xid_, StackingManager::LAYER_BACKGROUND);
   wm_->SetNamePropertiesForXid(background_xid_, "background input window");
+
+  if (!FLAGS_background_image.empty())
+    SetBackground(
+        wm_->compositor()->CreateImageFromFile(FLAGS_background_image));
 
   int event_mask = ButtonPressMask | ButtonReleaseMask | PointerMotionMask;
   wm_->xconn()->AddButtonGrabOnWindow(
@@ -317,24 +318,9 @@ void LayoutManager::HandleScreenResize() {
     wm_->xconn()->ResizeWindow(background_xid_, wm_->width(), wm_->height());
 }
 
-void LayoutManager::HandleLoggedInStateChange() {
-  if (wm_->logged_in()) {
-    EnableKeyBindingsForMode(mode_);
-    if (!background_.get() && !FLAGS_background_image.empty())
-      SetBackground(
-          wm_->compositor()->CreateImageFromFile(FLAGS_background_image));
-  } else {  // not logged in
-    DisableKeyBindingsForMode(mode_);
-    if (background_.get())
-      background_->Hide();
-  }
-}
-
 bool LayoutManager::HandleWindowMapRequest(Window* win) {
   DCHECK(win);
   saw_map_request_ = true;
-  if (!wm_->logged_in())
-    return false;
 
   if (!IsHandledWindowType(win->type()))
     return false;
@@ -362,8 +348,7 @@ bool LayoutManager::HandleWindowMapRequest(Window* win) {
 
 void LayoutManager::HandleWindowMap(Window* win) {
   DCHECK(win);
-  if (!wm_->logged_in() || win->override_redirect() ||
-      !IsHandledWindowType(win->type()))
+  if (win->override_redirect() || !IsHandledWindowType(win->type()))
     return;
 
   const size_t initial_num_toplevels = toplevels_.size();
@@ -876,9 +861,7 @@ void LayoutManager::SetMode(Mode mode) {
   if (mode == mode_)
     return;
 
-  if (wm_->logged_in())
-    DisableKeyBindingsForMode(mode_);
-
+  DisableKeyBindingsForMode(mode_);
   mode_ = mode;
   DLOG(INFO) << "Switching to " << GetModeName(mode_) << " mode";
 
@@ -945,8 +928,7 @@ void LayoutManager::SetMode(Mode mode) {
     SendModeMessage(it->get(), was_cancelled);
   }
 
-  if (wm_->logged_in())
-    EnableKeyBindingsForMode(mode_);
+  EnableKeyBindingsForMode(mode_);
 }
 
 // static
@@ -1787,9 +1769,6 @@ void LayoutManager::ConfigureBackground(int width, int height) {
 
 void LayoutManager::HandleFirstToplevelChromeWindowMapped(Window* win) {
   DCHECK(win);
-
-  if (!wm_->logged_in())
-    LOG(WARNING) << "Toplevel Chrome window got mapped while not logged in";
 
   // Start drawing our background when we see the first Chrome window, and tell
   // WindowManager to stop drawing its startup background.

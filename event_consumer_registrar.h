@@ -5,6 +5,7 @@
 #ifndef WINDOW_MANAGER_EVENT_CONSUMER_REGISTRAR_H_
 #define WINDOW_MANAGER_EVENT_CONSUMER_REGISTRAR_H_
 
+#include <set>
 #include <utility>
 #include <vector>
 
@@ -35,6 +36,13 @@ class EventConsumerRegistrar {
   void UnregisterForPropertyChanges(XWindow xid, XAtom xatom);
   void RegisterForChromeMessages(chromeos::WmIpcMessageType message_type);
 
+  // An EventConsumer's registration for receiving a DestroyedWindow object
+  // is automatically removed when the window is destroyed.
+  // HandleDestroyedWindow() should be called at this time so the registrar
+  // knows that it no longer needs to remove the registration.
+  void RegisterForDestroyedWindow(XWindow xid);
+  void HandleDestroyedWindow(XWindow xid);
+
  private:
   typedef std::vector<std::pair<XWindow, XAtom> > PropertyChangePairs;
 
@@ -45,6 +53,7 @@ class EventConsumerRegistrar {
   std::vector<XWindow> window_event_xids_;
   PropertyChangePairs property_change_pairs_;
   std::vector<chromeos::WmIpcMessageType> chrome_message_types_;
+  std::set<XWindow> destroyed_xids_;
 
   DISALLOW_COPY_AND_ASSIGN(EventConsumerRegistrar);
 };

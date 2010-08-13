@@ -227,16 +227,16 @@ TEST_F(LoginControllerTest, Shadow) {
   EXPECT_TRUE(wm_->GetWindowOrDie(background_xid_)->shadow() == NULL);
 }
 
-// Check that LoginController does some half-baked handling of any other
+// Check that LoginController does some half-baked handling of transient
 // windows that get mapped before Chrome is in a logged-in state.
 TEST_F(LoginControllerTest, OtherWindows) {
-  const int initial_x = 20;
-  const int initial_y = 30;
+  CreateLoginWindows(2, true, true);
+
   const int initial_width = 300;
   const int initial_height = 200;
-  const XWindow xid =
-      CreateBasicWindow(initial_x, initial_y, initial_width, initial_height);
+  const XWindow xid = CreateBasicWindow(0, 0, initial_width, initial_height);
   MockXConnection::WindowInfo* info = xconn_->GetWindowInfoOrDie(xid);
+  info->transient_for = background_xid_;
   ASSERT_FALSE(info->mapped);
 
   XEvent event;
@@ -246,12 +246,12 @@ TEST_F(LoginControllerTest, OtherWindows) {
   MockCompositor::Actor* actor = GetMockActorForWindow(win);
 
   // If LoginManager sees a MapRequest event before Chrome is logged in,
-  // check that it maps the window in the requested location.
+  // check that it maps the window centered over its owner.
   xconn_->InitMapRequestEvent(&event, xid);
   wm_->HandleEvent(&event);
   EXPECT_TRUE(info->mapped);
-  EXPECT_EQ(initial_x, info->x);
-  EXPECT_EQ(initial_y, info->y);
+  EXPECT_EQ((wm_->width() - initial_width) / 2, info->x);
+  EXPECT_EQ((wm_->height() - initial_height) / 2, info->y);
   EXPECT_EQ(initial_width, info->width);
   EXPECT_EQ(initial_height, info->height);
 
@@ -259,12 +259,12 @@ TEST_F(LoginControllerTest, OtherWindows) {
   // should be visible and have a shadow too.
   xconn_->InitMapEvent(&event, xid);
   wm_->HandleEvent(&event);
-  EXPECT_EQ(initial_x, info->x);
-  EXPECT_EQ(initial_y, info->y);
+  EXPECT_EQ((wm_->width() - initial_width) / 2, info->x);
+  EXPECT_EQ((wm_->height() - initial_height) / 2, info->y);
   EXPECT_EQ(initial_width, info->width);
   EXPECT_EQ(initial_height, info->height);
-  EXPECT_EQ(initial_x, actor->x());
-  EXPECT_EQ(initial_y, actor->y());
+  EXPECT_EQ((wm_->width() - initial_width) / 2, info->x);
+  EXPECT_EQ((wm_->height() - initial_height) / 2, info->y);
   EXPECT_EQ(initial_width, actor->GetWidth());
   EXPECT_EQ(initial_height, actor->GetHeight());
   EXPECT_TRUE(actor->is_shown());
@@ -302,8 +302,35 @@ TEST_F(LoginControllerTest, OtherWindows) {
       info_bubble_xid,
       chromeos::WM_IPC_WINDOW_CHROME_INFO_BUBBLE,
       NULL));
+  xconn_->GetWindowInfoOrDie(info_bubble_xid)->transient_for = background_xid_;
   SendInitialEventsForWindow(info_bubble_xid);
   EXPECT_TRUE(wm_->GetWindowOrDie(info_bubble_xid)->shadow() == NULL);
+
+  // Non-transient non-login windows should be ignored by the login
+  // controller.
+  XWindow non_transient_xid = CreateSimpleWindow();
+  xconn_->InitCreateWindowEvent(&event, non_transient_xid);
+  wm_->HandleEvent(&event);
+  xconn_->InitMapRequestEvent(&event, non_transient_xid);
+  wm_->HandleEvent(&event);
+  EXPECT_FALSE(xconn_->GetWindowInfoOrDie(non_transient_xid)->mapped);
+  Window* non_transient_win = wm_->GetWindowOrDie(non_transient_xid);
+  EXPECT_FALSE(GetMockActorForWindow(non_transient_win)->is_shown());
+
+  // Even after the user has logged in, we should continue to manage
+  // transient windows belonging to login windows.
+  SetLoggedInState(true);
+  XWindow post_login_xid = CreateSimpleWindow();
+  MockXConnection::WindowInfo* post_login_info =
+      xconn_->GetWindowInfoOrDie(post_login_xid);
+  post_login_info->transient_for = background_xid_;
+  SendInitialEventsForWindow(post_login_xid);
+
+  Window* post_login_win = wm_->GetWindowOrDie(post_login_xid);
+  MockCompositor::Actor* post_login_actor =
+      GetMockActorForWindow(post_login_win);
+  EXPECT_TRUE(post_login_info->mapped);
+  EXPECT_TRUE(post_login_actor->is_shown());
 }
 
 // Test that the login controller assigns the focus correctly in a few cases.
@@ -326,12 +353,13 @@ TEST_F(LoginControllerTest, Focus) {
   const XWindow other_xid = CreateSimpleWindow();
   MockXConnection::WindowInfo* other_info =
       xconn_->GetWindowInfoOrDie(other_xid);
+  other_info->transient_for = background_xid_;
   SendInitialEventsForWindow(other_xid);
   EXPECT_EQ(other_xid, xconn_->focused_xid());
   EXPECT_EQ(other_xid, GetActiveWindowProperty());
   EXPECT_FALSE(other_info->button_is_grabbed(0));
 
-  // Check that override-redirect non-login window (i.e. tooltip) won'be
+  // Check that override-redirect non-login window (i.e. tooltip) won't be
   // focused.
   const XWindow override_redirect_xid = CreateSimpleWindow();
   MockXConnection::WindowInfo* override_redirect_info =
@@ -713,10 +741,9 @@ TEST_F(LoginControllerTest, SelectTwice) {
   EXPECT_FALSE(IsCompositedShown(entries_[1].unselected_label_xid));
 }
 
+// Test that we don't crash when Chrome crashes and the login entry windows
+// are unmapped in a random order (see http://crosbug.com/5117).
 TEST_F(LoginControllerTest, NoCrashOnInconsistenEntry) {
-  // This testcase tests that WM doesn't crash in situation when Chrome crashed
-  // and login entry windows are unmapped in random order, see crash report
-  // http://code.google.com/p/chromium-os/issues/detail?id=5117
 
   CreateLoginWindows(3, true, false);  // create_guest_window=false
 
@@ -733,9 +760,9 @@ TEST_F(LoginControllerTest, NoCrashOnInconsistenEntry) {
   UnmapLoginEntry(2);
 }
 
+// Test that we don't crash if the guest entry is active and an unmap event
+// happens for some reason (e.g. Chrome crashes).
 TEST_F(LoginControllerTest, NoCrashOnReverseOrderEntryDelete) {
-  // This testcase tests that there is no crash/DCHECK if guest entry is active
-  // and unmap event happens for some reason (for example Chrome crashes).
   CreateLoginWindows(3, true, false);  // create_guest_window=false
 
   // Select guest entry.
@@ -747,6 +774,44 @@ TEST_F(LoginControllerTest, NoCrashOnReverseOrderEntryDelete) {
   UnmapLoginEntry(0);
 }
 
+// Test that we don't animate new entry windows getting selected when the
+// previously-selected entry is unmapped after the user has logged in.
+// (Otherwise, weird animations happen while Chrome is cleaning up right
+// before mapping the initial browser window.)
+TEST_F(LoginControllerTest, DontSelectEntryAfterLogin) {
+  CreateLoginWindows(3, true, false);  // create_guest_window=false
+  SelectEntry(0);
+
+  // Grab the original position of the client window and the actor
+  // containing the user's picture.
+  XConnection::WindowGeometry orig_geometry;
+  ASSERT_TRUE(xconn_->GetWindowGeometry(entries_[1].controls_xid,
+                                        &orig_geometry));
+
+  MockCompositor::Actor* image_actor =
+      GetMockActorForWindow(wm_->GetWindowOrDie(entries_[1].image_xid));
+  const float orig_actor_x = image_actor->x();
+  const float orig_actor_y = image_actor->y();
+  const float orig_actor_scale_x = image_actor->scale_x();
+  const float orig_actor_scale_y = image_actor->scale_y();
+
+  // Now tell the WM that we're logged in and unmap the first entry, which
+  // should result in the second entry getting selected.
+  SetLoggedInState(true);
+  UnmapLoginEntry(0);
+
+  // Check that the second entry's window and actor didn't get moved.
+  XConnection::WindowGeometry new_geometry;
+  ASSERT_TRUE(xconn_->GetWindowGeometry(entries_[1].controls_xid,
+                                        &new_geometry));
+  EXPECT_EQ(orig_geometry.x, new_geometry.x);
+  EXPECT_EQ(orig_geometry.y, new_geometry.y);
+
+  EXPECT_FLOAT_EQ(orig_actor_x, image_actor->x());
+  EXPECT_FLOAT_EQ(orig_actor_y, image_actor->y());
+  EXPECT_FLOAT_EQ(orig_actor_scale_x, image_actor->scale_x());
+  EXPECT_FLOAT_EQ(orig_actor_scale_y, image_actor->scale_y());
+}
 
 }  // namespace window_manager
 

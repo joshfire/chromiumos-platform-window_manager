@@ -67,6 +67,7 @@ DEFINE_bool(unredirect_fullscreen_window,
             "Enable/disable compositing optimization that automatically turns"
             "off compositing if a topmost fullscreen window is present");
 
+using base::hash_map;
 using chromeos::WmIpcMessageType;
 using std::list;
 using std::make_pair;
@@ -311,10 +312,9 @@ bool WindowManager::Init() {
   // and then query its current value.
   CHECK(xconn_->SelectInputOnWindow(root_, PropertyChangeMask, true));
   int logged_in_value = 0;
-  SetLoggedInState(xconn_->GetIntProperty(root_,
-                                          GetXAtom(ATOM_CHROME_LOGGED_IN),
-                                          &logged_in_value) && logged_in_value,
-                   true);  // initial=true
+  xconn_->GetIntProperty(
+      root_, GetXAtom(ATOM_CHROME_LOGGED_IN), &logged_in_value);
+  logged_in_ = logged_in_value;
 
   // Set root window's cursor to left pointer.
   xconn_->SetWindowCursor(root_, XC_left_ptr);
@@ -379,16 +379,7 @@ bool WindowManager::Init() {
     logged_in_key_bindings_group_->Disable();
   RegisterKeyBindings();
 
-  panel_manager_.reset(new PanelManager(this));
-  event_consumers_.insert(panel_manager_.get());
-  panel_manager_->RegisterAreaChangeListener(this);
-  HandlePanelManagerAreaChange();
-
-  layout_manager_.reset(new LayoutManager(this, panel_manager_.get()));
-  event_consumers_.insert(layout_manager_.get());
-
-  login_controller_.reset(new LoginController(this));
-  event_consumers_.insert(login_controller_.get());
+  SetLoggedInState(logged_in_, true);  // initial=true
 
   screen_locker_handler_.reset(new ScreenLockerHandler(this));
   event_consumers_.insert(screen_locker_handler_.get());
@@ -417,6 +408,12 @@ bool WindowManager::Init() {
 }
 
 void WindowManager::SetLoggedInState(bool logged_in, bool initial) {
+  if (!initial && logged_in_ && !logged_in) {
+    LOG(WARNING) << "Ignoring request to transition from logged-in to "
+                 << "not-logged-in state";
+    return;
+  }
+
   DLOG(INFO) << "User " << (logged_in ? "is" : "isn't") << " logged in";
   if (!initial && logged_in == logged_in_)
     return;
@@ -453,6 +450,22 @@ void WindowManager::SetLoggedInState(bool logged_in, bool initial) {
       logged_in_key_bindings_group_->Enable();
     else
       logged_in_key_bindings_group_->Disable();
+  }
+
+  if (logged_in_) {
+    DCHECK(!panel_manager_.get());
+    panel_manager_.reset(new PanelManager(this));
+    event_consumers_.insert(panel_manager_.get());
+    panel_manager_->RegisterAreaChangeListener(this);
+    HandlePanelManagerAreaChange();
+
+    DCHECK(!layout_manager_.get());
+    layout_manager_.reset(new LayoutManager(this, panel_manager_.get()));
+    event_consumers_.insert(layout_manager_.get());
+  } else {
+    DCHECK(!login_controller_.get());
+    login_controller_.reset(new LoginController(this));
+    event_consumers_.insert(login_controller_.get());
   }
 
   FOR_EACH_EVENT_CONSUMER(event_consumers_, HandleLoggedInStateChange());
@@ -607,10 +620,11 @@ void WindowManager::FocusWindow(Window* win, XTime timestamp) {
 }
 
 void WindowManager::TakeFocus(XTime timestamp) {
-  if (!layout_manager_->TakeFocus(timestamp) &&
-      !panel_manager_->TakeFocus(timestamp)) {
-    focus_manager_->FocusWindow(NULL, timestamp);
-  }
+  if (layout_manager_.get() && layout_manager_->TakeFocus(timestamp))
+    return;
+  if (panel_manager_.get() && panel_manager_->TakeFocus(timestamp))
+    return;
+  focus_manager_->FocusWindow(NULL, timestamp);
 }
 
 bool WindowManager::SetActiveWindowProperty(XWindow xid) {
@@ -735,6 +749,21 @@ void WindowManager::RegisterEventConsumerForDestroyedWindow(
       << XidStr(xid) << " after it gets destroyed";
 }
 
+void WindowManager::UnregisterEventConsumerForDestroyedWindow(
+    XWindow xid, EventConsumer* event_consumer) {
+  hash_map<XWindow, EventConsumer*>::iterator it =
+      destroyed_window_event_consumers_.find(xid);
+  CHECK(it != destroyed_window_event_consumers_.end())
+      << "No event consumer requested ownership of window " << XidStr(xid)
+      << " after it gets destroyed, but got a request to unregister "
+      << event_consumer;
+  CHECK(it->second == event_consumer)
+      << "Event consumer " << it->second << " requested ownership of window "
+      << XidStr(xid) << " after it gets destroyed, but got a request to "
+      << "unregister " << event_consumer;
+  destroyed_window_event_consumers_.erase(it);
+}
+
 void WindowManager::RegisterSyncAlarm(XID alarm_id, Window* win) {
   base::hash_map<XID, Window*>::const_iterator it =
       sync_alarms_to_windows_.find(alarm_id);
@@ -823,6 +852,12 @@ int WindowManager::GetNumWindows() const {
   if (layout_manager_.get())
     num_windows += layout_manager_->num_toplevels();
   return num_windows;
+}
+
+void WindowManager::DestroyLoginController() {
+  event_loop_->PostTask(
+      NewPermanentCallback(
+          this, &WindowManager::DestroyLoginControllerInternal));
 }
 
 bool WindowManager::GetManagerSelection(
@@ -1570,13 +1605,13 @@ void WindowManager::HandleDestroyNotify(const XDestroyWindowEvent& e) {
   if (!win->override_redirect())
     UpdateClientListStackingProperty();
 
-  map<XWindow, EventConsumer*>::iterator ec_it =
+  hash_map<XWindow, EventConsumer*>::iterator ec_it =
       destroyed_window_event_consumers_.find(e.window);
   if (ec_it != destroyed_window_event_consumers_.end()) {
     // Transfer ownership of the window's compositing-related resources to
     // the event consumer that wanted it.
     DestroyedWindow* destroyed_win = win->HandleDestroyNotify();
-    ec_it->second->OwnDestroyedWindow(destroyed_win);
+    ec_it->second->OwnDestroyedWindow(destroyed_win, e.window);
     destroyed_window_event_consumers_.erase(ec_it);
   }
 
@@ -1956,6 +1991,13 @@ void WindowManager::DisableCompositing() {
   xconn_->UnredirectWindowForCompositing(unredirected_fullscreen_xid_);
   compositor_->set_should_draw_frame(false);
   DLOG(INFO) << "Turned compositing off";
+}
+
+void WindowManager::DestroyLoginControllerInternal() {
+  if (!login_controller_.get())
+    return;
+  event_consumers_.erase(login_controller_.get());
+  login_controller_.reset();
 }
 
 }  // namespace window_manager

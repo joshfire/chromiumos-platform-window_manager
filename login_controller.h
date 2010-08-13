@@ -30,7 +30,7 @@ class WindowManager;
 class LoginController : public EventConsumer {
  public:
   explicit LoginController(WindowManager* wm);
-  ~LoginController();
+  virtual ~LoginController();
 
   // Begin EventConsumer implementation.
   virtual bool IsInputWindow(XWindow xid);
@@ -69,7 +69,7 @@ class LoginController : public EventConsumer {
                                    XAtom message_type,
                                    const long data[5]);
   virtual void HandleWindowPropertyChange(XWindow xid, XAtom xatom);
-  virtual void OwnDestroyedWindow(DestroyedWindow* destroyed_win);
+  virtual void OwnDestroyedWindow(DestroyedWindow* destroyed_win, XWindow xid);
   // End EventConsumer implementation.
 
  private:
@@ -145,9 +145,6 @@ class LoginController : public EventConsumer {
   // Selects the guest entry.
   void SelectGuest();
 
-  // Hides all the windows (except for the guest).
-  void Hide();
-
   // Sets whether the user can select other entries.
   void SetEntrySelectionEnabled(bool enable);
 
@@ -177,9 +174,9 @@ class LoginController : public EventConsumer {
 
   // Invoked when a new window is mapped, or a property changes on the
   // background window. This may do one of the following:
-  // . If we just got all the windows, this stacks the windows and starts the
+  // - If we just got all the windows, this stacks the windows and starts the
   //   initial animation.
-  // . If the background and guest windows are ready, they are shown.
+  // - If the background and guest windows are ready, they are shown.
   void OnGotNewWindowOrPropertyChange();
 
   // Returns true if the background window is valid and has painted.
@@ -188,11 +185,9 @@ class LoginController : public EventConsumer {
   // Focus a window and save it to login_window_to_focus_.
   void FocusLoginWindow(Window* win);
 
-  // Hide all of our windows and give up the focus if we have it.  We also
-  // clear 'destroyed_windows_', so as to stop showing already-destroyed
-  // login windows.  Invoked after we see the initial non-login Chrome
-  // window get mapped.
-  void HideWindowsAfterLogin();
+  // Hide all login-related windows and ask the window manager to destroy us.
+  // Called when we see the initial browser get mapped.
+  void HideWindowsAndRequestDestruction();
 
   WindowManager* wm_;
 
@@ -229,8 +224,11 @@ class LoginController : public EventConsumer {
   Window* login_window_to_focus_;
 
   // Are we waiting for the initial post-login Chrome window to get mapped
-  // so we can hide the login windows?
-  bool waiting_to_hide_windows_;
+  // so we can hide the login windows and destroy the login controller?
+  bool waiting_for_initial_browser_window_;
+
+  // Has HideWindowsAndRequestDestruction() been called?
+  bool requested_destruction_;
 
   // Determines if entry selection is enabled at the moment.
   bool is_entry_selection_enabled_;

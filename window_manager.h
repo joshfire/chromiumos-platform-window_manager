@@ -198,8 +198,12 @@ class WindowManager : public PanelManagerAreaChangeListener,
   // Register an event consumer's interest in taking ownership of a Window
   // object after the underlying X window has been destroyed.  The
   // registration will automatically be removed after the DestroyNotify
-  // event.
+  // event, but UnregisterEventConsumerForDestroyedWindow() can be called
+  // before the window is deleted to unregister interest (e.g. if the
+  // event consumer itself is getting deleted).
   void RegisterEventConsumerForDestroyedWindow(
+      XWindow xid, EventConsumer* event_consumer);
+  void UnregisterEventConsumerForDestroyedWindow(
       XWindow xid, EventConsumer* event_consumer);
 
   // Register or unregister a mapping in 'sync_alarms_to_windows_' between
@@ -227,6 +231,14 @@ class WindowManager : public PanelManagerAreaChangeListener,
   // Get the total number of "real" windows.  Specifically, this is the
   // number of toplevel windows plus the number of panels.
   int GetNumWindows() const;
+
+  // Reset 'login_controller_' to NULL.  The login controller itself calls
+  // this once the user has logged in and we've seen the first Chrome
+  // window come up.  Note that this actually posts
+  // DestroyLoginControllerInternal() to the event loop; we're probably
+  // getting called in response to an X event, so we don't want to be
+  // messing around with the list of event consumers.
+  void DestroyLoginController();
 
  private:
   friend class BasicWindowManagerTest;
@@ -389,6 +401,10 @@ class WindowManager : public PanelManagerAreaChangeListener,
   // this method to the event loop from HandleTopFullscreenActorChange().
   void DisableCompositing();
 
+  // Helper method posted as a task on the event loop by
+  // DestroyLoginController().  This actually does the deleting.
+  void DestroyLoginControllerInternal();
+
   EventLoop* event_loop_;   // not owned
   XConnection* xconn_;      // not owned
   Compositor* compositor_;  // not owned
@@ -419,6 +435,7 @@ class WindowManager : public PanelManagerAreaChangeListener,
   // XComposite overlay window.
   XWindow overlay_xid_;
 
+  scoped_ptr<AtomCache> atom_cache_;
   scoped_ptr<StackingManager> stacking_manager_;
   scoped_ptr<FocusManager> focus_manager_;
 
@@ -455,7 +472,7 @@ class WindowManager : public PanelManagerAreaChangeListener,
 
   // Map from windows to the event consumer that will receive ownership of
   // the Window object when the underlying X window is destroyed.
-  std::map<XWindow, EventConsumer*> destroyed_window_event_consumers_;
+  base::hash_map<XWindow, EventConsumer*> destroyed_window_event_consumers_;
 
   // Actors that are currently being used to debug client windows.
   typedef std::vector<std::tr1::shared_ptr<Compositor::Actor> > ActorVector;
@@ -464,12 +481,18 @@ class WindowManager : public PanelManagerAreaChangeListener,
   // The last window that was passed to SetActiveWindowProperty().
   XWindow active_window_xid_;
 
-  scoped_ptr<AtomCache> atom_cache_;
   scoped_ptr<WmIpc> wm_ipc_;
   scoped_ptr<KeyBindings> key_bindings_;
+
+  // These aren't initialized until the user has logged in.
   scoped_ptr<PanelManager> panel_manager_;
   scoped_ptr<LayoutManager> layout_manager_;
+
+  // Initialized at startup if the user isn't already logged in, and
+  // deletes itself via DestroyLoginController() when the user is logged in
+  // and the initial browser window is mapped.
   scoped_ptr<LoginController> login_controller_;
+
   scoped_ptr<ScreenLockerHandler> screen_locker_handler_;
 
   // ID for the timeout that calls QueryKeyboardState().
@@ -502,7 +525,8 @@ class WindowManager : public PanelManagerAreaChangeListener,
   // Has the user logged in yet?  This affects whether some key bindings
   // are enabled or not and determines how new windows are handled.  This
   // tracks the _CHROME_LOGGED_IN property that Chrome sets on the root
-  // window.
+  // window, but never transitions from true to false (the window manager
+  // is restarted when the user logs out).
   bool logged_in_;
 
   // Should we initialize the logging code when we switch between logged-in

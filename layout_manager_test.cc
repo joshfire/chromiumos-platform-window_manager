@@ -1407,12 +1407,10 @@ TEST_F(LayoutManagerTest, KeyBindings) {
   EXPECT_FALSE(lm_->active_mode_key_bindings_group_->enabled());
   EXPECT_TRUE(lm_->overview_mode_key_bindings_group_->enabled());
 
-  // Both groups should be disabled when we're not logged in.
+  // The layout manager just shouldn't be created when we're not logged in.
   SetLoggedInState(false);
   CreateAndInitNewWm();
-  lm_ = wm_->layout_manager_.get();
-  EXPECT_FALSE(lm_->active_mode_key_bindings_group_->enabled());
-  EXPECT_FALSE(lm_->overview_mode_key_bindings_group_->enabled());
+  EXPECT_TRUE(wm_->layout_manager_.get() == NULL);
 }
 
 // Test our handling of requests to toggle the fullscreen state on toplevel
@@ -1562,7 +1560,7 @@ TEST_F(LayoutManagerTest, ChangeBackgroundsAfterInitialWindow) {
   AutoReset<string> background_image_flag_resetter(
       &FLAGS_background_image, "bogus_bg.png");
   CreateAndInitNewWm();
-  lm_ = wm_->layout_manager_.get();
+  lm_ = NULL;
 
   // We should start out showing just the startup background.
   ASSERT_TRUE(wm_->startup_background_.get() != NULL);
@@ -1570,13 +1568,15 @@ TEST_F(LayoutManagerTest, ChangeBackgroundsAfterInitialWindow) {
       dynamic_cast<MockCompositor::Actor*>(wm_->startup_background_.get());
   CHECK(cast_startup_background);
   EXPECT_TRUE(cast_startup_background->is_shown());
-  EXPECT_TRUE(lm_->background_.get() == NULL);
+  EXPECT_TRUE(wm_->layout_manager_.get() == NULL);
 
   // After the user logs in, we should still show the startup background,
   // but the layout manager should've also loaded the logged-in background.
   SetLoggedInState(true);
   ASSERT_TRUE(wm_->startup_background_.get() != NULL);
   EXPECT_TRUE(cast_startup_background->is_shown());
+  lm_ = wm_->layout_manager_.get();
+  ASSERT_TRUE(lm_ != NULL);
   ASSERT_TRUE(lm_->background_.get() != NULL);
   MockCompositor::Actor* cast_lm_background =
       dynamic_cast<MockCompositor::Actor*>(lm_->background_.get());

@@ -60,7 +60,7 @@ class LayoutManager : public EventConsumer,
   // Begin EventConsumer implementation.
   virtual bool IsInputWindow(XWindow xid);
   virtual void HandleScreenResize();
-  virtual void HandleLoggedInStateChange();
+  virtual void HandleLoggedInStateChange() {}
   virtual bool HandleWindowMapRequest(Window* win);
   virtual void HandleWindowMap(Window* win);
   virtual void HandleWindowUnmap(Window* win);
@@ -94,7 +94,7 @@ class LayoutManager : public EventConsumer,
                                    XAtom message_type,
                                    const long data[5]);
   virtual void HandleWindowPropertyChange(XWindow xid, XAtom xatom);
-  virtual void OwnDestroyedWindow(DestroyedWindow* destroyed_win) {
+  virtual void OwnDestroyedWindow(DestroyedWindow* destroyed_win, XWindow xid) {
     NOTREACHED();
   }
   // End EventConsumer implementation.

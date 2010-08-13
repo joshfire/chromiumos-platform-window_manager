@@ -134,8 +134,15 @@ class EventConsumer {
   // Take ownership of a DestroyedWindow object after the underlying X
   // window has been destroyed.  Use
   // WindowManager::RegisterEventConsumerForDestroyedWindow() to register
-  // interest in owning a not-yet-destroyed window.
-  virtual void OwnDestroyedWindow(DestroyedWindow* destroyed_win) = 0;
+  // interest in owning a not-yet-destroyed window (but see also
+  // EventConsumerRegistrar::RegisterForDestroyedWindow()).
+  //
+  // 'xid' shouldn't be used for anything other than passing to
+  // EventConsumerRegistrar::HandleDestroyedWindow(), since it refers to a
+  // window that no longer exists (and the ID may soon be recycled for a
+  // new window).
+  virtual void OwnDestroyedWindow(DestroyedWindow* destroyed_win,
+                                  XWindow xid) = 0;
 };
 
 }  // namespace window_manager

@@ -7,13 +7,16 @@
 #include <algorithm>
 
 #include "window_manager/event_consumer.h"
+#include "window_manager/util.h"
 #include "window_manager/window_manager.h"
 
 using chromeos::WmIpcMessageType;
 using std::find;
 using std::make_pair;
 using std::pair;
+using std::set;
 using std::vector;
+using window_manager::util::XidStr;
 
 namespace window_manager {
 
@@ -38,6 +41,10 @@ EventConsumerRegistrar::~EventConsumerRegistrar() {
          chrome_message_types_.begin();
        it != chrome_message_types_.end(); ++it) {
     wm_->UnregisterEventConsumerForChromeMessages(*it, event_consumer_);
+  }
+  for (set<XWindow>::const_iterator it = destroyed_xids_.begin();
+       it != destroyed_xids_.end(); ++it) {
+    wm_->UnregisterEventConsumerForDestroyedWindow(*it, event_consumer_);
   }
 
   wm_ = NULL;
@@ -79,6 +86,21 @@ void EventConsumerRegistrar::RegisterForChromeMessages(
     WmIpcMessageType message_type) {
   wm_->RegisterEventConsumerForChromeMessages(message_type, event_consumer_);
   chrome_message_types_.push_back(message_type);
+}
+
+void EventConsumerRegistrar::RegisterForDestroyedWindow(XWindow xid) {
+  wm_->RegisterEventConsumerForDestroyedWindow(xid, event_consumer_);
+  const bool inserted = destroyed_xids_.insert(xid).second;
+  DCHECK(inserted) << "Interest in destroyed window " << XidStr(xid)
+                   << " already registered for EventConsumer "
+                   << event_consumer_;
+}
+
+void EventConsumerRegistrar::HandleDestroyedWindow(XWindow xid) {
+  const size_t num_erased = destroyed_xids_.erase(xid);
+  DCHECK(num_erased) << "Got notice about destroyed window " << XidStr(xid)
+                     << " for EventConsumer " << event_consumer_ << ", but "
+                     << "this window wasn't previously registered";
 }
 
 }  // namespace window_manager

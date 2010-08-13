@@ -120,7 +120,7 @@ class PanelManager : public EventConsumer, public FocusChangeListener {
                                    XAtom message_type,
                                    const long data[5]);
   virtual void HandleWindowPropertyChange(XWindow xid, XAtom xatom);
-  virtual void OwnDestroyedWindow(DestroyedWindow* destroyed_win) {
+  virtual void OwnDestroyedWindow(DestroyedWindow* destroyed_win, XWindow xid) {
     NOTREACHED();
   }
   // End EventConsumer implementation.

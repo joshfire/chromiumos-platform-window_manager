@@ -149,7 +149,7 @@ class TestEventConsumer : public EventConsumer {
                                    const long data[5]) {}
   virtual void HandleFocusChange(XWindow xid, bool focus_in) {}
   virtual void HandleWindowPropertyChange(XWindow xid, XAtom xatom) {}
-  virtual void OwnDestroyedWindow(DestroyedWindow* destroyed_win) {
+  virtual void OwnDestroyedWindow(DestroyedWindow* destroyed_win, XWindow xid) {
     destroyed_windows_.insert(shared_ptr<DestroyedWindow>(destroyed_win));
   }
   // End overridden EventConsumer virtual methods.
@@ -219,6 +219,7 @@ TEST_F(WindowManagerTest, ExistingWindows) {
   // event is sent.
   wm_.reset(NULL);
   xconn_.reset(new MockXConnection);
+  SetLoggedInState(true);
   RegisterCommonKeySyms();
   event_loop_.reset(new EventLoop);
   compositor_.reset(new MockCompositor(xconn_.get()));
@@ -236,6 +237,7 @@ TEST_F(WindowManagerTest, ExistingWindows) {
   // MapRequest (and subsequent MapNotify).
   wm_.reset(NULL);
   xconn_.reset(new MockXConnection);
+  SetLoggedInState(true);
   RegisterCommonKeySyms();
   event_loop_.reset(new EventLoop);
   compositor_.reset(new MockCompositor(xconn_.get()));
@@ -262,6 +264,7 @@ TEST_F(WindowManagerTest, ExistingWindows) {
   // WindowManager has been initialized.
   wm_.reset(NULL);
   xconn_.reset(new MockXConnection);
+  SetLoggedInState(true);
   RegisterCommonKeySyms();
   event_loop_.reset(new EventLoop);
   compositor_.reset(new MockCompositor(xconn_.get()));
@@ -829,6 +832,7 @@ TEST_F(WindowManagerTest, RedirectWindows) {
   // started.
   wm_.reset(NULL);
   xconn_.reset(new MockXConnection);
+  SetLoggedInState(true);
   RegisterCommonKeySyms();
   event_loop_.reset(new EventLoop);
   compositor_.reset(new MockCompositor(xconn_.get()));
@@ -967,11 +971,12 @@ TEST_F(WindowManagerTest, LoggedIn) {
   EXPECT_TRUE(wm_->logged_in_key_bindings_group_->enabled());
   EXPECT_EQ(1, ec.num_logged_in_state_changes());
 
+  // We should ignore logged-in to not-logged-in transitions.
   ec.reset_stats();
   SetLoggedInState(false);
-  EXPECT_FALSE(wm_->logged_in());
-  EXPECT_FALSE(wm_->logged_in_key_bindings_group_->enabled());
-  EXPECT_EQ(1, ec.num_logged_in_state_changes());
+  EXPECT_TRUE(wm_->logged_in());
+  EXPECT_TRUE(wm_->logged_in_key_bindings_group_->enabled());
+  EXPECT_EQ(0, ec.num_logged_in_state_changes());
 }
 
 // Test that the window manager refreshes the keyboard map when it gets a
