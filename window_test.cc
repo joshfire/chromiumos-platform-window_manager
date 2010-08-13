@@ -600,6 +600,116 @@ TEST_F(WindowTest, ShadowVisibility) {
   EXPECT_TRUE(win.shadow() == NULL);
 }
 
+// Check our implementation of the _NET_WM_SYNC_REQUEST protocol defined in
+// EWMH, used for synchronizing redraws by the client when the window
+// manager resizes a window.
+TEST_F(WindowTest, SyncRequest) {
+  XWindow xid = CreateSimpleWindow();
+  XConnection::WindowGeometry geometry;
+  ASSERT_TRUE(xconn_->GetWindowGeometry(xid, &geometry));
+  Window win(wm_.get(), xid, false, geometry);
+  xconn_->MapWindow(xid);
+  win.HandleMapNotify();
+  MockCompositor::TexturePixmapActor* actor = GetMockActorForWindow(&win);
+
+  EXPECT_TRUE(win.client_has_redrawn_after_last_resize_);
+  EXPECT_EQ(geometry.width, actor->GetWidth());
+  EXPECT_EQ(geometry.height, actor->GetHeight());
+
+  // If the client doesn't support the sync request protocol, we should
+  // just pretend like it's always redrawn the window immediately after a
+  // resize.
+  win.ResizeClient(500, 500, GRAVITY_NORTHWEST);
+  EXPECT_TRUE(win.client_has_redrawn_after_last_resize_);
+  win.HandleConfigureNotify(500, 500);
+  EXPECT_EQ(500, actor->GetWidth());
+  EXPECT_EQ(500, actor->GetHeight());
+
+  // Add the hint saying that the window supports the sync request
+  // protocol, but don't actually set the property saying which counter
+  // it's using.  The hint should be ignored.
+  ASSERT_TRUE(
+      xconn_->SetIntProperty(
+          xid,
+          wm_->GetXAtom(ATOM_WM_PROTOCOLS),  // atom
+          wm_->GetXAtom(ATOM_ATOM),          // type
+          wm_->GetXAtom(ATOM_NET_WM_SYNC_REQUEST)));
+  win.FetchAndApplyWmProtocols();
+  EXPECT_EQ(0, win.wm_sync_request_alarm_);
+
+  // Now set the property and check that an alarm gets created to watch it.
+  const XID counter_xid = 45;  // arbitrary
+  ASSERT_TRUE(
+      xconn_->SetIntProperty(
+          xid,
+          wm_->GetXAtom(ATOM_NET_WM_SYNC_REQUEST_COUNTER),  // atom
+          wm_->GetXAtom(ATOM_CARDINAL),                     // type
+          counter_xid));
+  win.FetchAndApplyWmProtocols();
+  EXPECT_NE(0, win.wm_sync_request_alarm_);
+  const MockXConnection::SyncCounterAlarmInfo* alarm_info =
+      xconn_->GetSyncCounterAlarmInfoOrDie(win.wm_sync_request_alarm_);
+  EXPECT_EQ(counter_xid, alarm_info->counter_id);
+
+  // We should initialize the counter to a nonzero value and set the
+  // alarm's trigger at the next-greatest value.
+  int64_t initial_counter_value = xconn_->GetSyncCounterValueOrDie(counter_xid);
+  EXPECT_NE(static_cast<int64_t>(0), initial_counter_value);
+  int64_t next_counter_value = initial_counter_value + 1;
+  EXPECT_EQ(next_counter_value, alarm_info->initial_trigger_value);
+
+  // When we resize the window, we should consider the window as needing to
+  // be redrawn.
+  MockXConnection::WindowInfo* info = xconn_->GetWindowInfoOrDie(xid);
+  info->client_messages.clear();
+  win.ResizeClient(600, 600, GRAVITY_NORTHWEST);
+  EXPECT_FALSE(win.client_has_redrawn_after_last_resize_);
+
+  // We should also abstain from getting a new pixmap in response to
+  // ConfigureNotify events...
+  win.HandleConfigureNotify(600, 600);
+  EXPECT_EQ(500, actor->GetWidth());
+  EXPECT_EQ(500, actor->GetHeight());
+
+  // ... and we should send the client a message telling it to increment the
+  // counter when it's done redrawing.
+  ASSERT_EQ(1, info->client_messages.size());
+  const XClientMessageEvent& msg = info->client_messages[0];
+  EXPECT_EQ(wm_->GetXAtom(ATOM_WM_PROTOCOLS), msg.message_type);
+  EXPECT_EQ(XConnection::kLongFormat, msg.format);
+  EXPECT_EQ(wm_->GetXAtom(ATOM_NET_WM_SYNC_REQUEST), msg.data.l[0]);
+  // TODO: Check timestamp in l[1]?
+  EXPECT_EQ(static_cast<uint32_t>(next_counter_value & 0xffffffff),
+            msg.data.l[2]);
+  EXPECT_EQ(static_cast<uint32_t>((next_counter_value >> 32) & 0xffffffff),
+            msg.data.l[3]);
+
+  // If we get notified that the counter is at the previous value, we
+  // should ignore it.
+  win.HandleSyncAlarmNotify(win.wm_sync_request_alarm_, initial_counter_value);
+  EXPECT_FALSE(win.client_has_redrawn_after_last_resize_);
+
+  // Ditto if we get notified about some alarm that we don't know about
+  // (this shouldn't happen in practice).
+  win.HandleSyncAlarmNotify(0, next_counter_value);
+  EXPECT_FALSE(win.client_has_redrawn_after_last_resize_);
+
+  // When we get notified that the counter has increased to the next value,
+  // we should consider the window to be redrawn and fetch an updated pixmap.
+  win.HandleSyncAlarmNotify(win.wm_sync_request_alarm_, next_counter_value);
+  EXPECT_TRUE(win.client_has_redrawn_after_last_resize_);
+  EXPECT_EQ(600, actor->GetWidth());
+  EXPECT_EQ(600, actor->GetHeight());
+
+  // If we somehow get notified that the window has been redrawn before we
+  // get the ConfigureNotify, reset the pixmap immediately.
+  win.ResizeClient(700, 700, GRAVITY_NORTHWEST);
+  win.HandleSyncAlarmNotify(win.wm_sync_request_alarm_,
+                            win.current_wm_sync_num_);
+  EXPECT_EQ(700, actor->GetWidth());
+  EXPECT_EQ(700, actor->GetHeight());
+}
+
 }  // namespace window_manager
 
 int main(int argc, char** argv) {

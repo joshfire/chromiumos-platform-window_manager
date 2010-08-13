@@ -56,7 +56,7 @@ wm_env = base_env.Clone()
 wm_env.Append(LIBS=['protobuf'])
 wm_env.ParseConfig('pkg-config --cflags --libs libpcrecpp libpng12 ' +
                    'xcb x11-xcb xcb-composite xcb-randr xcb-shape xcb-damage ' +
-                   'xdamage xext')
+                   'xcb-sync xdamage xext')
 
 
 if backend == 'opengl':

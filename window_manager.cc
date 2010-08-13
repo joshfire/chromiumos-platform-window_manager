@@ -479,6 +479,7 @@ void WindowManager::HandleEvent(XEvent* event) {
   static int damage_notify = xconn_->damage_event_base() + XDamageNotify;
   static int shape_notify = xconn_->shape_event_base() + ShapeNotify;
   static int randr_notify = xconn_->randr_event_base() + RRScreenChangeNotify;
+  static int sync_alarm_notify = xconn_->sync_event_base() + XSyncAlarmNotify;
 
   switch (event->type) {
     case ButtonPress:
@@ -520,6 +521,9 @@ void WindowManager::HandleEvent(XEvent* event) {
     default:
       if (event->type == damage_notify) {
         HandleDamageNotify(*(reinterpret_cast<XDamageNotifyEvent*>(event)));
+      } else if (event->type == sync_alarm_notify) {
+        HandleSyncAlarmNotify(
+            *(reinterpret_cast<XSyncAlarmNotifyEvent*>(event)));
       } else if (event->type == shape_notify) {
         HandleShapeNotify(*(reinterpret_cast<XShapeEvent*>(event)));
       } else if (event->type == randr_notify) {
@@ -705,16 +709,6 @@ void WindowManager::RegisterEventConsumerForChromeMessages(
   }
 }
 
-void WindowManager::RegisterEventConsumerForDestroyedWindow(
-    XWindow xid, EventConsumer* event_consumer) {
-  DCHECK(xid);
-  DCHECK(event_consumer);
-  CHECK(destroyed_window_event_consumers_.insert(
-            make_pair(xid, event_consumer)).second)
-      << "Another EventConsumer already requested ownership of window "
-      << XidStr(xid) << " after it gets destroyed";
-}
-
 void WindowManager::UnregisterEventConsumerForChromeMessages(
     WmIpcMessageType message_type, EventConsumer* event_consumer) {
   DCHECK(event_consumer);
@@ -729,6 +723,32 @@ void WindowManager::UnregisterEventConsumerForChromeMessages(
     if (it->second.empty())
       chrome_message_event_consumers_.erase(it);
   }
+}
+
+void WindowManager::RegisterEventConsumerForDestroyedWindow(
+    XWindow xid, EventConsumer* event_consumer) {
+  DCHECK(xid);
+  DCHECK(event_consumer);
+  CHECK(destroyed_window_event_consumers_.insert(
+            make_pair(xid, event_consumer)).second)
+      << "Another EventConsumer already requested ownership of window "
+      << XidStr(xid) << " after it gets destroyed";
+}
+
+void WindowManager::RegisterSyncAlarm(XID alarm_id, Window* win) {
+  base::hash_map<XID, Window*>::const_iterator it =
+      sync_alarms_to_windows_.find(alarm_id);
+  DCHECK(it == sync_alarms_to_windows_.end())
+      << "Registering sync alarm " << XidStr(alarm_id) << " for window "
+      << win->xid_str() << " while it's already being used by "
+      << it->second->xid_str();
+  sync_alarms_to_windows_[alarm_id] = win;
+}
+
+void WindowManager::UnregisterSyncAlarm(XID alarm_id) {
+  size_t num_erased = sync_alarms_to_windows_.erase(alarm_id);
+  DCHECK_EQ(num_erased, static_cast<size_t>(1))
+      << "Tried to unregister unknown sync alarm " << XidStr(alarm_id);
 }
 
 void WindowManager::ToggleClientWindowDebugging() {
@@ -892,6 +912,8 @@ bool WindowManager::SetEwmhGeneralProperties() {
   supported.push_back(GetXAtom(ATOM_NET_WM_STATE));
   supported.push_back(GetXAtom(ATOM_NET_WM_STATE_FULLSCREEN));
   supported.push_back(GetXAtom(ATOM_NET_WM_STATE_MODAL));
+  supported.push_back(GetXAtom(ATOM_NET_WM_SYNC_REQUEST));
+  supported.push_back(GetXAtom(ATOM_NET_WM_SYNC_REQUEST_COUNTER));
   supported.push_back(GetXAtom(ATOM_NET_WM_WINDOW_OPACITY));
   supported.push_back(GetXAtom(ATOM_NET_WORKAREA));
   success &= xconn_->SetIntArrayProperty(
@@ -1767,6 +1789,21 @@ void WindowManager::HandleShapeNotify(const XShapeEvent& e) {
              << " shape notify for " << XidStr(e.window);
   if (e.kind == ShapeBounding)
     win->FetchAndApplyShape();
+}
+
+void WindowManager::HandleSyncAlarmNotify(const XSyncAlarmNotifyEvent& e) {
+  int64_t value =
+      (static_cast<int64_t>(XSyncValueHigh32(e.counter_value)) << 32) |
+      XSyncValueLow32(e.counter_value);
+  DLOG(INFO) << "Handling sync alarm notify for alarm " << XidStr(e.alarm)
+             << " with value " << value;
+  Window* win = FindWithDefault(
+      sync_alarms_to_windows_, e.alarm, static_cast<Window*>(NULL));
+  if (!win) {
+    LOG(WARNING) << "Ignoring unregistered alarm " << XidStr(e.alarm);
+    return;
+  }
+  win->HandleSyncAlarmNotify(e.alarm, value);
 }
 
 void WindowManager::HandleUnmapNotify(const XUnmapEvent& e) {

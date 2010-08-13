@@ -118,8 +118,14 @@ class Window {
   void FetchAndApplyWmHints();
 
   // Fetch the window's WM_PROTOCOLS property (ICCCM 4.1.2.7) if it exists
-  // and update 'supports_wm_take_focus_'.
+  // and update the various 'supports_wm_*' members.  Also calls
+  // FetchAndApplyWmSyncRequestCounter(), if the window claims to support
+  // _NET_WM_SYNC_REQUEST.
   void FetchAndApplyWmProtocols();
+
+  // Fetch the window's _NET_WM_SYNC_REQUEST_COUNTER property (as described
+  // in EWMH) and ask the Sync extension to notify us whenever it changes.
+  bool FetchAndApplyWmSyncRequestCounterProperty();
 
   // Fetch the window's _NET_WM_STATE property and update our internal copy
   // of it.  ClientMessage events should be used to update the states of mapped
@@ -313,8 +319,14 @@ class Window {
   // Store the client window's position and size in 'rect'.
   void CopyClientBoundsToRect(Rect* rect) const;
 
+  // Handle notification that a Sync extension alarm (presumably
+  // 'wm_sync_request_alarm_') has triggered.  'value' contains the
+  // triggering value of the counter being watched.
+  void HandleSyncAlarmNotify(XID alarm_id, int64_t value);
+
  private:
   FRIEND_TEST(FocusManagerTest, Modality);  // sets 'wm_state_modal_'
+  FRIEND_TEST(WindowTest, SyncRequest);
   FRIEND_TEST(WindowManagerTest, VideoTimeProperty);
 
   // Minimum dimensions and rate per second for damage events at which we
@@ -336,6 +348,11 @@ class Window {
   // contents of 'chrome_state_atoms_'.
   bool UpdateChromeStateProperty();
 
+  // Destroys 'wm_sync_request_alarm_' if non-NULL, unregisters our
+  // interest in it in the WindowManager, and resets
+  // 'client_has_redrawn_after_last_resize_' to true.
+  void DestroyWmSyncRequestAlarm();
+
   // Free 'pixmap_', store a new offscreen pixmap containing the window's
   // contents in it, and notify 'actor_' that the pixmap has changed.
   void ResetPixmap();
@@ -346,6 +363,12 @@ class Window {
   // window is shaped or not yet mapped).  This method is called when
   // various states that can prevent us from drawing the shadow are changed.
   void UpdateShadowVisibility();
+
+  // If the client supports _NET_WM_SYNC_REQUEST, increment
+  // 'current_wm_sync_num_' and send the client a message telling it to
+  // update the counter after it's seen the ConfigureNotify and redrawn its
+  // contents.
+  void SendWmSyncRequestMessage();
 
   XWindow xid_;
   std::string xid_str_;  // hex for debugging
@@ -444,6 +467,21 @@ class Window {
   // watching a video.
   int num_video_damage_events_;
   time_t video_damage_start_time_;
+
+  // XSync counter ID from the window's _NET_WM_SYNC_REQUEST_COUNTER
+  // property, or 0 if the window doesn't support _NET_WM_SYNC_REQUEST.
+  XID wm_sync_request_alarm_;
+
+  // Most-recent update request number that we've sent to the window before
+  // resizing it as part of _NET_WM_SYNC_REQUEST.
+  int64_t current_wm_sync_num_;
+
+  // Has the client indicated that it's redrawn the window after the last
+  // time that we resized it?  (If not, we're currently waiting for the
+  // window to update 'wm_sync_request_counter_' to match
+  // 'current_wm_sync_num_'.)  We also leave this at true if the client
+  // doesn't support _NET_WM_SYNC_REQUEST.
+  bool client_has_redrawn_after_last_resize_;
 
   DISALLOW_COPY_AND_ASSIGN(Window);
 };

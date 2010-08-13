@@ -26,8 +26,10 @@ template<class T> class Stacker;  // from util.h
 class XConnection {
  public:
   XConnection()
-      : shape_event_base_(0),
+      : damage_event_base_(0),
+        shape_event_base_(0),
         randr_event_base_(0),
+        sync_event_base_(0),
         server_grabbed_(false),
         server_grab_time_ms_(-1) {
   }
@@ -153,6 +155,7 @@ class XConnection {
   int damage_event_base() const { return damage_event_base_; }
   int shape_event_base() const { return shape_event_base_; }
   int randr_event_base() const { return randr_event_base_; }
+  int sync_event_base() const { return sync_event_base_; }
 
   // Get a window's geometry.
   virtual bool GetWindowGeometry(XWindow xid, WindowGeometry* geom_out) = 0;
@@ -438,6 +441,18 @@ class XConnection {
   virtual void DestroyDamage(XDamage damage) = 0;
   virtual void ClearDamage(XDamage damage) = 0;
 
+  // Set a Sync extension counter to a particular value.
+  virtual void SetSyncCounter(XID counter_id, int64_t value) = 0;
+
+  // Create an alarm for a Sync extension counter, such that we'll be
+  // notified when the counter reaches 'initial_trigger_value'.  Returns
+  // the ID of the alarm.
+  virtual XID CreateSyncCounterAlarm(XID counter_id,
+                                     int64_t initial_trigger_value) = 0;
+
+  // Destroy an alarm for a Sync extension counter.
+  virtual void DestroySyncCounterAlarm(XID alarm_id) = 0;
+
   // When auto-repeating a key combo, the X Server may send:
   //   KeyPress   @ time_0    <-- Key pressed down
   //   KeyRelease @ time_1    <-- First auto-repeat
@@ -482,6 +497,7 @@ class XConnection {
   int damage_event_base_;
   int shape_event_base_;
   int randr_event_base_;
+  int sync_event_base_;
 
  private:
   virtual bool GrabServerImpl() = 0;

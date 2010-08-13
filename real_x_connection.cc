@@ -9,8 +9,10 @@ extern "C" {
 #include <xcb/damage.h>
 #include <xcb/randr.h>
 #include <xcb/shape.h>
+#include <xcb/sync.h>
 #include <xcb/xfixes.h>
 #include <X11/extensions/shape.h>
+#include <X11/extensions/sync.h>
 #include <X11/extensions/Xdamage.h>
 #include <X11/Xatom.h>
 #include <X11/Xlib-xcb.h>
@@ -32,20 +34,23 @@ namespace window_manager {
 
 // Used by RealXConnection's constructor to negotiate the version of an X
 // extension that we'll be using with the X server.  'name' is the
-// extension's name as it appears in XCB, i.e. "damage" for
-// xcb_damage_query_version(), and 'major' and 'minor' specify the minimum
-// version of the extension to be accepted.
-#define INIT_XCB_EXTENSION(name, major, minor)                                 \
+// extension's name as it appears in XCB, e.g. "damage" for
+// xcb_damage_query_version(); 'request' is the request name as it appears
+// in XCB, i.e. "initialize" for some extensions and "query_version" for
+// others; and 'major' and 'minor' specify the minimum version of the
+// extension to be accepted.
+#define INIT_XCB_EXTENSION(name, request, major, minor)                        \
   do {                                                                         \
-    xcb_##name##_query_version_cookie_t cookie =                               \
-        xcb_##name##_query_version(xcb_conn_, major, minor);                   \
+    xcb_##name##_##request##_cookie_t cookie =                                 \
+        xcb_##name##_##request(xcb_conn_, major, minor);                       \
     xcb_generic_error_t* error = NULL;                                         \
-    scoped_ptr_malloc<xcb_##name##_query_version_reply_t> reply(               \
-        xcb_##name##_query_version_reply(xcb_conn_, cookie, &error));          \
+    scoped_ptr_malloc<xcb_##name##_##request##_reply_t> reply(                 \
+        xcb_##name##_##request##_reply(xcb_conn_, cookie, &error));            \
     scoped_ptr_malloc<xcb_generic_error_t> scoped_error(error);                \
     CHECK(!error) << "Unable to query " #name " extension";                    \
     LOG(INFO) << "Server has " #name " extension v"                            \
-              << reply->major_version << "." << reply->minor_version;          \
+              << static_cast<int>(reply->major_version) << "."                 \
+              << static_cast<int>(reply->minor_version);                       \
     CHECK(reply->major_version >= major);                                      \
     if (reply->major_version == major)                                         \
       CHECK(reply->minor_version >= minor);                                    \
@@ -109,14 +114,16 @@ RealXConnection::RealXConnection(XDisplay* display)
   CHECK(QueryExtension("Composite", NULL, NULL));
   CHECK(QueryExtension("DAMAGE", &damage_event_base_, NULL));
   CHECK(QueryExtension("XFIXES", NULL, NULL));
+  CHECK(QueryExtension("SYNC", &sync_event_base_, NULL));
 
   // The shape extension's XCB interface is different; it doesn't take a
   // version number.  The extension is ancient and doesn't require that we
   // tell the server which version we support, though, so just skip it.
-  INIT_XCB_EXTENSION(randr, 1, 2);
-  INIT_XCB_EXTENSION(composite, 0, 4);
-  INIT_XCB_EXTENSION(damage, 1, 1);
-  INIT_XCB_EXTENSION(xfixes, 4, 0);
+  INIT_XCB_EXTENSION(randr, query_version, 1, 2);
+  INIT_XCB_EXTENSION(composite, query_version, 0, 4);
+  INIT_XCB_EXTENSION(damage, query_version, 1, 1);
+  INIT_XCB_EXTENSION(xfixes, query_version, 4, 0);
+  INIT_XCB_EXTENSION(sync, initialize, 3, 0);
 }
 
 RealXConnection::~RealXConnection() {
@@ -245,7 +252,6 @@ bool RealXConnection::SelectInputOnWindow(
   return true;
 }
 
-// TODO: Delete this when hotkey overlay is implemented with polling.
 bool RealXConnection::DeselectInputOnWindow(XWindow xid, int event_mask) {
   TrapErrors();
   XWindowAttributes attr;
@@ -1125,6 +1131,45 @@ void RealXConnection::DestroyDamage(XDamage damage) {
 
 void RealXConnection::ClearDamage(XDamage damage) {
   xcb_damage_subtract(xcb_conn_, damage, XCB_NONE, XCB_NONE);
+}
+
+void RealXConnection::SetSyncCounter(XID counter_id, int64_t value) {
+  xcb_sync_int64_t value_struct;
+  value_struct.lo = value & 0xffffffff;
+  value_struct.hi = (value >> 32) & 0x7fffffff;
+  xcb_sync_set_counter(xcb_conn_, counter_id, value_struct);
+}
+
+XID RealXConnection::CreateSyncCounterAlarm(XID counter_id,
+                                            int64_t initial_trigger_value) {
+  // This appears to be broken in XCB 1.4 but works in the original Xlib
+  // version.
+  unsigned long attr_mask =
+      XSyncCACounter |
+      XSyncCAValueType |
+      XSyncCAValue |
+      XSyncCATestType;
+  XSyncAlarmAttributes attr;
+  memset(&attr, 0, sizeof(attr));
+  attr.trigger.counter = counter_id;
+  attr.trigger.value_type = XSyncAbsolute;
+  XSyncIntsToValue(&(attr.trigger.wait_value),
+                   initial_trigger_value & 0xffffffff,
+                   (initial_trigger_value >> 32) & 0x7fffffff);
+  attr.trigger.test_type = XSyncPositiveComparison;
+
+  TrapErrors();
+  XID alarm_id = XSyncCreateAlarm(display_, attr_mask, &attr);
+  if (int error = UntrapErrors()) {
+    LOG(WARNING) << "Got X error while creating sync alarm on counter "
+                 << XidStr(counter_id) << ": " << GetErrorText(error);
+    return 0;
+  }
+  return alarm_id;
+}
+
+void RealXConnection::DestroySyncCounterAlarm(XID alarm_id) {
+  xcb_sync_destroy_alarm(xcb_conn_, alarm_id);
 }
 
 bool RealXConnection::SetDetectableKeyboardAutoRepeat(bool detectable) {

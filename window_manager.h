@@ -16,6 +16,7 @@ extern "C" {
 // TODO: Move the event-handling methods (all private) into a separate
 // header so that these includes can be removed.
 #include <X11/extensions/shape.h>
+#include <X11/extensions/sync.h>
 #include <X11/extensions/Xdamage.h>
 #include <X11/extensions/Xrandr.h>
 #include <X11/Xlib.h>
@@ -23,6 +24,7 @@ extern "C" {
 
 #include <gtest/gtest_prod.h>  // for FRIEND_TEST() macro
 
+#include "base/hash_tables.h"
 #include "base/scoped_ptr.h"
 #include "cros/chromeos_wm_ipc_enums.h"
 #include "window_manager/atom_cache.h"  // for Atom enum
@@ -200,6 +202,11 @@ class WindowManager : public PanelManagerAreaChangeListener,
   void RegisterEventConsumerForDestroyedWindow(
       XWindow xid, EventConsumer* event_consumer);
 
+  // Register or unregister a mapping in 'sync_alarms_to_windows_' between
+  // a Sync extension alarm and the window that created it.
+  void RegisterSyncAlarm(XID alarm_id, Window* win);
+  void UnregisterSyncAlarm(XID alarm_id);
+
   bool client_window_debugging_enabled() const {
     return !client_window_debugging_actors_.empty();
   }
@@ -339,6 +346,7 @@ class WindowManager : public PanelManagerAreaChangeListener,
   void HandleReparentNotify(const XReparentEvent& e);
   void HandleRRScreenChangeNotify(const XRRScreenChangeNotifyEvent& e);
   void HandleShapeNotify(const XShapeEvent& e);
+  void HandleSyncAlarmNotify(const XSyncAlarmNotifyEvent& e);
   void HandleUnmapNotify(const XUnmapEvent& e);
 
   // Run a command using system().  "&" will be appended to the command to
@@ -512,6 +520,10 @@ class WindowManager : public PanelManagerAreaChangeListener,
 
   // ID for the timeout that calls HideUnacceleratedGraphicsActor().
   int hide_unaccelerated_graphics_actor_timeout_id_;
+
+  // Map from a Sync extension alarm ID to the Window object that's using
+  // the alarm to support the _NET_WM_SYNC_REQUEST protocol.
+  base::hash_map<XID, Window*> sync_alarms_to_windows_;
 
   DISALLOW_COPY_AND_ASSIGN(WindowManager);
 };

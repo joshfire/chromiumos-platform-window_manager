@@ -122,7 +122,10 @@ class RealXConnection : public XConnection {
   virtual XDamage CreateDamage(XDrawable drawable, DamageReportLevel level);
   virtual void DestroyDamage(XDamage damage);
   virtual void ClearDamage(XDamage damage);
-
+  virtual void SetSyncCounter(XID counter_id, int64_t value);
+  virtual XID CreateSyncCounterAlarm(XID counter_id,
+                                     int64_t initial_trigger_value);
+  virtual void DestroySyncCounterAlarm(XID alarm_id);
   virtual bool SetDetectableKeyboardAutoRepeat(bool detectable);
   virtual bool QueryKeyboardState(std::vector<uint8_t>* keycodes_out);
   virtual bool QueryPointerPosition(int* x_root, int* y_root);

@@ -135,10 +135,14 @@ class MockXConnection : public XConnection {
   virtual bool GrabKey(KeyCode keycode, uint32 modifiers);
   virtual bool UngrabKey(KeyCode keycode, uint32 modifiers);
   virtual XDamage CreateDamage(XDrawable drawable, DamageReportLevel level) {
-    return 1;
+    return next_xid_++;
   }
   virtual void DestroyDamage(XDamage damage) {}
   virtual void ClearDamage(XDamage damage) {}
+  virtual void SetSyncCounter(XID counter_id, int64_t value);
+  virtual XID CreateSyncCounterAlarm(XID counter_id,
+                                     int64_t initial_trigger_value);
+  virtual void DestroySyncCounterAlarm(XID alarm_id);
   virtual bool SetDetectableKeyboardAutoRepeat(bool detectable) {
     using_detectable_keyboard_auto_repeat_ = detectable;
     return true;
@@ -229,6 +233,19 @@ class MockXConnection : public XConnection {
     DISALLOW_COPY_AND_ASSIGN(PixmapInfo);
   };
 
+  struct SyncCounterAlarmInfo {
+    SyncCounterAlarmInfo(XID counter_id, int64_t initial_trigger_value)
+        : counter_id(counter_id),
+          initial_trigger_value(initial_trigger_value) {
+    }
+
+    XID counter_id;
+    int64_t initial_trigger_value;
+
+   private:
+    DISALLOW_COPY_AND_ASSIGN(SyncCounterAlarmInfo);
+  };
+
   WindowInfo* GetWindowInfo(XWindow xid) const;
   WindowInfo* GetWindowInfoOrDie(XWindow xid) const {
     WindowInfo* info = GetWindowInfo(xid);
@@ -236,12 +253,23 @@ class MockXConnection : public XConnection {
     return info;
   }
 
-  PixmapInfo* GetPixmapInfo(XID xid) const;
+  PixmapInfo* GetPixmapInfo(XPixmap xid) const;
   PixmapInfo* GetPixmapInfoOrDie(XPixmap xid) const {
     PixmapInfo* info = GetPixmapInfo(xid);
     CHECK(info);
     return info;
   }
+
+  SyncCounterAlarmInfo* GetSyncCounterAlarmInfo(XID xid) const;
+  SyncCounterAlarmInfo* GetSyncCounterAlarmInfoOrDie(XID xid) const {
+    SyncCounterAlarmInfo* info = GetSyncCounterAlarmInfo(xid);
+    CHECK(info);
+    return info;
+  }
+
+  // Get the value currently stored in a Sync extension counter, dying if
+  // the counter wasn't created.
+  int64_t GetSyncCounterValueOrDie(XID counter_id) const;
 
   XWindow focused_xid() const { return focused_xid_; }
   XTime last_focus_timestamp() const { return last_focus_timestamp_; }
@@ -371,7 +399,7 @@ class MockXConnection : public XConnection {
 
   // Map from IDs to info about the corresponding windows or pixmaps.
   std::map<XWindow, std::tr1::shared_ptr<WindowInfo> > windows_;
-  std::map<XID, std::tr1::shared_ptr<PixmapInfo> > pixmaps_;
+  std::map<XPixmap, std::tr1::shared_ptr<PixmapInfo> > pixmaps_;
 
   // All windows other than the overlay and root, in top-to-bottom stacking
   // order.
@@ -437,6 +465,13 @@ class MockXConnection : public XConnection {
   // The number of times that RemovePointerGrab() has been invoked with
   // 'replay_events' set to true.
   int num_pointer_ungrabs_with_replayed_events_;
+
+  // IDs and values of Sync extension counters.
+  std::map<XID, int64_t> sync_counters_;
+
+  // Alarms that have been registered to watch Sync extension counters.
+  std::map<XID, std::tr1::shared_ptr<SyncCounterAlarmInfo> >
+      sync_counter_alarms_;
 
   DISALLOW_COPY_AND_ASSIGN(MockXConnection);
 };

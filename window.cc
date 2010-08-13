@@ -67,38 +67,35 @@ Window::Window(WindowManager* wm, XWindow xid, bool override_redirect,
       damage_(0),
       pixmap_(0),
       num_video_damage_events_(0),
-      video_damage_start_time_(-1) {
+      video_damage_start_time_(-1),
+      wm_sync_request_alarm_(0),
+      current_wm_sync_num_(0),
+      client_has_redrawn_after_last_resize_(true) {
   DCHECK(xid_);
-
-  // Listen for property and shape changes on this window.
-  wm_->xconn()->SelectInputOnWindow(xid_, PropertyChangeMask, true);
-  wm_->xconn()->SelectShapeEventsOnWindow(xid_);
-
-  // We update 'mapped_' when we get the MapNotify event instead of
-  // fetching it here; things get tricky otherwise since there's a race as
-  // to whether override-redirect windows are mapped or not at this point.
-
-  // If the window has a border, remove it -- they make things more
-  // confusing (we need to include the border when telling the compositor
-  // the window's size, but it's not included when telling X to resize the
-  // window, etc.).
-  if (geometry.border_width > 0)
-    wm_->xconn()->SetWindowBorderWidth(xid_, 0);
-
-  // We don't need to redirect the window for compositing; the compositor
-  // already does it for us.
   DLOG(INFO) << "Constructing object to track "
              << (override_redirect_ ? "override-redirect " : "")
              << "window " << xid_str() << " "
              << "at (" << client_x_ << ", " << client_y_ << ") "
              << "with dimensions " << client_width_ << "x" << client_height_;
 
+  // Listen for property and shape changes on this window.
+  wm_->xconn()->SelectInputOnWindow(xid_, PropertyChangeMask, true);
+  wm_->xconn()->SelectShapeEventsOnWindow(xid_);
+
+  // If the window has a border, remove it -- borders make things more
+  // confusing (we'd need to include the border when telling the compositor
+  // the window's position, but it's not included when telling X to resize
+  // the window, etc.).
+  if (geometry.border_width > 0)
+    wm_->xconn()->SetWindowBorderWidth(xid_, 0);
+
   damage_ = wm_->xconn()->CreateDamage(
       xid_, XConnection::DAMAGE_REPORT_LEVEL_BOUNDING_BOX);
-  actor_->Move(composited_x_, composited_y_, 0);
-  actor_->Hide();
+
   // This will update the actor's name based on the current title and xid.
   SetTitle(title_);
+  actor_->Move(composited_x_, composited_y_, 0);
+  actor_->Hide();
   wm_->stage()->AddActor(actor_.get());
 
   // Various properties could've been set on this window after it was
@@ -114,6 +111,16 @@ Window::Window(WindowManager* wm, XWindow xid, bool override_redirect,
   FetchAndApplyTransientHint();
   FetchAndApplyWmHints();
   FetchAndApplyWmWindowType();
+
+  // Tell the client to notify us after it's repainted in response to the
+  // next ConfigureNotify that it receives, and then do a no-op resize of
+  // the window.  At least in the case of non-override-redirect windows,
+  // this lets us avoid compositing new windows until the client has
+  // painted them.
+  if (!override_redirect_ && wm_sync_request_alarm_) {
+    SendWmSyncRequestMessage();
+    wm_->xconn()->ResizeWindow(xid_, client_x_, client_y_);
+  }
 }
 
 Window::~Window() {
@@ -121,6 +128,7 @@ Window::~Window() {
     wm_->xconn()->DestroyDamage(damage_);
   if (pixmap_)
     wm_->xconn()->FreePixmap(pixmap_);
+  DestroyWmSyncRequestAlarm();
 }
 
 void Window::SetTitle(const string& title) {
@@ -207,6 +215,7 @@ void Window::FetchAndApplyWmProtocols() {
   DCHECK(xid_);
   supports_wm_take_focus_ = false;
   supports_wm_delete_window_ = false;
+  bool supports_wm_sync_request = false;
 
   vector<int> wm_protocols;
   if (!wm_->xconn()->GetIntArrayProperty(
@@ -214,8 +223,9 @@ void Window::FetchAndApplyWmProtocols() {
     return;
   }
 
-  XAtom wm_take_focus = wm_->GetXAtom(ATOM_WM_TAKE_FOCUS);
-  XAtom wm_delete_window = wm_->GetXAtom(ATOM_WM_DELETE_WINDOW);
+  const XAtom wm_take_focus = wm_->GetXAtom(ATOM_WM_TAKE_FOCUS);
+  const XAtom wm_delete_window = wm_->GetXAtom(ATOM_WM_DELETE_WINDOW);
+  const XAtom wm_sync_request = wm_->GetXAtom(ATOM_NET_WM_SYNC_REQUEST);
   for (vector<int>::const_iterator it = wm_protocols.begin();
        it != wm_protocols.end(); ++it) {
     if (static_cast<XAtom>(*it) == wm_take_focus) {
@@ -224,8 +234,46 @@ void Window::FetchAndApplyWmProtocols() {
     } else if (static_cast<XAtom>(*it) == wm_delete_window) {
       DLOG(INFO) << "Window " << xid_str() << " supports WM_DELETE_WINDOW";
       supports_wm_delete_window_ = true;
+    } else if (static_cast<XAtom>(*it) == wm_sync_request) {
+      supports_wm_sync_request = true;
+      DLOG(INFO) << "Window " << xid_str() << " supports _NET_WM_SYNC_REQUEST";
     }
   }
+
+  // Don't check the property again if we already have a counter.
+  if (supports_wm_sync_request && !wm_sync_request_alarm_) {
+    if (!FetchAndApplyWmSyncRequestCounterProperty())
+      supports_wm_sync_request = false;
+  }
+
+  if (!supports_wm_sync_request && wm_sync_request_alarm_)
+    DestroyWmSyncRequestAlarm();
+}
+
+bool Window::FetchAndApplyWmSyncRequestCounterProperty() {
+  DCHECK(!wm_sync_request_alarm_);
+
+  int counter = 0;
+  if (!wm_->xconn()->GetIntProperty(
+          xid_, wm_->GetXAtom(ATOM_NET_WM_SYNC_REQUEST_COUNTER), &counter)) {
+    LOG(WARNING) << "Didn't find a _NET_WM_SYNC_REQUEST_COUNTER property on "
+                 << "window " << xid_str();
+    return false;
+  }
+
+  XID counter_xid = static_cast<XID>(counter);
+  current_wm_sync_num_ = 10;  // arbitrary, but not the default of 0
+  wm_->xconn()->SetSyncCounter(counter_xid, current_wm_sync_num_);
+  wm_sync_request_alarm_ = wm_->xconn()->CreateSyncCounterAlarm(
+      counter_xid, current_wm_sync_num_ + 1);
+  if (!wm_sync_request_alarm_)
+    return false;
+  wm_->RegisterSyncAlarm(wm_sync_request_alarm_, this);
+
+  DLOG(INFO) << "Created sync alarm " << XidStr(wm_sync_request_alarm_)
+             << " on counter " << XidStr(counter_xid) << " for window "
+             << xid_str();
+  return true;
 }
 
 void Window::FetchAndApplyWmState() {
@@ -527,6 +575,10 @@ bool Window::CenterClientOverWindow(Window* win) {
 }
 
 bool Window::ResizeClient(int width, int height, Gravity gravity) {
+  DCHECK(xid_);
+
+  SendWmSyncRequestMessage();
+
   int dx = (gravity == GRAVITY_NORTHEAST || gravity == GRAVITY_SOUTHEAST) ?
       width - client_width_ : 0;
   int dy = (gravity == GRAVITY_SOUTHWEST || gravity == GRAVITY_SOUTHEAST) ?
@@ -534,7 +586,6 @@ bool Window::ResizeClient(int width, int height, Gravity gravity) {
 
   DLOG(INFO) << "Resizing " << xid_str() << "'s client window to "
              << width << "x" << height;
-  DCHECK(xid_);
   if (dx || dy) {
     // If we need to move the window as well due to gravity, do it all in
     // one ConfigureWindow request to the server.
@@ -648,6 +699,16 @@ void Window::ScaleComposited(double scale_x, double scale_y, int anim_ms) {
 void Window::HandleMapNotify() {
   DCHECK(xid_);
   mapped_ = true;
+
+  // TODO: If we're still waiting for the client to redraw the window
+  // (probably in response to the initial resize that we did in the
+  // constructor), then hold off on fetching the pixmap (that is, only do
+  // the following if 'client_has_redrawn_after_last_resize_' is true).
+  // This makes us not composite new windows until clients have painted
+  // them; unfortunately, it also breaks some of our current animations
+  // (when a new toplevel window is created, it just suddenly appears
+  // instead of sliding in).  Add the if-statement once event consumers are
+  // waiting for windows to get painted before animating them.
   ResetPixmap();
   UpdateShadowVisibility();
 }
@@ -662,7 +723,9 @@ void Window::HandleUnmapNotify() {
 void Window::HandleRedirect() {
   if (!mapped_)
     return;
+
   ResetPixmap();
+
   // If the window is in the middle of an animation (sliding offscreen),
   // its client position is already updated to the final position, and its
   // composited position is one frame into the animation because we've
@@ -678,7 +741,11 @@ void Window::HandleRedirect() {
 
 void Window::HandleConfigureNotify(int width, int height) {
   DCHECK(actor_.get());
-  if (actor_->GetWidth() != width || actor_->GetHeight() != height)
+  const bool size_changed =
+      actor_->GetWidth() != width || actor_->GetHeight() != height;
+  // Hold off on grabbing the window's contents if we haven't received
+  // notification that the client has drawn to the new pixmap yet.
+  if (size_changed && client_has_redrawn_after_last_resize_)
     ResetPixmap();
 }
 
@@ -780,6 +847,29 @@ void Window::CopyClientBoundsToRect(Rect* rect) const {
   rect->height = client_height_;
 }
 
+void Window::HandleSyncAlarmNotify(XID alarm_id, int64_t value) {
+  if (alarm_id != wm_sync_request_alarm_) {
+    LOG(WARNING) << "Window " << xid_str() << " got sync alarm notify for "
+                 << " unknown alarm " << XidStr(alarm_id);
+    return;
+  }
+
+  DLOG(INFO) << "Window " << xid_str() << " handling sync alarm notify with "
+             << "value " << value << " (current sync num is "
+             << current_wm_sync_num_ << ")";
+  if (value != current_wm_sync_num_ || client_has_redrawn_after_last_resize_)
+    return;
+
+  client_has_redrawn_after_last_resize_ = true;
+
+  // If we didn't have a pixmap already, then we're showing the window for
+  // the first time and may need to show the shadow as well.
+  const bool fetching_initial_pixmap = (pixmap_ == 0);
+  ResetPixmap();
+  if (fetching_initial_pixmap)
+    UpdateShadowVisibility();
+}
+
 void Window::SetWmStateInternal(int action, bool* value) const {
   switch (action) {
     case 0:  // _NET_WM_STATE_REMOVE
@@ -840,6 +930,15 @@ bool Window::UpdateChromeStateProperty() {
   }
 }
 
+void Window::DestroyWmSyncRequestAlarm() {
+  if (!wm_sync_request_alarm_)
+    return;
+  wm_->xconn()->DestroySyncCounterAlarm(wm_sync_request_alarm_);
+  wm_->UnregisterSyncAlarm(wm_sync_request_alarm_);
+  wm_sync_request_alarm_ = 0;
+  client_has_redrawn_after_last_resize_ = true;
+}
+
 void Window::ResetPixmap() {
   DCHECK(xid_);
   DCHECK(actor_.get());
@@ -872,6 +971,23 @@ void Window::UpdateShadowVisibility() {
     shadow_->Show();
   else if (shadow_->is_shown() && !should_show)
     shadow_->Hide();
+}
+
+void Window::SendWmSyncRequestMessage() {
+  if (!wm_sync_request_alarm_)
+    return;
+
+  current_wm_sync_num_++;
+
+  long data[5];
+  memset(data, 0, sizeof(data));
+  data[0] = wm_->GetXAtom(ATOM_NET_WM_SYNC_REQUEST);
+  data[1] = wm_->GetCurrentTimeFromServer();
+  data[2] = current_wm_sync_num_ & 0xffffffff;
+  data[3] = (current_wm_sync_num_ >> 32) & 0xffffffff;
+  wm_->xconn()->SendClientMessageEvent(
+      xid_, xid_, wm_->GetXAtom(ATOM_WM_PROTOCOLS), data, 0);
+  client_has_redrawn_after_last_resize_ = false;
 }
 
 

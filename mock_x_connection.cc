@@ -58,6 +58,7 @@ MockXConnection::MockXConnection()
   damage_event_base_ = 10000;
   shape_event_base_  = 10010;
   randr_event_base_  = 10020;
+  sync_event_base_   = 10030;
 }
 
 MockXConnection::~MockXConnection() {
@@ -617,6 +618,27 @@ bool MockXConnection::UngrabKey(KeyCode keycode, uint32 modifiers) {
   return true;
 }
 
+void MockXConnection::SetSyncCounter(XID counter_id, int64_t value) {
+  sync_counters_[counter_id] = value;
+}
+
+XID MockXConnection::CreateSyncCounterAlarm(XID counter_id,
+                                            int64_t initial_trigger_value) {
+  if (sync_counters_.count(counter_id) == 0)
+    sync_counters_[counter_id] = 0;
+
+  XID alarm_id = next_xid_++;
+  sync_counter_alarms_[alarm_id] =
+      shared_ptr<SyncCounterAlarmInfo>(
+          new SyncCounterAlarmInfo(counter_id, initial_trigger_value));
+  return alarm_id;
+}
+
+void MockXConnection::DestroySyncCounterAlarm(XID alarm_id) {
+  CHECK(sync_counter_alarms_.erase(alarm_id))
+      << "Sync counter alarm " << XidStr(alarm_id) << " not registered";
+}
+
 bool MockXConnection::QueryPointerPosition(int* x_root, int* y_root) {
   if (x_root)
     *x_root = pointer_x_;
@@ -695,9 +717,22 @@ MockXConnection::WindowInfo* MockXConnection::GetWindowInfo(XWindow xid) const {
   return (it != windows_.end()) ? it->second.get() : NULL;
 }
 
-MockXConnection::PixmapInfo* MockXConnection::GetPixmapInfo(XID xid) const {
-  map<XID, shared_ptr<PixmapInfo> >::const_iterator it = pixmaps_.find(xid);
+MockXConnection::PixmapInfo* MockXConnection::GetPixmapInfo(XPixmap xid) const {
+  map<XPixmap, shared_ptr<PixmapInfo> >::const_iterator it = pixmaps_.find(xid);
   return (it != pixmaps_.end()) ? it->second.get() : NULL;
+}
+
+MockXConnection::SyncCounterAlarmInfo* MockXConnection::GetSyncCounterAlarmInfo(
+    XID xid) const {
+  map<XID, shared_ptr<SyncCounterAlarmInfo> >::const_iterator it =
+      sync_counter_alarms_.find(xid);
+  return (it != sync_counter_alarms_.end()) ? it->second.get() : NULL;
+}
+
+int64_t MockXConnection::GetSyncCounterValueOrDie(XID counter_id) const {
+  map<XID, int64_t>::const_iterator it = sync_counters_.find(counter_id);
+  CHECK(it != sync_counters_.end());
+  return it->second;
 }
 
 void MockXConnection::AddKeyMapping(KeyCode keycode, KeySym keysym) {
