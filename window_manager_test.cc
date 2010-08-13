@@ -16,8 +16,8 @@
 #include <gtest/gtest.h>
 
 #include "base/file_util.h"
-#include "base/scoped_ptr.h"
 #include "base/logging.h"
+#include "base/scoped_ptr.h"
 #include "cros/chromeos_wm_ipc_enums.h"
 #include "window_manager/compositor.h"
 #include "window_manager/event_consumer.h"
@@ -1369,7 +1369,7 @@ TEST_F(WindowManagerTest, DestroyedWindows) {
 
   SendInitialEventsForWindow(xid);
   Window* win = wm_->GetWindowOrDie(xid);
-  win->SetShouldHaveShadow(true);
+  win->SetShadowType(Shadow::TYPE_RECTANGULAR);
 
   Compositor::TexturePixmapActor* actor = win->actor();
   const Shadow* shadow = win->shadow();

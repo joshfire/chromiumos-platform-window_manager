@@ -408,14 +408,14 @@ TEST_F(WindowTest, Shape) {
   XConnection::WindowGeometry geometry;
   ASSERT_TRUE(xconn_->GetWindowGeometry(xid, &geometry));
   Window win(wm_.get(), xid, false, geometry);
-  win.SetShouldHaveShadow(true);
+  win.SetShadowType(Shadow::TYPE_RECTANGULAR);
   EXPECT_TRUE(info->shape_events_selected);
   EXPECT_TRUE(win.shaped());
   win.HandleMapNotify();
   win.ShowComposited();
 
-  // We should have created a shadow (since SetShouldHaveShadow() was
-  // called), but we shouldn't be showing it (since the window is shaped).
+  // We should have created a shadow (since SetShadowType() was called),
+  // but we shouldn't be showing it (since the window is shaped).
   ASSERT_TRUE(win.shadow() != NULL);
   EXPECT_FALSE(win.shadow()->is_shown());
 
@@ -521,7 +521,7 @@ TEST_F(WindowTest, UpdatePixmapAndShadowSizes) {
   XConnection::WindowGeometry geometry;
   ASSERT_TRUE(xconn_->GetWindowGeometry(xid, &geometry));
   Window win(wm_.get(), xid, false, geometry);
-  win.SetShouldHaveShadow(true);
+  win.SetShadowType(Shadow::TYPE_RECTANGULAR);
 
   // Resize the window once before it gets mapped, to make sure that we get
   // the updated size later after the window is mapped.
@@ -578,7 +578,7 @@ TEST_F(WindowTest, ShadowVisibility) {
 
   // First, turn on the window's shadow before it's been mapped.  Since we
   // can't draw the window yet, we shouldn't draw its shadow either.
-  win.SetShouldHaveShadow(true);
+  win.SetShadowType(Shadow::TYPE_RECTANGULAR);
   win.ShowComposited();
   ASSERT_TRUE(win.shadow() != NULL);
   EXPECT_FALSE(win.shadow()->is_shown());
@@ -596,7 +596,7 @@ TEST_F(WindowTest, ShadowVisibility) {
   EXPECT_TRUE(win.shadow()->is_shown());
 
   // We should destroy the Shadow object when requested.
-  win.SetShouldHaveShadow(false);
+  win.DisableShadow();
   EXPECT_TRUE(win.shadow() == NULL);
 }
 

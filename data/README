@@ -1,0 +1,3 @@
+The files in this directory are used for tests and are not included in
+builds.  Images or other resources needed by the window manager should
+be added to the chromeos-assets package.

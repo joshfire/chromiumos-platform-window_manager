@@ -244,7 +244,7 @@ void LoginController::HandleWindowMap(Window* win) {
       // we just let Chrome position wherever it wants).
       if (win->type() != chromeos::WM_IPC_WINDOW_CHROME_INFO_BUBBLE) {
         win->CenterClientOverWindow(owner_win);
-        win->SetShouldHaveShadow(true);
+        win->SetShadowType(Shadow::TYPE_RECTANGULAR);
       }
 
       wm_->focus_manager()->UseClickToFocusForWindow(win);

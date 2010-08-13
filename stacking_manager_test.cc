@@ -9,10 +9,10 @@
 #include "base/scoped_ptr.h"
 #include "window_manager/event_loop.h"
 #include "window_manager/mock_x_connection.h"
-#include "window_manager/test_lib.h"
-#include "window_manager/util.h"
 #include "window_manager/shadow.h"
 #include "window_manager/stacking_manager.h"
+#include "window_manager/test_lib.h"
+#include "window_manager/util.h"
 #include "window_manager/window.h"
 #include "window_manager/window_manager.h"
 
@@ -84,11 +84,11 @@ TEST_F(StackingManagerTest, StackWindowAtTopOfLayer) {
   XConnection::WindowGeometry geometry;
   ASSERT_TRUE(xconn_->GetWindowGeometry(xid, &geometry));
   Window win(wm_.get(), xid, false, geometry);
-  win.SetShouldHaveShadow(true);
+  win.SetShadowType(Shadow::TYPE_RECTANGULAR);
   XWindow xid2 = CreateSimpleWindow();
   ASSERT_TRUE(xconn_->GetWindowGeometry(xid2, &geometry));
   Window win2(wm_.get(), xid2, false, geometry);
-  win2.SetShouldHaveShadow(true);
+  win2.SetShadowType(Shadow::TYPE_RECTANGULAR);
 
   // Stack both of the windows in the same layer and make sure that their
   // relative positions are correct.

@@ -11,6 +11,7 @@ extern "C" {
 }
 #include <gflags/gflags.h>
 
+#include "base/at_exit.h"
 #include "base/command_line.h"
 #include "base/file_util.h"
 #include "base/file_path.h"
@@ -63,6 +64,7 @@ testing::AssertionResult BytesAreEqual(
 }
 
 int InitAndRunTests(int* argc, char** argv, bool* log_to_stderr) {
+  base::AtExitManager exit_manager;  // needed by base::Singleton
   google::ParseCommandLineFlags(argc, &argv, true);
   CommandLine::Init(*argc, argv);
   logging::InitLogging(NULL,

@@ -70,6 +70,8 @@ static void HandleLogAssert(const string& str) {
 }
 
 int main(int argc, char** argv) {
+  base::AtExitManager exit_manager;  // needed by base::Singleton
+
   google::ParseCommandLineFlags(&argc, &argv, true);
   if (!FLAGS_display.empty())
     setenv("DISPLAY", FLAGS_display.c_str(), 1);
@@ -92,7 +94,6 @@ int main(int argc, char** argv) {
   logging::SetLogAssertHandler(HandleLogAssert);
 
 #if defined(PROFILE_BUILD)
-  base::AtExitManager exit_manager;  // this is required to use Singleton
   const string profile_basename = StringPrintf(
       "prof_%s.%s", WindowManager::GetWmName(),
       GetTimeAsString(::time(NULL)).c_str());

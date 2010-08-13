@@ -55,7 +55,7 @@ PanelDock::PanelDock(PanelManager* panel_manager, DockType type, int width)
       dragged_panel_(NULL),
       bg_actor_(wm()->compositor()->CreateImageFromFile(
                     FLAGS_panel_dock_background_image)),
-      bg_shadow_(new Shadow(wm()->compositor())),
+      bg_shadow_(Shadow::Create(wm()->compositor(), Shadow::TYPE_RECTANGULAR)),
       bg_input_xid_(wm()->CreateInputWindow(
                         -1, -1, 1, 1, ButtonPressMask|ButtonReleaseMask)),
       event_consumer_registrar_(

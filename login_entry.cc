@@ -50,7 +50,7 @@ void LoginEntry::SetBorderWindow(Window* win) {
   }
 
   border_window_ = win;
-  border_window_->SetShouldHaveShadow(true);
+  border_window_->SetShadowType(Shadow::TYPE_RECTANGULAR);
   if (has_all_windows())
     InitSizes();
 }

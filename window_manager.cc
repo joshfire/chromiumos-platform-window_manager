@@ -1219,7 +1219,7 @@ void WindowManager::HandleMappedWindow(Window* win) {
          it != win->wm_window_type_xatoms().end(); ++it) {
       if (*it == combo_xatom || *it == dropdown_xatom || *it == menu_xatom ||
           *it == popup_xatom) {
-        win->SetShouldHaveShadow(true);
+        win->SetShadowType(Shadow::TYPE_RECTANGULAR);
         break;
       }
     }

@@ -20,6 +20,7 @@
 #include "window_manager/atom_cache.h"  // for Atom enum
 #include "window_manager/compositor.h"
 #include "window_manager/geometry.h"
+#include "window_manager/shadow.h"
 #include "window_manager/wm_ipc.h"
 #include "window_manager/x_connection.h"
 #include "window_manager/x_types.h"
@@ -28,7 +29,6 @@ namespace window_manager {
 
 struct Rect;
 class DestroyedWindow;
-class Shadow;
 template<class T> class Stacker;  // from util.h
 class WindowManager;
 
@@ -283,11 +283,15 @@ class Window {
   // have no desire to continue displaying the window's contents onscreen.
   DestroyedWindow* HandleDestroyNotify();
 
-  // Should this window have a shadow?  By default, it won't.  Note that
-  // even if true is passed to this method, the shadow may not be visible
+  // Enable drawing a drop shadow of a given type beneath this window.
+  // Note that even if this method is called, the shadow may not be visible
   // (shadows aren't drawn for shaped windows, for instance) -- see
-  // UpdateShadowVisibility().
-  void SetShouldHaveShadow(bool should_use_shadow);
+  // UpdateShadowVisibility().  By default, we don't draw a shadow until
+  // this method is called.
+  void SetShadowType(Shadow::Type type);
+
+  // Disable drawing a drop shadow beneath this window.
+  void DisableShadow();
 
   // Change the opacity of the window's shadow.  The shadow's opacity is
   // multiplied by that of the window itself.

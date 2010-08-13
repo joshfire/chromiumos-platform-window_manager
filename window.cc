@@ -780,20 +780,21 @@ DestroyedWindow* Window::HandleDestroyNotify() {
   return destroyed_win;
 }
 
-void Window::SetShouldHaveShadow(bool should_have_shadow) {
+void Window::SetShadowType(Shadow::Type type) {
   DCHECK(actor_.get());
-  if (!should_have_shadow && shadow_.get()) {
-    shadow_.reset(NULL);
-  } else if (should_have_shadow && !shadow_.get()) {
-    shadow_.reset(new Shadow(wm_->compositor()));
-    shadow_->group()->SetName(string("shadow group for window " + xid_str()));
-    wm_->stage()->AddActor(shadow_->group());
-    shadow_->Move(composited_x_, composited_y_, 0);
-    shadow_->SetOpacity(combined_opacity() * shadow_opacity_, 0);
-    shadow_->Resize(composited_scale_x_ * client_width_,
-                    composited_scale_y_ * client_height_, 0);
-    UpdateShadowVisibility();
-  }
+
+  shadow_.reset(Shadow::Create(wm_->compositor(), type));
+  shadow_->group()->SetName(string("shadow group for window " + xid_str()));
+  wm_->stage()->AddActor(shadow_->group());
+  shadow_->Move(composited_x_, composited_y_, 0);
+  shadow_->SetOpacity(combined_opacity() * shadow_opacity_, 0);
+  shadow_->Resize(composited_scale_x_ * client_width_,
+                  composited_scale_y_ * client_height_, 0);
+  UpdateShadowVisibility();
+}
+
+void Window::DisableShadow() {
+  shadow_.reset(NULL);
 }
 
 void Window::SetShadowOpacity(double opacity, int anim_ms) {

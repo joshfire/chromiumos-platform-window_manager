@@ -5,7 +5,9 @@
 #ifndef WINDOW_MANAGER_SHADOW_H_
 #define WINDOW_MANAGER_SHADOW_H_
 
+#include <map>
 #include <string>
+#include <tr1/memory>
 
 #include <gtest/gtest_prod.h>  // for FRIEND_TEST() macro
 
@@ -26,8 +28,22 @@ namespace window_manager {
 // restacking.
 class Shadow {
  public:
+  // Different types of shadows that can be created.
+  enum Type {
+    // Shadow surrounding all edges of a rectangular window.
+    TYPE_RECTANGULAR = 0,
+
+    // Shadow surrounding the top and sides of a panel titlebar window
+    // (with rounded corners on the top).
+    TYPE_PANEL_TITLEBAR,
+
+    // Shadow beneath the the left and right sides of a panel content window.
+    TYPE_PANEL_CONTENT,
+  };
+
+  // Create a new shadow, ownership of which is passed to the caller.
   // The shadow is hidden when first created.
-  explicit Shadow(Compositor* compositor);
+  static Shadow* Create(Compositor* compositor, Type type);
   ~Shadow() {}
 
   bool is_shown() const { return is_shown_; }
@@ -49,40 +65,40 @@ class Shadow {
  private:
   FRIEND_TEST(ShadowTest, Basic);
 
-  // Initialize static members.  Called the first time that the constructor
-  // is invoked.
-  void Init();
+  // Singleton that creates and stores prototypes and uses them to create
+  // Shadow objects.
+  class Factory {
+   public:
+    Factory() {}
+    ~Factory() {}
 
-  // Helper method for Init().  Given the base name of an image file,
-  // creates and returns a new texture actor.
-  Compositor::Actor* InitTexture(const std::string& filename);
+    // Create a new shadow, creating a prototype for the shadow's type
+    // first if needed.
+    Shadow* CreateShadow(Compositor* compositor, Type type);
 
-  // Static Compositor::TextureActors that we clone for each shadow.
-  static Compositor::Actor* top_texture_;
-  static Compositor::Actor* bottom_texture_;
-  static Compositor::Actor* left_texture_;
-  static Compositor::Actor* right_texture_;
-  static Compositor::Actor* tl_texture_;
-  static Compositor::Actor* tr_texture_;
-  static Compositor::Actor* bl_texture_;
-  static Compositor::Actor* br_texture_;
+   private:
+    typedef std::map<Type, std::tr1::shared_ptr<Shadow> > PrototypeMap;
+    PrototypeMap prototypes_;
 
-  // Size in pixels of one side of the transparent inset area in corner
-  // images.
-  //
-  //   +---------+
-  //   |   ...xxx|  For example, in the top-left corner image depicted
-  //   | .xxXXXXX|  to the left, the inset would be the size of the
-  //   | .xXX    |  transparent area in the lower right that should be
-  //   | .xXX    |  overlayed over the client window.  This area must
-  //   +---------+  be square.
-  static int kInset;
+    DISALLOW_COPY_AND_ASSIGN(Factory);
+  };
 
-  // Width in pixels of the shadow along various edges.
-  static int kTopHeight;
-  static int kBottomHeight;
-  static int kLeftWidth;
-  static int kRightWidth;
+  Shadow(Compositor* compositor);
+
+  // Initialize just the image actors and related variables, by loading
+  // images from disk, to create a prototype object that can be used by
+  // Factory.  'group_' isn't initialized, for instance.
+  void InitAsPrototypeFromDisk(const std::string& images_dir);
+
+  // Clone image actors and copy related variables from an existing shadow.
+  // Also initializes 'group_' and adds actors to it.
+  void InitFromPrototype(Shadow* prototype);
+
+  // Helper method for InitFromImages().  Given an image directory and the
+  // base name of an image file, creates and returns a new ImageActor if
+  // the file exists, or NULL if it doesn't.
+  Compositor::ImageActor* CreateActor(const std::string& images_dir,
+                                      const std::string& filename);
 
   Compositor* compositor_;  // not owned
 
@@ -92,18 +108,37 @@ class Shadow {
   int width_;
   int height_;
 
-  // Group containing corner and top/bottom/side actors.
+  // Number of pixels that the shadow extends beyond the edge of the window.
+  int top_height_;
+  int bottom_height_;
+  int left_width_;
+  int right_width_;
+
+  // Size in pixels of the transparent inset area in corner images.
+  //
+  //   +---------+
+  //   |   ...xxx|  For example, in the top-left corner image depicted
+  //   | .xxXXXXX|  to the left, the inset would be the size of the
+  //   | .xXX    |  transparent area in the lower right that should be
+  //   | .xXX    |  overlayed over the client window.  'left_inset_' is
+  //   +---------+  its width and 'top_inset_' is its height.
+  int top_inset_;
+  int bottom_inset_;
+  int left_inset_;
+  int right_inset_;
+
+  // Group containing the image actors.
   scoped_ptr<Compositor::ContainerActor> group_;
 
-  // Per-instance clones of '*_texture_' actors.
+  // ImageActors used to display the shadow.
   scoped_ptr<Compositor::Actor> top_actor_;
   scoped_ptr<Compositor::Actor> bottom_actor_;
   scoped_ptr<Compositor::Actor> left_actor_;
   scoped_ptr<Compositor::Actor> right_actor_;
-  scoped_ptr<Compositor::Actor> tl_actor_;
-  scoped_ptr<Compositor::Actor> tr_actor_;
-  scoped_ptr<Compositor::Actor> bl_actor_;
-  scoped_ptr<Compositor::Actor> br_actor_;
+  scoped_ptr<Compositor::Actor> top_left_actor_;
+  scoped_ptr<Compositor::Actor> top_right_actor_;
+  scoped_ptr<Compositor::Actor> bottom_left_actor_;
+  scoped_ptr<Compositor::Actor> bottom_right_actor_;
 
   DISALLOW_COPY_AND_ASSIGN(Shadow);
 };
