@@ -18,6 +18,7 @@ extern "C" {
 #include "window_manager/event_consumer_registrar.h"
 #include "window_manager/focus_manager.h"
 #include "window_manager/panel_manager.h"
+#include "window_manager/shadow.h"
 #include "window_manager/transient_window_collection.h"
 #include "window_manager/util.h"
 #include "window_manager/window_manager.h"
@@ -86,7 +87,9 @@ Panel::Panel(PanelManager* panel_manager,
       client_windows_have_correct_position_(false),
       event_consumer_registrar_(
           new EventConsumerRegistrar(wm(), panel_manager)),
-      transients_(new TransientWindowCollection(content_win_, panel_manager)) {
+      transients_(new TransientWindowCollection(content_win_, panel_manager)),
+      separator_shadow_(
+          Shadow::Create(wm()->compositor(), Shadow::TYPE_PANEL_SEPARATOR)) {
   CHECK(content_win_);
   CHECK(titlebar_win_);
 
@@ -184,6 +187,12 @@ Panel::Panel(PanelManager* panel_manager,
 
   content_win_->SetShadowType(Shadow::TYPE_PANEL_CONTENT);
   titlebar_win_->SetShadowType(Shadow::TYPE_PANEL_TITLEBAR);
+
+  // Resize the shadow so it extends across the full width of the content
+  // window, and stack it directly on top of it.
+  separator_shadow_->Resize(content_width(), 0, 0);
+  wm()->stage()->AddActor(separator_shadow_->group());
+  separator_shadow_->group()->Raise(content_win_->actor());
 
   // Notify Chrome about the panel's state.  If we crash and get restarted,
   // we want to make sure that Chrome thinks it's in the same state that we do.
@@ -308,6 +317,7 @@ void Panel::Move(int right, int y, bool move_client_windows, int anim_ms) {
     titlebar_win_->MoveComposited(
         titlebar_bounds_.x, titlebar_bounds_.y, anim_ms);
     content_win_->MoveComposited(content_bounds_.x, content_bounds_.y, anim_ms);
+    separator_shadow_->Move(content_bounds_.x, content_bounds_.y, anim_ms);
     if (!composited_windows_set_up_) {
       titlebar_win_->ScaleComposited(1.0, 1.0, 0);
       titlebar_win_->SetCompositedOpacity(1.0, 0);
@@ -315,6 +325,7 @@ void Panel::Move(int right, int y, bool move_client_windows, int anim_ms) {
       content_win_->ScaleComposited(1.0, 1.0, 0);
       content_win_->SetCompositedOpacity(1.0, 0);
       content_win_->ShowComposited();
+      separator_shadow_->Show();
       composited_windows_set_up_ = true;
     }
     if (move_client_windows) {
@@ -337,6 +348,7 @@ void Panel::MoveX(int right, bool move_client_windows, int anim_ms) {
   if (CanConfigureWindows()) {
     titlebar_win_->MoveCompositedX(titlebar_bounds_.x, anim_ms);
     content_win_->MoveCompositedX(content_bounds_.x, anim_ms);
+    separator_shadow_->MoveX(content_bounds_.x, anim_ms);
     if (move_client_windows) {
       titlebar_win_->MoveClientToComposited();
       content_win_->MoveClientToComposited();
@@ -357,6 +369,7 @@ void Panel::MoveY(int y, bool move_client_windows, int anim_ms) {
   if (CanConfigureWindows()) {
     titlebar_win_->MoveCompositedY(titlebar_bounds_.y, anim_ms);
     content_win_->MoveCompositedY(content_bounds_.y, anim_ms);
+    separator_shadow_->MoveY(content_bounds_.y, anim_ms);
     if (move_client_windows) {
       titlebar_win_->MoveClientToComposited();
       content_win_->MoveClientToComposited();
@@ -394,6 +407,7 @@ void Panel::StackAtTopOfLayer(StackingManager::Layer layer) {
     // to stay in sync with the input window code in StackInputWindows()).
     wm()->stacking_manager()->StackWindowAtTopOfLayer(content_win_, layer);
     wm()->stacking_manager()->StackWindowAtTopOfLayer(titlebar_win_, layer);
+    separator_shadow_->group()->Raise(content_win_->actor());
     StackInputWindows();
   }
 }
@@ -444,6 +458,8 @@ void Panel::ResizeContent(int width, int height, Gravity gravity) {
   if (CanConfigureWindows()) {
     content_win_->ResizeClient(width, height, gravity);
     titlebar_win_->ResizeClient(width, titlebar_bounds_.height, gravity);
+    separator_shadow_->Move(content_x(), content_y(), 0);
+    separator_shadow_->Resize(content_width(), 0, 0);
 
     // TODO: This is broken if we start resizing scaled windows.
     if (changing_height) {
@@ -495,6 +511,8 @@ void Panel::SetFullscreenState(bool fullscreen) {
         titlebar_bounds_.width, titlebar_bounds_.height, GRAVITY_NORTHWEST);
     titlebar_win_->MoveComposited(titlebar_bounds_.x, titlebar_bounds_.y, 0);
     titlebar_win_->MoveClientToComposited();
+    separator_shadow_->Move(content_x(), content_y(), 0);
+    separator_shadow_->Resize(content_width(), 0, 0);
     StackAtTopOfLayer(stacking_layer_);
   }
 }

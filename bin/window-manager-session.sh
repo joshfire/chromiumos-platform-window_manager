@@ -32,6 +32,7 @@ XTERM_COMMAND="/usr/bin/cros-term"
   --panel_anchor_image="${IMAGES}/panel_anchor.png"                     \
   --panel_dock_background_image="${IMAGES}/panel_dock_bg.png"           \
   --panel_content_shadow_image_dir="${IMAGES}/panel_content_shadow"     \
+  --panel_separator_shadow_image_dir="${IMAGES}/panel_separator_shadow" \
   --panel_titlebar_shadow_image_dir="${IMAGES}/panel_titlebar_shadow"   \
   --profile_dir="${PROFILE_DIR}"                                        \
   --rectangular_shadow_image_dir="${IMAGES}/rectangular_shadow"         \

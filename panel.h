@@ -70,6 +70,7 @@ class Panel {
   int content_center() const { return content_x() + 0.5 * content_width(); }
 
   int titlebar_y() const { return titlebar_bounds_.y; }
+  int content_y() const { return content_bounds_.y; }
 
   // TODO: Remove content and titlebar width.
   int content_width() const { return content_bounds_.width; }
@@ -172,6 +173,7 @@ class Panel {
   FRIEND_TEST(PanelTest, Resize);
   FRIEND_TEST(PanelTest, MinimumSize);
   FRIEND_TEST(PanelTest, ResizeParameter);
+  FRIEND_TEST(PanelTest, SeparatorShadow);
 
   WindowManager* wm();
 
@@ -307,6 +309,10 @@ class Panel {
 
   // Transient windows owned by this panel.
   scoped_ptr<TransientWindowCollection> transients_;
+
+  // Shadow that we draw directly on top of the content window, aligned
+  // with its top edge, to simulate the titlebar casting a shadow on it.
+  scoped_ptr<Shadow> separator_shadow_;
 
   DISALLOW_COPY_AND_ASSIGN(Panel);
 };

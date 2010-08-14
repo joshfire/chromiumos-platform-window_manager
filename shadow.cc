@@ -1,4 +1,4 @@
-// Copyright (c) 2009 The Chromium OS Authors. All rights reserved.
+// Copyright (c) 2010 The Chromium OS Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,6 +16,10 @@
 DEFINE_string(panel_content_shadow_image_dir,
               "../assets/images/panel_content_shadow",
               "Directory containing images for panel content shadows");
+DEFINE_string(panel_separator_shadow_image_dir,
+              "../assets/images/panel_separator_shadow",
+              "Directory containing images for shadow cast by panel "
+              "titlebars onto their content windows");
 DEFINE_string(panel_titlebar_shadow_image_dir,
               "../assets/images/panel_titlebar_shadow",
               "Directory containing images for panel titlebar shadows");
@@ -28,6 +32,16 @@ using std::string;
 using std::tr1::shared_ptr;
 
 namespace window_manager {
+
+// Names of the different image files that we expect to find in a directory.
+static const char* kTopFilename = "top.png";
+static const char* kBottomFilename = "bottom.png";
+static const char* kLeftFilename = "left.png";
+static const char* kRightFilename = "right.png";
+static const char* kTopLeftFilename = "top_left.png";
+static const char* kTopRightFilename = "top_right.png";
+static const char* kBottomLeftFilename = "bottom_left.png";
+static const char* kBottomRightFilename = "bottom_right.png";
 
 // static
 Shadow* Shadow::Create(Compositor* compositor, Type type) {
@@ -45,14 +59,18 @@ void Shadow::Hide() {
 }
 
 void Shadow::Move(int x, int y, int anim_ms) {
+  x_ = x;
+  y_ = y;
   group_->Move(x, y, anim_ms);
 }
 
 void Shadow::MoveX(int x, int anim_ms) {
+  x_ = x;
   group_->MoveX(x, anim_ms);
 }
 
 void Shadow::MoveY(int y, int anim_ms) {
+  y_ = y;
   group_->MoveY(y, anim_ms);
 }
 
@@ -110,6 +128,9 @@ Shadow* Shadow::Factory::CreateShadow(Compositor* compositor, Type type) {
       case TYPE_PANEL_CONTENT:
         images_dir = FLAGS_panel_content_shadow_image_dir;
         break;
+      case TYPE_PANEL_SEPARATOR:
+        images_dir = FLAGS_panel_separator_shadow_image_dir;
+        break;
       default:
         NOTREACHED() << "Unknown shadow type " << type;
     }
@@ -128,19 +149,21 @@ Shadow::Shadow(Compositor* compositor)
     : compositor_(compositor),
       is_shown_(false),
       opacity_(1.0),
+      x_(0),
+      y_(0),
       width_(0),
       height_(0) {
 }
 
 void Shadow::InitAsPrototypeFromDisk(const string& images_dir) {
-  top_actor_.reset(CreateActor(images_dir, "top.png"));
-  bottom_actor_.reset(CreateActor(images_dir, "bottom.png"));
-  left_actor_.reset(CreateActor(images_dir, "left.png"));
-  right_actor_.reset(CreateActor(images_dir, "right.png"));
-  top_left_actor_.reset(CreateActor(images_dir, "top_left.png"));
-  top_right_actor_.reset(CreateActor(images_dir, "top_right.png"));
-  bottom_left_actor_.reset(CreateActor(images_dir, "bottom_left.png"));
-  bottom_right_actor_.reset(CreateActor(images_dir, "bottom_right.png"));
+  top_actor_.reset(CreateActor(images_dir, kTopFilename));
+  bottom_actor_.reset(CreateActor(images_dir, kBottomFilename));
+  left_actor_.reset(CreateActor(images_dir, kLeftFilename));
+  right_actor_.reset(CreateActor(images_dir, kRightFilename));
+  top_left_actor_.reset(CreateActor(images_dir, kTopLeftFilename));
+  top_right_actor_.reset(CreateActor(images_dir, kTopRightFilename));
+  bottom_left_actor_.reset(CreateActor(images_dir, kBottomLeftFilename));
+  bottom_right_actor_.reset(CreateActor(images_dir, kBottomRightFilename));
 
   top_height_ = top_actor_.get() ? top_actor_->GetHeight() : 0;
   bottom_height_ = bottom_actor_.get() ? bottom_actor_->GetHeight() : 0;

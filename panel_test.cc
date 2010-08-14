@@ -1,4 +1,4 @@
-// Copyright (c) 2009 The Chromium OS Authors. All rights reserved.
+// Copyright (c) 2010 The Chromium OS Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,6 +9,7 @@
 #include "base/logging.h"
 #include "window_manager/compositor.h"
 #include "window_manager/event_loop.h"
+#include "window_manager/geometry.h"
 #include "window_manager/mock_x_connection.h"
 #include "window_manager/panel.h"
 #include "window_manager/panel_manager.h"
@@ -427,6 +428,84 @@ TEST_F(PanelTest, ResizeParameter) {
   EXPECT_TRUE(WindowIsOffscreen(panel->top_right_input_xid_));
   EXPECT_TRUE(WindowIsOffscreen(panel->left_input_xid_));
   EXPECT_TRUE(WindowIsOffscreen(panel->right_input_xid_));
+}
+
+// Check how we move, scale, and stack the shadow that we draw as a
+// separator between a panel's titlebar and content windows.
+TEST_F(PanelTest, SeparatorShadow) {
+  const int kWidth = 200;
+  const int kTitlebarHeight = 20;
+  const int kContentHeight = 300;
+  MockCompositor::StageActor* stage = compositor_->GetDefaultStage();
+  Panel* panel = CreatePanel(kWidth, kTitlebarHeight, kContentHeight);
+
+  // Check that the separator shadow is scaled across the top of the
+  // content window.
+  panel->Move(0, 0, true, 0);
+  EXPECT_EQ(panel->content_win_->composited_x(),
+            panel->separator_shadow_->x());
+  EXPECT_EQ(panel->content_win_->composited_y(),
+            panel->separator_shadow_->y());
+  EXPECT_EQ(panel->content_win_->client_width(),
+            panel->separator_shadow_->width());
+  EXPECT_EQ(0, panel->separator_shadow_->height());
+
+  // When we move the panel, the shadow should get moved along with it.
+  panel->Move(50, 100, true, 0);
+  EXPECT_EQ(panel->content_win_->composited_x(),
+            panel->separator_shadow_->x());
+  EXPECT_EQ(panel->content_win_->composited_y(),
+            panel->separator_shadow_->y());
+  EXPECT_EQ(panel->content_win_->client_width(),
+            panel->separator_shadow_->width());
+  EXPECT_EQ(0, panel->separator_shadow_->height());
+
+  // Check that the separator shadow is stacked between the titlebar and
+  // the content.
+  panel->StackAtTopOfLayer(StackingManager::LAYER_PACKED_PANEL_IN_BAR);
+  EXPECT_LT(stage->GetStackingIndex(panel->titlebar_win_->actor()),
+            stage->GetStackingIndex(panel->separator_shadow_->group()));
+  EXPECT_LT(stage->GetStackingIndex(panel->separator_shadow_->group()),
+            stage->GetStackingIndex(panel->content_win_->actor()));
+
+  // The shadow should get restacked along with the panel.
+  panel->StackAtTopOfLayer(StackingManager::LAYER_DRAGGED_PANEL);
+  EXPECT_LT(stage->GetStackingIndex(panel->titlebar_win_->actor()),
+            stage->GetStackingIndex(panel->separator_shadow_->group()));
+  EXPECT_LT(stage->GetStackingIndex(panel->separator_shadow_->group()),
+            stage->GetStackingIndex(panel->content_win_->actor()));
+
+  // Check that the shadow is moved correctly in response to resizes where
+  // a corner other than the top left one is fixed.
+  panel->ResizeContent(100, 200, GRAVITY_SOUTHEAST);
+  EXPECT_EQ(panel->content_win_->composited_x(),
+            panel->separator_shadow_->x());
+  EXPECT_EQ(panel->content_win_->composited_y(),
+            panel->separator_shadow_->y());
+  EXPECT_EQ(panel->content_win_->client_width(),
+            panel->separator_shadow_->width());
+  EXPECT_EQ(0, panel->separator_shadow_->height());
+
+  // When we get a request to move a panel while it's fullscreen, we store
+  // the requested position and apply it after the panel is unfullscreened.
+  // Check that the shadow gets moved to the stored position too.
+  panel->SetFullscreenState(true);
+  panel->Move(20, 30, true, 0);
+  panel->SetFullscreenState(false);
+
+  // First double-check that the content window got moved to the requested
+  // position.
+  ASSERT_EQ(20 - kWidth, panel->content_win_->composited_x());
+  ASSERT_EQ(30 + kTitlebarHeight, panel->content_win_->composited_y());
+
+  // Now check the shadow.
+  EXPECT_EQ(panel->content_win_->composited_x(),
+            panel->separator_shadow_->x());
+  EXPECT_EQ(panel->content_win_->composited_y(),
+            panel->separator_shadow_->y());
+  EXPECT_EQ(panel->content_win_->client_width(),
+            panel->separator_shadow_->width());
+  EXPECT_EQ(0, panel->separator_shadow_->height());
 }
 
 }  // namespace window_manager

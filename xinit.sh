@@ -19,5 +19,5 @@ xprop -root -f _CHROME_LOGGED_IN 32i -set _CHROME_LOGGED_IN 1
 #XTRACE="xtrace -n -o /tmp/wm_xtrace.log"
 
 exec $XTRACE ./wm \
-  --background_image=../assets/images/background_1024x768.png \
+  --background_image=../assets/images/background_1024x600.png \
   --logtostderr

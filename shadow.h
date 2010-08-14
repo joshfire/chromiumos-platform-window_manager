@@ -1,4 +1,4 @@
-// Copyright (c) 2009 The Chromium OS Authors. All rights reserved.
+// Copyright (c) 2010 The Chromium OS Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -39,6 +39,10 @@ class Shadow {
 
     // Shadow beneath the the left and right sides of a panel content window.
     TYPE_PANEL_CONTENT,
+
+    // Shadow drawn at the top of a panel content window to simulate the
+    // titlebar window casting a shadow on it.
+    TYPE_PANEL_SEPARATOR,
   };
 
   // Create a new shadow, ownership of which is passed to the caller.
@@ -48,6 +52,8 @@ class Shadow {
 
   bool is_shown() const { return is_shown_; }
   double opacity() const { return opacity_; }
+  int x() const { return x_; }
+  int y() const { return y_; }
   int width() const { return width_; }
   int height() const { return height_; }
 
@@ -105,6 +111,8 @@ class Shadow {
   // These are just used by tests.
   bool is_shown_;
   double opacity_;
+  int x_;
+  int y_;
   int width_;
   int height_;
 
