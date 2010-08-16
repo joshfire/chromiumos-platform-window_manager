@@ -141,12 +141,12 @@ void LayoutManager::ToplevelWindow::SetState(State state) {
 
 void LayoutManager::ToplevelWindow::UpdateLayout(bool animate) {
 #if defined(EXTRA_LOGGING)
-  DLOG(INFO) << "Updating Layout for toplevel "
-            << win_->xid_str() << " in state "
-            << GetStateName(state_);
+  DLOG(INFO) << "Updating layout for toplevel " << win_->xid_str()
+             << " in state " << GetStateName(state_);
 #endif
   if (state_ == STATE_OVERVIEW_MODE) {
-    ConfigureForOverviewMode(animate);
+    if (last_state_ != STATE_OVERVIEW_MODE)
+      ConfigureForOverviewMode(animate);
   } else {
     ConfigureForActiveMode(animate);
   }
@@ -396,6 +396,11 @@ void LayoutManager::ToplevelWindow::ConfigureForActiveMode(bool animate) {
     transients_->ConfigureAllWindowsRelativeToOwner(
         last_state_ == STATE_ACTIVE_MODE_ONSCREEN ? anim_ms : 0);
   }
+
+  // If we previously hid our transient windows because we were in overview
+  // mode, show them again.
+  if (transients_->is_hidden())
+    transients_->Restore();
 }
 
 void LayoutManager::ToplevelWindow::ConfigureForOverviewMode(bool animate) {
@@ -407,8 +412,9 @@ void LayoutManager::ToplevelWindow::ConfigureForOverviewMode(bool animate) {
     SnapshotWindow* selected_snapshot =
         layout_manager_->GetSelectedSnapshotFromToplevel(*this);
     if (selected_snapshot) {
-      const int snapshot_x = selected_snapshot->overview_x() +
-                   layout_manager_->overview_panning_offset();
+      const int snapshot_x =
+          selected_snapshot->overview_x() +
+          layout_manager_->overview_panning_offset();
       const int snapshot_y = selected_snapshot->overview_y();
       const int snapshot_width = selected_snapshot->overview_width();
       const int snapshot_height = selected_snapshot->overview_height();
@@ -430,13 +436,18 @@ void LayoutManager::ToplevelWindow::ConfigureForOverviewMode(bool animate) {
   } else {
     win_->SetCompositedOpacity(0.0, 0);
   }
-  transients_->ApplyStackingForAllWindows(true);  // stack above toplevel
+  if (!transients_->is_hidden())
+    transients_->Hide();
   win_->MoveClientOffscreen();
 }
 
 void LayoutManager::ToplevelWindow::TakeFocus(XTime timestamp) {
   if (!transients_->TakeFocus(timestamp))
     wm()->FocusWindow(win_, timestamp);
+}
+
+void LayoutManager::ToplevelWindow::HandleScreenResize() {
+  transients_->HandleScreenResize();
 }
 
 void LayoutManager::ToplevelWindow::SetPreferredTransientWindowToFocus(

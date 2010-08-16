@@ -278,6 +278,8 @@ TEST_F(LayoutManagerTest, ConfigureTransient) {
   MockCompositor::TexturePixmapActor* transient_actor =
       GetMockActorForWindow(wm_->GetWindowOrDie(transient_xid));
   EXPECT_FALSE(transient_actor->is_shown());
+  xconn_->InitDestroyWindowEvent(&event, transient_xid);
+  wm_->HandleEvent(&event);
 
   // Create and map an info bubble window.
   int bubble_x = owner_info->x + 40;
@@ -301,6 +303,37 @@ TEST_F(LayoutManagerTest, ConfigureTransient) {
   // The bubble's initial position should be preserved.
   EXPECT_EQ(bubble_x, bubble_info->x);
   EXPECT_EQ(bubble_y, bubble_info->y);
+
+  // Now switch to overview mode and check that the bubble's client window
+  // is moved offscreen and its compositing actor is hidden.
+  lm_->SetMode(LayoutManager::MODE_OVERVIEW);
+  EXPECT_TRUE(WindowIsOffscreen(bubble_xid));
+  MockCompositor::TexturePixmapActor* bubble_actor =
+      GetMockActorForWindow(wm_->GetWindowOrDie(bubble_xid));
+  EXPECT_FALSE(bubble_actor->is_shown());
+
+  // We should ignore configure requests while the transient is hidden.
+  xconn_->InitConfigureRequestEvent(
+      &event, bubble_xid, 20, 30, bubble_info->width, bubble_info->height);
+  event.xconfigurerequest.value_mask = CWWidth | CWHeight;
+  wm_->HandleEvent(&event);
+  EXPECT_TRUE(WindowIsOffscreen(bubble_xid));
+
+  // Make the screen much larger and check that the bubble's client window
+  // gets moved to remain offscreen.
+  const XWindow root_xid = xconn_->GetRootWindow();
+  MockXConnection::WindowInfo* root_info =xconn_->GetWindowInfoOrDie(root_xid);
+  xconn_->ResizeWindow(root_xid, root_info->width * 2, root_info->height * 2);
+  xconn_->InitConfigureNotifyEvent(&event, root_xid);
+  wm_->HandleEvent(&event);
+  EXPECT_TRUE(WindowIsOffscreen(bubble_xid));
+
+  // After switching back to active mode, the bubble should be moved back
+  // to its original position and the actor should be shown.
+  lm_->SetMode(LayoutManager::MODE_ACTIVE);
+  EXPECT_EQ(bubble_x, bubble_info->x);
+  EXPECT_EQ(bubble_y, bubble_info->y);
+  EXPECT_TRUE(bubble_actor->is_shown());
 }
 
 TEST_F(LayoutManagerTest, FocusTransient) {
@@ -1126,21 +1159,6 @@ TEST_F(LayoutManagerTest, StackTransientsAbovePanels) {
   EXPECT_LT(xconn_->stacked_xids().GetIndex(first_transient_xid),
             xconn_->stacked_xids().GetIndex(panel->content_xid()));
   EXPECT_LT(xconn_->stacked_xids().GetIndex(panel->content_xid()),
-            xconn_->stacked_xids().GetIndex(toplevel_xid));
-
-  // After switching to overview mode, the panel should be above the transients.
-  lm_->SetMode(LayoutManager::MODE_OVERVIEW);
-  EXPECT_LT(stage->GetStackingIndex(panel->content_win()->actor()),
-            stage->GetStackingIndex(second_transient_win->actor()));
-  EXPECT_LT(stage->GetStackingIndex(second_transient_win->actor()),
-            stage->GetStackingIndex(first_transient_win->actor()));
-  EXPECT_LT(stage->GetStackingIndex(first_transient_win->actor()),
-            stage->GetStackingIndex(toplevel_win->actor()));
-  EXPECT_LT(xconn_->stacked_xids().GetIndex(panel->content_xid()),
-            xconn_->stacked_xids().GetIndex(second_transient_xid));
-  EXPECT_LT(xconn_->stacked_xids().GetIndex(second_transient_xid),
-            xconn_->stacked_xids().GetIndex(first_transient_xid));
-  EXPECT_LT(xconn_->stacked_xids().GetIndex(first_transient_xid),
             xconn_->stacked_xids().GetIndex(toplevel_xid));
 }
 

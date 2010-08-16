@@ -316,6 +316,17 @@ void LayoutManager::HandleScreenResize() {
   ConfigureBackground(wm_->width(), wm_->height());
   if (background_xid_)
     wm_->xconn()->ResizeWindow(background_xid_, wm_->width(), wm_->height());
+
+  // Make sure the snapshot windows and hidden transient client windows are
+  // still offscreen.
+  for (SnapshotWindows::iterator it = snapshots_.begin();
+       it != snapshots_.end(); ++it) {
+    (*it)->HandleScreenResize();
+  }
+  for (ToplevelWindows::iterator it = toplevels_.begin();
+       it != toplevels_.end(); ++it) {
+    (*it)->HandleScreenResize();
+  }
 }
 
 bool LayoutManager::HandleWindowMapRequest(Window* win) {
@@ -1064,12 +1075,6 @@ void LayoutManager::MoveAndResizeForAvailableArea() {
         (*it)->win()->MoveClientOffscreen();
       }
     }
-  }
-
-  // Make sure the snapshot windows are offscreen still.
-  for (SnapshotWindows::iterator it = snapshots_.begin();
-       it != snapshots_.end(); ++it) {
-    (*it)->HandleManagerResize();
   }
 
   LayoutWindows(true);

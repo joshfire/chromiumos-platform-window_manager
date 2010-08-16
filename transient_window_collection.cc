@@ -20,7 +20,8 @@ TransientWindowCollection::TransientWindowCollection(
     : owner_win_(owner_win),
       event_consumer_(event_consumer),
       stacked_transients_(new Stacker<TransientWindow*>),
-      transient_to_focus_(NULL) {
+      transient_to_focus_(NULL),
+      is_hidden_(false) {
   DCHECK(owner_win_);
   DCHECK(event_consumer);
 }
@@ -45,6 +46,11 @@ bool TransientWindowCollection::HasFocusedWindow() const {
 }
 
 bool TransientWindowCollection::TakeFocus(XTime timestamp) {
+  if (is_hidden_) {
+    LOG(WARNING) << "Ignoring request to give focus to hidden collection of "
+                 << "transient windows belonging to " << owner_win_->xid_str();
+    return false;
+  }
   if (!transient_to_focus_)
     return false;
 
@@ -127,7 +133,11 @@ void TransientWindowCollection::AddWindow(
       transient_to_stack_above->win :
       (stack_directly_above_owner ? owner_win_ : NULL));
 
-  transient_win->ShowComposited();
+  if (is_hidden_)
+    transient_win->HideComposited();
+  else
+    transient_win->ShowComposited();
+
   wm()->focus_manager()->UseClickToFocusForWindow(transient_win);
 }
 
@@ -179,6 +189,12 @@ void TransientWindowCollection::HandleConfigureRequest(
     Window* transient_win,
     int req_x, int req_y,
     int req_width, int req_height) {
+  if (is_hidden_) {
+    DLOG(INFO) << "Ignoring configure request for offscreen transient window "
+               << transient_win->xid_str();
+    return;
+  }
+
   CHECK(transient_win);
   TransientWindow* transient = GetTransientWindow(*transient_win);
   CHECK(transient);
@@ -214,6 +230,36 @@ void TransientWindowCollection::CloseAllWindows() {
     Window* win = it->second->win;
     if (!win->SendDeleteRequest(timestamp))
       LOG(WARNING) << "Unable to close transient window " << win->xid_str();
+  }
+}
+
+void TransientWindowCollection::Hide() {
+  is_hidden_ = true;
+  for (TransientWindowMap::const_iterator it = transients_.begin();
+       it != transients_.end(); ++it) {
+    TransientWindow* transient = it->second.get();
+    transient->win->MoveClientOffscreen();
+    transient->win->HideComposited();
+  }
+}
+
+void TransientWindowCollection::Restore() {
+  is_hidden_ = false;
+  for (TransientWindowMap::const_iterator it = transients_.begin();
+       it != transients_.end(); ++it) {
+    TransientWindow* transient = it->second.get();
+    transient->win->MoveClientToComposited();
+    transient->win->ShowComposited();
+  }
+}
+
+void TransientWindowCollection::HandleScreenResize() {
+  if (is_hidden_) {
+    // Make sure that client windows remain offscreen.
+    for (TransientWindowMap::const_iterator it = transients_.begin();
+         it != transients_.end(); ++it) {
+      it->second->win->MoveClientOffscreen();
+    }
   }
 }
 
@@ -255,11 +301,11 @@ TransientWindowCollection::GetTransientWindow(const Window& win) {
 
 void TransientWindowCollection::ConfigureTransientWindow(
     TransientWindow* transient, int anim_ms) {
-  // TODO: Check if 'owner_win_' is offscreen, and make sure that the
-  // transient window is offscreen as well if so.
-  transient->win->MoveClient(
-      owner_win_->client_x() + transient->x_offset,
-      owner_win_->client_y() + transient->y_offset);
+  if (!is_hidden_) {
+    transient->win->MoveClient(
+        owner_win_->client_x() + transient->x_offset,
+        owner_win_->client_y() + transient->y_offset);
+  }
 
   transient->win->MoveComposited(
       owner_win_->composited_x() +

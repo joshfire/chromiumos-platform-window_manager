@@ -119,6 +119,7 @@ class LayoutManager : public EventConsumer,
  private:
   FRIEND_TEST(LayoutManagerTest, Basic);  // uses SetMode()
   FRIEND_TEST(LayoutManagerTest, Focus);
+  FRIEND_TEST(LayoutManagerTest, ConfigureTransient);
   FRIEND_TEST(LayoutManagerTest, FocusTransient);
   FRIEND_TEST(LayoutManagerTest, Resize);
   FRIEND_TEST(LayoutManagerTest, OverviewFocus);

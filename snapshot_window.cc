@@ -200,12 +200,12 @@ bool LayoutManager::SnapshotWindow::PropertiesChanged() {
   return changed;
 }
 
-void LayoutManager::SnapshotWindow::HandleManagerResize() {
-    win_->MoveClientOffscreen();
-    if (title_)
-      title_->MoveClientOffscreen();
-    if (fav_icon_)
-      fav_icon_->MoveClientOffscreen();
+void LayoutManager::SnapshotWindow::HandleScreenResize() {
+  win_->MoveClientOffscreen();
+  if (title_)
+    title_->MoveClientOffscreen();
+  if (fav_icon_)
+    fav_icon_->MoveClientOffscreen();
 }
 
 int LayoutManager::SnapshotWindow::CalculateOverallIndex() const {

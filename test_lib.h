@@ -16,6 +16,7 @@ extern "C" {
 #include "base/scoped_ptr.h"
 #include "base/logging.h"
 #include "cros/chromeos_wm_ipc_enums.h"
+#include "window_manager/event_consumer.h"
 #include "window_manager/event_loop.h"
 #include "window_manager/key_bindings.h"
 #include "window_manager/mock_compositor.h"
@@ -23,13 +24,13 @@ extern "C" {
 #include "window_manager/mock_x_connection.h"
 #include "window_manager/real_compositor.h"
 #include "window_manager/stacking_manager.h"
+#include "window_manager/window_manager.h"
 #include "window_manager/wm_ipc.h"
 #include "window_manager/x_types.h"
 
 namespace window_manager {
 
 class Panel;
-class WindowManager;
 
 // Test that two bytes sequences are equal, pretty-printing the difference
 // otherwise.  Invoke as:
@@ -306,6 +307,110 @@ class TestCallbackCounter {
  private:
   // Number of times that Increment() has been invoked.
   int num_calls_;
+};
+
+
+class TestEventConsumer : public EventConsumer {
+ public:
+  TestEventConsumer()
+      : EventConsumer(),
+        should_return_true_for_map_requests_(false) {
+    reset_stats();
+  }
+
+  void reset_stats() {
+    num_logged_in_state_changes_ = 0;
+    num_map_requests_ = 0;
+    num_mapped_windows_ = 0;
+    num_unmapped_windows_ = 0;
+    num_button_presses_ = 0;
+  }
+
+  void set_should_return_true_for_map_requests(bool return_true) {
+    should_return_true_for_map_requests_ = return_true;
+  }
+
+  int num_logged_in_state_changes() const {
+    return num_logged_in_state_changes_;
+  }
+  int num_map_requests() const { return num_map_requests_; }
+  int num_mapped_windows() const { return num_mapped_windows_; }
+  int num_unmapped_windows() const { return num_unmapped_windows_; }
+  int num_button_presses() const { return num_button_presses_; }
+  const std::vector<WmIpc::Message>& chrome_messages() const {
+    return chrome_messages_;
+  }
+  const std::set<std::tr1::shared_ptr<DestroyedWindow> >&
+      destroyed_windows() const {
+    return destroyed_windows_;
+  }
+
+  // Begin overridden EventConsumer virtual methods.
+  virtual bool IsInputWindow(XWindow xid) { return false; }
+  virtual void HandleScreenResize() {}
+  virtual void HandleLoggedInStateChange() { num_logged_in_state_changes_++; }
+  virtual bool HandleWindowMapRequest(Window* win) {
+    num_map_requests_++;
+    return should_return_true_for_map_requests_;
+  }
+  virtual void HandleWindowMap(Window* win) { num_mapped_windows_++; }
+  virtual void HandleWindowUnmap(Window* win) { num_unmapped_windows_++; }
+  virtual void HandleWindowConfigureRequest(Window* win,
+                                            int req_x, int req_y,
+                                            int req_width, int req_height) {}
+  virtual void HandleButtonPress(XWindow xid,
+                                 int x, int y,
+                                 int x_root, int y_root,
+                                 int button,
+                                 XTime timestamp) {
+    num_button_presses_++;
+  }
+  virtual void HandleButtonRelease(XWindow xid,
+                                   int x, int y,
+                                   int x_root, int y_root,
+                                   int button,
+                                   XTime timestamp) {}
+  virtual void HandlePointerEnter(XWindow xid,
+                                  int x, int y,
+                                  int x_root, int y_root,
+                                  XTime timestamp) {}
+  virtual void HandlePointerLeave(XWindow xid,
+                                  int x, int y,
+                                  int x_root, int y_root,
+                                  XTime timestamp) {}
+  virtual void HandlePointerMotion(XWindow xid,
+                                   int x, int y,
+                                   int x_root, int y_root,
+                                   XTime timestamp) {}
+  virtual void HandleChromeMessage(const WmIpc::Message& msg) {
+    chrome_messages_.push_back(msg);
+  }
+  virtual void HandleClientMessage(XWindow xid,
+                                   XAtom message_type,
+                                   const long data[5]) {}
+  virtual void HandleFocusChange(XWindow xid, bool focus_in) {}
+  virtual void HandleWindowPropertyChange(XWindow xid, XAtom xatom) {}
+  virtual void OwnDestroyedWindow(DestroyedWindow* destroyed_win, XWindow xid) {
+    destroyed_windows_.insert(
+        std::tr1::shared_ptr<DestroyedWindow>(destroyed_win));
+  }
+  // End overridden EventConsumer virtual methods.
+
+ private:
+  // Should we return true when HandleWindowMapRequest() is invoked?
+  bool should_return_true_for_map_requests_;
+
+  int num_logged_in_state_changes_;
+  int num_map_requests_;
+  int num_mapped_windows_;
+  int num_unmapped_windows_;
+  int num_button_presses_;
+
+  // Messages received via HandleChromeMessage().
+  std::vector<WmIpc::Message> chrome_messages_;
+
+  // DestroyedWindow objects that WindowManager has given to us.
+  std::set<std::tr1::shared_ptr<DestroyedWindow> > destroyed_windows_;
 };
 
 }  // namespace window_manager

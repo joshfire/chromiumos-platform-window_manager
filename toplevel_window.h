@@ -60,12 +60,18 @@ class LayoutManager::ToplevelWindow {
   void SetState(State state);
 
   // Updates the layout of this window based on its current state.  If
-  // animate is true, then animate the window into its new state,
-  // otherwise just jump to the new state.
+  // animate is true, then animate the window from 'last_state_' to
+  // 'state_'; otherwise just jump to the new state.
   void UpdateLayout(bool animate);
 
   // Focus this window (or maybe one of its transients).
   void TakeFocus(XTime timestamp);
+
+  // Handle the screen being resized, in a limited capacity.  Use
+  // UpdateLayout() instead to move and resize the toplevel window if
+  // needed; this method just ensures that hidden transient client windows
+  // remain offscreen.
+  void HandleScreenResize();
 
   // Try to set the window to be focused the next time that TakeFocus() is
   // called.  NULL can be passed to indicate that the toplevel window
@@ -139,7 +145,7 @@ class LayoutManager::ToplevelWindow {
   // animated by ArrangeFor*() methods.
   State state_;
 
-  // Keeps the previous state.
+  // State in which we were most recently layed out.
   State last_state_;
 
   // Transient windows belonging to this toplevel window.

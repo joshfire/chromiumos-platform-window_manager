@@ -31,6 +31,8 @@ class TransientWindowCollection {
   TransientWindowCollection(Window* owner_win, EventConsumer* event_consumer);
   ~TransientWindowCollection();
 
+  bool is_hidden() const { return is_hidden_; }
+
   // Do we contain the passed-in window?
   bool ContainsWindow(const Window& win) const;
 
@@ -80,6 +82,18 @@ class TransientWindowCollection {
   // RemoveWindow() for each transient).
   void CloseAllWindows();
 
+  // Hide all transient windows by moving their client windows offscreen
+  // and hiding their composited windows.
+  void Hide();
+
+  // Restore previously-hidden transient windows by moving their client
+  // windows back onscreen and showing the composited windows.
+  void Restore();
+
+  // Ensure that client windows remain offscreen even if the screen got
+  // larger.
+  void HandleScreenResize();
+
  private:
   // Information about a transient window.
   struct TransientWindow {
@@ -128,7 +142,9 @@ class TransientWindowCollection {
   TransientWindow* GetTransientWindow(const Window& win);
 
   // Update the passed-in transient window's client and composited windows
-  // appropriately for the owner window's current configuration.
+  // appropriately for the owner window's current configuration.  If the
+  // collection is currently hidden, we do not move the client window
+  // (since it should remain offscreen).
   void ConfigureTransientWindow(TransientWindow* transient, int anim_ms);
 
   // Stack a transient window's composited and client windows.  If
@@ -167,6 +183,9 @@ class TransientWindowCollection {
   // or NULL if we should avoid focusing any transients (indicating that
   // the owner should be focused instead).
   TransientWindow* transient_to_focus_;
+
+  // Was Hide() called?
+  bool is_hidden_;
 
   DISALLOW_COPY_AND_ASSIGN(TransientWindowCollection);
 };
