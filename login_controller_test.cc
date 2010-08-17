@@ -530,11 +530,16 @@ TEST_F(LoginControllerTest, ShowDestroyedWindows) {
   EXPECT_TRUE(wm_->GetWindow(background_xid_) == NULL);
   EXPECT_TRUE(stage->stacked_children()->Contains(background_actor));
 
-  // After the initial browser window gets mapped, the login actors should
-  // get destroyed.
+  // After the initial browser window gets mapped (but not yet painted), we
+  // should still show the background.
   XWindow xid = CreateToplevelWindow(1, 0,  // tab_count, selected_tab
                                      0, 0, 200, 200);  // position and size
+  ConfigureWindowForSyncRequestProtocol(xid);
   SendInitialEventsForWindow(xid);
+  EXPECT_TRUE(stage->stacked_children()->Contains(background_actor));
+
+  // After it's painted, the login actors should be destroyed.
+  SendSyncRequestProtocolAlarm(xid);
   EXPECT_FALSE(stage->stacked_children()->Contains(background_actor));
 }
 

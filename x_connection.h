@@ -389,6 +389,18 @@ class XConnection {
                                       long data[5],
                                       int event_mask) = 0;
 
+  // Send a ConfigureNotify event to all clients listening for
+  // StructureNotify on a window.  Note that these events will get sent
+  // automatically if the window is resized; this method is just useful if
+  // a synthetic ConfigureNotify event needs to be sent for some reason
+  // (e.g. _NET_WM_SYNC_REQUEST).
+  virtual bool SendConfigureNotifyEvent(XWindow xid,
+                                        int x, int y,
+                                        int width, int height,
+                                        int border_width,
+                                        XWindow above_xid,
+                                        bool override_redirect) = 0;
+
   // Block until 'xid' is gone.  (You must select StructureNotify on the
   // window first.)
   virtual bool WaitForWindowToBeDestroyed(XWindow xid) = 0;

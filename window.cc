@@ -111,16 +111,6 @@ Window::Window(WindowManager* wm, XWindow xid, bool override_redirect,
   FetchAndApplyTransientHint();
   FetchAndApplyWmHints();
   FetchAndApplyWmWindowType();
-
-  // Tell the client to notify us after it's repainted in response to the
-  // next ConfigureNotify that it receives, and then do a no-op resize of
-  // the window.  At least in the case of non-override-redirect windows,
-  // this lets us avoid compositing new windows until the client has
-  // painted them.
-  if (!override_redirect_ && wm_sync_request_alarm_) {
-    SendWmSyncRequestMessage();
-    wm_->xconn()->ResizeWindow(xid_, client_x_, client_y_);
-  }
 }
 
 Window::~Window() {
@@ -577,6 +567,12 @@ bool Window::CenterClientOverWindow(Window* win) {
 bool Window::ResizeClient(int width, int height, Gravity gravity) {
   DCHECK(xid_);
 
+  // Bail out early if this is a no-op.  (No-op resizes won't generate
+  // ConfigureNotify events, which means that the client won't know to
+  // redraw and update the _NET_WM_SYNC_REQUEST counter.)
+  if (width == client_width_ && height == client_height_)
+    return true;
+
   SendWmSyncRequestMessage();
 
   int dx = (gravity == GRAVITY_NORTHEAST || gravity == GRAVITY_SOUTHEAST) ?
@@ -696,21 +692,32 @@ void Window::ScaleComposited(double scale_x, double scale_y, int anim_ms) {
     shadow_->Resize(scale_x * client_width_, scale_y * client_height_, anim_ms);
 }
 
+void Window::HandleMapRequested() {
+  DCHECK(xid_);
+  DCHECK(!override_redirect_);
+
+  // Tell the client to notify us after it's repainted in response to the
+  // next ConfigureNotify that it receives, and then send a synthetic
+  // ConfigureNotify event to the window.  This lets us avoid compositing
+  // new windows until the client has painted them.
+  if (wm_sync_request_alarm_) {
+    SendWmSyncRequestMessage();
+    SendSyntheticConfigureNotify();
+  }
+}
+
 void Window::HandleMapNotify() {
   DCHECK(xid_);
   mapped_ = true;
 
-  // TODO: If we're still waiting for the client to redraw the window
-  // (probably in response to the initial resize that we did in the
-  // constructor), then hold off on fetching the pixmap (that is, only do
-  // the following if 'client_has_redrawn_after_last_resize_' is true).
-  // This makes us not composite new windows until clients have painted
-  // them; unfortunately, it also breaks some of our current animations
-  // (when a new toplevel window is created, it just suddenly appears
-  // instead of sliding in).  Add the if-statement once event consumers are
-  // waiting for windows to get painted before animating them.
-  ResetPixmap();
-  UpdateShadowVisibility();
+  // If we're still waiting for the client to redraw the window (probably
+  // in response to the _NET_WM_SYNC_REQUEST message that we sent in
+  // HandleMapRequested()), then hold off on fetching the pixmap.  This
+  // makes us not composite new windows until clients have painted them.
+  if (client_has_redrawn_after_last_resize_) {
+    ResetPixmap();
+    UpdateShadowVisibility();
+  }
 }
 
 void Window::HandleUnmapNotify() {
@@ -867,8 +874,11 @@ void Window::HandleSyncAlarmNotify(XID alarm_id, int64_t value) {
   // the first time and may need to show the shadow as well.
   const bool fetching_initial_pixmap = (pixmap_ == 0);
   ResetPixmap();
-  if (fetching_initial_pixmap)
+  if (fetching_initial_pixmap) {
+    DLOG(INFO) << "Fetching initial pixmap for already-mapped " << xid_str();
     UpdateShadowVisibility();
+    wm_->HandleWindowInitialPixmap(this);
+  }
 }
 
 void Window::SetWmStateInternal(int action, bool* value) const {
@@ -986,9 +996,26 @@ void Window::SendWmSyncRequestMessage() {
   data[1] = wm_->GetCurrentTimeFromServer();
   data[2] = current_wm_sync_num_ & 0xffffffff;
   data[3] = (current_wm_sync_num_ >> 32) & 0xffffffff;
+  DLOG(INFO) << "Asking " << xid_str() << " to notify us after it's redrawn "
+             << "using sync num " << current_wm_sync_num_;
   wm_->xconn()->SendClientMessageEvent(
       xid_, xid_, wm_->GetXAtom(ATOM_WM_PROTOCOLS), data, 0);
   client_has_redrawn_after_last_resize_ = false;
+}
+
+void Window::SendSyntheticConfigureNotify() {
+  const XWindow* xid_under_us_ptr = wm_->stacked_xids().GetUnder(xid_);
+  const XWindow xid_under_us = xid_under_us_ptr ? *xid_under_us_ptr : 0;
+  DLOG(INFO) << "Sending synthetic configure notify for " << xid_str() << ": "
+             << "(" << client_x_ << ", " << client_y_ << ") " << client_width_
+             << "x" << client_height_ << ", above " << XidStr(xid_under_us);
+  wm_->xconn()->SendConfigureNotifyEvent(
+      xid_,
+      client_x_, client_y_,
+      client_width_, client_height_,
+      0,  // border_width
+      xid_under_us,
+      false);  // override_redirect
 }
 
 

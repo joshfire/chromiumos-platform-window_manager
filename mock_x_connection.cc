@@ -9,11 +9,17 @@
 
 #include <list>
 
+extern "C" {
+#include <X11/extensions/sync.h>
+#include <X11/extensions/Xdamage.h>
+}
+
 #include "base/logging.h"
 #include "base/eintr_wrapper.h"
 #include "window_manager/geometry.h"
 #include "window_manager/image_enums.h"
 #include "window_manager/util.h"
+#include "window_manager/x_connection_internal.h"
 
 using std::list;
 using std::make_pair;
@@ -552,13 +558,28 @@ bool MockXConnection::SendClientMessageEvent(XWindow dest_xid,
     return false;
 
   XEvent event;
-  XClientMessageEvent* client_event = &(event.xclient);
-  client_event->type = ClientMessage;
-  client_event->window = xid;
-  client_event->message_type = message_type;
-  client_event->format = XConnection::kLongFormat;
-  memcpy(client_event->data.l, data, sizeof(client_event->data.l));
+  x_connection_internal::InitXClientMessageEvent(
+      &event, xid, message_type, data);
   info->client_messages.push_back(event.xclient);
+  return true;
+}
+
+bool MockXConnection::SendConfigureNotifyEvent(XWindow xid,
+                                               int x, int y,
+                                               int width, int height,
+                                               int border_width,
+                                               XWindow above_xid,
+                                               bool override_redirect) {
+  WindowInfo* info = GetWindowInfo(xid);
+  if (!info)
+    return false;
+
+  XEvent event;
+  x_connection_internal::InitXConfigureEvent(
+      &event, xid, x, y, width, height, border_width, above_xid,
+      override_redirect);
+
+  info->configure_notify_events.push_back(event.xconfigure);
   return true;
 }
 
@@ -964,6 +985,19 @@ void MockXConnection::InitPropertyNotifyEvent(XEvent* event,
   property_event->window = xid;
   property_event->atom = xatom;
   property_event->state = PropertyNewValue;
+}
+
+void MockXConnection::InitSyncAlarmNotifyEvent(XEvent* event,
+                                               XID alarm_xid,
+                                               int64_t value) const {
+  CHECK(event);
+  XSyncAlarmNotifyEvent* alarm_event =
+      reinterpret_cast<XSyncAlarmNotifyEvent*>(event);
+  memset(alarm_event, 0, sizeof(*alarm_event));
+  alarm_event->type = sync_event_base_ + XSyncAlarmNotify;
+  alarm_event->alarm = alarm_xid;
+  x_connection_internal::StoreInt64InXSyncValue(
+      value, &(alarm_event->counter_value));
 }
 
 void MockXConnection::InitUnmapEvent(XEvent* event, XWindow xid) const {

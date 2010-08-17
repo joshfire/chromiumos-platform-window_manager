@@ -14,7 +14,6 @@
 #include <vector>
 
 extern "C" {
-#include <X11/extensions/Xdamage.h>
 #include <X11/Xlib.h>
 }
 
@@ -115,6 +114,12 @@ class MockXConnection : public XConnection {
                                       XAtom message_type,
                                       long data[5],
                                       int event_mask);
+  virtual bool SendConfigureNotifyEvent(XWindow xid,
+                                        int x, int y,
+                                        int width, int height,
+                                        int border_width,
+                                        XWindow above_xid,
+                                        bool override_redirect);
   virtual bool WaitForWindowToBeDestroyed(XWindow xid) { return true; }
   virtual bool WaitForPropertyChange(XWindow xid, XTime* timestamp_out);
   virtual XWindow GetSelectionOwner(XAtom atom);
@@ -203,6 +208,9 @@ class MockXConnection : public XConnection {
 
     // Client messages sent to the window.
     std::vector<XClientMessageEvent> client_messages;
+
+    // Synthetic ConfigureNotify events sent to the window.
+    std::vector<XConfigureEvent> configure_notify_events;
 
     // Has the window has been mapped, unmapped, or configured via XConnection
     // methods?  Used to check that changes aren't made to override-redirect
@@ -384,6 +392,8 @@ class MockXConnection : public XConnection {
   void InitMapRequestEvent(XEvent* event, XWindow xid) const;
   void InitMotionNotifyEvent(XEvent* event, XWindow xid, int x, int y) const;
   void InitPropertyNotifyEvent(XEvent* event, XWindow xid, XAtom xatom) const;
+  void InitSyncAlarmNotifyEvent(
+      XEvent* event, XID alarm_xid, int64_t value) const;
   void InitUnmapEvent(XEvent* event, XWindow xid) const;
 
  private:

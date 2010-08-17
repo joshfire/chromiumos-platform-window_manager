@@ -76,6 +76,7 @@ srcs = Split('''\
   util.cc
   wm_ipc.cc
   x_connection.cc
+  x_connection_internal.cc
 ''')
 libwm_ipc = wm_env.Library('wm_ipc', srcs)
 

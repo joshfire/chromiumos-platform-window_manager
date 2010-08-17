@@ -120,7 +120,9 @@ LayoutManager::LayoutManager(WindowManager* wm, PanelManager* panel_manager)
       overview_mode_key_bindings_group_(
           new KeyBindingsGroup(wm->key_bindings())),
       background_xid_(
-          wm_->CreateInputWindow(0, 0, wm_->width(), wm_->height(), 0)) {
+          wm_->CreateInputWindow(0, 0, wm_->width(), wm_->height(), 0)),
+      should_layout_windows_after_initial_pixmap_(false),
+      should_animate_after_initial_pixmap_(false) {
   wm_->focus_manager()->RegisterFocusChangeListener(this);
   panel_manager_->RegisterAreaChangeListener(this);
   panel_manager_->GetArea(&panel_manager_left_width_,
@@ -363,6 +365,7 @@ void LayoutManager::HandleWindowMap(Window* win) {
     return;
 
   const size_t initial_num_toplevels = toplevels_.size();
+  bool defer_layout = false;
 
   switch (win->type()) {
     case chromeos::WM_IPC_WINDOW_CHROME_TAB_FAV_ICON:
@@ -500,6 +503,9 @@ void LayoutManager::HandleWindowMap(Window* win) {
       if (win->wm_state_fullscreen())
         MakeToplevelFullscreen(toplevel.get());
 
+      if (!win->has_initial_pixmap())
+        defer_layout = true;
+
       break;
     }
     default:
@@ -508,9 +514,14 @@ void LayoutManager::HandleWindowMap(Window* win) {
   }
 
   // Don't animate the first window that gets shown.
-  bool should_animate = !(initial_num_toplevels == 0 &&
-                          toplevels_.size() == 1);
-  LayoutWindows(should_animate);
+  bool should_animate = !(initial_num_toplevels == 0 && toplevels_.size() == 1);
+
+  if (defer_layout) {
+    should_layout_windows_after_initial_pixmap_ = true;
+    should_animate_after_initial_pixmap_ = should_animate;
+  } else {
+    LayoutWindows(should_animate);
+  }
 }
 
 void LayoutManager::HandleWindowUnmap(Window* win) {
@@ -571,6 +582,16 @@ void LayoutManager::HandleWindowUnmap(Window* win) {
       }
       break;
     }
+  }
+}
+
+void LayoutManager::HandleWindowInitialPixmap(Window* win) {
+  DCHECK(win);
+
+  if (current_toplevel_ && current_toplevel_->win() == win &&
+      should_layout_windows_after_initial_pixmap_) {
+    should_layout_windows_after_initial_pixmap_ = false;
+    LayoutWindows(should_animate_after_initial_pixmap_);
   }
 }
 
@@ -809,6 +830,8 @@ string LayoutManager::GetModeName(Mode mode) {
 }
 
 void LayoutManager::LayoutWindows(bool animate) {
+  should_layout_windows_after_initial_pixmap_ = false;
+
   if (toplevels_.empty())
     return;
 

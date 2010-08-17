@@ -77,6 +77,13 @@ class EventConsumer {
   // Handle a window being unmapped.  Invoked for all consumers.
   virtual void HandleWindowUnmap(Window* win) = 0;
 
+  // Handle a mapped window's initial contents having been fetched (meaning
+  // that the window can be drawn onscreen).  Note that this is only
+  // invoked if it happens separately from the window getting mapped;
+  // Window::has_initial_pixmap() can be used to check whether we fetched
+  // the pixmap in response to the window getting mapped.
+  virtual void HandleWindowInitialPixmap(Window* win) = 0;
+
   // Handle a mapped window's request to be configured (unmapped windows'
   // requests are applied automatically).  If the consumer wants to
   // configure the window (possibly with different parameters than the

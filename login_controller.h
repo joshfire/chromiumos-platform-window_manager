@@ -39,6 +39,7 @@ class LoginController : public EventConsumer {
   virtual bool HandleWindowMapRequest(Window* win);
   virtual void HandleWindowMap(Window* win);
   virtual void HandleWindowUnmap(Window* win);
+  virtual void HandleWindowInitialPixmap(Window* win);
   virtual void HandleWindowConfigureRequest(Window* win,
                                             int req_x, int req_y,
                                             int req_width, int req_height);
@@ -186,7 +187,7 @@ class LoginController : public EventConsumer {
   void FocusLoginWindow(Window* win);
 
   // Hide all login-related windows and ask the window manager to destroy us.
-  // Called when we see the initial browser get mapped.
+  // Called when we see the pixmap for a browser window get loaded.
   void HideWindowsAndRequestDestruction();
 
   WindowManager* wm_;
@@ -223,9 +224,10 @@ class LoginController : public EventConsumer {
   // closed, we can re-focus the window that had the focus before.
   Window* login_window_to_focus_;
 
-  // Are we waiting for the initial post-login Chrome window to get mapped
-  // so we can hide the login windows and destroy the login controller?
-  bool waiting_for_initial_browser_window_;
+  // Are we waiting for a post-login browser window to get mapped and
+  // painted so we can hide the login windows and destroy the login
+  // controller?
+  bool waiting_for_browser_window_;
 
   // Has HideWindowsAndRequestDestruction() been called?
   bool requested_destruction_;
@@ -235,8 +237,12 @@ class LoginController : public EventConsumer {
 
   // Login windows that have been destroyed post-login but that we're
   // holding on to, so we can continue displaying their actors onscreen
-  // until the initial browser window has been mapped.
+  // until the browser window has been painted.
   std::set<std::tr1::shared_ptr<DestroyedWindow> > destroyed_windows_;
+
+  // Chrome browser windows that we're watching.  We wait for one of the
+  // browser windows to get painted and then destroy ourselves.
+  std::set<XWindow> browser_xids_;
 
   DISALLOW_COPY_AND_ASSIGN(LoginController);
 };

@@ -22,6 +22,7 @@
 #include "window_manager/compositor.h"
 #include "window_manager/event_consumer.h"
 #include "window_manager/event_loop.h"
+#include "window_manager/geometry.h"
 #include "window_manager/layout_manager.h"
 #include "window_manager/mock_x_connection.h"
 #include "window_manager/panel.h"
@@ -1288,6 +1289,63 @@ TEST_F(WindowManagerTest, DestroyedWindows) {
   DestroyedWindow* destroyed_win = ec.destroyed_windows().begin()->get();
   EXPECT_EQ(actor, destroyed_win->actor());
   EXPECT_EQ(shadow, destroyed_win->shadow());
+}
+
+// Test that we defer fetching a window's initial pixmap until the client
+// tells us that it's been painted, and that we notify EventConsumers when
+// we've fetched the pixmap.
+TEST_F(WindowManagerTest, NotifyAboutInitialPixmap) {
+  TestEventConsumer ec;
+
+  // Create a window that doesn't support the _NET_WM_SYNC_REQUEST
+  // protocol.  We should fetch its pixmap as soon as it gets mapped.
+  XWindow xid = CreateSimpleWindow();
+  wm_->RegisterEventConsumerForWindowEvents(xid, &ec);
+  XEvent event;
+  xconn_->InitCreateWindowEvent(&event, xid);
+  wm_->HandleEvent(&event);
+  xconn_->InitMapRequestEvent(&event, xid);
+  wm_->HandleEvent(&event);
+  ASSERT_TRUE(xconn_->GetWindowInfoOrDie(xid)->mapped);
+  EXPECT_TRUE(wm_->GetWindowOrDie(xid)->has_initial_pixmap());
+  xconn_->InitMapEvent(&event, xid);
+  wm_->HandleEvent(&event);
+  EXPECT_EQ(0, ec.num_initial_pixmaps());
+
+  // Create a window that supports _NET_WM_SYNC_REQUEST.
+  // Window::has_initial_pixmap() should return false after it's mapped
+  // (since we should defer fetching the pixmap until the window says that
+  // it's painted it).
+  ec.reset_stats();
+  XWindow sync_xid = CreateSimpleWindow();
+  wm_->RegisterEventConsumerForWindowEvents(sync_xid, &ec);
+  ConfigureWindowForSyncRequestProtocol(sync_xid);
+  xconn_->InitCreateWindowEvent(&event, sync_xid);
+  wm_->HandleEvent(&event);
+  Window* sync_win = wm_->GetWindowOrDie(sync_xid);
+  xconn_->InitMapRequestEvent(&event, sync_xid);
+  wm_->HandleEvent(&event);
+  ASSERT_TRUE(xconn_->GetWindowInfoOrDie(sync_xid)->mapped);
+  xconn_->InitMapEvent(&event, sync_xid);
+  wm_->HandleEvent(&event);
+  EXPECT_EQ(0, ec.num_initial_pixmaps());
+  EXPECT_FALSE(sync_win->has_initial_pixmap());
+
+  // Notify the window manager that the pixmap has been painted.
+  // has_initial_pixmap() should return true now, and our event consumer
+  // should be notified that the pixmap was received.
+  SendSyncRequestProtocolAlarm(sync_xid);
+  EXPECT_TRUE(sync_win->has_initial_pixmap());
+  EXPECT_EQ(1, ec.num_initial_pixmaps());
+
+  // Resize the window and mimic the client syncing with the window manager
+  // again, and make sure that we don't re-notify the event consumer about
+  // the pixmap.
+  ec.reset_stats();
+  sync_win->ResizeClient(600, 500, GRAVITY_NORTHWEST);
+  SendSyncRequestProtocolAlarm(sync_xid);
+  EXPECT_TRUE(sync_win->has_initial_pixmap());
+  EXPECT_EQ(0, ec.num_initial_pixmaps());
 }
 
 }  // namespace window_manager

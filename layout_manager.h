@@ -64,6 +64,7 @@ class LayoutManager : public EventConsumer,
   virtual bool HandleWindowMapRequest(Window* win);
   virtual void HandleWindowMap(Window* win);
   virtual void HandleWindowUnmap(Window* win);
+  virtual void HandleWindowInitialPixmap(Window* win);
   virtual void HandleWindowConfigureRequest(Window* win,
                                             int req_x, int req_y,
                                             int req_width, int req_height);
@@ -503,6 +504,15 @@ class LayoutManager : public EventConsumer,
 
   // This background is displayed post-login in overview mode.
   scoped_ptr<Compositor::Actor> background_;
+
+  // Should we call LayoutWindows() after we see the initial pixmap get
+  // fetched for the current toplevel window?
+  bool should_layout_windows_after_initial_pixmap_;
+
+  // Should we use animation when calling LayoutWindows() as described in
+  // 'should_layout_windows_after_initial_pixmap_'?  We avoid animating if
+  // this is the first browser window, but leave this set to true after that.
+  bool should_animate_after_initial_pixmap_;
 
   DISALLOW_COPY_AND_ASSIGN(LayoutManager);
 };

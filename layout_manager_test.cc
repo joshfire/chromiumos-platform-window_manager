@@ -62,6 +62,7 @@ TEST_F(LayoutManagerTest, Basic) {
 
   Window* win1 = wm_->GetWindowOrDie(xid1);
   win1->MapClient();
+  win1->HandleMapNotify();
 
   lm_->SetMode(LayoutManager::MODE_ACTIVE);
   lm_->HandleWindowMap(win1);
@@ -87,6 +88,7 @@ TEST_F(LayoutManagerTest, Basic) {
   wm_->TrackWindow(xid2, false, geometry);  // override_redirect=false
   Window* win2 = wm_->GetWindowOrDie(xid2);
   win2->MapClient();
+  win2->HandleMapNotify();
   lm_->HandleWindowMap(win2);
 
   XWindow xid3 = xconn_->CreateWindow(
@@ -100,6 +102,7 @@ TEST_F(LayoutManagerTest, Basic) {
   wm_->TrackWindow(xid3, false, geometry);  // override_redirect=false
   Window* win3 = wm_->GetWindowOrDie(xid3);
   win3->MapClient();
+  win3->HandleMapNotify();
   lm_->HandleWindowMap(win3);
 
   // The third window should be onscreen now, and the first and second
@@ -1674,6 +1677,32 @@ TEST_F(LayoutManagerTest, Shadows) {
       NULL));
   SendInitialEventsForWindow(info_bubble_xid);
   EXPECT_TRUE(wm_->GetWindowOrDie(info_bubble_xid)->shadow() == NULL);
+}
+
+// Check that we defer animating new windows onscreen until the client says
+// that they've been painted.
+TEST_F(LayoutManagerTest, DeferAnimationsUntilPainted) {
+  // Create and map two windows.  Make the second one say that it supports
+  // the _NET_WM_SYNC_REQUEST protocol.
+  XWindow xid1 = CreateToplevelWindow(2, 0, 0, 0, 200, 200);
+  SendInitialEventsForWindow(xid1);
+  XWindow xid2 = CreateToplevelWindow(2, 0, 0, 0, 200, 200);
+  ConfigureWindowForSyncRequestProtocol(xid2);
+  SendInitialEventsForWindow(xid2);
+
+  // Check that the second window got the focus, but that the first still
+  // has its client window onscreen (since the second window hasn't said
+  // that it's been painted yet).
+  EXPECT_FALSE(WindowIsOffscreen(xid1));
+  EXPECT_TRUE(WindowIsOffscreen(xid2));
+  EXPECT_EQ(xid2, xconn_->focused_xid());
+
+  // Tell the window manager that the second window has been painted and
+  // check that it moves it onscreen.
+  SendSyncRequestProtocolAlarm(xid2);
+  EXPECT_TRUE(WindowIsOffscreen(xid1));
+  EXPECT_FALSE(WindowIsOffscreen(xid2));
+  EXPECT_EQ(xid2, xconn_->focused_xid());
 }
 
 }  // namespace window_manager

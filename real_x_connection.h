@@ -102,6 +102,12 @@ class RealXConnection : public XConnection {
                                       XAtom message_type,
                                       long data[5],
                                       int event_mask);
+  virtual bool SendConfigureNotifyEvent(XWindow xid,
+                                        int x, int y,
+                                        int width, int height,
+                                        int border_width,
+                                        XWindow above_xid,
+                                        bool override_redirect);
   virtual bool WaitForWindowToBeDestroyed(XWindow xid);
   virtual bool WaitForPropertyChange(XWindow xid, XTime* timestamp_out);
   virtual XWindow GetSelectionOwner(XAtom atom);

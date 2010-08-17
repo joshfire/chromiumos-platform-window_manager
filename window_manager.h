@@ -76,6 +76,9 @@ class WindowManager : public PanelManagerAreaChangeListener,
   FocusManager* focus_manager() { return focus_manager_.get(); }
 
   XWindow root() const { return root_; }
+  const Stacker<XWindow>& stacked_xids() const {
+    return *(stacked_xids_.get());
+  }
 
   Compositor::StageActor* stage() { return stage_; }
 
@@ -169,6 +172,11 @@ class WindowManager : public PanelManagerAreaChangeListener,
   // kVideoTimePropertyUpdateSec).  Returns false if we attempted to set
   // the property but failed and true otherwise.
   bool SetVideoTimeProperty(time_t video_time);
+
+  // Handle notification from a window that it received its initial pixmap.
+  // We notify all of the event consumers that are interested in this
+  // window.
+  void HandleWindowInitialPixmap(Window* win);
 
   // Register an event consumer as being interested in non-property-change
   // events on a particular window.
@@ -439,6 +447,10 @@ class WindowManager : public PanelManagerAreaChangeListener,
   scoped_ptr<StackingManager> stacking_manager_;
   scoped_ptr<FocusManager> focus_manager_;
 
+  // Map from a Sync extension alarm ID to the Window object that's using
+  // the alarm to support the _NET_WM_SYNC_REQUEST protocol.
+  base::hash_map<XID, Window*> sync_alarms_to_windows_;
+
   // Windows that are being tracked.
   typedef std::map<XWindow, std::tr1::shared_ptr<Window> > WindowMap;
   WindowMap client_windows_;
@@ -544,10 +556,6 @@ class WindowManager : public PanelManagerAreaChangeListener,
 
   // ID for the timeout that calls HideUnacceleratedGraphicsActor().
   int hide_unaccelerated_graphics_actor_timeout_id_;
-
-  // Map from a Sync extension alarm ID to the Window object that's using
-  // the alarm to support the _NET_WM_SYNC_REQUEST protocol.
-  base::hash_map<XID, Window*> sync_alarms_to_windows_;
 
   DISALLOW_COPY_AND_ASSIGN(WindowManager);
 };

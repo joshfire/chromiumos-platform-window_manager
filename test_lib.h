@@ -181,6 +181,17 @@ class BasicWindowManagerTest : public ::testing::Test {
   // the window manager (if it's non-NULL).
   void SetLoggedInState(bool logged_in);
 
+  // Configure a window to use the _NET_WM_SYNC_REQUEST protocol to
+  // synchronize repaints in response to resizes.  Adds the
+  // _NET_WM_SYNC_REQUEST hint to the window's WM_PROTOCOLS property and
+  // sets its _NET_WM_SYNC_REQUEST_COUNTER property.
+  void ConfigureWindowForSyncRequestProtocol(XWindow xid);
+
+  // Send the window manager an event telling it that the alarm that it's
+  // using to wait for notification that a client has finished repainting a
+  // window has fired.
+  void SendSyncRequestProtocolAlarm(XWindow xid);
+
   // Get the current value of the _NET_ACTIVE_WINDOW property on the root
   // window.
   XWindow GetActiveWindowProperty();
@@ -323,6 +334,7 @@ class TestEventConsumer : public EventConsumer {
     num_map_requests_ = 0;
     num_mapped_windows_ = 0;
     num_unmapped_windows_ = 0;
+    num_initial_pixmaps_ = 0;
     num_button_presses_ = 0;
   }
 
@@ -336,6 +348,7 @@ class TestEventConsumer : public EventConsumer {
   int num_map_requests() const { return num_map_requests_; }
   int num_mapped_windows() const { return num_mapped_windows_; }
   int num_unmapped_windows() const { return num_unmapped_windows_; }
+  int num_initial_pixmaps() const { return num_initial_pixmaps_; }
   int num_button_presses() const { return num_button_presses_; }
   const std::vector<WmIpc::Message>& chrome_messages() const {
     return chrome_messages_;
@@ -355,6 +368,9 @@ class TestEventConsumer : public EventConsumer {
   }
   virtual void HandleWindowMap(Window* win) { num_mapped_windows_++; }
   virtual void HandleWindowUnmap(Window* win) { num_unmapped_windows_++; }
+  virtual void HandleWindowInitialPixmap(Window* win) {
+    num_initial_pixmaps_++;
+  }
   virtual void HandleWindowConfigureRequest(Window* win,
                                             int req_x, int req_y,
                                             int req_width, int req_height) {}
@@ -404,6 +420,7 @@ class TestEventConsumer : public EventConsumer {
   int num_map_requests_;
   int num_mapped_windows_;
   int num_unmapped_windows_;
+  int num_initial_pixmaps_;
   int num_button_presses_;
 
   // Messages received via HandleChromeMessage().

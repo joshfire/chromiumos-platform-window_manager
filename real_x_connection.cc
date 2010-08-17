@@ -23,6 +23,7 @@ extern "C" {
 #include "base/string_util.h"
 #include "window_manager/geometry.h"
 #include "window_manager/util.h"
+#include "window_manager/x_connection_internal.h"
 
 using std::map;
 using std::string;
@@ -914,12 +915,8 @@ bool RealXConnection::SendClientMessageEvent(XWindow dest_xid,
                                              long data[5],
                                              int event_mask) {
   XEvent event;
-  XClientMessageEvent* client_event = &(event.xclient);
-  client_event->type = ClientMessage;
-  client_event->window = xid;
-  client_event->message_type = message_type;
-  client_event->format = XConnection::kLongFormat;
-  memcpy(client_event->data.l, data, sizeof(client_event->data.l));
+  x_connection_internal::InitXClientMessageEvent(
+      &event, xid, message_type, data);
 
   TrapErrors();
   XSendEvent(display_,
@@ -930,6 +927,31 @@ bool RealXConnection::SendClientMessageEvent(XWindow dest_xid,
   if (int error = UntrapErrors()) {
     LOG(WARNING) << "Got X error while sending message to window "
                  << XidStr(dest_xid) << ": " << GetErrorText(error);
+    return false;
+  }
+  return true;
+}
+
+bool RealXConnection::SendConfigureNotifyEvent(XWindow xid,
+                                               int x, int y,
+                                               int width, int height,
+                                               int border_width,
+                                               XWindow above_xid,
+                                               bool override_redirect) {
+  XEvent event;
+  x_connection_internal::InitXConfigureEvent(
+      &event, xid, x, y, width, height, border_width, above_xid,
+      override_redirect);
+
+  TrapErrors();
+  XSendEvent(display_,
+             xid,
+             False,  // propagate
+             StructureNotifyMask,
+             &event);
+  if (int error = UntrapErrors()) {
+    LOG(WARNING) << "Got X error while sending configure notify to window "
+                 << XidStr(xid) << ": " << GetErrorText(error);
     return false;
   }
   return true;
@@ -1153,9 +1175,8 @@ XID RealXConnection::CreateSyncCounterAlarm(XID counter_id,
   memset(&attr, 0, sizeof(attr));
   attr.trigger.counter = counter_id;
   attr.trigger.value_type = XSyncAbsolute;
-  XSyncIntsToValue(&(attr.trigger.wait_value),
-                   initial_trigger_value & 0xffffffff,
-                   (initial_trigger_value >> 32) & 0x7fffffff);
+  x_connection_internal::StoreInt64InXSyncValue(
+      initial_trigger_value, &(attr.trigger.wait_value));
   attr.trigger.test_type = XSyncPositiveComparison;
 
   TrapErrors();

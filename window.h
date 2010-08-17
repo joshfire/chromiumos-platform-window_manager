@@ -98,6 +98,10 @@ class Window {
   bool wm_state_modal() const { return wm_state_modal_; }
   bool wm_hint_urgent() const { return wm_hint_urgent_; }
 
+  // Have we received a pixmap for this window yet?  If not, it won't be
+  // drawn onscreen.
+  bool has_initial_pixmap() const { return pixmap_ != 0; }
+
   // Is this window currently focused?  We don't go to the X server for
   // this; we just check with the FocusManager.
   bool IsFocused() const;
@@ -247,6 +251,13 @@ class Window {
   void SetCompositedOpacity(double opacity, int anim_ms);
   void ScaleComposited(double scale_x, double scale_y, int anim_ms);
 
+  // Handle us having sent a request to the X server to map this
+  // (non-override-redirect) window.  We send a _NET_WM_SYNC_REQUEST
+  // message to the window and send a synthetic ConfigureNotify event, so
+  // that we'll be notified by the client when it's finished painting the
+  // window.
+  void HandleMapRequested();
+
   // Handle a MapNotify event about this window.
   // We throw away the old pixmap for the window and get the new one.
   void HandleMapNotify();
@@ -329,8 +340,11 @@ class Window {
   void HandleSyncAlarmNotify(XID alarm_id, int64_t value);
 
  private:
+  friend class BasicWindowManagerTest;
+
   FRIEND_TEST(FocusManagerTest, Modality);  // sets 'wm_state_modal_'
   FRIEND_TEST(WindowTest, SyncRequest);
+  FRIEND_TEST(WindowTest, DeferFetchingPixmapUntilPainted);
   FRIEND_TEST(WindowManagerTest, VideoTimeProperty);
 
   // Minimum dimensions and rate per second for damage events at which we
@@ -373,6 +387,10 @@ class Window {
   // update the counter after it's seen the ConfigureNotify and redrawn its
   // contents.
   void SendWmSyncRequestMessage();
+
+  // Send a synthetic ConfigureNotify event to the client containing the
+  // window's current position, size, etc.
+  void SendSyntheticConfigureNotify();
 
   XWindow xid_;
   std::string xid_str_;  // hex for debugging

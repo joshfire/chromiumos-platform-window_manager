@@ -658,6 +658,12 @@ bool WindowManager::SetVideoTimeProperty(time_t video_time) {
   return true;
 }
 
+void WindowManager::HandleWindowInitialPixmap(Window* win) {
+  DCHECK(win);
+  FOR_EACH_INTERESTED_EVENT_CONSUMER(
+      window_event_consumers_, win->xid(), HandleWindowInitialPixmap(win));
+}
+
 void WindowManager::RegisterEventConsumerForWindowEvents(
     XWindow xid, EventConsumer* event_consumer) {
   DCHECK(event_consumer);
@@ -1679,6 +1685,7 @@ void WindowManager::HandleMapRequest(const XMapRequestEvent& e) {
   for (set<EventConsumer*>::iterator it = event_consumers_.begin();
        it != event_consumers_.end(); ++it) {
     if ((*it)->HandleWindowMapRequest(win)) {
+      win->HandleMapRequested();
       // If one of the event consumers tells us that it's sent a request to
       // map the window, we act as if the window is already mapped.  This
       // is safe (it'll be mapped by the time that any subsequent requests
@@ -1996,6 +2003,7 @@ void WindowManager::DisableCompositing() {
 void WindowManager::DestroyLoginControllerInternal() {
   if (!login_controller_.get())
     return;
+  DLOG(INFO) << "Destroying login controller";
   event_consumers_.erase(login_controller_.get());
   login_controller_.reset();
 }

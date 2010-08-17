@@ -82,6 +82,8 @@ class PanelManager : public EventConsumer, public FocusChangeListener {
   // non-panel windows.
   virtual void HandleWindowUnmap(Window* win);
 
+  virtual void HandleWindowInitialPixmap(Window* win) {}
+
   virtual void HandleWindowConfigureRequest(Window* win,
                                             int req_x, int req_y,
                                             int req_width, int req_height);

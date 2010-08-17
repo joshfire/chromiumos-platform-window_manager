@@ -406,6 +406,31 @@ void BasicWindowManagerTest::SetLoggedInState(bool logged_in) {
   }
 }
 
+void BasicWindowManagerTest::ConfigureWindowForSyncRequestProtocol(
+    XWindow xid) {
+  vector<int> values;
+  xconn_->GetIntArrayProperty(xid, wm_->GetXAtom(ATOM_WM_PROTOCOLS), &values);
+  values.push_back(wm_->GetXAtom(ATOM_NET_WM_SYNC_REQUEST));
+  CHECK(xconn_->SetIntArrayProperty(
+            xid,
+            wm_->GetXAtom(ATOM_WM_PROTOCOLS),  // atom
+            wm_->GetXAtom(ATOM_ATOM),          // type
+            values));
+  CHECK(xconn_->SetIntProperty(
+            xid,
+            wm_->GetXAtom(ATOM_NET_WM_SYNC_REQUEST_COUNTER),  // atom
+            wm_->GetXAtom(ATOM_CARDINAL),                     // type
+            50));  // arbitrary counter ID
+}
+
+void BasicWindowManagerTest::SendSyncRequestProtocolAlarm(XWindow xid) {
+  Window* win = wm_->GetWindowOrDie(xid);
+  XEvent event;
+  xconn_->InitSyncAlarmNotifyEvent(
+      &event, win->wm_sync_request_alarm_, win->current_wm_sync_num_);
+  wm_->HandleEvent(&event);
+}
+
 XWindow BasicWindowManagerTest::GetActiveWindowProperty() {
   int active_window;
   if (!xconn_->GetIntProperty(xconn_->GetRootWindow(),

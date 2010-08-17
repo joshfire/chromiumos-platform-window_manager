@@ -102,7 +102,7 @@ LoginController::LoginController(WindowManager* wm)
       guest_window_(NULL),
       background_window_(NULL),
       login_window_to_focus_(NULL),
-      waiting_for_initial_browser_window_(false),
+      waiting_for_browser_window_(false),
       requested_destruction_(false),
       is_entry_selection_enabled_(true) {
   registrar_.RegisterForChromeMessages(
@@ -124,7 +124,7 @@ void LoginController::HandleScreenResize() {
 
 void LoginController::HandleLoggedInStateChange() {
   if (wm_->logged_in())
-    waiting_for_initial_browser_window_ = true;
+    waiting_for_browser_window_ = true;
 }
 
 bool LoginController::HandleWindowMapRequest(Window* win) {
@@ -165,11 +165,18 @@ void LoginController::HandleWindowMap(Window* win) {
   if (requested_destruction_ || win->override_redirect())
     return;
 
-  // Destroy ourselves when we see the initial browser window get mapped.
-  if (waiting_for_initial_browser_window_ &&
+  if (waiting_for_browser_window_ &&
       win->type() == chromeos::WM_IPC_WINDOW_CHROME_TOPLEVEL) {
-    waiting_for_initial_browser_window_ = false;
-    HideWindowsAndRequestDestruction();
+    if (win->has_initial_pixmap()) {
+      // If we see an already-drawn browser window come up, we can destroy
+      // ourselves.
+      waiting_for_browser_window_ = false;
+      HideWindowsAndRequestDestruction();
+    } else {
+      // Otherwise, we'll just wait for the window to get drawn.
+      browser_xids_.insert(win->xid());
+      registrar_.RegisterForWindowEvents(win->xid());
+    }
     return;
   }
 
@@ -281,6 +288,15 @@ void LoginController::HandleWindowUnmap(Window* win) {
   if (win->override_redirect())
     return;
 
+  // If one of the browser windows that we were waiting to get painted is
+  // getting closed (maybe Chrome crashed), stop watching it.
+  set<XWindow>::iterator browser_it = browser_xids_.find(win->xid());
+  if (browser_it != browser_xids_.end()) {
+    registrar_.UnregisterForWindowEvents(win->xid());
+    browser_xids_.erase(browser_it);
+    return;
+  }
+
   set<XWindow>::iterator non_login_it = non_login_xids_.find(win->xid());
   if (non_login_it != non_login_xids_.end()) {
     win->HideComposited();
@@ -356,6 +372,15 @@ void LoginController::HandleWindowUnmap(Window* win) {
 
   if (login_window_to_focus_ == win)
     login_window_to_focus_ = NULL;
+}
+
+void LoginController::HandleWindowInitialPixmap(Window* win) {
+  // Destroy ourselves when we see a browser window get drawn.
+  if (waiting_for_browser_window_ && browser_xids_.count(win->xid())) {
+    waiting_for_browser_window_ = false;
+    HideWindowsAndRequestDestruction();
+    return;
+  }
 }
 
 void LoginController::HandleWindowConfigureRequest(Window* win,

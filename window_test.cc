@@ -609,6 +609,7 @@ TEST_F(WindowTest, SyncRequest) {
   ASSERT_TRUE(xconn_->GetWindowGeometry(xid, &geometry));
   Window win(wm_.get(), xid, false, geometry);
   xconn_->MapWindow(xid);
+  win.HandleMapRequested();
   win.HandleMapNotify();
   MockCompositor::TexturePixmapActor* actor = GetMockActorForWindow(&win);
 
@@ -708,6 +709,56 @@ TEST_F(WindowTest, SyncRequest) {
                             win.current_wm_sync_num_);
   EXPECT_EQ(700, actor->GetWidth());
   EXPECT_EQ(700, actor->GetHeight());
+}
+
+// Test that we wait to fetch pixmaps for newly-created windows until the
+// client tells us that they've been painted.
+TEST_F(WindowTest, DeferFetchingPixmapUntilPainted) {
+  // Create a window and configure it to use _NET_WM_SYNC_REQUEST.
+  XWindow xid = CreateSimpleWindow();
+  ConfigureWindowForSyncRequestProtocol(xid);
+  XConnection::WindowGeometry geometry;
+  ASSERT_TRUE(xconn_->GetWindowGeometry(xid, &geometry));
+  Window win(wm_.get(), xid, false, geometry);
+  xconn_->MapWindow(xid);
+  win.HandleMapRequested();
+
+  // Window::HandleMapRequested() should send a message to the client
+  // asking it to sync after painting the window, along with a synthetic
+  // ConfigureNotify event.
+  MockXConnection::WindowInfo* info = xconn_->GetWindowInfoOrDie(xid);
+
+  ASSERT_EQ(1, info->client_messages.size());
+  const XClientMessageEvent& msg = info->client_messages[0];
+  EXPECT_EQ(wm_->GetXAtom(ATOM_WM_PROTOCOLS), msg.message_type);
+  EXPECT_EQ(XConnection::kLongFormat, msg.format);
+  EXPECT_EQ(wm_->GetXAtom(ATOM_NET_WM_SYNC_REQUEST), msg.data.l[0]);
+
+  ASSERT_EQ(1, info->configure_notify_events.size());
+  const XConfigureEvent& conf_notify = info->configure_notify_events[0];
+  EXPECT_EQ(info->x, conf_notify.x);
+  EXPECT_EQ(info->y, conf_notify.y);
+  EXPECT_EQ(info->width, conf_notify.width);
+  EXPECT_EQ(info->height, conf_notify.height);
+  EXPECT_EQ(info->border_width, conf_notify.border_width);
+  // Don't bother checking the stacking here.  We never registered this
+  // window with WindowManager (we don't want event consumers messing
+  // around with it), so the Window class won't be able to query the
+  // correct stacking position from WindowManager when it sends the
+  // synthetic event.
+  EXPECT_EQ(0, conf_notify.override_redirect);
+
+  // We should hold off on fetching the pixmap in response to a MapNotify
+  // event if we haven't received notice that the window has been painted.
+  win.HandleMapNotify();
+  EXPECT_EQ(0, win.pixmap_);
+  EXPECT_FALSE(win.has_initial_pixmap());
+
+  // After getting notice, we should fetch the pixmap.
+  win.HandleSyncAlarmNotify(win.wm_sync_request_alarm_,
+                            win.current_wm_sync_num_);
+  EXPECT_NE(0, win.pixmap_);
+  EXPECT_TRUE(win.has_initial_pixmap());
 }
 
 }  // namespace window_manager
