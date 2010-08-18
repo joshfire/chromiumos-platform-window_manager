@@ -793,6 +793,7 @@ void Window::SetShadowType(Shadow::Type type) {
   shadow_.reset(Shadow::Create(wm_->compositor(), type));
   shadow_->group()->SetName(string("shadow group for window " + xid_str()));
   wm_->stage()->AddActor(shadow_->group());
+  shadow_->group()->Lower(actor_.get());
   shadow_->Move(composited_x_, composited_y_, 0);
   shadow_->SetOpacity(combined_opacity() * shadow_opacity_, 0);
   shadow_->Resize(composited_scale_x_ * client_width_,

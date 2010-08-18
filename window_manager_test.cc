@@ -398,6 +398,11 @@ TEST_F(WindowManagerTest, RestackOverrideRedirectWindows) {
   MockCompositor::StageActor* stage = compositor_->GetDefaultStage();
   XEvent event;
 
+  // Use the _NET_WM_WINDOW_TYPE_MENU hint to make the windows have shadows.
+  const XAtom win_type_xatom = wm_->GetXAtom(ATOM_NET_WM_WINDOW_TYPE);
+  const XAtom atom_xatom = wm_->GetXAtom(ATOM_ATOM);
+  const XAtom menu_xatom = wm_->GetXAtom(ATOM_NET_WM_WINDOW_TYPE_MENU);
+
   // Create two override-redirect windows and map them both.
   XWindow xid = xconn_->CreateWindow(
       xconn_->GetRootWindow(),
@@ -406,9 +411,11 @@ TEST_F(WindowManagerTest, RestackOverrideRedirectWindows) {
       true,    // override redirect
       false,   // input only
       0, 0);   // event mask, visual
+  xconn_->SetIntProperty(xid, win_type_xatom, atom_xatom, menu_xatom);
   xconn_->MapWindow(xid);
   SendInitialEventsForWindow(xid);
   Window* win = wm_->GetWindowOrDie(xid);
+  ASSERT_TRUE(win->shadow() != NULL);
 
   XWindow xid2 = xconn_->CreateWindow(
       xconn_->GetRootWindow(),
@@ -417,21 +424,33 @@ TEST_F(WindowManagerTest, RestackOverrideRedirectWindows) {
       true,    // override redirect
       false,   // input only
       0, 0);   // event mask, visual
+  xconn_->SetIntProperty(xid2, win_type_xatom, atom_xatom, menu_xatom);
   xconn_->MapWindow(xid2);
   SendInitialEventsForWindow(xid2);
   Window* win2 = wm_->GetWindowOrDie(xid2);
+  ASSERT_TRUE(win2->shadow() != NULL);
 
-  // The second window should initially be stacked above the first.
+  // The second window should initially be stacked above the first, and
+  // each window's shadow should be stacked under the window.
   EXPECT_LT(stage->GetStackingIndex(win2->actor()),
+            stage->GetStackingIndex(win2->shadow()->group()));
+  EXPECT_LT(stage->GetStackingIndex(win2->shadow()->group()),
             stage->GetStackingIndex(win->actor()));
+  EXPECT_LT(stage->GetStackingIndex(win->actor()),
+            stage->GetStackingIndex(win->shadow()->group()));
 
   // Send a message saying that the first window is on top of the second.
   xconn_->StackWindow(xid, xid2, true);
   xconn_->InitConfigureNotifyEvent(&event, xid);
   event.xconfigure.above = xid2;
   wm_->HandleEvent(&event);
+
   EXPECT_LT(stage->GetStackingIndex(win->actor()),
+            stage->GetStackingIndex(win->shadow()->group()));
+  EXPECT_LT(stage->GetStackingIndex(win->shadow()->group()),
             stage->GetStackingIndex(win2->actor()));
+  EXPECT_LT(stage->GetStackingIndex(win2->actor()),
+            stage->GetStackingIndex(win2->shadow()->group()));
 }
 
 TEST_F(WindowManagerTest, StackOverrideRedirectWindowsAboveLayers) {
