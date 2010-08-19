@@ -168,7 +168,8 @@ bool Window::FetchAndApplyTransientHint() {
 bool Window::FetchAndApplyWindowType() {
   DCHECK(xid_);
   bool result = wm_->wm_ipc()->GetWindowType(xid_, &type_, &type_params_);
-  DLOG(INFO) << "Window " << xid_str() << " has type " << type_;
+  DLOG(INFO) << "Window " << xid_str() << " has type " << type_
+             << " (" << type_str() << ")";
   return result;
 }
 

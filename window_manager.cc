@@ -1349,6 +1349,8 @@ void WindowManager::HandleClientMessage(const XClientMessageEvent& e) {
       LOG(INFO) << "Got WM_NOTIFY_IPC_VERSION message saying that Chrome is "
                 << "using version " << wm_ipc_version_;
     } else {
+      DLOG(INFO) << "Decoded " << chromeos::WmIpcMessageTypeToString(msg.type())
+                 << " message";
       FOR_EACH_INTERESTED_EVENT_CONSUMER(chrome_message_event_consumers_,
                                          msg.type(),
                                          HandleChromeMessage(msg));

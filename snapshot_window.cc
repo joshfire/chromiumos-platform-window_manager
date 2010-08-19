@@ -12,6 +12,7 @@
 
 #include "base/logging.h"
 #include "base/string_util.h"
+#include "cros/chromeos_wm_ipc_enums.h"
 #include "window_manager/atom_cache.h"
 #include "window_manager/callback.h"
 #include "window_manager/event_consumer_registrar.h"
@@ -135,12 +136,8 @@ void LayoutManager::SnapshotWindow::AddDecoration(Window* decoration) {
   if (!decoration)
     return;
 
-  DLOG(INFO) << "Adding Decoration " << decoration->xid_str()
-             << " of type "
-             << ((decoration->type() ==
-                  chromeos::WM_IPC_WINDOW_CHROME_TAB_TITLE) ?
-                 "TITLE" : "FAV_ICON")
-             << " on snapshot " << win_->xid_str();
+  DLOG(INFO) << "Adding decoration " << decoration->xid_str() << " of type "
+             << decoration->type_str() << " on snapshot " << win_->xid_str();
 
   decoration->SetCompositedOpacity(0.0, 0);
   decoration->ShowComposited();

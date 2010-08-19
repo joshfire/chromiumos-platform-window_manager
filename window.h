@@ -65,6 +65,9 @@ class Window {
   bool override_redirect() const { return override_redirect_; }
   chromeos::WmIpcWindowType type() const { return type_; }
   const std::vector<int>& type_params() const { return type_params_; }
+  const char* type_str() const {
+    return chromeos::WmIpcWindowTypeToString(type_);
+  }
   bool mapped() const { return mapped_; }
   bool shaped() const { return shaped_; }
 
