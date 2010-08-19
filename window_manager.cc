@@ -264,6 +264,11 @@ void WindowManager::HandleTopFullscreenActorChange(
     } else {
       Window* win = GetWindow(unredirected_fullscreen_xid_);
       if (win) {
+        // Grab the server here to avoid a race condition between Chrome and
+        // window manager that result in window been reset while Chrome is
+        // writing into it.
+        scoped_ptr<XConnection::ScopedServerGrab> grab(
+            xconn_->CreateScopedServerGrab());
         xconn_->RedirectWindowForCompositing(unredirected_fullscreen_xid_);
         win->HandleRedirect();
       } else {
@@ -271,6 +276,10 @@ void WindowManager::HandleTopFullscreenActorChange(
                       << unredirected_fullscreen_xid_ << " no longer exists";
       }
       unredirected_fullscreen_xid_ = 0;
+      // Force the frame to draw when changing from one fullscreen actor to
+      // another fullscreen actor in case X does not redraw the entire
+      // screen and we get a partially updated frame.
+      should_composite = true;
     }
   }
 
