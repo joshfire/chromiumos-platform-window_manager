@@ -24,6 +24,8 @@
 DEFINE_bool(logtostderr, false,
             "Print debugging messages to stderr (suppressed otherwise)");
 
+DECLARE_bool(allow_panels_to_be_detached);  // from panel_bar.cc
+
 namespace window_manager {
 
 class PanelBarTest : public BasicWindowManagerTest {
@@ -984,6 +986,25 @@ TEST_F(PanelBarTest, FloatingPanels) {
   SendPanelDragCompleteMessage(panel1);
   EXPECT_EQ(drag_x, panel1->right());
   EXPECT_EQ(panel1->right() + kSpacing, panel2->content_x());
+}
+
+// Check that we don't allow new panels to be detached from the panel bar
+// when --allow_panels_to_be_detached is set to false.
+TEST_F(PanelBarTest, DisallowPanelDetaching) {
+  AutoReset<bool> flag_resetter(&FLAGS_allow_panels_to_be_detached, false);
+
+  const int kPanelWidth = 200, kTitlebarHeight = 20, kContentHeight = 300;
+  Panel* panel = CreatePanel(kPanelWidth, kTitlebarHeight, kContentHeight);
+  EXPECT_EQ(wm_->width() - PanelBar::kRightPaddingPixels, panel->right());
+  const int kPanelTop = wm_->height() - kTitlebarHeight - kContentHeight;
+  EXPECT_EQ(kPanelTop, panel->titlebar_y());
+
+  // Drag the panel straight up and make sure that it stays in the bar.
+  SendPanelDraggedMessage(panel, panel->right(), 0);
+  EXPECT_EQ(kPanelTop, panel->titlebar_y());
+
+  SendPanelDragCompleteMessage(panel);
+  EXPECT_EQ(kPanelTop, panel->titlebar_y());
 }
 
 }  // namespace window_manager

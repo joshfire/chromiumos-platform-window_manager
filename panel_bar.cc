@@ -24,6 +24,9 @@
 DEFINE_string(panel_anchor_image, "../assets/images/panel_anchor.png",
               "Image to use for anchors on the panel bar");
 
+DEFINE_bool(allow_panels_to_be_detached, false,
+            "Should panels be detachable from the panel bar?");
+
 using std::find;
 using std::make_pair;
 using std::max;
@@ -372,10 +375,12 @@ bool PanelBar::HandleNotifyPanelDraggedMessage(Panel* panel,
   DLOG(INFO) << "Notified about drag of panel " << panel->xid_str()
              << " to (" << drag_x << ", " << drag_y << ")";
 
-  const int y_threshold =
-      wm()->height() - panel->total_height() - kPanelDetachThresholdPixels;
-  if (drag_y <= y_threshold)
-    return false;
+  if (FLAGS_allow_panels_to_be_detached) {
+    const int y_threshold =
+        wm()->height() - panel->total_height() - kPanelDetachThresholdPixels;
+    if (drag_y <= y_threshold)
+      return false;
+  }
 
   if (dragged_panel_ != panel) {
     if (dragged_panel_) {

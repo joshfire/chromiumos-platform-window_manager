@@ -25,6 +25,8 @@ extern "C" {
 #include "window_manager/util.h"
 #include "window_manager/window_manager.h"
 
+DECLARE_bool(allow_panels_to_be_detached);  // from panel_bar.cc
+
 using std::string;
 using std::vector;
 using window_manager::util::SetCurrentTimeForTest;
@@ -89,6 +91,11 @@ BasicWindowManagerTest::ScopedTempDirectory::~ScopedTempDirectory() {
 
 
 void BasicWindowManagerTest::SetUp() {
+  // Detaching panels from the panel bar to dock them on the side of the
+  // screen is disabled for now, but will probably be coming back later.
+  // Leave it enabled for (most) tests.
+  FLAGS_allow_panels_to_be_detached = true;
+
   new_panels_should_be_expanded_ = true;
   new_panels_should_take_focus_ = true;
   creator_content_xid_for_new_panels_ = 0;
