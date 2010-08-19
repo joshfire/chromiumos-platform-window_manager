@@ -314,6 +314,14 @@ void BasicWindowManagerTest::SendInitialEventsForWindow(XWindow xid) {
   }
 }
 
+void BasicWindowManagerTest::SendUnmapAndDestroyEventsForWindow(XWindow xid) {
+  XEvent event;
+  xconn_->InitUnmapEvent(&event, xid);
+  wm_->HandleEvent(&event);
+  xconn_->InitDestroyWindowEvent(&event, xid);
+  wm_->HandleEvent(&event);
+}
+
 void BasicWindowManagerTest::SendWindowTypeEvent(XWindow xid) {
   XEvent event;
   xconn_->InitPropertyNotifyEvent(
@@ -413,16 +421,22 @@ void BasicWindowManagerTest::SetLoggedInState(bool logged_in) {
   }
 }
 
-void BasicWindowManagerTest::ConfigureWindowForSyncRequestProtocol(
-    XWindow xid) {
+void BasicWindowManagerTest::AppendAtomToProperty(XWindow xid,
+                                                  Atom property_atom,
+                                                  Atom atom_to_add) {
   vector<int> values;
-  xconn_->GetIntArrayProperty(xid, wm_->GetXAtom(ATOM_WM_PROTOCOLS), &values);
-  values.push_back(wm_->GetXAtom(ATOM_NET_WM_SYNC_REQUEST));
+  xconn_->GetIntArrayProperty(xid, wm_->GetXAtom(property_atom), &values);
+  values.push_back(wm_->GetXAtom(atom_to_add));
   CHECK(xconn_->SetIntArrayProperty(
             xid,
-            wm_->GetXAtom(ATOM_WM_PROTOCOLS),  // atom
-            wm_->GetXAtom(ATOM_ATOM),          // type
+            wm_->GetXAtom(property_atom),  // atom
+            wm_->GetXAtom(ATOM_ATOM),      // type
             values));
+}
+
+void BasicWindowManagerTest::ConfigureWindowForSyncRequestProtocol(
+    XWindow xid) {
+  AppendAtomToProperty(xid, ATOM_WM_PROTOCOLS, ATOM_NET_WM_SYNC_REQUEST);
   CHECK(xconn_->SetIntProperty(
             xid,
             wm_->GetXAtom(ATOM_NET_WM_SYNC_REQUEST_COUNTER),  // atom

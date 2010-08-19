@@ -430,36 +430,8 @@ void LayoutManager::HandleWindowMap(Window* win) {
             win, StackingManager::LAYER_TOPLEVEL_WINDOW);
 
       if (win->transient_for_xid()) {
-        ToplevelWindow* toplevel_owner = NULL;
-        Window* owner_win = wm_->GetWindow(win->transient_for_xid());
-        if (owner_win) {
-          // Try to find the toplevel window representing the owner.  If
-          // the owner is itself a transient window, just give the new
-          // window to the owner's owner (this has the effect of us also
-          // later being able to handle transients for *this* transient in
-          // the same way).
-          toplevel_owner = GetToplevelWindowByWindow(*owner_win);
-          if (!toplevel_owner)
-            toplevel_owner = GetToplevelWindowOwningTransientWindow(*owner_win);
-        }
-
-        // If we didn't find an owner for the transient, don't do anything
-        // with it.  Maybe it belongs to to a panel instead.
-        if (!toplevel_owner)
-          return;
-
-        if (win->type() != chromeos::WM_IPC_WINDOW_CHROME_INFO_BUBBLE)
-          win->SetShadowType(Shadow::TYPE_RECTANGULAR);
-
-        transient_to_toplevel_[win->xid()] = toplevel_owner;
-        toplevel_owner->HandleTransientWindowMap(win, mode_ == MODE_OVERVIEW);
-
-        if (mode_ == MODE_ACTIVE &&
-            current_toplevel_ != NULL &&
-            current_toplevel_->IsWindowOrTransientFocused()) {
-          current_toplevel_->TakeFocus(wm_->GetCurrentTimeFromServer());
-        }
-        break;
+        HandleTransientWindowMap(win);
+        return;
       }
 
       if (GetToplevelWindowByWindow(*win)) {
@@ -711,10 +683,12 @@ void LayoutManager::HandleClientMessage(XWindow xid,
     }
     it = states.find(wm_->GetXAtom(ATOM_NET_WM_STATE_MODAL));
     if (it != states.end()) {
-      if (GetToplevelWindowOwningTransientWindow(*win)) {
+      ToplevelWindow* owner = GetToplevelWindowOwningTransientWindow(*win);
+      if (owner) {
         map<XAtom, bool> new_state;
         new_state[it->first] = it->second;
         win->ChangeWmState(new_state);
+        DisplayAndFocusToplevel(owner);
       }
     }
   } else if (message_type == wm_->GetXAtom(ATOM_NET_ACTIVE_WINDOW)) {
@@ -732,14 +706,7 @@ void LayoutManager::HandleClientMessage(XWindow xid,
       toplevel = GetToplevelWindowByWindow(*win);
 
     if (toplevel) {
-      if (mode_ == MODE_OVERVIEW || current_toplevel_ != toplevel) {
-        SetCurrentToplevel(toplevel);
-        // Jump out of overview mode if a toplevel has requested focus.
-        if (mode_ == MODE_OVERVIEW)
-          SetMode(MODE_ACTIVE);
-        else
-          LayoutWindows(true);
-      }
+      DisplayAndFocusToplevel(toplevel);
     } else {
       // If it wasn't a toplevel window, then look and see if it was a
       // snapshot window.  If it was, and we're in active mode, switch
@@ -1065,6 +1032,46 @@ LayoutManager::SnapshotWindow* LayoutManager::GetSelectedSnapshotFromToplevel(
 XWindow LayoutManager::GetInputXidForWindow(const Window& win) {
   SnapshotWindow* snapshot = GetSnapshotWindowByWindow(win);
   return snapshot ? snapshot->input_xid() : None;
+}
+
+void LayoutManager::HandleTransientWindowMap(Window* win) {
+  DCHECK(win);
+  DCHECK(win->transient_for_xid());
+
+  ToplevelWindow* toplevel_owner = NULL;
+  Window* owner_win = wm_->GetWindow(win->transient_for_xid());
+  if (owner_win) {
+    // Try to find the toplevel window representing the owner.  If
+    // the owner is itself a transient window, just give the new
+    // window to the owner's owner (this has the effect of us also
+    // later being able to handle transients for *this* transient in
+    // the same way).
+    toplevel_owner = GetToplevelWindowByWindow(*owner_win);
+    if (!toplevel_owner)
+      toplevel_owner = GetToplevelWindowOwningTransientWindow(*owner_win);
+  }
+
+  // If we didn't find an owner for the transient, don't do anything
+  // with it.  Maybe it belongs to to a panel instead.
+  if (!toplevel_owner)
+    return;
+
+  if (win->type() != chromeos::WM_IPC_WINDOW_CHROME_INFO_BUBBLE)
+    win->SetShadowType(Shadow::TYPE_RECTANGULAR);
+
+  transient_to_toplevel_[win->xid()] = toplevel_owner;
+  toplevel_owner->HandleTransientWindowMap(win, mode_ == MODE_OVERVIEW);
+
+  if (win->wm_state_modal()) {
+    // If the transient is modal, make sure that it gets the focus and that
+    // we're showing its toplevel window.
+    DisplayAndFocusToplevel(toplevel_owner);
+  } else if (toplevel_owner->IsWindowOrTransientFocused()) {
+    // The transient is non-modal, but we tell its toplevel to take the
+    // focus if it's shown so it can pass the focus to the transient if it
+    // wants to.
+    toplevel_owner->TakeFocus(wm_->GetCurrentTimeFromServer());
+  }
 }
 
 void LayoutManager::MoveAndResizeForAvailableArea() {
@@ -1478,6 +1485,26 @@ void LayoutManager::UpdateOverviewPanningForMotion() {
   overview_panning_offset_ += dx;
   LayoutWindows(false);  // animate = false
 }
+
+void LayoutManager::DisplayAndFocusToplevel(ToplevelWindow* toplevel) {
+  DCHECK(toplevel);
+
+  bool switched_toplevel = false;
+  if (current_toplevel_ != toplevel) {
+    SetCurrentToplevel(toplevel);
+    switched_toplevel = true;
+  }
+
+  if (mode_ == MODE_ACTIVE) {
+    if (switched_toplevel)
+      LayoutWindows(true);
+    else
+      toplevel->TakeFocus(wm_->GetCurrentTimeFromServer());
+  } else {
+    SetMode(MODE_ACTIVE);
+  }
+}
+
 
 void LayoutManager::EnableKeyBindingsForMode(Mode mode) {
   switch (mode) {

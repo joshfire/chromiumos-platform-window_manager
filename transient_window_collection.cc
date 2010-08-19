@@ -46,11 +46,6 @@ bool TransientWindowCollection::HasFocusedWindow() const {
 }
 
 bool TransientWindowCollection::TakeFocus(XTime timestamp) {
-  if (is_hidden_) {
-    LOG(WARNING) << "Ignoring request to give focus to hidden collection of "
-                 << "transient windows belonging to " << owner_win_->xid_str();
-    return false;
-  }
   if (!transient_to_focus_)
     return false;
 

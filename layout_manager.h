@@ -134,6 +134,7 @@ class LayoutManager : public EventConsumer,
   FRIEND_TEST(LayoutManagerTest, ChangeModeWithNoWindows);
   FRIEND_TEST(LayoutManagerTest, ChangeBackgroundsAfterInitialWindow);
   FRIEND_TEST(LayoutManagerTest, DontGrabBackAndForwardKeysInActiveMode);
+  FRIEND_TEST(LayoutManagerTest, SwitchToToplevelWithModalTransient);
 
   // Internal private class, declared in toplevel_window.h
   class ToplevelWindow;
@@ -298,6 +299,9 @@ class LayoutManager : public EventConsumer,
   // Get the XID of the input window created for a window.
   XWindow GetInputXidForWindow(const Window& win);
 
+  // Helper method called by HandleWindowMap() for transient windows.
+  void HandleTransientWindowMap(Window* win);
+
   // Activate the toplevel window at the passed-in 0-indexed position (or
   // the last window, for index -1).  Does nothing if no window exists at
   // that position or if we're not already in active mode.
@@ -343,6 +347,10 @@ class LayoutManager : public EventConsumer,
   // Update the panning in overview mode based on mouse motion stored in
   // 'overview_background_event_coalescer_'.  Invoked by a timer.
   void UpdateOverviewPanningForMotion();
+
+  // Ensure that a toplevel is displayed onscreen in active mode (switching
+  // out of overview mode if needed) and then tell it to take the focus.
+  void DisplayAndFocusToplevel(ToplevelWindow* toplevel);
 
   // Enable or disable the key bindings group for the passed-in mode.
   void EnableKeyBindingsForMode(Mode mode);

@@ -1705,6 +1705,97 @@ TEST_F(LayoutManagerTest, DeferAnimationsUntilPainted) {
   EXPECT_EQ(xid2, xconn_->focused_xid());
 }
 
+// Check that we switch toplevel windows as needed when a modal transient
+// window gets mapped, or when the modal hint is set on an existing
+// transient window.
+TEST_F(LayoutManagerTest, SwitchToToplevelWithModalTransient) {
+  // Create two toplevel windows.
+  XWindow xid1 = CreateToplevelWindow(2, 0, 0, 0, 200, 200);
+  SendInitialEventsForWindow(xid1);
+  XWindow xid2 = CreateToplevelWindow(2, 0, 0, 0, 200, 200);
+  SendInitialEventsForWindow(xid2);
+
+  // The second toplevel should be focused initially.
+  EXPECT_TRUE(WindowIsOffscreen(xid1));
+  EXPECT_EQ(xid2, xconn_->focused_xid());
+  EXPECT_EQ(xid2, GetActiveWindowProperty());
+  EXPECT_FALSE(WindowIsOffscreen(xid2));
+
+  // Create an already-modal transient window for the first toplevel.
+  // We should switch to the first toplevel and focus its transient.
+  XWindow transient_xid1 = CreateSimpleWindow();
+  xconn_->GetWindowInfoOrDie(transient_xid1)->transient_for = xid1;
+  AppendAtomToProperty(
+      transient_xid1, ATOM_NET_WM_STATE, ATOM_NET_WM_STATE_MODAL);
+  SendInitialEventsForWindow(transient_xid1);
+  EXPECT_FALSE(WindowIsOffscreen(xid1));
+  EXPECT_EQ(transient_xid1, xconn_->focused_xid());
+  EXPECT_EQ(transient_xid1, GetActiveWindowProperty());
+  EXPECT_TRUE(WindowIsOffscreen(xid2));
+
+  // Create a non-modal transient for the second toplevel.  We should still
+  // be showing the first toplevel.
+  XWindow transient_xid2 = CreateSimpleWindow();
+  xconn_->GetWindowInfoOrDie(transient_xid2)->transient_for = xid2;
+  SendInitialEventsForWindow(transient_xid2);
+  EXPECT_FALSE(WindowIsOffscreen(xid1));
+  EXPECT_TRUE(WindowIsOffscreen(xid2));
+
+  // Send a message making the second toplevel's transient modal.  We
+  // should switch to the second toplevel and focus its transient.
+  XEvent event;
+  xconn_->InitClientMessageEvent(
+      &event, transient_xid2, wm_->GetXAtom(ATOM_NET_WM_STATE),
+      1, wm_->GetXAtom(ATOM_NET_WM_STATE_MODAL), None, None, None);
+  wm_->HandleEvent(&event);
+  EXPECT_TRUE(WindowIsOffscreen(xid1));
+  EXPECT_EQ(transient_xid2, xconn_->focused_xid());
+  EXPECT_EQ(transient_xid2, GetActiveWindowProperty());
+  EXPECT_FALSE(WindowIsOffscreen(xid2));
+
+  // Destroy the two transients and switch to overview mode.
+  SendUnmapAndDestroyEventsForWindow(transient_xid1);
+  SendUnmapAndDestroyEventsForWindow(transient_xid2);
+  lm_->SetMode(LayoutManager::MODE_OVERVIEW);
+  ASSERT_TRUE(WindowIsOffscreen(xid1));
+  ASSERT_TRUE(WindowIsOffscreen(xid2));
+
+  // Create a transient for the first toplevel that already has the modal
+  // hint set when it's mapped.
+  XWindow transient_xid3 = CreateSimpleWindow();
+  xconn_->GetWindowInfoOrDie(transient_xid3)->transient_for = xid1;
+  AppendAtomToProperty(
+      transient_xid3, ATOM_NET_WM_STATE, ATOM_NET_WM_STATE_MODAL);
+  SendInitialEventsForWindow(transient_xid3);
+
+  // Check that we switched back to active mode and focused the new
+  // transient.
+  EXPECT_FALSE(WindowIsOffscreen(xid1));
+  EXPECT_EQ(transient_xid3, xconn_->focused_xid());
+  EXPECT_EQ(transient_xid3, GetActiveWindowProperty());
+  EXPECT_TRUE(WindowIsOffscreen(xid2));
+
+  // Switch back to overview mode, create a non-modal transient for the
+  // second window, and check that we don't exit overview mode.
+  lm_->SetMode(LayoutManager::MODE_OVERVIEW);
+  XWindow transient_xid4 = CreateSimpleWindow();
+  xconn_->GetWindowInfoOrDie(transient_xid4)->transient_for = xid2;
+  SendInitialEventsForWindow(transient_xid4);
+  EXPECT_TRUE(WindowIsOffscreen(xid1));
+  EXPECT_TRUE(WindowIsOffscreen(xid2));
+
+  // Set the modal hint on the transient and check that we switch to its
+  // toplevel window.
+  xconn_->InitClientMessageEvent(
+      &event, transient_xid4, wm_->GetXAtom(ATOM_NET_WM_STATE),
+      1, wm_->GetXAtom(ATOM_NET_WM_STATE_MODAL), None, None, None);
+  wm_->HandleEvent(&event);
+  EXPECT_TRUE(WindowIsOffscreen(xid1));
+  EXPECT_EQ(transient_xid4, xconn_->focused_xid());
+  EXPECT_EQ(transient_xid4, GetActiveWindowProperty());
+  EXPECT_FALSE(WindowIsOffscreen(xid2));
+}
+
 }  // namespace window_manager
 
 int main(int argc, char** argv) {

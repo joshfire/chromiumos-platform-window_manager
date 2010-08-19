@@ -138,6 +138,9 @@ class BasicWindowManagerTest : public ::testing::Test {
   // something about the window using a ConfigureWindow request.
   void SendInitialEventsForWindow(XWindow xid);
 
+  // Send UnmapNotify and DestroyWindow events to the window manager.
+  void SendUnmapAndDestroyEventsForWindow(XWindow xid);
+
   // Send a property change notification for the Chrome window type.
   void SendWindowTypeEvent(XWindow xid);
 
@@ -180,6 +183,9 @@ class BasicWindowManagerTest : public ::testing::Test {
   // whether Chrome is logged in or not, and send a PropertyNotify event to
   // the window manager (if it's non-NULL).
   void SetLoggedInState(bool logged_in);
+
+  // Append an atom to an integer property on a window.
+  void AppendAtomToProperty(XWindow xid, Atom property_atom, Atom atom_to_add);
 
   // Configure a window to use the _NET_WM_SYNC_REQUEST protocol to
   // synchronize repaints in response to resizes.  Adds the
