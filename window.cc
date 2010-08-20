@@ -764,7 +764,8 @@ void Window::HandleDamageNotify(const Rect& bounding_box) {
   actor_->MergeDamagedRegion(bounding_box);
 
   // Check if this update could indicate that a video is playing.
-  if (bounding_box.width >= kVideoMinWidth &&
+  if (!IsClientWindowOffscreen() &&
+      bounding_box.width >= kVideoMinWidth &&
       bounding_box.height >= kVideoMinHeight) {
     const time_t now = GetCurrentTimeSec();
     if (now != video_damage_start_time_) {
@@ -881,6 +882,11 @@ void Window::HandleSyncAlarmNotify(XID alarm_id, int64_t value) {
     UpdateShadowVisibility();
     wm_->HandleWindowInitialPixmap(this);
   }
+}
+
+bool Window::IsClientWindowOffscreen() const {
+  return (client_x_ >= wm_->width() || client_x_ + client_width_ < 0 ||
+          client_y_ >= wm_->height() || client_y_ + client_height_ < 0);
 }
 
 void Window::SetWmStateInternal(int action, bool* value) const {

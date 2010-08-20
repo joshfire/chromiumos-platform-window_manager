@@ -48,6 +48,7 @@ using std::set;
 using std::string;
 using std::tr1::shared_ptr;
 using std::vector;
+using window_manager::util::GetCurrentTimeSec;
 using window_manager::util::SetCurrentTimeForTest;
 
 namespace window_manager {
@@ -1147,6 +1148,21 @@ TEST_F(WindowManagerTest, VideoTimeProperty) {
 
   // Now send some more frames and check that the property is updated.
   for (int i = 0; i < 5; ++i)
+    wm_->HandleEvent(&event);
+  EXPECT_TRUE(xconn_->GetIntProperty(xconn_->GetRootWindow(),
+                                     atom, &video_time));
+  EXPECT_EQ(start_time + WindowManager::kVideoTimePropertyUpdateSec + 1,
+            video_time);
+
+  // Create a second window, which should move the first window offscreen.
+  // Check that we no longer update the property in response to damage
+  // events for the offscreen window.
+  XWindow xid2 = CreateSimpleWindow();
+  SendInitialEventsForWindow(xid2);
+  ASSERT_TRUE(WindowIsOffscreen(xid));
+  SetCurrentTimeForTest(
+      GetCurrentTimeSec() + WindowManager::kVideoTimePropertyUpdateSec + 5, 0);
+  for (int i = 0; i < 30; ++i)
     wm_->HandleEvent(&event);
   EXPECT_TRUE(xconn_->GetIntProperty(xconn_->GetRootWindow(),
                                      atom, &video_time));

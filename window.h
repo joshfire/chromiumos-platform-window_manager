@@ -356,6 +356,9 @@ class Window {
   static const int kVideoMinHeight;
   static const int kVideoMinFramerate;
 
+  // Is the entirety of the client window currently offscreen?
+  bool IsClientWindowOffscreen() const;
+
   // Helper method for ParseWmStateMessage() and ChangeWmState().  Given an
   // action from a _NET_WM_STATE message (i.e. the XClientMessageEvent's
   // data.l[0] field), updates 'value' accordingly.
