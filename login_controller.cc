@@ -37,8 +37,9 @@ static const int kInitialShowAnimationTimeInMs = 400;
 // logged-out state to the logged-in state.
 static const int kLoggedInTransitionAnimMs = 100;
 
-// Used when nothing is selected.
-static const size_t kNoSelection = -1;
+// Used when nothing is selected.  The underflow is intentional; we just
+// want a big number that we'll never see for a valid selection.
+static const size_t kNoSelection = static_cast<size_t>(-1);
 
 static const int kNoTimer = -1;
 
