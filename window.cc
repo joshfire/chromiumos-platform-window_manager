@@ -28,6 +28,12 @@ using std::vector;
 using window_manager::util::GetCurrentTimeSec;
 using window_manager::util::XidStr;
 
+DEFINE_bool(load_window_shapes, false,
+            "Should we use the Shape extension to load shaped windows' "
+            "bounding regions?  The compositing code doesn't currently support "
+            "using these regions to mask windows, and we favor RGBA windows "
+            "instead.");
+
 namespace window_manager {
 
 const int Window::kVideoMinWidth = 300;
@@ -344,24 +350,30 @@ void Window::FetchAndApplyShape() {
   DCHECK(xid_);
   DCHECK(actor_.get());
   shaped_ = false;
-  ByteMap bytemap(client_width_, client_height_);
 
   // We don't grab the server around these two requests, so it's possible
   // that a shaped window will have become unshaped between them and we'll
   // think that the window is shaped but get back an unshaped region.  This
   // should be okay; we should get another ShapeNotify event for the window
   // becoming unshaped and clear the useless mask then.
-  if (wm_->xconn()->IsWindowShaped(xid_) &&
-      wm_->xconn()->GetWindowBoundingRegion(xid_, &bytemap)) {
+  if (wm_->xconn()->IsWindowShaped(xid_)) {
     shaped_ = true;
+
+    if (FLAGS_load_window_shapes) {
+      ByteMap bytemap(client_width_, client_height_);
+      if (wm_->xconn()->GetWindowBoundingRegion(xid_, &bytemap)) {
+        DLOG(INFO) << "Got shape for " << xid_str();
+        actor_->SetAlphaMask(
+            bytemap.bytes(), bytemap.width(), bytemap.height());
+      } else {
+        shaped_ = false;
+      }
+    }
   }
 
-  if (!shaped_) {
+  if (FLAGS_load_window_shapes && !shaped_)
     actor_->ClearAlphaMask();
-  } else {
-    DLOG(INFO) << "Got shape for " << xid_str();
-    actor_->SetAlphaMask(bytemap.bytes(), bytemap.width(), bytemap.height());
-  }
+
   UpdateShadowVisibility();
 }
 

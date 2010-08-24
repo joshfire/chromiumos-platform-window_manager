@@ -23,6 +23,8 @@
 DEFINE_bool(logtostderr, false,
             "Print debugging messages to stderr (suppressed otherwise)");
 
+DECLARE_bool(load_window_shapes);  // from window.cc
+
 using std::map;
 using std::vector;
 
@@ -396,6 +398,12 @@ TEST_F(WindowTest, ChromeState) {
 }
 
 TEST_F(WindowTest, Shape) {
+  // Loading windows' regions is turned off by default, since it can cause
+  // a pretty big memory allocation for new windows and the compositor
+  // doesn't currently even support using these regions as masks, but we
+  // need to enable it to test this code.
+  AutoReset<bool> flag_resetter(&FLAGS_load_window_shapes, true);
+
   // Create a shaped window.
   int width = 10;
   int height = 5;
