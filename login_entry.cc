@@ -39,9 +39,18 @@ size_t LoginEntry::GetUserIndex(Window* win) {
   }
 }
 
+bool LoginEntry::HasAllPixmaps() const {
+  return has_all_windows() && border_window_->has_initial_pixmap() &&
+         image_window_->has_initial_pixmap() &&
+         controls_window_->has_initial_pixmap() &&
+         label_window_->has_initial_pixmap() &&
+         unselected_label_window_->has_initial_pixmap();
+}
+
 void LoginEntry::SetBorderWindow(Window* win) {
   if (border_window_)
     LOG(WARNING) << "two borders at index " << GetUserIndex(win);
+  HandleWindowUnmap(border_window_);
 
   if (win->type_params().size() != 4) {
     LOG(ERROR) << "border window must have 4 parameters";
@@ -51,6 +60,7 @@ void LoginEntry::SetBorderWindow(Window* win) {
 
   border_window_ = win;
   border_window_->SetShadowType(Shadow::TYPE_RECTANGULAR);
+  registrar_->RegisterForWindowEvents(win->xid());
   if (has_all_windows())
     InitSizes();
 }
@@ -58,7 +68,9 @@ void LoginEntry::SetBorderWindow(Window* win) {
 void LoginEntry::SetImageWindow(Window* win) {
   if (image_window_)
     LOG(WARNING) << "two images at index " << GetUserIndex(win);
+  HandleWindowUnmap(image_window_);
   image_window_ = win;
+  registrar_->RegisterForWindowEvents(win->xid());
   if (has_all_windows())
     InitSizes();
 }
@@ -77,7 +89,9 @@ void LoginEntry::SetControlsWindow(Window* win) {
 void LoginEntry::SetLabelWindow(Window* win) {
   if (label_window_)
     LOG(WARNING) << "two labels at index " << GetUserIndex(win);
+  HandleWindowUnmap(label_window_);
   label_window_ = win;
+  registrar_->RegisterForWindowEvents(win->xid());
   if (has_all_windows())
     InitSizes();
 }
@@ -85,7 +99,9 @@ void LoginEntry::SetLabelWindow(Window* win) {
 void LoginEntry::SetUnselectedLabelWindow(Window* win) {
   if (unselected_label_window_)
     LOG(WARNING) << "two unselected labels at index " << GetUserIndex(win);
+  HandleWindowUnmap(unselected_label_window_);
   unselected_label_window_ = win;
+  registrar_->RegisterForWindowEvents(win->xid());
   if (has_all_windows())
     InitSizes();
 }
@@ -98,7 +114,6 @@ bool LoginEntry::HandleWindowUnmap(Window* win) {
   } else if (image_window_ == win) {
     image_window_ = NULL;
   } else if (controls_window_ == win) {
-    registrar_->UnregisterForWindowEvents(controls_window_->xid());
     controls_window_ = NULL;
   } else if (label_window_ == win) {
     label_window_ = NULL;
@@ -107,6 +122,7 @@ bool LoginEntry::HandleWindowUnmap(Window* win) {
   } else {
     return false;
   }
+  registrar_->UnregisterForWindowEvents(win->xid());
   sizes_initialized_ = false;
   return true;
 }

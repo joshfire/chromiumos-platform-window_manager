@@ -81,6 +81,7 @@ class LoginController : public EventConsumer {
   FRIEND_TEST(LoginControllerTest, RemoveUser);
   FRIEND_TEST(LoginControllerTest, ClientOnOffScreen);
   FRIEND_TEST(LoginControllerTest, SelectTwice);
+  FRIEND_TEST(LoginControllerTest, ShowEntriesAfterTheyGetPixmaps);
 
   // SelectionChangedManager is used to cleanup after the selection changes.
   // When the selection changes |Schedule| is invoked on the
@@ -158,8 +159,9 @@ class LoginController : public EventConsumer {
   // Returns true if |index| is the index of the guest login window.
   bool IsGuestEntryIndex(size_t index) const;
 
-  // Returns the entry for the specified win. This returns an entry based on the
-  // index stored in the window's parameters.
+  // Returns the entry for the specified |win| or NULL if |win| doesn't belong
+  // to any entry. This returns an entry based on the index stored in the
+  // window's parameters.
   LoginEntry* GetEntryForWindow(Window* win);
 
   // Returns the entry in |entries_| at the specified index, creating one if
@@ -170,15 +172,15 @@ class LoginController : public EventConsumer {
   // index of the selection before the selection changes.
   void ProcessSelectionChangeCompleted(size_t last_selected_index);
 
-  // Have we gotten all the windows we need?
-  bool HasAllWindows();
+  // Have we gotten all the windows we need and are they ready?
+  bool AllWindowsAreReady();
 
-  // Invoked when a new window is mapped, or a property changes on the
-  // background window. This may do one of the following:
-  // - If we just got all the windows, this stacks the windows and starts the
+  // Does initial setup for windows if they have already gotten pixmaps.
+  // Invoked when some window gets its pixmap. This may do one of the following:
+  // - If the entry windows are ready, this stacks the windows and starts the
   //   initial animation.
   // - If the background and guest windows are ready, they are shown.
-  void OnGotNewWindowOrPropertyChange();
+  void DoInitialSetupIfWindowsAreReady();
 
   // Returns true if the background window is valid and has painted.
   bool IsBackgroundWindowReady();
@@ -205,7 +207,7 @@ class LoginController : public EventConsumer {
   Entries entries_;
 
   // Did we get all the windows and show them?
-  bool has_all_windows_;
+  bool all_windows_are_ready_;
 
   // Index of the selected entry.
   size_t selected_entry_index_;

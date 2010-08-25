@@ -97,7 +97,7 @@ void LoginController::SelectionChangedManager::Run() {
 LoginController::LoginController(WindowManager* wm)
     : wm_(wm),
       registrar_(wm, this),
-      has_all_windows_(false),
+      all_windows_are_ready_(false),
       selected_entry_index_(kNoSelection),
       selection_changed_manager_(this),
       guest_window_(NULL),
@@ -270,7 +270,7 @@ void LoginController::HandleWindowMap(Window* win) {
   // underlying X window gets destroyed.
   registrar_.RegisterForDestroyedWindow(win->xid());
 
-  OnGotNewWindowOrPropertyChange();
+  DoInitialSetupIfWindowsAreReady();
 
   // TODO(sky): there is a race condition here. If we die and restart with the
   // login already running we don't really know what state it was in. We need
@@ -336,7 +336,7 @@ void LoginController::HandleWindowUnmap(Window* win) {
   } else {
     for (Entries::iterator it = entries_.begin(); it < entries_.end(); ++it) {
       if ((*it)->HandleWindowUnmap(win)) {
-        has_all_windows_ = false;
+        all_windows_are_ready_ = false;
         if ((*it)->has_no_windows()) {
           size_t deleted_index = it - entries_.begin();
           size_t active_index = selected_entry_index_;
@@ -381,6 +381,13 @@ void LoginController::HandleWindowInitialPixmap(Window* win) {
     waiting_for_browser_window_ = false;
     HideWindowsAndRequestDestruction();
     return;
+  }
+  if (!all_windows_are_ready_) {
+    LoginEntry* entry = GetEntryForWindow(win);
+    if (entry && entry->HasAllPixmaps()) {
+      DoInitialSetupIfWindowsAreReady();
+      return;
+    }
   }
 }
 
@@ -493,7 +500,7 @@ void LoginController::HandleWindowPropertyChange(XWindow xid, XAtom xatom) {
     return;
   // Currently only listen for property changes on the background window.
   DCHECK(background_window_ && background_window_->xid() == xid);
-  OnGotNewWindowOrPropertyChange();
+  DoInitialSetupIfWindowsAreReady();
 }
 
 void LoginController::OwnDestroyedWindow(DestroyedWindow* destroyed_win,
@@ -683,13 +690,14 @@ bool LoginController::IsGuestEntryIndex(size_t index) const {
 }
 
 LoginEntry* LoginController::GetEntryForWindow(Window* win) {
-  return GetEntryAt(LoginEntry::GetUserIndex(win));
+  size_t entry_index = LoginEntry::GetUserIndex(win);
+  return entry_index == kNoSelection ? NULL : GetEntryAt(entry_index);
 }
 
 LoginEntry* LoginController::GetEntryAt(size_t index) {
   while (entries_.size() <= index) {
     entries_.push_back(Entries::value_type(new LoginEntry(wm_, &registrar_)));
-    has_all_windows_ = false;
+    all_windows_are_ready_ = false;
   }
   return entries_[index].get();
 }
@@ -712,7 +720,7 @@ void LoginController::ProcessSelectionChangeCompleted(
   }
 }
 
-bool LoginController::HasAllWindows() {
+bool LoginController::AllWindowsAreReady() {
   if (!IsBackgroundWindowReady())
     return false;
 
@@ -721,20 +729,20 @@ bool LoginController::HasAllWindows() {
 
   for (Entries::const_iterator it = entries_.begin(); it != entries_.end();
        ++it) {
-    if (!(*it)->has_all_windows())
+    if (!(*it)->HasAllPixmaps())
       return false;
   }
 
   return true;
 }
 
-void LoginController::OnGotNewWindowOrPropertyChange() {
+void LoginController::DoInitialSetupIfWindowsAreReady() {
   // Bail if we already handled this.
-  if (has_all_windows_)
+  if (all_windows_are_ready_)
     return;
 
-  if (HasAllWindows()) {
-    has_all_windows_ = true;
+  if (AllWindowsAreReady()) {
+    all_windows_are_ready_ = true;
 
     ConfigureBackgroundWindow();
     StackWindows();

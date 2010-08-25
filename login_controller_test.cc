@@ -53,6 +53,7 @@ class LoginControllerTest : public BasicWindowManagerTest {
   // Create the set of windows expected by LoginController.
   void CreateLoginWindows(int num_entries,
                           bool background_is_ready,
+                          bool entry_pixmaps_are_ready,
                           bool create_guest_window) {
     CHECK(num_entries == 0 || num_entries >= 2);
 
@@ -113,6 +114,12 @@ class LoginControllerTest : public BasicWindowManagerTest {
           chromeos::WM_IPC_WINDOW_LOGIN_BORDER,
           &params);
 
+      ConfigureWindowForSyncRequestProtocol(entry.border_xid);
+      ConfigureWindowForSyncRequestProtocol(entry.image_xid);
+      ConfigureWindowForSyncRequestProtocol(entry.controls_xid);
+      ConfigureWindowForSyncRequestProtocol(entry.label_xid);
+      ConfigureWindowForSyncRequestProtocol(entry.unselected_label_xid);
+
       SendInitialEventsForWindow(entry.border_xid);
       SendInitialEventsForWindow(entry.image_xid);
       SendInitialEventsForWindow(entry.controls_xid);
@@ -122,12 +129,45 @@ class LoginControllerTest : public BasicWindowManagerTest {
       entries_.push_back(entry);
     }
 
-    // LoginController registers a timeout to call this, so we need to call
-    // it manually.
-    // TODO: It'd be better to make it so that tests can manually run
-    // timeouts that have been posted to EventLoop.
-    if (num_entries > 0)
-      login_controller_->InitialShow();
+    if (entry_pixmaps_are_ready) {
+      for (int i = 0; i < num_entries; ++i)
+        SendInitialPixmapEventForEntry(i);
+      // LoginController registers a timeout to call this, so we need to call
+      // it manually.
+      // TODO: It'd be better to make it so that tests can manually run
+      // timeouts that have been posted to EventLoop.
+      if (num_entries > 0)
+        login_controller_->InitialShow();
+    }
+  }
+
+  void SendInitialPixmapEventForEntry(size_t entry_index) {
+    ASSERT_LT(entry_index, entries_.size());
+
+    ASSERT_FALSE(
+        wm_->GetWindowOrDie(
+            entries_[entry_index].border_xid)->has_initial_pixmap());
+    SendSyncRequestProtocolAlarm(entries_[entry_index].border_xid);
+
+    ASSERT_FALSE(
+        wm_->GetWindowOrDie(
+            entries_[entry_index].image_xid)->has_initial_pixmap());
+    SendSyncRequestProtocolAlarm(entries_[entry_index].image_xid);
+
+    ASSERT_FALSE(
+        wm_->GetWindowOrDie(
+            entries_[entry_index].controls_xid)->has_initial_pixmap());
+    SendSyncRequestProtocolAlarm(entries_[entry_index].controls_xid);
+
+    ASSERT_FALSE(
+        wm_->GetWindowOrDie(
+            entries_[entry_index].label_xid)->has_initial_pixmap());
+    SendSyncRequestProtocolAlarm(entries_[entry_index].label_xid);
+
+    ASSERT_FALSE(
+        wm_->GetWindowOrDie(
+            entries_[entry_index].unselected_label_xid)->has_initial_pixmap());
+    SendSyncRequestProtocolAlarm(entries_[entry_index].unselected_label_xid);
   }
 
   void UnmapLoginEntry(int i) {
@@ -214,7 +254,7 @@ const int LoginControllerTest::kControlsSize = 30;
 
 // Check that border windows have shadows but other login windows don't.
 TEST_F(LoginControllerTest, Shadow) {
-  CreateLoginWindows(2, true, true);
+  CreateLoginWindows(2, true, true, true);
 
   EXPECT_TRUE(wm_->GetWindowOrDie(entries_[0].border_xid)->shadow() != NULL);
   EXPECT_TRUE(wm_->GetWindowOrDie(entries_[0].image_xid)->shadow() == NULL);
@@ -230,7 +270,7 @@ TEST_F(LoginControllerTest, Shadow) {
 // Check that LoginController does some half-baked handling of transient
 // windows that get mapped before Chrome is in a logged-in state.
 TEST_F(LoginControllerTest, OtherWindows) {
-  CreateLoginWindows(2, true, true);
+  CreateLoginWindows(2, true, true, true);
 
   const int initial_width = 300;
   const int initial_height = 200;
@@ -335,7 +375,7 @@ TEST_F(LoginControllerTest, OtherWindows) {
 
 // Test that the login controller assigns the focus correctly in a few cases.
 TEST_F(LoginControllerTest, Focus) {
-  CreateLoginWindows(3, true, false);
+  CreateLoginWindows(3, true, true, false);
 
   // Initially, the first entry's controls window should be focused.
   EXPECT_EQ(entries_[0].controls_xid, xconn_->focused_xid());
@@ -394,13 +434,13 @@ TEST_F(LoginControllerTest, Focus) {
 // Test that the login controller focuses the guest window when no entries
 // are created.
 TEST_F(LoginControllerTest, FocusInitialGuestWindow) {
-  CreateLoginWindows(0, true, true);
+  CreateLoginWindows(0, true, true, true);
   EXPECT_EQ(guest_xid_, xconn_->focused_xid());
   EXPECT_EQ(guest_xid_, GetActiveWindowProperty());
 }
 
 TEST_F(LoginControllerTest, FocusTransientParent) {
-  CreateLoginWindows(2, true, false);
+  CreateLoginWindows(2, true, true, false);
 
   // When we open a transient dialog, it should get the focus.
   const XWindow transient_xid = CreateSimpleWindow();
@@ -453,7 +493,7 @@ TEST_F(LoginControllerTest, FocusTransientParent) {
 }
 
 TEST_F(LoginControllerTest, Modality) {
-  CreateLoginWindows(2, true, false);
+  CreateLoginWindows(2, true, true, false);
   const XWindow controls_xid = entries_[0].controls_xid;
   MockXConnection::WindowInfo* controls_info =
       xconn_->GetWindowInfoOrDie(controls_xid);
@@ -492,7 +532,7 @@ TEST_F(LoginControllerTest, Modality) {
 
 TEST_F(LoginControllerTest, HideAfterLogin) {
   // We should show the windows after they're mapped.
-  CreateLoginWindows(2, true, false);
+  CreateLoginWindows(2, true, true, false);
   EXPECT_FALSE(WindowIsOffscreen(background_xid_));
 
   // They should still be shown even after the user logs in.
@@ -509,7 +549,7 @@ TEST_F(LoginControllerTest, HideAfterLogin) {
 TEST_F(LoginControllerTest, ShowDestroyedWindows) {
   // Create some login windows and then tell the window manager that the
   // user has logged in.
-  CreateLoginWindows(2, true, false);
+  CreateLoginWindows(2, true, true, false);
   MockCompositor::TexturePixmapActor* background_actor =
       GetMockActorForWindow(wm_->GetWindowOrDie(background_xid_));
   SetLoggedInState(true);
@@ -545,7 +585,7 @@ TEST_F(LoginControllerTest, ShowDestroyedWindows) {
 
 TEST_F(LoginControllerTest, SelectGuest) {
   // Create two entries for new Chrome.
-  CreateLoginWindows(2, true, false);  // create_guest_window=false
+  CreateLoginWindows(2, true, true, false);
 
   // The first entry should initially be focused.
   EXPECT_EQ(entries_[0].controls_xid, xconn_->focused_xid());
@@ -586,7 +626,7 @@ TEST_F(LoginControllerTest, SelectGuest) {
 
 TEST_F(LoginControllerTest, RemoveUser) {
   // Create 3 entries for new Chrome.
-  CreateLoginWindows(3, true, false);  // create_guest_window=false
+  CreateLoginWindows(3, true, true, false);
 
   // The first entry should initially be focused.
   EXPECT_EQ(entries_[0].controls_xid, xconn_->focused_xid());
@@ -618,7 +658,7 @@ TEST_F(LoginControllerTest, RemoveUser) {
 // screen.
 TEST_F(LoginControllerTest, ClientOnOffScreen) {
   // Create two entries for new Chrome.
-  CreateLoginWindows(2, true, false);  // Only need usual entry windows.
+  CreateLoginWindows(2, true, true, false);  // Only need usual entry windows.
 
   // The first entry is selected. Test that controls, image and label
   // windows are on screen and the rest windows are off screen.
@@ -674,7 +714,7 @@ TEST_F(LoginControllerTest, ClientOnOffScreen) {
 }
 
 TEST_F(LoginControllerTest, SelectTwice) {
-  CreateLoginWindows(2, true, false);
+  CreateLoginWindows(2, true, true, false);
 
   // The first entry is selected now by default.
   EXPECT_TRUE(IsCompositedShown(entries_[0].border_xid));
@@ -750,7 +790,7 @@ TEST_F(LoginControllerTest, SelectTwice) {
 // are unmapped in a random order (see http://crosbug.com/5117).
 TEST_F(LoginControllerTest, NoCrashOnInconsistenEntry) {
 
-  CreateLoginWindows(3, true, false);  // create_guest_window=false
+  CreateLoginWindows(3, true, true, false);
 
   // Unmap border window for second entry.
   XEvent event;
@@ -768,7 +808,7 @@ TEST_F(LoginControllerTest, NoCrashOnInconsistenEntry) {
 // Test that we don't crash if the guest entry is active and an unmap event
 // happens for some reason (e.g. Chrome crashes).
 TEST_F(LoginControllerTest, NoCrashOnReverseOrderEntryDelete) {
-  CreateLoginWindows(3, true, false);  // create_guest_window=false
+  CreateLoginWindows(3, true, true, false);
 
   // Select guest entry.
   SelectEntry(2);
@@ -784,7 +824,7 @@ TEST_F(LoginControllerTest, NoCrashOnReverseOrderEntryDelete) {
 // (Otherwise, weird animations happen while Chrome is cleaning up right
 // before mapping the initial browser window.)
 TEST_F(LoginControllerTest, DontSelectEntryAfterLogin) {
-  CreateLoginWindows(3, true, false);  // create_guest_window=false
+  CreateLoginWindows(3, true, true, false);
   SelectEntry(0);
 
   // Grab the original position of the client window and the actor
@@ -816,6 +856,43 @@ TEST_F(LoginControllerTest, DontSelectEntryAfterLogin) {
   EXPECT_FLOAT_EQ(orig_actor_y, image_actor->y());
   EXPECT_FLOAT_EQ(orig_actor_scale_x, image_actor->scale_x());
   EXPECT_FLOAT_EQ(orig_actor_scale_y, image_actor->scale_y());
+}
+
+TEST_F(LoginControllerTest, ShowEntriesAfterTheyGetPixmaps) {
+  const int kEntriesCount = 3;
+  CreateLoginWindows(kEntriesCount, true, false, false);
+  EXPECT_TRUE(WindowIsOffscreen(background_xid_));
+  // Begin sending messages that entry windows get pixmaps.
+  for (int i = 0; i < kEntriesCount; ++i) {
+    EXPECT_FALSE(login_controller_->all_windows_are_ready_)
+        << "Entry index " << i;
+    EXPECT_TRUE(WindowIsOffscreen(entries_[i].border_xid))
+        << "Entry index " << i;
+    EXPECT_TRUE(WindowIsOffscreen(entries_[i].image_xid))
+        << "Entry index " << i;
+    EXPECT_TRUE(WindowIsOffscreen(entries_[i].controls_xid))
+        << "Entry index " << i;
+    EXPECT_TRUE(WindowIsOffscreen(entries_[i].label_xid))
+        << "Entry index " << i;
+    EXPECT_TRUE(WindowIsOffscreen(entries_[i].unselected_label_xid))
+        << "Entry index " << i;
+
+    SendInitialPixmapEventForEntry(i);
+  }
+  // Check that all needed windows are on the screen.
+  EXPECT_TRUE(login_controller_->all_windows_are_ready_);
+  EXPECT_FALSE(WindowIsOffscreen(background_xid_));
+  for (int i = 0; i < kEntriesCount; ++i) {
+    EXPECT_FALSE(WindowIsOffscreen(entries_[i].image_xid));
+    if (i == 0) {  // Selected entry.
+      EXPECT_FALSE(WindowIsOffscreen(entries_[i].controls_xid));
+      EXPECT_FALSE(WindowIsOffscreen(entries_[i].label_xid));
+      EXPECT_TRUE(WindowIsOffscreen(entries_[i].unselected_label_xid));
+    } else {
+      EXPECT_TRUE(WindowIsOffscreen(entries_[i].label_xid));
+      EXPECT_FALSE(WindowIsOffscreen(entries_[i].unselected_label_xid));
+    }
+  }
 }
 
 }  // namespace window_manager

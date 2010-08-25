@@ -45,6 +45,9 @@ class LoginEntry {
            !label_window_ && !unselected_label_window_;
   }
 
+  // Do all the windows have pixmaps?
+  bool HasAllPixmaps() const;
+
   int selected_width() const { return border_width_; }
   int selected_height() const { return border_height_ + label_height_; }
   int unselected_width() const { return unselected_border_width_; }
