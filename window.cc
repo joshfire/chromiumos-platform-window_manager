@@ -146,13 +146,21 @@ bool Window::FetchAndApplySizeHints() {
   if (!wm_->xconn()->GetSizeHintsForWindow(xid_, &size_hints_))
     return false;
 
+  const XConnection::SizeHints& h = size_hints_;
+  DLOG(INFO) << "Got size hints for " << xid_str() << ":"
+             << " size=" << h.width << "x" << h.height
+             << " min_size=" << h.min_width << "x" << h.min_height
+             << " max_size=" << h.max_width << "x" << h.max_height
+             << " inc=" << h.width_increment << "x" << h.height_increment
+             << " min_aspect=" << h.min_aspect_x << ":" << h.min_aspect_y
+             << " max_aspect=" << h.max_aspect_x << ":" << h.max_aspect_y
+             << " base=" << h.max_aspect_x << "x" << h.max_aspect_y;
+
   // If windows are override-redirect or have already been mapped, they
   // should just make/request any desired changes directly.  Also ignore
   // position, aspect ratio, etc. hints for now.
   if (!mapped_ && !override_redirect_ &&
       (size_hints_.width > 0 && size_hints_.height > 0)) {
-    DLOG(INFO) << "Got size hints for " << xid_str() << ": "
-               << size_hints_.width << "x" << size_hints_.height;
     ResizeClient(size_hints_.width, size_hints_.height, GRAVITY_NORTHWEST);
   }
 

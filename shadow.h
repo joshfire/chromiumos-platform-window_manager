@@ -57,6 +57,10 @@ class Shadow {
   int width() const { return width_; }
   int height() const { return height_; }
 
+  // Minimum size that the shadow can take without having overlapping images.
+  int min_width() const { return left_inset_ + right_inset_; }
+  int min_height() const { return top_inset_ + bottom_inset_; }
+
   // Get the group containing all of the actors.
   Compositor::Actor* group() const { return group_.get(); }
 

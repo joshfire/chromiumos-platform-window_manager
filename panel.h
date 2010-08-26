@@ -156,6 +156,11 @@ class Panel {
   // themselves to match the new screen size.
   void HandleScreenResize();
 
+  // Handle an update to the content window's WM_NORMAL_HINTS property.
+  // We call UpdateContentWindowSizeLimits() but don't resize the content
+  // window.
+  void HandleContentWindowSizeHintsChange();
+
   // Handle events referring to one of this panel's transient windows.
   void HandleTransientWindowMap(Window* win);
   void HandleTransientWindowUnmap(Window* win);
@@ -171,7 +176,7 @@ class Panel {
   FRIEND_TEST(PanelManagerTest, ChromeInitiatedPanelResize);
   FRIEND_TEST(PanelTest, InputWindows);
   FRIEND_TEST(PanelTest, Resize);
-  FRIEND_TEST(PanelTest, MinimumSize);
+  FRIEND_TEST(PanelTest, SizeLimits);
   FRIEND_TEST(PanelTest, ResizeParameter);
   FRIEND_TEST(PanelTest, SeparatorShadow);
 
@@ -201,6 +206,10 @@ class Panel {
   // Update the content window's _CHROME_STATE property according to the
   // current value of 'is_expanded_'.
   bool UpdateChromeStateProperty();
+
+  // Update {min,max}_content_{width,height}_ based on the content window's
+  // current size hints.
+  void UpdateContentWindowSizeLimits();
 
   PanelManager* panel_manager_;  // not owned
   Window* content_win_;          // not owned
@@ -251,9 +260,12 @@ class Panel {
   //   | W |
   static const int kResizeCornerSize;
 
-  // Minimum dimensions to which a panel content window can be resized.
-  static const int kMinWidth;
-  static const int kMinHeight;
+  // Minimum and maximum dimensions to which the content window can be
+  // resized.
+  int min_content_width_;
+  int min_content_height_;
+  int max_content_width_;
+  int max_content_height_;
 
   // Used to catch clicks for resizing.
   XWindow top_input_xid_;

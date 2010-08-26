@@ -469,13 +469,20 @@ void PanelManager::HandleWindowPropertyChange(XWindow xid, XAtom xatom) {
   DCHECK(panel) << "Got property change for non-panel window " << XidStr(xid);
   if (!panel || panel->content_win() != win)
     return;
-  DCHECK(xatom == wm_->GetXAtom(ATOM_WM_HINTS));
 
-  if (win->wm_hint_urgent() != panel->is_urgent()) {
-    panel->set_is_urgent(win->wm_hint_urgent());
-    PanelContainer* container = GetContainerForPanel(*panel);
-    if (container)
-      container->HandlePanelUrgencyChange(panel);
+  if (xatom == wm_->GetXAtom(ATOM_WM_HINTS)) {
+    if (win->wm_hint_urgent() != panel->is_urgent()) {
+      panel->set_is_urgent(win->wm_hint_urgent());
+      PanelContainer* container = GetContainerForPanel(*panel);
+      if (container)
+        container->HandlePanelUrgencyChange(panel);
+    }
+  } else if (xatom == wm_->GetXAtom(ATOM_WM_NORMAL_HINTS)) {
+    if (win == panel->content_win())
+      panel->HandleContentWindowSizeHintsChange();
+  } else {
+    LOG(DFATAL) << "Got unexpected property " << wm_->GetXAtomName(xatom)
+                << " (" << XidStr(xatom) << ") change for " << win->xid_str();
   }
 }
 

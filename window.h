@@ -94,6 +94,7 @@ class Window {
   const std::string& title() const { return title_; }
   void SetTitle(const std::string& title);
 
+  const XConnection::SizeHints& size_hints() const { return size_hints_; }
   const std::vector<XAtom>& wm_window_type_xatoms() const {
     return wm_window_type_xatoms_;
   }

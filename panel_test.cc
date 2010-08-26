@@ -339,22 +339,28 @@ TEST_F(PanelTest, Shadows) {
 }
 
 // Test that we don't let panels get smaller than the minimal allowed size.
-TEST_F(PanelTest, MinimumSize) {
+TEST_F(PanelTest, SizeLimits) {
   // Create a panel with a really small (20x20) content window.
   XWindow titlebar_xid = CreatePanelTitlebarWindow(200, 20);
   XConnection::WindowGeometry geometry;
   ASSERT_TRUE(xconn_->GetWindowGeometry(titlebar_xid, &geometry));
   Window titlebar_win(wm_.get(), titlebar_xid, false, geometry);
   XWindow content_xid = CreatePanelContentWindow(20, 20, titlebar_xid);
+  MockXConnection::WindowInfo* content_info =
+      xconn_->GetWindowInfoOrDie(content_xid);
+  content_info->size_hints.min_width = 150;
+  content_info->size_hints.min_height = 100;
+  content_info->size_hints.max_width = 300;
+  content_info->size_hints.max_height = 250;
   ASSERT_TRUE(xconn_->GetWindowGeometry(content_xid, &geometry));
   Window content_win(wm_.get(), content_xid, false, geometry);
 
   // The content window should've been resized to the minimum size.
   Panel panel(panel_manager_, &content_win, &titlebar_win, true);
-  EXPECT_EQ(Panel::kMinWidth, content_win.client_width());
-  EXPECT_EQ(Panel::kMinHeight, content_win.client_height());
+  EXPECT_EQ(content_info->size_hints.min_width, content_win.client_width());
+  EXPECT_EQ(content_info->size_hints.min_height, content_win.client_height());
 
-  // Drag the upper-left resize panel down and to the right.
+  // Drag the upper-left resize handle down and to the right.
   xconn_->set_pointer_grab_xid(panel.top_left_input_xid_);
   panel.HandleInputWindowButtonPress(
       panel.top_left_input_xid_, 0, 0, 1, CurrentTime);
@@ -365,15 +371,30 @@ TEST_F(PanelTest, MinimumSize) {
 
   // The content window size should be unchanged, since we tried to make it
   // smaller while it was already at the minimum.
-  EXPECT_EQ(Panel::kMinWidth, content_win.client_width());
-  EXPECT_EQ(Panel::kMinHeight, content_win.client_height());
+  EXPECT_EQ(content_info->size_hints.min_width, content_win.client_width());
+  EXPECT_EQ(content_info->size_hints.min_height, content_win.client_height());
 
-  // Now tell the panel to make the content window smaller (this is the
-  // path that gets taken when we get a ConfigureRequest).  It should
-  // ignore the request.
-  panel.ResizeContent(20, 20, GRAVITY_SOUTHEAST);
-  EXPECT_EQ(Panel::kMinWidth, content_win.client_width());
-  EXPECT_EQ(Panel::kMinHeight, content_win.client_height());
+  // Now drag the handle up and to the left and check that we restrict the
+  // content window to the max size.
+  xconn_->set_pointer_grab_xid(panel.top_left_input_xid_);
+  panel.HandleInputWindowButtonPress(
+      panel.top_left_input_xid_, 0, 0, 1, CurrentTime);
+  panel.HandleInputWindowPointerMotion(panel.top_left_input_xid_, -300, -300);
+  xconn_->set_pointer_grab_xid(None);
+  panel.HandleInputWindowButtonRelease(
+      panel.top_left_input_xid_, -300, -300, 1, CurrentTime);
+  EXPECT_EQ(content_info->size_hints.max_width, content_win.client_width());
+  EXPECT_EQ(content_info->size_hints.max_height, content_win.client_height());
+
+  // Now tell the panel to make the content window bigger or smaller (this
+  // is the path that gets taken when we get a ConfigureRequest).  These
+  // requests should be capped as well.
+  panel.ResizeContent(500, 500, GRAVITY_SOUTHEAST);
+  EXPECT_EQ(content_info->size_hints.max_width, content_win.client_width());
+  EXPECT_EQ(content_info->size_hints.max_height, content_win.client_height());
+  panel.ResizeContent(50, 50, GRAVITY_SOUTHEAST);
+  EXPECT_EQ(content_info->size_hints.min_width, content_win.client_width());
+  EXPECT_EQ(content_info->size_hints.min_height, content_win.client_height());
 }
 
 // Check that the resize input windows get configured correctly depending
@@ -477,7 +498,8 @@ TEST_F(PanelTest, SeparatorShadow) {
 
   // Check that the shadow is moved correctly in response to resizes where
   // a corner other than the top left one is fixed.
-  panel->ResizeContent(100, 200, GRAVITY_SOUTHEAST);
+  int new_width = 100;
+  panel->ResizeContent(new_width, 200, GRAVITY_SOUTHEAST);
   EXPECT_EQ(panel->content_win_->composited_x(),
             panel->separator_shadow_->x());
   EXPECT_EQ(panel->content_win_->composited_y(),
@@ -495,7 +517,7 @@ TEST_F(PanelTest, SeparatorShadow) {
 
   // First double-check that the content window got moved to the requested
   // position.
-  ASSERT_EQ(20 - kWidth, panel->content_win_->composited_x());
+  ASSERT_EQ(20 - new_width, panel->content_win_->composited_x());
   ASSERT_EQ(30 + kTitlebarHeight, panel->content_win_->composited_y());
 
   // Now check the shadow.
@@ -506,6 +528,42 @@ TEST_F(PanelTest, SeparatorShadow) {
   EXPECT_EQ(panel->content_win_->client_width(),
             panel->separator_shadow_->width());
   EXPECT_EQ(0, panel->separator_shadow_->height());
+}
+
+// Check that we update the size limits for panel content windows when
+// the window's size hints in the WM_NORMAL_HINTS property are changed.
+TEST_F(PanelTest, ReloadSizeLimits) {
+  // Create a panel and check that its content window gets the 200x200 size
+  // that we requested.
+  const int kWidth = 200;
+  const int kTitlebarHeight = 20;
+  const int kContentHeight = 200;
+  Panel* panel = CreatePanel(kWidth, kTitlebarHeight, kContentHeight);
+
+  const XWindow content_xid = panel->content_xid();
+  MockXConnection::WindowInfo* content_info =
+      xconn_->GetWindowInfoOrDie(content_xid);
+  ASSERT_EQ(kWidth, content_info->width);
+  ASSERT_EQ(kContentHeight, content_info->height);
+
+  // Set a minimum size for the content window that's larger than its
+  // current size.  We shouldn't resize the window immediately when we see
+  // the property change...
+  content_info->size_hints.min_width = 300;
+  content_info->size_hints.min_height = 250;
+  XEvent event;
+  xconn_->InitPropertyNotifyEvent(
+      &event, content_xid, wm_->GetXAtom(ATOM_WM_NORMAL_HINTS));
+  wm_->HandleEvent(&event);
+  EXPECT_EQ(kWidth, content_info->width);
+  EXPECT_EQ(kContentHeight, content_info->height);
+
+  // ... but we should use the updated limits when we get a
+  // ConfigureRequest event.
+  xconn_->InitConfigureRequestEvent(&event, content_xid, 0, 0, 230, 220);
+  wm_->HandleEvent(&event);
+  EXPECT_EQ(content_info->size_hints.min_width, content_info->width);
+  EXPECT_EQ(content_info->size_hints.min_height, content_info->height);
 }
 
 }  // namespace window_manager

@@ -5,6 +5,7 @@
 #include "window_manager/panel.h"
 
 #include <algorithm>
+#include <limits>
 #include <map>
 #include <string>
 
@@ -29,6 +30,7 @@ DEFINE_bool(panel_opaque_resize, false, "Resize panels opaquely");
 using std::map;
 using std::max;
 using std::min;
+using std::numeric_limits;
 using std::string;
 using std::vector;
 using window_manager::util::XidStr;
@@ -48,8 +50,6 @@ static const double kResizeBoxOpacity = 0.3;
 
 const int Panel::kResizeBorderWidth = 3;
 const int Panel::kResizeCornerSize = 20;
-const int Panel::kMinWidth = 200;
-const int Panel::kMinHeight = 200;
 
 Panel::Panel(PanelManager* panel_manager,
              Window* content_win,
@@ -66,6 +66,10 @@ Panel::Panel(PanelManager* panel_manager,
           wm()->event_loop(),
           NewPermanentCallback(this, &Panel::ApplyResize),
           kResizeUpdateMs),
+      min_content_width_(0),
+      min_content_height_(0),
+      max_content_width_(0),
+      max_content_height_(0),
       // We don't need to select events on any of the drag borders; we'll
       // just install button grabs later.
       top_input_xid_(wm()->CreateInputWindow(-1, -1, 1, 1, 0)),
@@ -106,6 +110,8 @@ Panel::Panel(PanelManager* panel_manager,
   event_consumer_registrar_->RegisterForWindowEvents(right_input_xid_);
   event_consumer_registrar_->RegisterForPropertyChanges(
       content_xid(), wm()->GetXAtom(ATOM_WM_HINTS));
+  event_consumer_registrar_->RegisterForPropertyChanges(
+      content_xid(), wm()->GetXAtom(ATOM_WM_NORMAL_HINTS));
 
   wm()->xconn()->SelectInputOnWindow(titlebar_win_->xid(),
                                      EnterWindowMask,
@@ -126,9 +132,17 @@ Panel::Panel(PanelManager* panel_manager,
   wm()->xconn()->AddButtonGrabOnWindow(left_input_xid_, 1, event_mask, false);
   wm()->xconn()->AddButtonGrabOnWindow(right_input_xid_, 1, event_mask, false);
 
-  // Make sure that the panel isn't smaller than we allow.
-  int capped_width = max(content_win_->client_width(), kMinWidth);
-  int capped_height = max(content_win_->client_height(), kMinHeight);
+  content_win_->SetShadowType(Shadow::TYPE_PANEL_CONTENT);
+  titlebar_win_->SetShadowType(Shadow::TYPE_PANEL_TITLEBAR);
+
+  // Make sure that the content window's size is within the allowable range.
+  UpdateContentWindowSizeLimits();
+  const int capped_width =
+      min(max(content_win_->client_width(), min_content_width_),
+          max_content_width_);
+  const int capped_height =
+      min(max(content_win_->client_height(), min_content_height_),
+          max_content_height_);
   if (capped_width != content_win_->client_width() ||
       capped_height != content_win_->client_height()) {
     content_win_->ResizeClient(capped_width, capped_height, GRAVITY_NORTHWEST);
@@ -184,9 +198,6 @@ Panel::Panel(PanelManager* panel_manager,
                      << " for panel " << xid_str();
     }
   }
-
-  content_win_->SetShadowType(Shadow::TYPE_PANEL_CONTENT);
-  titlebar_win_->SetShadowType(Shadow::TYPE_PANEL_TITLEBAR);
 
   // Resize the shadow so it extends across the full width of the content
   // window, and stack it directly on top of it.
@@ -438,13 +449,21 @@ void Panel::ResizeContent(int width, int height, Gravity gravity) {
   DCHECK_GT(width, 0);
   DCHECK_GT(height, 0);
 
-  if (width < kMinWidth || height < kMinHeight) {
-    LOG(WARNING) << "Capping resize of panel " << xid_str() << " to "
-                 << kMinWidth << "x" << kMinHeight << " (request "
-                 << "was for " << width << "x" << height << ")";
-    width = max(width, kMinWidth);
-    height = max(height, kMinHeight);
+  const int capped_width =
+      min(max(width, min_content_width_), max_content_width_);
+  const int capped_height =
+      min(max(height, min_content_height_), max_content_height_);
+
+  if (capped_width != width || capped_height != height) {
+    LOG(WARNING) << "Capped resize of panel " << xid_str() << " to "
+                 << capped_width << "x" << capped_height
+                 << " (request was for " << width << "x" << height << ")";
+    width = capped_width;
+    height = capped_height;
   }
+
+  if (width == content_bounds_.width && height == content_bounds_.height)
+    return;
 
   bool changing_height = (height != content_bounds_.height);
 
@@ -524,6 +543,10 @@ void Panel::HandleScreenResize() {
     content_win_->ResizeClient(
         wm()->width(), wm()->height(), GRAVITY_NORTHWEST);
   }
+}
+
+void Panel::HandleContentWindowSizeHintsChange() {
+  UpdateContentWindowSizeLimits();
 }
 
 void Panel::HandleTransientWindowMap(Window* win) {
@@ -674,8 +697,10 @@ void Panel::ApplyResize() {
     dy = 0;
   }
 
-  drag_last_width_ = max(drag_orig_width_ + dx, kMinWidth);
-  drag_last_height_ = max(drag_orig_height_ + dy, kMinHeight);
+  drag_last_width_ = min(max(drag_orig_width_ + dx, min_content_width_),
+                         max_content_width_);
+  drag_last_height_ = min(max(drag_orig_height_ + dy, min_content_height_),
+                          max_content_height_);
 
   if (FLAGS_panel_opaque_resize) {
     // TODO: We don't use opaque resizing currently, but if we ever start,
@@ -712,6 +737,22 @@ bool Panel::UpdateChromeStateProperty() {
   map<XAtom, bool> states;
   states[wm()->GetXAtom(ATOM_CHROME_STATE_COLLAPSED_PANEL)] = !is_expanded_;
   return content_win_->ChangeChromeState(states);
+}
+
+void Panel::UpdateContentWindowSizeLimits() {
+  DCHECK(content_win_->shadow());
+  min_content_width_ = max(content_win_->size_hints().min_width,
+                           max(kResizeCornerSize + kResizeCornerSize + 1,
+                               content_win_->shadow()->min_width()));
+  min_content_height_ = max(content_win_->size_hints().min_height,
+                            max(1, content_win_->shadow()->min_height()));
+
+  max_content_width_ = content_win_->size_hints().max_width > 0 ?
+                       content_win_->size_hints().max_width :
+                       numeric_limits<int>::max();
+  max_content_height_ = content_win_->size_hints().max_height > 0 ?
+                        content_win_->size_hints().max_height :
+                        numeric_limits<int>::max();
 }
 
 }  // namespace window_manager
