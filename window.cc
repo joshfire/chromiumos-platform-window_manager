@@ -65,6 +65,7 @@ Window::Window(WindowManager* wm, XWindow xid, bool override_redirect,
       shadow_opacity_(1.0),
       supports_wm_take_focus_(false),
       supports_wm_delete_window_(false),
+      supports_wm_ping_(false),
       wm_state_fullscreen_(false),
       wm_state_maximized_horz_(false),
       wm_state_maximized_vert_(false),
@@ -76,7 +77,8 @@ Window::Window(WindowManager* wm, XWindow xid, bool override_redirect,
       video_damage_start_time_(-1),
       wm_sync_request_alarm_(0),
       current_wm_sync_num_(0),
-      client_has_redrawn_after_last_resize_(true) {
+      client_has_redrawn_after_last_resize_(true),
+      client_pid_(-1) {
   DCHECK(xid_);
   DLOG(INFO) << "Constructing object to track "
              << (override_redirect_ ? "override-redirect " : "")
@@ -117,6 +119,7 @@ Window::Window(WindowManager* wm, XWindow xid, bool override_redirect,
   FetchAndApplyTransientHint();
   FetchAndApplyWmHints();
   FetchAndApplyWmWindowType();
+  FetchAndApplyWmPid();
 }
 
 Window::~Window() {
@@ -220,6 +223,7 @@ void Window::FetchAndApplyWmProtocols() {
   DCHECK(xid_);
   supports_wm_take_focus_ = false;
   supports_wm_delete_window_ = false;
+  supports_wm_ping_ = false;
   bool supports_wm_sync_request = false;
 
   vector<int> wm_protocols;
@@ -230,6 +234,7 @@ void Window::FetchAndApplyWmProtocols() {
 
   const XAtom wm_take_focus = wm_->GetXAtom(ATOM_WM_TAKE_FOCUS);
   const XAtom wm_delete_window = wm_->GetXAtom(ATOM_WM_DELETE_WINDOW);
+  const XAtom wm_ping = wm_->GetXAtom(ATOM_NET_WM_PING);
   const XAtom wm_sync_request = wm_->GetXAtom(ATOM_NET_WM_SYNC_REQUEST);
   for (vector<int>::const_iterator it = wm_protocols.begin();
        it != wm_protocols.end(); ++it) {
@@ -239,9 +244,12 @@ void Window::FetchAndApplyWmProtocols() {
     } else if (static_cast<XAtom>(*it) == wm_delete_window) {
       DLOG(INFO) << "Window " << xid_str() << " supports WM_DELETE_WINDOW";
       supports_wm_delete_window_ = true;
+    } else if (static_cast<XAtom>(*it) == wm_ping) {
+      DLOG(INFO) << "Window " << xid_str() << " supports _NET_WM_PING";
+      supports_wm_ping_ = true;
     } else if (static_cast<XAtom>(*it) == wm_sync_request) {
-      supports_wm_sync_request = true;
       DLOG(INFO) << "Window " << xid_str() << " supports _NET_WM_SYNC_REQUEST";
+      supports_wm_sync_request = true;
     }
   }
 
@@ -352,6 +360,15 @@ void Window::FetchAndApplyChromeState() {
   }
   DLOG(INFO) << "Fetched " << wm_->GetXAtomName(state_xatom) << " for "
              << xid_str() << ": " << debug_str;
+}
+
+void Window::FetchAndApplyWmPid() {
+  DCHECK(xid_);
+  client_pid_ = -1;
+  wm_->xconn()->GetIntProperty(
+      xid_, wm_->GetXAtom(ATOM_NET_WM_PID), &client_pid_);
+  DLOG(INFO) << "Client owning window " << xid_str() << " has PID "
+             << client_pid_;
 }
 
 void Window::FetchAndApplyShape() {
@@ -481,6 +498,20 @@ bool Window::SendDeleteRequest(XTime timestamp) {
   memset(data, 0, sizeof(data));
   data[0] = wm_->GetXAtom(ATOM_WM_DELETE_WINDOW);
   data[1] = timestamp;
+  return wm_->xconn()->SendClientMessageEvent(
+            xid_, xid_, wm_->GetXAtom(ATOM_WM_PROTOCOLS), data, 0);
+}
+
+bool Window::SendPing(XTime timestamp) {
+  DCHECK(xid_);
+  if (!supports_wm_ping_)
+    return false;
+
+  long data[5];
+  memset(data, 0, sizeof(data));
+  data[0] = wm_->GetXAtom(ATOM_NET_WM_PING);
+  data[1] = timestamp;
+  data[2] = xid_;
   return wm_->xconn()->SendClientMessageEvent(
             xid_, xid_, wm_->GetXAtom(ATOM_WM_PROTOCOLS), data, 0);
 }

@@ -180,7 +180,7 @@ TEST_F(LayoutManagerTest, Focus) {
   xconn_->InitClientMessageEvent(
       &event,
       xid,   // window to focus
-      wm_->GetXAtom(ATOM_NET_ACTIVE_WINDOW),
+      xconn_->GetAtomOrDie("_NET_ACTIVE_WINDOW"),
       1,     // source indication: client app
       CurrentTime,
       xid2,  // currently-active window
@@ -400,8 +400,8 @@ TEST_F(LayoutManagerTest, FocusTransient) {
 
   // Set the transient window as modal.
   xconn_->InitClientMessageEvent(
-      &event, transient_xid, wm_->GetXAtom(ATOM_NET_WM_STATE),
-      1, wm_->GetXAtom(ATOM_NET_WM_STATE_MODAL), None, None, None);
+      &event, transient_xid, xconn_->GetAtomOrDie("_NET_WM_STATE"),
+      1, xconn_->GetAtomOrDie("_NET_WM_STATE_MODAL"), None, None, None);
   wm_->HandleEvent(&event);
 
   // Since it's modal, the transient window should still keep the focus
@@ -443,15 +443,15 @@ TEST_F(LayoutManagerTest, FocusTransient) {
 
   // Make the transient window non-modal.
   xconn_->InitClientMessageEvent(
-      &event, transient_xid, wm_->GetXAtom(ATOM_NET_WM_STATE),
-      0, wm_->GetXAtom(ATOM_NET_WM_STATE_MODAL), None, None, None);
+      &event, transient_xid, xconn_->GetAtomOrDie("_NET_WM_STATE"),
+      0, xconn_->GetAtomOrDie("_NET_WM_STATE_MODAL"), None, None, None);
   wm_->HandleEvent(&event);
 
   // Now send a _NET_ACTIVE_WINDOW message asking to focus the transient.
   // We should switch back to the first toplevel, and the transient should
   // get the focus.
   xconn_->InitClientMessageEvent(
-      &event, transient_xid, wm_->GetXAtom(ATOM_NET_ACTIVE_WINDOW),
+      &event, transient_xid, xconn_->GetAtomOrDie("_NET_ACTIVE_WINDOW"),
       1, 21321, 0, None, None);
   wm_->HandleEvent(&event);
   EXPECT_EQ(transient_xid, xconn_->focused_xid());
@@ -556,10 +556,10 @@ TEST_F(LayoutManagerTest, SetWmStateMaximized) {
 
   vector<int> atoms;
   ASSERT_TRUE(xconn_->GetIntArrayProperty(
-      xid, wm_->GetXAtom(ATOM_NET_WM_STATE), &atoms));
+      xid, xconn_->GetAtomOrDie("_NET_WM_STATE"), &atoms));
   ASSERT_EQ(2, atoms.size());
-  EXPECT_EQ(wm_->GetXAtom(ATOM_NET_WM_STATE_MAXIMIZED_HORZ), atoms[0]);
-  EXPECT_EQ(wm_->GetXAtom(ATOM_NET_WM_STATE_MAXIMIZED_VERT), atoms[1]);
+  EXPECT_EQ(xconn_->GetAtomOrDie("_NET_WM_STATE_MAXIMIZED_HORZ"), atoms[0]);
+  EXPECT_EQ(xconn_->GetAtomOrDie("_NET_WM_STATE_MAXIMIZED_VERT"), atoms[1]);
 }
 
 TEST_F(LayoutManagerTest, Resize) {
@@ -742,7 +742,7 @@ TEST_F(LayoutManagerTest, ChangeCurrentSnapshot) {
   KeyBindings::KeyCombo left_key(XK_Left, 0);
   SendKey(xconn_->GetRootWindow(), left_key, event_time - 1, event_time);
 
-  EXPECT_EQ(wm_->GetXAtom(ATOM_CHROME_WM_MESSAGE),
+  EXPECT_EQ(xconn_->GetAtomOrDie("_CHROME_WM_MESSAGE"),
             info2->client_messages.back().message_type);
   EXPECT_EQ(chromeos::WM_IPC_MESSAGE_CHROME_NOTIFY_TAB_SELECT,
             info2->client_messages.back().data.l[0]);
@@ -768,7 +768,7 @@ TEST_F(LayoutManagerTest, ChangeCurrentSnapshot) {
   // first toplevel, since during the creation process, the third
   // snapshot should already by selected in that toplevel, so there's
   // no need to send one.
-  EXPECT_EQ(wm_->GetXAtom(ATOM_CHROME_WM_MESSAGE),
+  EXPECT_EQ(xconn_->GetAtomOrDie("_CHROME_WM_MESSAGE"),
             info1->client_messages.back().message_type);
   EXPECT_EQ(chromeos::WM_IPC_MESSAGE_CHROME_NOTIFY_LAYOUT_MODE,
             info1->client_messages.back().data.l[0]);
@@ -787,7 +787,7 @@ TEST_F(LayoutManagerTest, ChangeCurrentSnapshot) {
   event_time = wm_->GetCurrentTimeFromServer();
   SendKey(xconn_->GetRootWindow(), left_key, event_time - 1, event_time);
 
-  EXPECT_EQ(wm_->GetXAtom(ATOM_CHROME_WM_MESSAGE),
+  EXPECT_EQ(xconn_->GetAtomOrDie("_CHROME_WM_MESSAGE"),
             info1->client_messages.back().message_type);
   EXPECT_EQ(chromeos::WM_IPC_MESSAGE_CHROME_NOTIFY_TAB_SELECT,
             info1->client_messages.back().data.l[0]);
@@ -816,7 +816,7 @@ TEST_F(LayoutManagerTest, ChangeCurrentSnapshot) {
   event_time = wm_->GetCurrentTimeFromServer();
   SendKey(xconn_->GetRootWindow(), left_key, event_time - 1, event_time);
 
-  EXPECT_EQ(wm_->GetXAtom(ATOM_CHROME_WM_MESSAGE),
+  EXPECT_EQ(xconn_->GetAtomOrDie("_CHROME_WM_MESSAGE"),
             info1->client_messages.back().message_type);
   EXPECT_EQ(chromeos::WM_IPC_MESSAGE_CHROME_NOTIFY_TAB_SELECT,
             info1->client_messages.back().data.l[0]);
@@ -1189,7 +1189,7 @@ TEST_F(LayoutManagerTest, ActiveWindowHintOnTransientUnmap) {
   TestCallbackCounter counter;
   xconn_->RegisterPropertyCallback(
       xconn_->GetRootWindow(),
-      wm_->GetXAtom(ATOM_NET_ACTIVE_WINDOW),
+      xconn_->GetAtomOrDie("_NET_ACTIVE_WINDOW"),
       NewPermanentCallback(&counter, &TestCallbackCounter::Increment));
 
   // Unmap the transient window and check that the toplevel window is
@@ -1254,7 +1254,7 @@ TEST_F(LayoutManagerTest, AvoidMovingCurrentWindow) {
   xconn_->InitClientMessageEvent(
       &net_active_win_event,
       xid,   // window to focus
-      wm_->GetXAtom(ATOM_NET_ACTIVE_WINDOW),
+      xconn_->GetAtomOrDie("_NET_ACTIVE_WINDOW"),
       1,     // source indication: client app
       CurrentTime,
       xid,   // currently-active window
@@ -1447,8 +1447,8 @@ TEST_F(LayoutManagerTest, Fullscreen) {
   // be set and it should be moved to the fullscreen stacking layer.
   XEvent fullscreen_event;
   xconn_->InitClientMessageEvent(
-      &fullscreen_event, xid, wm_->GetXAtom(ATOM_NET_WM_STATE),
-      1, wm_->GetXAtom(ATOM_NET_WM_STATE_FULLSCREEN), None, None, None);
+      &fullscreen_event, xid, xconn_->GetAtomOrDie("_NET_WM_STATE"),
+      1, xconn_->GetAtomOrDie("_NET_WM_STATE_FULLSCREEN"), None, None, None);
   wm_->HandleEvent(&fullscreen_event);
   EXPECT_TRUE(win->wm_state_fullscreen());
   EXPECT_TRUE(WindowIsInLayer(win, StackingManager::LAYER_FULLSCREEN_WINDOW));
@@ -1498,8 +1498,8 @@ TEST_F(LayoutManagerTest, Fullscreen) {
   // Now ask to make the toplevel non-fullscreen.
   XEvent unfullscreen_event;
   xconn_->InitClientMessageEvent(
-      &unfullscreen_event, xid, wm_->GetXAtom(ATOM_NET_WM_STATE),
-      0, wm_->GetXAtom(ATOM_NET_WM_STATE_FULLSCREEN), None, None, None);
+      &unfullscreen_event, xid, xconn_->GetAtomOrDie("_NET_WM_STATE"),
+      0, xconn_->GetAtomOrDie("_NET_WM_STATE_FULLSCREEN"), None, None, None);
   wm_->HandleEvent(&unfullscreen_event);
   EXPECT_FALSE(win->wm_state_fullscreen());
   EXPECT_TRUE(WindowIsInLayer(win, StackingManager::LAYER_TOPLEVEL_WINDOW));
@@ -1549,9 +1549,9 @@ TEST_F(LayoutManagerTest, Fullscreen) {
   XWindow initially_fullscreen_xid = CreateSimpleWindow();
   xconn_->SetIntProperty(
       initially_fullscreen_xid,
-      wm_->GetXAtom(ATOM_NET_WM_STATE),
-      wm_->GetXAtom(ATOM_ATOM),
-      wm_->GetXAtom(ATOM_NET_WM_STATE_FULLSCREEN));
+      xconn_->GetAtomOrDie("_NET_WM_STATE"),
+      xconn_->GetAtomOrDie("ATOM"),
+      xconn_->GetAtomOrDie("_NET_WM_STATE_FULLSCREEN"));
   SendInitialEventsForWindow(initially_fullscreen_xid);
   Window* initially_fullscreen_win =
       wm_->GetWindowOrDie(initially_fullscreen_xid);
@@ -1725,8 +1725,9 @@ TEST_F(LayoutManagerTest, SwitchToToplevelWithModalTransient) {
   // We should switch to the first toplevel and focus its transient.
   XWindow transient_xid1 = CreateSimpleWindow();
   xconn_->GetWindowInfoOrDie(transient_xid1)->transient_for = xid1;
-  AppendAtomToProperty(
-      transient_xid1, ATOM_NET_WM_STATE, ATOM_NET_WM_STATE_MODAL);
+  AppendAtomToProperty(transient_xid1,
+                       xconn_->GetAtomOrDie("_NET_WM_STATE"),
+                       xconn_->GetAtomOrDie("_NET_WM_STATE_MODAL"));
   SendInitialEventsForWindow(transient_xid1);
   EXPECT_FALSE(WindowIsOffscreen(xid1));
   EXPECT_EQ(transient_xid1, xconn_->focused_xid());
@@ -1745,8 +1746,8 @@ TEST_F(LayoutManagerTest, SwitchToToplevelWithModalTransient) {
   // should switch to the second toplevel and focus its transient.
   XEvent event;
   xconn_->InitClientMessageEvent(
-      &event, transient_xid2, wm_->GetXAtom(ATOM_NET_WM_STATE),
-      1, wm_->GetXAtom(ATOM_NET_WM_STATE_MODAL), None, None, None);
+      &event, transient_xid2, xconn_->GetAtomOrDie("_NET_WM_STATE"),
+      1, xconn_->GetAtomOrDie("_NET_WM_STATE_MODAL"), None, None, None);
   wm_->HandleEvent(&event);
   EXPECT_TRUE(WindowIsOffscreen(xid1));
   EXPECT_EQ(transient_xid2, xconn_->focused_xid());
@@ -1764,8 +1765,9 @@ TEST_F(LayoutManagerTest, SwitchToToplevelWithModalTransient) {
   // hint set when it's mapped.
   XWindow transient_xid3 = CreateSimpleWindow();
   xconn_->GetWindowInfoOrDie(transient_xid3)->transient_for = xid1;
-  AppendAtomToProperty(
-      transient_xid3, ATOM_NET_WM_STATE, ATOM_NET_WM_STATE_MODAL);
+  AppendAtomToProperty(transient_xid3,
+                       xconn_->GetAtomOrDie("_NET_WM_STATE"),
+                       xconn_->GetAtomOrDie("_NET_WM_STATE_MODAL"));
   SendInitialEventsForWindow(transient_xid3);
 
   // Check that we switched back to active mode and focused the new
@@ -1787,8 +1789,8 @@ TEST_F(LayoutManagerTest, SwitchToToplevelWithModalTransient) {
   // Set the modal hint on the transient and check that we switch to its
   // toplevel window.
   xconn_->InitClientMessageEvent(
-      &event, transient_xid4, wm_->GetXAtom(ATOM_NET_WM_STATE),
-      1, wm_->GetXAtom(ATOM_NET_WM_STATE_MODAL), None, None, None);
+      &event, transient_xid4, xconn_->GetAtomOrDie("_NET_WM_STATE"),
+      1, xconn_->GetAtomOrDie("_NET_WM_STATE_MODAL"), None, None, None);
   wm_->HandleEvent(&event);
   EXPECT_TRUE(WindowIsOffscreen(xid1));
   EXPECT_EQ(transient_xid4, xconn_->focused_xid());

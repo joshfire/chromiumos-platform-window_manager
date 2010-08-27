@@ -334,6 +334,9 @@ class XConnection {
   // Look up the X ID for a single atom, creating it if necessary.
   bool GetAtom(const std::string& name, XAtom* atom_out);
 
+  // Wrapper around GetAtom() that dies if the lookup fails.
+  XAtom GetAtomOrDie(const std::string& name);
+
   // Look up all of the atoms in 'names' in the X server, creating them if
   // necessary, and return the corresponding atom X IDs.
   virtual bool GetAtoms(const std::vector<std::string>& names,

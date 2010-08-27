@@ -510,8 +510,8 @@ TEST_F(LoginControllerTest, Modality) {
   // Now ask the WM to make the transient window modal.
   XEvent event;
   xconn_->InitClientMessageEvent(
-      &event, transient_xid, wm_->GetXAtom(ATOM_NET_WM_STATE),
-      1, wm_->GetXAtom(ATOM_NET_WM_STATE_MODAL), None, None, None);
+      &event, transient_xid, xconn_->GetAtomOrDie("_NET_WM_STATE"),
+      1, xconn_->GetAtomOrDie("_NET_WM_STATE_MODAL"), None, None, None);
   wm_->HandleEvent(&event);
   ASSERT_TRUE(wm_->GetWindowOrDie(transient_xid)->wm_state_modal());
 

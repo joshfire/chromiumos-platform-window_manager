@@ -101,6 +101,7 @@ class Window {
   bool wm_state_fullscreen() const { return wm_state_fullscreen_; }
   bool wm_state_modal() const { return wm_state_modal_; }
   bool wm_hint_urgent() const { return wm_hint_urgent_; }
+  int client_pid() const { return client_pid_; }
 
   // Have we received a pixmap for this window yet?  If not, it won't be
   // drawn onscreen.
@@ -149,6 +150,9 @@ class Window {
   // of it.
   void FetchAndApplyChromeState();
 
+  // Fetch the window's _NET_WM_PID property and update 'client_pid_'.
+  void FetchAndApplyWmPid();
+
   // Check if the window has been shaped using the Shape extension and
   // update its compositing actor accordingly.  If the window is shaped, we
   // hide its shadow if it has one.
@@ -187,6 +191,10 @@ class Window {
   // If the window supports WM_DELETE_WINDOW messages, ask it to delete
   // itself.  Just does nothing and returns false otherwise.
   bool SendDeleteRequest(XTime timestamp);
+
+  // Send a _NET_WM_PING client message to the window so we can check that
+  // it's not frozen.
+  bool SendPing(XTime timestamp);
 
   // Add or remove passive a passive grab on button presses within this
   // window.  When any button is pressed, a _synchronous_ active pointer
@@ -462,6 +470,7 @@ class Window {
   // WM_TAKE_FOCUS or WM_DELETE_WINDOW messages?
   bool supports_wm_take_focus_;
   bool supports_wm_delete_window_;
+  bool supports_wm_ping_;
 
   // EWMH window state, as set by _NET_WM_STATE client messages and exposed
   // in the window's _NET_WM_STATE property.
@@ -511,6 +520,10 @@ class Window {
   // 'current_wm_sync_num_'.)  We also leave this at true if the client
   // doesn't support _NET_WM_SYNC_REQUEST.
   bool client_has_redrawn_after_last_resize_;
+
+  // The client's PID as specified in the _NET_WM_PID property, or -1 if
+  // unknown.
+  int client_pid_;
 
   DISALLOW_COPY_AND_ASSIGN(Window);
 };

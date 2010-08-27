@@ -185,7 +185,8 @@ class BasicWindowManagerTest : public ::testing::Test {
   void SetLoggedInState(bool logged_in);
 
   // Append an atom to an integer property on a window.
-  void AppendAtomToProperty(XWindow xid, Atom property_atom, Atom atom_to_add);
+  void AppendAtomToProperty(
+      XWindow xid, XAtom property_atom, XAtom atom_to_add);
 
   // Configure a window to use the _NET_WM_SYNC_REQUEST protocol to
   // synchronize repaints in response to resizes.  Adds the

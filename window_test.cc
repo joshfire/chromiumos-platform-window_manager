@@ -193,11 +193,11 @@ TEST_F(WindowTest, WmProtocols) {
   // Set its WM_PROTOCOLS property to indicate that it supports both
   // message types.
   vector<int> values;
-  values.push_back(static_cast<int>(wm_->GetXAtom(ATOM_WM_DELETE_WINDOW)));
-  values.push_back(static_cast<int>(wm_->GetXAtom(ATOM_WM_TAKE_FOCUS)));
+  values.push_back(static_cast<int>(xconn_->GetAtomOrDie("WM_DELETE_WINDOW")));
+  values.push_back(static_cast<int>(xconn_->GetAtomOrDie("WM_TAKE_FOCUS")));
   xconn_->SetIntArrayProperty(xid,
-                              wm_->GetXAtom(ATOM_WM_PROTOCOLS),  // atom
-                              wm_->GetXAtom(ATOM_ATOM),          // type
+                              xconn_->GetAtomOrDie("WM_PROTOCOLS"),  // atom
+                              xconn_->GetAtomOrDie("ATOM"),          // type
                               values);
 
   XConnection::WindowGeometry geometry;
@@ -210,9 +210,9 @@ TEST_F(WindowTest, WmProtocols) {
   EXPECT_TRUE(win.SendDeleteRequest(timestamp));
   ASSERT_EQ(1, info->client_messages.size());
   const XClientMessageEvent& delete_msg = info->client_messages[0];
-  EXPECT_EQ(wm_->GetXAtom(ATOM_WM_PROTOCOLS), delete_msg.message_type);
+  EXPECT_EQ(xconn_->GetAtomOrDie("WM_PROTOCOLS"), delete_msg.message_type);
   EXPECT_EQ(XConnection::kLongFormat, delete_msg.format);
-  EXPECT_EQ(wm_->GetXAtom(ATOM_WM_DELETE_WINDOW), delete_msg.data.l[0]);
+  EXPECT_EQ(xconn_->GetAtomOrDie("WM_DELETE_WINDOW"), delete_msg.data.l[0]);
   EXPECT_EQ(timestamp, delete_msg.data.l[1]);
 
   // Now do the same thing with WM_TAKE_FOCUS.
@@ -221,13 +221,13 @@ TEST_F(WindowTest, WmProtocols) {
   EXPECT_TRUE(win.TakeFocus(timestamp));
   ASSERT_EQ(1, info->client_messages.size());
   const XClientMessageEvent& focus_msg = info->client_messages[0];
-  EXPECT_EQ(wm_->GetXAtom(ATOM_WM_PROTOCOLS), focus_msg.message_type);
+  EXPECT_EQ(xconn_->GetAtomOrDie("WM_PROTOCOLS"), focus_msg.message_type);
   EXPECT_EQ(XConnection::kLongFormat, focus_msg.format);
-  EXPECT_EQ(wm_->GetXAtom(ATOM_WM_TAKE_FOCUS), focus_msg.data.l[0]);
+  EXPECT_EQ(xconn_->GetAtomOrDie("WM_TAKE_FOCUS"), focus_msg.data.l[0]);
   EXPECT_EQ(timestamp, focus_msg.data.l[1]);
 
   // Get rid of the window's WM_PROTOCOLS support.
-  xconn_->DeletePropertyIfExists(xid, wm_->GetXAtom(ATOM_WM_PROTOCOLS));
+  xconn_->DeletePropertyIfExists(xid, xconn_->GetAtomOrDie("WM_PROTOCOLS"));
   win.FetchAndApplyWmProtocols();
   info->client_messages.clear();
 
@@ -246,7 +246,7 @@ TEST_F(WindowTest, WmProtocols) {
 
 TEST_F(WindowTest, WmHints) {
   // Set the urgency flag on a window and check that it gets loaded correctly.
-  const XAtom wm_hints_atom = wm_->GetXAtom(ATOM_WM_HINTS);
+  const XAtom wm_hints_atom = xconn_->GetAtomOrDie("WM_HINTS");
   XWindow xid = CreateSimpleWindow();
   xconn_->SetIntProperty(xid,
                          wm_hints_atom,  // atom
@@ -273,19 +273,19 @@ TEST_F(WindowTest, WmHints) {
 }
 
 TEST_F(WindowTest, WmState) {
-  const XAtom wm_state_atom = wm_->GetXAtom(ATOM_NET_WM_STATE);
-  const XAtom fullscreen_atom = wm_->GetXAtom(ATOM_NET_WM_STATE_FULLSCREEN);
-  const XAtom max_horz_atom = wm_->GetXAtom(ATOM_NET_WM_STATE_MAXIMIZED_HORZ);
-  const XAtom max_vert_atom = wm_->GetXAtom(ATOM_NET_WM_STATE_MAXIMIZED_VERT);
-  const XAtom modal_atom = wm_->GetXAtom(ATOM_NET_WM_STATE_MODAL);
+  XAtom wm_state_atom = xconn_->GetAtomOrDie("_NET_WM_STATE");
+  XAtom fullscreen_atom = xconn_->GetAtomOrDie("_NET_WM_STATE_FULLSCREEN");
+  XAtom max_horz_atom = xconn_->GetAtomOrDie("_NET_WM_STATE_MAXIMIZED_HORZ");
+  XAtom max_vert_atom = xconn_->GetAtomOrDie("_NET_WM_STATE_MAXIMIZED_VERT");
+  XAtom modal_atom = xconn_->GetAtomOrDie("_NET_WM_STATE_MODAL");
 
   // Create a window with its _NET_WM_STATE property set to only
   // _NET_WM_STATE_MODAL and make sure that it's correctly loaded in the
   // constructor.
   XWindow xid = CreateSimpleWindow();
   xconn_->SetIntProperty(xid,
-                         wm_state_atom,             // atom
-                         wm_->GetXAtom(ATOM_ATOM),  // type
+                         wm_state_atom,                 // atom
+                         xconn_->GetAtomOrDie("ATOM"),  // type
                          modal_atom);
   XConnection::WindowGeometry geometry;
   ASSERT_TRUE(xconn_->GetWindowGeometry(xid, &geometry));
@@ -350,19 +350,20 @@ TEST_F(WindowTest, WmState) {
 }
 
 TEST_F(WindowTest, ChromeState) {
-  const XAtom state_atom = wm_->GetXAtom(ATOM_CHROME_STATE);
-  const XAtom collapsed_atom = wm_->GetXAtom(ATOM_CHROME_STATE_COLLAPSED_PANEL);
+  const XAtom state_atom = xconn_->GetAtomOrDie("_CHROME_STATE");
+  const XAtom collapsed_atom =
+      xconn_->GetAtomOrDie("_CHROME_STATE_COLLAPSED_PANEL");
   // This isn't an atom that we'd actually set in the _CHROME_STATE
   // property, but we need another atom besides the collapsed one for
   // testing.
-  const XAtom other_atom = wm_->GetXAtom(ATOM_NET_WM_STATE_MODAL);
+  const XAtom other_atom = xconn_->GetAtomOrDie("_NET_WM_STATE_MODAL");
 
   // Set the "collapsed" atom on a window.  The Window class should load
   // the initial property in its constructor.
   XWindow xid = CreateSimpleWindow();
   xconn_->SetIntProperty(xid,
-                         state_atom,                // atom
-                         wm_->GetXAtom(ATOM_ATOM),  // type
+                         state_atom,                    // atom
+                         xconn_->GetAtomOrDie("ATOM"),  // type
                          collapsed_atom);
   XConnection::WindowGeometry geometry;
   ASSERT_TRUE(xconn_->GetWindowGeometry(xid, &geometry));
@@ -640,9 +641,9 @@ TEST_F(WindowTest, SyncRequest) {
   ASSERT_TRUE(
       xconn_->SetIntProperty(
           xid,
-          wm_->GetXAtom(ATOM_WM_PROTOCOLS),  // atom
-          wm_->GetXAtom(ATOM_ATOM),          // type
-          wm_->GetXAtom(ATOM_NET_WM_SYNC_REQUEST)));
+          xconn_->GetAtomOrDie("WM_PROTOCOLS"),  // atom
+          xconn_->GetAtomOrDie("ATOM"),          // type
+          xconn_->GetAtomOrDie("_NET_WM_SYNC_REQUEST")));
   win.FetchAndApplyWmProtocols();
   EXPECT_EQ(0, win.wm_sync_request_alarm_);
 
@@ -651,8 +652,8 @@ TEST_F(WindowTest, SyncRequest) {
   ASSERT_TRUE(
       xconn_->SetIntProperty(
           xid,
-          wm_->GetXAtom(ATOM_NET_WM_SYNC_REQUEST_COUNTER),  // atom
-          wm_->GetXAtom(ATOM_CARDINAL),                     // type
+          xconn_->GetAtomOrDie("_NET_WM_SYNC_REQUEST_COUNTER"),  // atom
+          xconn_->GetAtomOrDie("CARDINAL"),                      // type
           counter_xid));
   win.FetchAndApplyWmProtocols();
   EXPECT_NE(0, win.wm_sync_request_alarm_);
@@ -684,9 +685,9 @@ TEST_F(WindowTest, SyncRequest) {
   // counter when it's done redrawing.
   ASSERT_EQ(1, info->client_messages.size());
   const XClientMessageEvent& msg = info->client_messages[0];
-  EXPECT_EQ(wm_->GetXAtom(ATOM_WM_PROTOCOLS), msg.message_type);
+  EXPECT_EQ(xconn_->GetAtomOrDie("WM_PROTOCOLS"), msg.message_type);
   EXPECT_EQ(XConnection::kLongFormat, msg.format);
-  EXPECT_EQ(wm_->GetXAtom(ATOM_NET_WM_SYNC_REQUEST), msg.data.l[0]);
+  EXPECT_EQ(xconn_->GetAtomOrDie("_NET_WM_SYNC_REQUEST"), msg.data.l[0]);
   // TODO: Check timestamp in l[1]?
   EXPECT_EQ(static_cast<uint32_t>(next_counter_value & 0xffffffff),
             msg.data.l[2]);
@@ -738,9 +739,9 @@ TEST_F(WindowTest, DeferFetchingPixmapUntilPainted) {
 
   ASSERT_EQ(1, info->client_messages.size());
   const XClientMessageEvent& msg = info->client_messages[0];
-  EXPECT_EQ(wm_->GetXAtom(ATOM_WM_PROTOCOLS), msg.message_type);
+  EXPECT_EQ(xconn_->GetAtomOrDie("WM_PROTOCOLS"), msg.message_type);
   EXPECT_EQ(XConnection::kLongFormat, msg.format);
-  EXPECT_EQ(wm_->GetXAtom(ATOM_NET_WM_SYNC_REQUEST), msg.data.l[0]);
+  EXPECT_EQ(xconn_->GetAtomOrDie("_NET_WM_SYNC_REQUEST"), msg.data.l[0]);
 
   ASSERT_EQ(1, info->configure_notify_events.size());
   const XConfigureEvent& conf_notify = info->configure_notify_events[0];
@@ -767,6 +768,63 @@ TEST_F(WindowTest, DeferFetchingPixmapUntilPainted) {
                             win.current_wm_sync_num_);
   EXPECT_NE(0, win.pixmap_);
   EXPECT_TRUE(win.has_initial_pixmap());
+}
+
+// Test that we load the _NET_WM_PID property, containing the client's PID.
+TEST_F(WindowTest, ClientPid) {
+  const XAtom pid_atom = xconn_->GetAtomOrDie("_NET_WM_PID");
+  const XAtom cardinal_atom = xconn_->GetAtomOrDie("CARDINAL");
+
+  int pid = 123;
+  XWindow xid = CreateSimpleWindow();
+  xconn_->SetIntProperty(xid, pid_atom, cardinal_atom, pid);
+  XConnection::WindowGeometry geometry;
+  ASSERT_TRUE(xconn_->GetWindowGeometry(xid, &geometry));
+  Window win(wm_.get(), xid, false, geometry);
+  EXPECT_EQ(pid, win.client_pid());
+
+  pid = 5436;
+  xconn_->SetIntProperty(xid, pid_atom, cardinal_atom, pid);
+  win.FetchAndApplyWmPid();
+  EXPECT_EQ(pid, win.client_pid());
+
+  xconn_->DeletePropertyIfExists(xid, pid_atom);
+  win.FetchAndApplyWmPid();
+  EXPECT_EQ(-1, win.client_pid());
+}
+
+// Test that we're able to send messages per the _NET_WM_PING protocol.
+TEST_F(WindowTest, SendPingMessage) {
+  XWindow xid = CreateSimpleWindow();
+  MockXConnection::WindowInfo* info = xconn_->GetWindowInfoOrDie(xid);
+  XConnection::WindowGeometry geometry;
+  ASSERT_TRUE(xconn_->GetWindowGeometry(xid, &geometry));
+  Window win(wm_.get(), xid, false, geometry);
+
+  // SendPing() should just fail without doing anything if the window
+  // hasn't told us that it supports the protocol.
+  XTime timestamp = 123;
+  info->client_messages.clear();
+  EXPECT_FALSE(win.SendPing(timestamp));
+  EXPECT_TRUE(info->client_messages.empty());
+
+  // Otherwise, we should send a client message as described in the spec.
+  AppendAtomToProperty(xid,
+                       xconn_->GetAtomOrDie("WM_PROTOCOLS"),
+                       xconn_->GetAtomOrDie("_NET_WM_PING"));
+  info->client_messages.clear();
+  win.FetchAndApplyWmProtocols();
+  EXPECT_TRUE(win.SendPing(timestamp));
+
+  ASSERT_EQ(1, info->client_messages.size());
+  const XClientMessageEvent& msg = info->client_messages[0];
+  EXPECT_EQ(xconn_->GetAtomOrDie("WM_PROTOCOLS"), msg.message_type);
+  EXPECT_EQ(XConnection::kLongFormat, msg.format);
+  EXPECT_EQ(xconn_->GetAtomOrDie("_NET_WM_PING"), msg.data.l[0]);
+  EXPECT_EQ(timestamp, msg.data.l[1]);
+  EXPECT_EQ(xid, msg.data.l[2]);
+  EXPECT_EQ(0, msg.data.l[3]);
+  EXPECT_EQ(0, msg.data.l[4]);
 }
 
 }  // namespace window_manager

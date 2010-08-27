@@ -15,6 +15,12 @@ namespace window_manager {
 const int XConnection::kByteFormat = 8;
 const int XConnection::kLongFormat = 32;
 
+XAtom XConnection::GetAtomOrDie(const std::string& name) {
+  XAtom atom = 0;
+  CHECK(GetAtom(name, &atom));
+  return atom;
+}
+
 bool XConnection::GetIntProperty(XWindow xid, XAtom xatom, int* value) {
   CHECK(value);
   vector<int> values;

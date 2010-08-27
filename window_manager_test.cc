@@ -400,9 +400,9 @@ TEST_F(WindowManagerTest, RestackOverrideRedirectWindows) {
   XEvent event;
 
   // Use the _NET_WM_WINDOW_TYPE_MENU hint to make the windows have shadows.
-  const XAtom win_type_xatom = wm_->GetXAtom(ATOM_NET_WM_WINDOW_TYPE);
-  const XAtom atom_xatom = wm_->GetXAtom(ATOM_ATOM);
-  const XAtom menu_xatom = wm_->GetXAtom(ATOM_NET_WM_WINDOW_TYPE_MENU);
+  const XAtom win_type_xatom = xconn_->GetAtomOrDie("_NET_WM_WINDOW_TYPE");
+  const XAtom atom_xatom = xconn_->GetAtomOrDie("ATOM");
+  const XAtom menu_xatom = xconn_->GetAtomOrDie("_NET_WM_WINDOW_TYPE_MENU");
 
   // Create two override-redirect windows and map them both.
   XWindow xid = xconn_->CreateWindow(
@@ -865,7 +865,7 @@ TEST_F(WindowManagerTest, LoggedIn) {
 
   // When the _CHROME_LOGGED_IN property doesn't exist, the window manager
   // should assume that we're not logged in.
-  XAtom logged_in_xatom = wm_->GetXAtom(ATOM_CHROME_LOGGED_IN);
+  XAtom logged_in_xatom = xconn_->GetAtomOrDie("_CHROME_LOGGED_IN");
   xconn_->DeletePropertyIfExists(xconn_->GetRootWindow(), logged_in_xatom);
   wm_.reset(new WindowManager(event_loop_.get(),
                               xconn_.get(),
@@ -1037,10 +1037,10 @@ TEST_F(WindowManagerTest, StartNewLogAfterLogin) {
 // Check that we don't display drop shadows for most types of
 // override-redirect windows.
 TEST_F(WindowManagerTest, OverrideRedirectShadows) {
-  XAtom win_type_xatom = wm_->GetXAtom(ATOM_NET_WM_WINDOW_TYPE);
-  XAtom atom_xatom = wm_->GetXAtom(ATOM_ATOM);
-  XAtom menu_xatom = wm_->GetXAtom(ATOM_NET_WM_WINDOW_TYPE_MENU);
-  XAtom popup_xatom = wm_->GetXAtom(ATOM_NET_WM_WINDOW_TYPE_POPUP_MENU);
+  XAtom win_type_xatom = xconn_->GetAtomOrDie("_NET_WM_WINDOW_TYPE");
+  XAtom atom_xatom = xconn_->GetAtomOrDie("ATOM");
+  XAtom menu_xatom = xconn_->GetAtomOrDie("_NET_WM_WINDOW_TYPE_MENU");
+  XAtom popup_xatom = xconn_->GetAtomOrDie("_NET_WM_WINDOW_TYPE_POPUP_MENU");
 
   // An override-redirect window with no _NET_WM_WINDOW_TYPE property
   // shouldn't get a shadow.
@@ -1090,7 +1090,7 @@ TEST_F(WindowManagerTest, VideoTimeProperty) {
   XWindow xid = CreateSimpleWindow();
   SendInitialEventsForWindow(xid);
 
-  const XAtom atom = wm_->GetXAtom(ATOM_CHROME_VIDEO_TIME);
+  const XAtom atom = xconn_->GetAtomOrDie("_CHROME_VIDEO_TIME");
   int video_time = 0;
   EXPECT_FALSE(xconn_->GetIntProperty(xconn_->GetRootWindow(),
                                       atom, &video_time));

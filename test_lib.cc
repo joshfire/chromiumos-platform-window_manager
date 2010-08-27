@@ -325,7 +325,7 @@ void BasicWindowManagerTest::SendUnmapAndDestroyEventsForWindow(XWindow xid) {
 void BasicWindowManagerTest::SendWindowTypeEvent(XWindow xid) {
   XEvent event;
   xconn_->InitPropertyNotifyEvent(
-      &event, xid, wm_->GetXAtom(ATOM_CHROME_WINDOW_TYPE));
+      &event, xid, xconn_->GetAtomOrDie("_CHROME_WINDOW_TYPE"));
   wm_->HandleEvent(&event);
 }
 
@@ -392,7 +392,7 @@ void BasicWindowManagerTest::SendKey(XWindow xid,
 void BasicWindowManagerTest::SendActiveWindowMessage(XWindow xid) {
   XEvent event;
   xconn_->InitClientMessageEvent(
-      &event, xid, wm_->GetXAtom(ATOM_NET_ACTIVE_WINDOW),
+      &event, xid, xconn_->GetAtomOrDie("_NET_ACTIVE_WINDOW"),
       1,      // source indication (1 is from application)
       0,      // timestamp
       0,      // requestor's currently-active window
@@ -405,8 +405,7 @@ void BasicWindowManagerTest::NotifyWindowAboutSize(Window* win) {
 }
 
 void BasicWindowManagerTest::SetLoggedInState(bool logged_in) {
-  XAtom logged_in_xatom = 0;
-  CHECK(xconn_->GetAtom("_CHROME_LOGGED_IN", &logged_in_xatom));
+  XAtom logged_in_xatom = xconn_->GetAtomOrDie("_CHROME_LOGGED_IN");
   xconn_->SetIntProperty(xconn_->GetRootWindow(),
                          logged_in_xatom,
                          logged_in_xatom,  // type; arbitrary
@@ -422,25 +421,27 @@ void BasicWindowManagerTest::SetLoggedInState(bool logged_in) {
 }
 
 void BasicWindowManagerTest::AppendAtomToProperty(XWindow xid,
-                                                  Atom property_atom,
-                                                  Atom atom_to_add) {
+                                                  XAtom property_atom,
+                                                  XAtom atom_to_add) {
   vector<int> values;
-  xconn_->GetIntArrayProperty(xid, wm_->GetXAtom(property_atom), &values);
-  values.push_back(wm_->GetXAtom(atom_to_add));
+  xconn_->GetIntArrayProperty(xid, property_atom, &values);
+  values.push_back(atom_to_add);
   CHECK(xconn_->SetIntArrayProperty(
             xid,
-            wm_->GetXAtom(property_atom),  // atom
-            wm_->GetXAtom(ATOM_ATOM),      // type
+            property_atom,                 // atom
+            xconn_->GetAtomOrDie("ATOM"),  // type
             values));
 }
 
 void BasicWindowManagerTest::ConfigureWindowForSyncRequestProtocol(
     XWindow xid) {
-  AppendAtomToProperty(xid, ATOM_WM_PROTOCOLS, ATOM_NET_WM_SYNC_REQUEST);
+  AppendAtomToProperty(xid,
+                       xconn_->GetAtomOrDie("WM_PROTOCOLS"),
+                       xconn_->GetAtomOrDie("_NET_WM_SYNC_REQUEST"));
   CHECK(xconn_->SetIntProperty(
             xid,
-            wm_->GetXAtom(ATOM_NET_WM_SYNC_REQUEST_COUNTER),  // atom
-            wm_->GetXAtom(ATOM_CARDINAL),                     // type
+            xconn_->GetAtomOrDie("_NET_WM_SYNC_REQUEST_COUNTER"),  // atom
+            xconn_->GetAtomOrDie("CARDINAL"),                      // type
             50));  // arbitrary counter ID
 }
 
@@ -455,7 +456,7 @@ void BasicWindowManagerTest::SendSyncRequestProtocolAlarm(XWindow xid) {
 XWindow BasicWindowManagerTest::GetActiveWindowProperty() {
   int active_window;
   if (!xconn_->GetIntProperty(xconn_->GetRootWindow(),
-                              wm_->GetXAtom(ATOM_NET_ACTIVE_WINDOW),
+                              xconn_->GetAtomOrDie("_NET_ACTIVE_WINDOW"),
                               &active_window)) {
     return None;
   }
@@ -469,10 +470,10 @@ int BasicWindowManagerTest::GetNumDeleteWindowMessagesForWindow(XWindow xid) {
   for (vector<XClientMessageEvent>::const_iterator it =
          info->client_messages.begin();
        it != info->client_messages.end(); ++it) {
-    if (it->message_type == wm_->GetXAtom(ATOM_WM_PROTOCOLS) &&
+    if (it->message_type == xconn_->GetAtomOrDie("WM_PROTOCOLS") &&
         it->format == XConnection::kLongFormat &&
         (static_cast<XAtom>(it->data.l[0]) ==
-            wm_->GetXAtom(ATOM_WM_DELETE_WINDOW))) {
+            xconn_->GetAtomOrDie("WM_DELETE_WINDOW"))) {
       num_deletes++;
     }
   }

@@ -264,8 +264,8 @@ TEST_F(PanelManagerTest, Fullscreen) {
   EXPECT_TRUE(WindowIsInLayer(panel3->content_win(),
                               StackingManager::LAYER_PACKED_PANEL_IN_BAR));
 
-  const XAtom wm_state_atom = wm_->GetXAtom(ATOM_NET_WM_STATE);
-  const XAtom fullscreen_atom = wm_->GetXAtom(ATOM_NET_WM_STATE_FULLSCREEN);
+  XAtom wm_state_atom = xconn_->GetAtomOrDie("_NET_WM_STATE");
+  XAtom fullscreen_atom = xconn_->GetAtomOrDie("_NET_WM_STATE_FULLSCREEN");
 
   // Ask the window manager to make the second (middle) panel fullscreen.
   XEvent fullscreen_event;
@@ -493,12 +493,13 @@ TEST_F(PanelManagerTest, TransientWindows) {
   const int transient_width = 300, transient_height = 200;
   XWindow transient_xid = CreateBasicWindow(transient_x, transient_y,
                                             transient_width, transient_height);
-  MockXConnection::WindowInfo* transient_info =
-      xconn_->GetWindowInfoOrDie(transient_xid);
   // Say that we support the WM_DELETE_WINDOW protocol so that the window
   // manager will try to close us when needed.
-  transient_info->int_properties[wm_->GetXAtom(ATOM_WM_PROTOCOLS)].push_back(
-      wm_->GetXAtom(ATOM_WM_DELETE_WINDOW));
+  AppendAtomToProperty(transient_xid,
+                       xconn_->GetAtomOrDie("WM_PROTOCOLS"),
+                       xconn_->GetAtomOrDie("WM_DELETE_WINDOW"));
+  MockXConnection::WindowInfo* transient_info =
+      xconn_->GetWindowInfoOrDie(transient_xid);
   transient_info->transient_for = panel->content_xid();
   SendInitialEventsForWindow(transient_xid);
   Window* transient_win = wm_->GetWindowOrDie(transient_xid);
@@ -570,8 +571,8 @@ TEST_F(PanelManagerTest, TransientWindows) {
 
   // Check that we'll honor a request to make the infobubble modal.
   xconn_->InitClientMessageEvent(
-      &event, infobubble_xid, wm_->GetXAtom(ATOM_NET_WM_STATE),
-      1, wm_->GetXAtom(ATOM_NET_WM_STATE_MODAL), None, None, None);
+      &event, infobubble_xid, xconn_->GetAtomOrDie("_NET_WM_STATE"),
+      1, xconn_->GetAtomOrDie("_NET_WM_STATE_MODAL"), None, None, None);
   wm_->HandleEvent(&event);
   EXPECT_TRUE(wm_->GetWindowOrDie(infobubble_xid)->wm_state_modal());
 
@@ -581,7 +582,7 @@ TEST_F(PanelManagerTest, TransientWindows) {
   SendInitialEventsForWindow(toplevel_xid);
   ASSERT_EQ(toplevel_xid, xconn_->focused_xid());
   xconn_->InitClientMessageEvent(
-      &event, infobubble_xid, wm_->GetXAtom(ATOM_NET_ACTIVE_WINDOW),
+      &event, infobubble_xid, xconn_->GetAtomOrDie("_NET_ACTIVE_WINDOW"),
       1, wm_->GetCurrentTimeFromServer() + 1, 0, None, None);
   wm_->HandleEvent(&event);
   EXPECT_EQ(infobubble_xid, xconn_->focused_xid());

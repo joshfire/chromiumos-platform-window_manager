@@ -240,8 +240,8 @@ TEST_F(PanelTest, Resize) {
 // Test that the _CHROME_STATE property is updated correctly to reflect the
 // panel's expanded/collapsed state.
 TEST_F(PanelTest, ChromeState) {
-  const XAtom state_atom = wm_->GetXAtom(ATOM_CHROME_STATE);
-  const XAtom collapsed_atom = wm_->GetXAtom(ATOM_CHROME_STATE_COLLAPSED_PANEL);
+  XAtom state_atom = xconn_->GetAtomOrDie("_CHROME_STATE");
+  XAtom collapsed_atom = xconn_->GetAtomOrDie("_CHROME_STATE_COLLAPSED_PANEL");
 
   // Create a collapsed panel.
   XWindow titlebar_xid = CreatePanelTitlebarWindow(200, 20);
@@ -553,7 +553,7 @@ TEST_F(PanelTest, ReloadSizeLimits) {
   content_info->size_hints.min_height = 250;
   XEvent event;
   xconn_->InitPropertyNotifyEvent(
-      &event, content_xid, wm_->GetXAtom(ATOM_WM_NORMAL_HINTS));
+      &event, content_xid, xconn_->GetAtomOrDie("WM_NORMAL_HINTS"));
   wm_->HandleEvent(&event);
   EXPECT_EQ(kWidth, content_info->width);
   EXPECT_EQ(kContentHeight, content_info->height);

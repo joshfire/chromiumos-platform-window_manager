@@ -176,7 +176,7 @@ TEST_F(PanelBarTest, ActiveWindowMessage) {
   xconn_->InitClientMessageEvent(
       &event,
       panel->content_xid(),  // window to focus
-      wm_->GetXAtom(ATOM_NET_ACTIVE_WINDOW),
+      xconn_->GetAtomOrDie("_NET_ACTIVE_WINDOW"),
       1,                     // source indication: client app
       CurrentTime,
       None,                  // currently-active window
@@ -681,7 +681,7 @@ TEST_F(PanelBarTest, UrgentPanel) {
 
   // Set the urgency hint on the panel's content window, notify the window
   // manager, and check that the panel is shown now.
-  const XAtom wm_hints_atom = wm_->GetXAtom(ATOM_WM_HINTS);
+  const XAtom wm_hints_atom = xconn_->GetAtomOrDie("WM_HINTS");
   const int urgency_hint = 256;  // UrgencyHint flag from ICCCM 4.1.2.4
   xconn_->SetIntProperty(panel->content_xid(),
                          wm_hints_atom,  // atom
