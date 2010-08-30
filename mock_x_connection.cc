@@ -533,6 +533,7 @@ bool MockXConnection::DeletePropertyIfExists(XWindow xid, XAtom xatom) {
   if (!info)
     return false;
   info->int_properties.erase(xatom);
+  info->string_properties.erase(xatom);
   return true;
 }
 

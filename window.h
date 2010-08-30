@@ -101,6 +101,7 @@ class Window {
   bool wm_state_fullscreen() const { return wm_state_fullscreen_; }
   bool wm_state_modal() const { return wm_state_modal_; }
   bool wm_hint_urgent() const { return wm_hint_urgent_; }
+  const std::string& client_hostname() const { return client_hostname_; }
   int client_pid() const { return client_pid_; }
 
   // Have we received a pixmap for this window yet?  If not, it won't be
@@ -149,6 +150,10 @@ class Window {
   // Fetch the window's _CHROME_STATE property and update our internal copy
   // of it.
   void FetchAndApplyChromeState();
+
+  // Fetch the window's WM_CLIENT_MACHINE property and update
+  // 'client_hostname_'.
+  void FetchAndApplyWmClientMachine();
 
   // Fetch the window's _NET_WM_PID property and update 'client_pid_'.
   void FetchAndApplyWmPid();
@@ -520,6 +525,10 @@ class Window {
   // 'current_wm_sync_num_'.)  We also leave this at true if the client
   // doesn't support _NET_WM_SYNC_REQUEST.
   bool client_has_redrawn_after_last_resize_;
+
+  // Hostname of the system on which the client is running, as specified in
+  // the WM_CLIENT_MACHINE property.
+  std::string client_hostname_;
 
   // The client's PID as specified in the _NET_WM_PID property, or -1 if
   // unknown.

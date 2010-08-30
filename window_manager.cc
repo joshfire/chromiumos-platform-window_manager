@@ -1770,6 +1770,8 @@ void WindowManager::HandlePropertyNotify(const XPropertyEvent& e) {
       win->FetchAndApplyWindowOpacity();
     } else if (e.atom == GetXAtom(ATOM_NET_WM_STATE)) {
       win->FetchAndApplyWmState();
+    } else if (e.atom == GetXAtom(ATOM_WM_CLIENT_MACHINE)) {
+      win->FetchAndApplyWmClientMachine();
     } else if (e.atom == GetXAtom(ATOM_NET_WM_PID)) {
       win->FetchAndApplyWmPid();
     }

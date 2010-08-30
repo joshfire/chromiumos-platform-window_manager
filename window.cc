@@ -119,6 +119,7 @@ Window::Window(WindowManager* wm, XWindow xid, bool override_redirect,
   FetchAndApplyTransientHint();
   FetchAndApplyWmHints();
   FetchAndApplyWmWindowType();
+  FetchAndApplyWmClientMachine();
   FetchAndApplyWmPid();
 }
 
@@ -360,6 +361,17 @@ void Window::FetchAndApplyChromeState() {
   }
   DLOG(INFO) << "Fetched " << wm_->GetXAtomName(state_xatom) << " for "
              << xid_str() << ": " << debug_str;
+}
+
+void Window::FetchAndApplyWmClientMachine() {
+  DCHECK(xid_);
+  client_hostname_.clear();
+  wm_->xconn()->GetStringProperty(
+      xid_, wm_->GetXAtom(ATOM_WM_CLIENT_MACHINE), &client_hostname_);
+  if (!client_hostname_.empty()) {
+    DLOG(INFO) << "Client owning window " << xid_str() << " is running on "
+               << "host \"" << client_hostname_ << "\"";
+  }
 }
 
 void Window::FetchAndApplyWmPid() {

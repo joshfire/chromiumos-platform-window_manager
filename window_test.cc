@@ -3,6 +3,7 @@
 // found in the LICENSE file.
 
 #include <map>
+#include <string>
 #include <vector>
 
 #include <gflags/gflags.h>
@@ -26,6 +27,7 @@ DEFINE_bool(logtostderr, false,
 DECLARE_bool(load_window_shapes);  // from window.cc
 
 using std::map;
+using std::string;
 using std::vector;
 
 namespace window_manager {
@@ -768,6 +770,29 @@ TEST_F(WindowTest, DeferFetchingPixmapUntilPainted) {
                             win.current_wm_sync_num_);
   EXPECT_NE(0, win.pixmap_);
   EXPECT_TRUE(win.has_initial_pixmap());
+}
+
+// Test that we load the WM_CLIENT_MACHINE property, containing the
+// hostname of the machine where the client is running.
+TEST_F(WindowTest, ClientHostname) {
+  const XAtom client_machine_atom = xconn_->GetAtomOrDie("WM_CLIENT_MACHINE");
+
+  string hostname = "a.example.com";
+  XWindow xid = CreateSimpleWindow();
+  xconn_->SetStringProperty(xid, client_machine_atom, hostname);
+  XConnection::WindowGeometry geometry;
+  ASSERT_TRUE(xconn_->GetWindowGeometry(xid, &geometry));
+  Window win(wm_.get(), xid, false, geometry);
+  EXPECT_EQ(hostname, win.client_hostname());
+
+  hostname = "b.example.com";
+  xconn_->SetStringProperty(xid, client_machine_atom, hostname);
+  win.FetchAndApplyWmClientMachine();
+  EXPECT_EQ(hostname, win.client_hostname());
+
+  xconn_->DeletePropertyIfExists(xid, client_machine_atom);
+  win.FetchAndApplyWmClientMachine();
+  EXPECT_EQ("", win.client_hostname());
 }
 
 // Test that we load the _NET_WM_PID property, containing the client's PID.
