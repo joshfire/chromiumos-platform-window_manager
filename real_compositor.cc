@@ -6,11 +6,9 @@
 
 #include <algorithm>
 #include <cmath>
-#include <ctime>
 #include <string>
 
 #include <gflags/gflags.h>
-#include <sys/time.h>
 
 #include "base/logging.h"
 #include "base/string_util.h"
@@ -41,6 +39,7 @@ using std::string;
 using std::tr1::shared_ptr;
 using std::tr1::unordered_set;
 using window_manager::util::FindWithDefault;
+using window_manager::util::GetMonotonicTimeMs;
 using window_manager::util::XidStr;
 
 // Turn this on if you want to debug the visitor traversal.
@@ -291,7 +290,7 @@ template<class T> void RealCompositor::Actor::AnimateField(
     return;
 
   if (duration_ms > 0) {
-    AnimationTime now = compositor_->GetCurrentTimeMs();
+    AnimationTime now = GetMonotonicTimeMs();
     if (iterator != animation_map->end()) {
       Animation<T>* animation = iterator->second.get();
       animation->Reset(value, now, now + duration_ms);
@@ -630,7 +629,6 @@ RealCompositor::RealCompositor(EventLoop* event_loop,
       partially_dirty_(false),
       num_animations_(0),
       actor_count_(0),
-      current_time_ms_for_testing_(-1),
       last_draw_time_ms_(-1),
       draw_timeout_id_(-1),
       draw_timeout_enabled_(false),
@@ -745,13 +743,6 @@ void RealCompositor::RemoveActor(Actor* actor) {
   }
 }
 
-RealCompositor::AnimationTime RealCompositor::GetCurrentTimeMs() {
-  if (current_time_ms_for_testing_ >= 0)
-    return current_time_ms_for_testing_;
-
-  return util::GetCurrentTimeMs();
-}
-
 void RealCompositor::SetDirty() {
   if (!dirty_ && !partially_dirty_)
     EnableDrawTimeout();
@@ -792,7 +783,7 @@ void RealCompositor::DecrementNumAnimations() {
 
 void RealCompositor::Draw() {
   PROFILER_MARKER_BEGIN(RealCompositor_Draw);
-  int64_t now = GetCurrentTimeMs();
+  int64_t now = GetMonotonicTimeMs();
   if (num_animations_ > 0 || dirty_) {
     actor_count_ = 0;
     PROFILER_MARKER_BEGIN(RealCompositor_Draw_Update);
@@ -832,7 +823,7 @@ void RealCompositor::Draw() {
 
 void RealCompositor::EnableDrawTimeout() {
   if (!draw_timeout_enabled_) {
-    int64_t ms_since_draw = max(GetCurrentTimeMs() - last_draw_time_ms_,
+    int64_t ms_since_draw = max(GetMonotonicTimeMs() - last_draw_time_ms_,
                                 static_cast<int64_t>(0));
     int ms_until_draw = kDrawTimeoutMs - min(ms_since_draw, kDrawTimeoutMs);
     event_loop_->ResetTimeout(draw_timeout_id_, ms_until_draw, kDrawTimeoutMs);

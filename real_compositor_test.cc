@@ -32,6 +32,7 @@ using std::string;
 using std::tr1::unordered_set;
 using std::vector;
 using window_manager::util::NextPowerOfTwo;
+using window_manager::util::SetMonotonicTimeMsForTest;
 
 namespace window_manager {
 
@@ -433,7 +434,7 @@ TEST_F(RealCompositorTest, DeleteGroup) {
 // Test that we enable and disable the draw timeout as needed.
 TEST_F(RealCompositorTest, DrawTimeout) {
   int64_t now = 1000;  // arbitrary
-  compositor_->set_current_time_ms_for_testing(now);
+  SetMonotonicTimeMsForTest(now);
 
   // The compositor should create a draw timeout and draw just once
   // initially.
@@ -459,21 +460,21 @@ TEST_F(RealCompositorTest, DrawTimeout) {
   // If we draw 50 ms later, both animations should still be active, as
   // well as the timeout.
   now += 50;
-  compositor_->set_current_time_ms_for_testing(now);
+  SetMonotonicTimeMsForTest(now);
   compositor_->Draw();
   EXPECT_TRUE(compositor_->draw_timeout_enabled());
 
   // After drawing 51 ms later, the first animation will be gone, but we
   // still keep the timeout alive for the second animation.
   now += 51;
-  compositor_->set_current_time_ms_for_testing(now);
+  SetMonotonicTimeMsForTest(now);
   compositor_->Draw();
   EXPECT_TRUE(compositor_->draw_timeout_enabled());
 
   // 100 ms later, the second animation has ended, so we should remove the
   // timeout after drawing.
   now += 100;
-  compositor_->set_current_time_ms_for_testing(now);
+  SetMonotonicTimeMsForTest(now);
   compositor_->Draw();
   EXPECT_FALSE(compositor_->draw_timeout_enabled());
 
@@ -496,7 +497,7 @@ TEST_F(RealCompositorTest, DrawTimeout) {
 // overlapping animations for the same field.
 TEST_F(RealCompositorTest, ReplaceAnimations) {
   int64_t now = 1000;  // arbitrary
-  compositor_->set_current_time_ms_for_testing(now);
+  SetMonotonicTimeMsForTest(now);
 
   scoped_ptr<RealCompositor::Actor> actor(
       compositor_->CreateColoredBox(1, 1, Compositor::Color()));
@@ -512,7 +513,7 @@ TEST_F(RealCompositorTest, ReplaceAnimations) {
   // 101 ms later, the actor should be at the final Y position but not yet
   // at the final X position.
   now += 101;
-  compositor_->set_current_time_ms_for_testing(now);
+  SetMonotonicTimeMsForTest(now);
   compositor_->Draw();
   EXPECT_EQ(800, actor->GetY());
   EXPECT_LT(actor->GetX(), 200);
@@ -522,7 +523,7 @@ TEST_F(RealCompositorTest, ReplaceAnimations) {
   // (i.e. the longer-running animation to 300 was replaced by the one to
   // 800).
   now += 400;
-  compositor_->set_current_time_ms_for_testing(now);
+  SetMonotonicTimeMsForTest(now);
   compositor_->Draw();
   EXPECT_EQ(200, actor->GetX());
   EXPECT_EQ(800, actor->GetY());
@@ -531,7 +532,7 @@ TEST_F(RealCompositorTest, ReplaceAnimations) {
   // After 100 ms, we should be halfway to the final scale (at 3/4 scale).
   actor->Scale(0.5, 0.5, 200);
   now += 100;
-  compositor_->set_current_time_ms_for_testing(now);
+  SetMonotonicTimeMsForTest(now);
   compositor_->Draw();
   EXPECT_FLOAT_EQ(0.75, actor->GetXScale());
   EXPECT_FLOAT_EQ(0.75, actor->GetYScale());
@@ -542,14 +543,14 @@ TEST_F(RealCompositorTest, ReplaceAnimations) {
   // scale.
   actor->Scale(1.0, 1.0, 200);
   now += 100;
-  compositor_->set_current_time_ms_for_testing(now);
+  SetMonotonicTimeMsForTest(now);
   compositor_->Draw();
   EXPECT_FLOAT_EQ(0.875, actor->GetXScale());
   EXPECT_FLOAT_EQ(0.875, actor->GetYScale());
 
   // After another 100 ms, we should be back at the original scale.
   now += 100;
-  compositor_->set_current_time_ms_for_testing(now);
+  SetMonotonicTimeMsForTest(now);
   compositor_->Draw();
   EXPECT_FLOAT_EQ(1, actor->GetXScale());
   EXPECT_FLOAT_EQ(1, actor->GetYScale());
@@ -557,7 +558,7 @@ TEST_F(RealCompositorTest, ReplaceAnimations) {
 
 TEST_F(RealCompositorTest, SkipUnneededAnimations) {
   int64_t now = 1000;  // arbitrary
-  compositor_->set_current_time_ms_for_testing(now);
+  SetMonotonicTimeMsForTest(now);
 
   // After we add an actor, we should draw a frame.
   scoped_ptr<RealCompositor::Actor> actor(

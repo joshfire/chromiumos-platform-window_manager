@@ -257,14 +257,25 @@ inline uint32 NextPowerOfTwo(uint32 x) {
 std::string GetTimeAsString(time_t utime);
 
 // Get the number of seconds since the epoch.
+// The values returned by successive calls can decrease if the system clock
+// is set to an earlier time.
 time_t GetCurrentTimeSec();
 
 // Get the number of milliseconds since the epoch.
+// The values returned by successive calls can decrease if the system clock
+// is set to an earlier time.
 int64_t GetCurrentTimeMs();
 
 // Set the time returned by GetCurrentTimeSecs() and GetCurrentTimeMs().
 // A negative 'sec' value makes us revert to the real time.  Used by tests.
 void SetCurrentTimeForTest(time_t sec, int ms);
+
+// Get a monotonically-increasing time, in milliseconds.
+// The values returned are not affected by changes to the system clock.
+int64_t GetMonotonicTimeMs();
+
+// Set the time returned by GetMonototonicTimeMs().  Used by tests.
+void SetMonotonicTimeMsForTest(int64_t ms);
 
 // Helper function to create a symlink pointing from 'symlink_path' (a full
 // path) to 'log_basename' (the name of a file that should be in the same

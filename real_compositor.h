@@ -49,7 +49,8 @@ class RealCompositor : public Compositor {
 
   typedef std::vector<Actor*> ActorVector;
 
-  // This is in milliseconds.
+  // This is in milliseconds from the monotonically-increasing system clock
+  // (read: not since the epoch).
   typedef int64_t AnimationTime;
 
   template<class T>
@@ -668,9 +669,6 @@ class RealCompositor : public Compositor {
 #endif
   int actor_count() { return actor_count_; }
   bool dirty() const { return dirty_; }
-  void set_current_time_ms_for_testing(int64_t time_ms) {
-    current_time_ms_for_testing_ = time_ms;
-  }
   bool using_visibility_groups() const {
     return !active_visibility_groups_.empty();
   }
@@ -684,10 +682,6 @@ class RealCompositor : public Compositor {
 
   void AddActor(Actor* actor) { actors_.push_back(actor); }
   void RemoveActor(Actor* actor);
-
-  // Returns the current time, as milliseconds since the epoch, or
-  // 'current_time_ms_for_testing_' if it's 0 or positive.
-  AnimationTime GetCurrentTimeMs();
 
   // Mark the scene as dirty, enabling the draw timeout if needed.
   void SetDirty();
@@ -746,11 +740,8 @@ class RealCompositor : public Compositor {
   scoped_ptr<OpenGlesDrawVisitor> draw_visitor_;
 #endif
 
-  // If 0 or positive, the time that will be returned by GetCurrentTimeMs().
-  // Used for testing.
-  int64_t current_time_ms_for_testing_;
-
-  // Time that we last drew the scene, as milliseconds since the epoch.
+  // Time that we last drew the scene, as milliseconds from the
+  // monotonically-increasing system clock (read: not since the epoch).
   int64_t last_draw_time_ms_;
 
   // ID of the event loop timeout used to invoke Draw().

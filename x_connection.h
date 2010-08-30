@@ -521,7 +521,8 @@ class XConnection {
   // Is the server currently grabbed?
   bool server_grabbed_;
 
-  // Time at which the server grab started, as milliseconds since the epoch.
+  // Time at which the server grab started, as milliseconds from the
+  // monotonically-increasing system clock (read: not since the epoch).
   int64_t server_grab_time_ms_;
 
   DISALLOW_COPY_AND_ASSIGN(XConnection);
