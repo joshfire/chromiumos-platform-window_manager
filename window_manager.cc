@@ -342,7 +342,7 @@ bool WindowManager::Init() {
   focus_manager_.reset(new FocusManager(this));
 
   if (!logged_in_)
-    CreateInitialBackground();
+    CreateStartupBackground();
 
   // Draw the scene first to make sure that it's ready.
   compositor_->Draw();
@@ -471,6 +471,11 @@ void WindowManager::SetLoggedInState(bool logged_in, bool initial) {
     DCHECK(!layout_manager_.get());
     layout_manager_.reset(new LayoutManager(this, panel_manager_.get()));
     event_consumers_.insert(layout_manager_.get());
+
+    // We've probably already dropped the background containing the initial
+    // contents of the root window in response to the login background
+    // window being shown, but it doesn't hurt to be sure here.
+    DropStartupBackground();
   } else {
     DCHECK(!login_controller_.get());
     login_controller_.reset(new LoginController(this));
@@ -1984,7 +1989,7 @@ void WindowManager::QueryKeyboardState() {
   hotkey_overlay_->HandleKeyboardState(keycodes);
 }
 
-void WindowManager::CreateInitialBackground() {
+void WindowManager::CreateStartupBackground() {
   startup_pixmap_ = xconn_->CreatePixmap(root_, width_, height_, root_depth_);
   xconn_->CopyArea(root_, startup_pixmap_, 0, 0, 0, 0, width_, height_);
   Compositor::TexturePixmapActor* pixmap_actor =

@@ -1591,11 +1591,11 @@ TEST_F(LayoutManagerTest, ChangeBackgroundsAfterInitialWindow) {
   EXPECT_TRUE(cast_startup_background->is_shown());
   EXPECT_TRUE(wm_->layout_manager_.get() == NULL);
 
-  // After the user logs in, we should still show the startup background,
-  // but the layout manager should've also loaded the logged-in background.
+  // After the user logs in, the window manager should've dropped the
+  // startup background, and the layout manager should've also loaded the
+  // logged-in background.
   SetLoggedInState(true);
-  ASSERT_TRUE(wm_->startup_background_.get() != NULL);
-  EXPECT_TRUE(cast_startup_background->is_shown());
+  EXPECT_TRUE(wm_->startup_background_.get() == NULL);
   lm_ = wm_->layout_manager_.get();
   ASSERT_TRUE(lm_ != NULL);
   ASSERT_TRUE(lm_->background_.get() != NULL);
@@ -1604,11 +1604,10 @@ TEST_F(LayoutManagerTest, ChangeBackgroundsAfterInitialWindow) {
   CHECK(cast_lm_background);
   EXPECT_FALSE(cast_lm_background->is_shown());
 
-  // After the first Chrome window gets mapped, we should hide the startup
-  // background and show the layout manager background.
+  // After the first Chrome window gets mapped, we should show the layout
+  // manager background.
   XWindow toplevel_xid = CreateToplevelWindow(2, 0, 0, 0, 640, 480);
   SendInitialEventsForWindow(toplevel_xid);
-  EXPECT_TRUE(wm_->startup_background_.get() == NULL);
   ASSERT_TRUE(lm_->background_.get() != NULL);
   EXPECT_TRUE(cast_lm_background->is_shown());
 
@@ -1617,7 +1616,6 @@ TEST_F(LayoutManagerTest, ChangeBackgroundsAfterInitialWindow) {
   XEvent event;
   xconn_->InitUnmapEvent(&event, toplevel_xid);
   wm_->HandleEvent(&event);
-  EXPECT_TRUE(wm_->startup_background_.get() == NULL);
   ASSERT_TRUE(lm_->background_.get() != NULL);
   EXPECT_FALSE(cast_lm_background->is_shown());
 }

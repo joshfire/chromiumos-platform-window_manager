@@ -1825,11 +1825,9 @@ void LayoutManager::ConfigureBackground(int width, int height) {
 void LayoutManager::HandleFirstToplevelChromeWindowMapped(Window* win) {
   DCHECK(win);
 
-  // Start drawing our background when we see the first Chrome window, and tell
-  // WindowManager to stop drawing its startup background.
+  // Start drawing our background when we see the first Chrome window.
   if (background_.get())
     background_->Show();
-  wm_->DropStartupBackground();
 
   if (!FLAGS_initial_chrome_window_mapped_file.empty()) {
     DLOG(INFO) << "Writing initial Chrome window's ID to file "

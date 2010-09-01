@@ -69,7 +69,7 @@ class LoginController : public EventConsumer {
   virtual void HandleClientMessage(XWindow xid,
                                    XAtom message_type,
                                    const long data[5]);
-  virtual void HandleWindowPropertyChange(XWindow xid, XAtom xatom);
+  virtual void HandleWindowPropertyChange(XWindow xid, XAtom xatom) {}
   virtual void OwnDestroyedWindow(DestroyedWindow* destroyed_win, XWindow xid);
   // End EventConsumer implementation.
 

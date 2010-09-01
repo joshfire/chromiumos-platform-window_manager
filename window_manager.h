@@ -397,7 +397,7 @@ class WindowManager : public PanelManagerAreaChangeListener,
 
   // Initialize 'startup_background_' to hold a new actor that displays the
   // initial contents of the root window.  Called by Init().
-  void CreateInitialBackground();
+  void CreateStartupBackground();
 
   // Callback that fades out 'unaccelerated_graphics_actor_'.
   void HideUnacceleratedGraphicsActor();

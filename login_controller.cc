@@ -31,7 +31,7 @@ namespace window_manager {
 static const int kAnimationTimeInMs = 200;
 
 // Time for the initial show animation.
-static const int kInitialShowAnimationTimeInMs = 400;
+static const int kInitialShowAnimationTimeInMs = 200;
 
 // Amount of time to take for animations when transitioning from the
 // logged-out state to the logged-in state.
@@ -216,18 +216,11 @@ void LoginController::HandleWindowMap(Window* win) {
       break;
     }
     case chromeos::WM_IPC_WINDOW_LOGIN_BACKGROUND: {
-      if (win->type_params().empty()) {
-        LOG(WARNING) << " background window missing expected param";
-        return;
-      }
       if (background_window_)
         LOG(WARNING) << "two background windows encountered.";
       background_window_ = win;
       wm_->focus_manager()->UseClickToFocusForWindow(background_window_);
       registrar_.RegisterForWindowEvents(background_window_->xid());
-      registrar_.RegisterForPropertyChanges(
-          background_window_->xid(),
-          wm_->GetXAtom(ATOM_CHROME_WINDOW_TYPE));
       break;
     }
     default:
@@ -325,9 +318,6 @@ void LoginController::HandleWindowUnmap(Window* win) {
     return;
 
   if (win == background_window_) {
-    registrar_.UnregisterForPropertyChanges(
-        background_window_->xid(),
-        wm_->GetXAtom(ATOM_CHROME_WINDOW_TYPE));
     registrar_.UnregisterForWindowEvents(background_window_->xid());
     background_window_ = NULL;
   } else if (win == guest_window_) {
@@ -382,11 +372,14 @@ void LoginController::HandleWindowInitialPixmap(Window* win) {
     HideWindowsAndRequestDestruction();
     return;
   }
+
   if (!all_windows_are_ready_) {
-    LoginEntry* entry = GetEntryForWindow(win);
-    if (entry && entry->HasAllPixmaps()) {
+    if (win == background_window_) {
       DoInitialSetupIfWindowsAreReady();
-      return;
+    } else {
+      LoginEntry* entry = GetEntryForWindow(win);
+      if (entry && entry->HasAllPixmaps())
+        DoInitialSetupIfWindowsAreReady();
     }
   }
 }
@@ -495,14 +488,6 @@ void LoginController::HandleClientMessage(XWindow xid,
   }
 }
 
-void LoginController::HandleWindowPropertyChange(XWindow xid, XAtom xatom) {
-  if (requested_destruction_)
-    return;
-  // Currently only listen for property changes on the background window.
-  DCHECK(background_window_ && background_window_->xid() == xid);
-  DoInitialSetupIfWindowsAreReady();
-}
-
 void LoginController::OwnDestroyedWindow(DestroyedWindow* destroyed_win,
                                          XWindow xid) {
   DCHECK(destroyed_win);
@@ -549,6 +534,15 @@ void LoginController::ConfigureBackgroundWindow() {
   background_window_->SetCompositedOpacity(0, 0);
   background_window_->ShowComposited();
   background_window_->SetCompositedOpacity(1, kInitialShowAnimationTimeInMs);
+
+  // Make the window manager drop its actor containing the initial contents
+  // of the root window once the login background window has faded all the
+  // way in -- we don't want the initial contents to be visible again if
+  // Chrome goes away because the user initiated shutdown from the login
+  // screen.
+  wm_->event_loop()->AddTimeout(
+      NewPermanentCallback(wm_, &WindowManager::DropStartupBackground),
+      kInitialShowAnimationTimeInMs, 0);
 }
 
 void LoginController::StackWindows() {
@@ -743,7 +737,6 @@ void LoginController::DoInitialSetupIfWindowsAreReady() {
 
   if (AllWindowsAreReady()) {
     all_windows_are_ready_ = true;
-
     ConfigureBackgroundWindow();
     StackWindows();
     InitialShow();
@@ -764,9 +757,7 @@ void LoginController::DoInitialSetupIfWindowsAreReady() {
 }
 
 bool LoginController::IsBackgroundWindowReady() {
-  // Wait until chrome painted the background window, otherwise we get an ugly
-  // gray flash.
-  return background_window_ && background_window_->type_params()[0] == 1;
+  return background_window_ && background_window_->has_initial_pixmap();
 }
 
 void LoginController::FocusLoginWindow(Window* win) {
