@@ -1075,6 +1075,9 @@ void WindowManager::RegisterKeyBindings() {
       NewPermanentCallback(this, &WindowManager::TakeScreenshot, false),
       NULL, NULL);
   key_bindings_->AddBinding(
+      KeyBindings::KeyCombo(XK_F4, KeyBindings::kControlMask),
+      kTakeRootScreenshotAction);
+  key_bindings_->AddBinding(
       KeyBindings::KeyCombo(XK_Print, 0), kTakeRootScreenshotAction);
 
   key_bindings_actions_->AddAction(
