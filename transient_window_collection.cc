@@ -187,6 +187,7 @@ void TransientWindowCollection::HandleConfigureRequest(
   if (is_hidden_) {
     DLOG(INFO) << "Ignoring configure request for offscreen transient window "
                << transient_win->xid_str();
+    transient_win->SendSyntheticConfigureNotify();
     return;
   }
 

@@ -571,29 +571,31 @@ void LayoutManager::HandleWindowConfigureRequest(
     Window* win, int req_x, int req_y, int req_width, int req_height) {
   if (win->type() == chromeos::WM_IPC_WINDOW_CHROME_TAB_SNAPSHOT) {
     SnapshotWindow* snapshot = GetSnapshotWindowByWindow(*win);
-    if (snapshot)
+    if (snapshot) {
       if (req_width != win->client_width() ||
           req_height != win->client_height()) {
         win->ResizeClient(req_width, req_height, GRAVITY_NORTHWEST);
         LayoutWindows(false);
+      } else {
+        win->SendSyntheticConfigureNotify();
       }
-  } else {
-    ToplevelWindow* toplevel_owner =
-        GetToplevelWindowOwningTransientWindow(*win);
-    if (toplevel_owner) {
-      toplevel_owner->HandleTransientWindowConfigureRequest(
-          win, req_x, req_y, req_width, req_height);
-      return;
     }
+    return;
+  }
 
-    ToplevelWindow* toplevel = GetToplevelWindowByWindow(*win);
-    if (toplevel) {
-      if (req_width != win->client_width() ||
-          req_height != win->client_height()) {
-        win->ResizeClient(req_width, req_height, GRAVITY_NORTHWEST);
-        LayoutWindows(false);
-      }
-    }
+  ToplevelWindow* toplevel_owner = GetToplevelWindowOwningTransientWindow(*win);
+  if (toplevel_owner) {
+    toplevel_owner->HandleTransientWindowConfigureRequest(
+        win, req_x, req_y, req_width, req_height);
+    return;
+  }
+
+  // Ignore requests to resize toplevel windows, but send them fake
+  // ConfigureNotify events to let them know that we saw the requests.
+  ToplevelWindow* toplevel = GetToplevelWindowByWindow(*win);
+  if (toplevel) {
+    win->SendSyntheticConfigureNotify();
+    return;
   }
 }
 

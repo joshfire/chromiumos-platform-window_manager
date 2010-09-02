@@ -947,6 +947,21 @@ void Window::HandleSyncAlarmNotify(XID alarm_id, int64_t value) {
   }
 }
 
+void Window::SendSyntheticConfigureNotify() {
+  const XWindow* xid_under_us_ptr = wm_->stacked_xids().GetUnder(xid_);
+  const XWindow xid_under_us = xid_under_us_ptr ? *xid_under_us_ptr : 0;
+  DLOG(INFO) << "Sending synthetic configure notify for " << xid_str() << ": "
+             << "(" << client_x_ << ", " << client_y_ << ") " << client_width_
+             << "x" << client_height_ << ", above " << XidStr(xid_under_us);
+  wm_->xconn()->SendConfigureNotifyEvent(
+      xid_,
+      client_x_, client_y_,
+      client_width_, client_height_,
+      0,  // border_width
+      xid_under_us,
+      false);  // override_redirect
+}
+
 bool Window::IsClientWindowOffscreen() const {
   return (client_x_ >= wm_->width() || client_x_ + client_width_ < 0 ||
           client_y_ >= wm_->height() || client_y_ + client_height_ < 0);
@@ -1072,21 +1087,6 @@ void Window::SendWmSyncRequestMessage() {
   wm_->xconn()->SendClientMessageEvent(
       xid_, xid_, wm_->GetXAtom(ATOM_WM_PROTOCOLS), data, 0);
   client_has_redrawn_after_last_resize_ = false;
-}
-
-void Window::SendSyntheticConfigureNotify() {
-  const XWindow* xid_under_us_ptr = wm_->stacked_xids().GetUnder(xid_);
-  const XWindow xid_under_us = xid_under_us_ptr ? *xid_under_us_ptr : 0;
-  DLOG(INFO) << "Sending synthetic configure notify for " << xid_str() << ": "
-             << "(" << client_x_ << ", " << client_y_ << ") " << client_width_
-             << "x" << client_height_ << ", above " << XidStr(xid_under_us);
-  wm_->xconn()->SendConfigureNotifyEvent(
-      xid_,
-      client_x_, client_y_,
-      client_width_, client_height_,
-      0,  // border_width
-      xid_under_us,
-      false);  // override_redirect
 }
 
 

@@ -255,12 +255,15 @@ void PanelManager::HandleWindowConfigureRequest(
   if (panel->IsBeingResizedByUser()) {
     LOG(WARNING) << "Ignoring request to configure panel " << panel->xid_str()
                  << " while it's being manually resized";
+    win->SendSyntheticConfigureNotify();
     return;
   }
 
   if (req_width != panel->content_width() ||
       req_height != panel->content_height()) {
     container->HandlePanelResizeRequest(panel, req_width, req_height);
+  } else {
+    win->SendSyntheticConfigureNotify();
   }
 }
 

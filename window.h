@@ -356,6 +356,10 @@ class Window {
   // triggering value of the counter being watched.
   void HandleSyncAlarmNotify(XID alarm_id, int64_t value);
 
+  // Send a synthetic ConfigureNotify event to the client containing the
+  // window's current position, size, etc.
+  void SendSyntheticConfigureNotify();
+
  private:
   friend class BasicWindowManagerTest;
 
@@ -407,10 +411,6 @@ class Window {
   // update the counter after it's seen the ConfigureNotify and redrawn its
   // contents.
   void SendWmSyncRequestMessage();
-
-  // Send a synthetic ConfigureNotify event to the client containing the
-  // window's current position, size, etc.
-  void SendSyntheticConfigureNotify();
 
   XWindow xid_;
   std::string xid_str_;  // hex for debugging

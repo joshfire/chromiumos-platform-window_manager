@@ -648,11 +648,8 @@ TEST_F(LayoutManagerTest, Resize) {
           background->GetHeight() * background->GetYScale() + 0.5f));
 }
 
-// Test that we let clients resize toplevel windows after they've been
-// mapped.  This isn't what we actually want to do (why would a client even
-// care?  Their window is maximized), but is required to avoid triggering
-// issue 449, where Chrome's option window seems to stop redrawing itself
-// if it doesn't get the size that it asks for.
+// Test that we don't let clients resize toplevel windows after they've been
+// mapped.
 TEST_F(LayoutManagerTest, ConfigureToplevel) {
   // Create and map a toplevel window.
   XWindow xid = CreateSimpleWindow();
@@ -675,16 +672,22 @@ TEST_F(LayoutManagerTest, ConfigureToplevel) {
   XEvent event;
   xconn_->InitConfigureRequestEvent(
       &event, xid, new_x, new_y, new_width, new_height);
+  info->configure_notify_events.clear();
   wm_->HandleEvent(&event);
 
-  // The window should still be centered, but have the new width.
-  EXPECT_EQ(lm_->x() + std::max(0, (lm_->width() - info->width)) / 2,
-            info->x);
-  EXPECT_EQ(lm_->y() + std::max(0, (lm_->height() - info->height)) / 2,
-            info->y);
+  // The window should have the same position and size as before.
+  EXPECT_EQ(lm_->x(), info->x);
+  EXPECT_EQ(lm_->y(), info->y);
+  EXPECT_EQ(lm_->width(), info->width);
+  EXPECT_EQ(lm_->height(), info->height);
 
-  EXPECT_EQ(new_width, info->width);
-  EXPECT_EQ(new_height, info->height);
+  // We should've sent it a synthetic ConfigureNotify event containing its
+  // current position and size.
+  ASSERT_EQ(static_cast<size_t>(1), info->configure_notify_events.size());
+  EXPECT_EQ(lm_->x(), info->configure_notify_events[0].x);
+  EXPECT_EQ(lm_->y(), info->configure_notify_events[0].y);
+  EXPECT_EQ(lm_->width(), info->configure_notify_events[0].width);
+  EXPECT_EQ(lm_->height(), info->configure_notify_events[0].height);
 }
 
 TEST_F(LayoutManagerTest, ChangeCurrentSnapshot) {

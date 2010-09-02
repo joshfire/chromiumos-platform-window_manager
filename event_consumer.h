@@ -88,7 +88,9 @@ class EventConsumer {
   // requests are applied automatically).  If the consumer wants to
   // configure the window (possibly with different parameters than the
   // requested ones), it should call Window::MoveClient() and
-  // ResizeClient().
+  // ResizeClient().  Otherwise, if the consumer is managing the window but
+  // chooses not to make any changes to it in response to the request, it
+  // should call Window::SendSyntheticConfigureNotify().
   virtual void HandleWindowConfigureRequest(Window* win,
                                             int req_x, int req_y,
                                             int req_width, int req_height) = 0;
