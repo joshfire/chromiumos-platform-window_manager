@@ -134,6 +134,16 @@ bool SetUpLogSymlink(const std::string& symlink_path,
   return true;
 }
 
+string GetHostname() {
+  char hostname[256];
+  if (gethostname(hostname, sizeof(hostname)) != 0) {
+    PLOG(ERROR) << "Unable to look up hostname";
+    return string();
+  }
+  hostname[sizeof(hostname) - 1] = '\0';
+  return string(hostname);
+}
+
 }  // namespace util
 
 }  // namespace window_manager

@@ -23,6 +23,7 @@ extern "C" {
 #include "base/string_util.h"
 #include "cros/chromeos_wm_ipc_enums.h"
 #include "window_manager/callback.h"
+#include "window_manager/chrome_watchdog.h"
 #include "window_manager/event_consumer.h"
 #include "window_manager/event_loop.h"
 #include "window_manager/focus_manager.h"
@@ -101,6 +102,13 @@ static const int kUnacceleratedGraphicsActorHideTimeoutMs = 15000;
 // How quickly should we fade out 'unaccelerated_graphics_actor_' when
 // hiding it?
 static const int kUnacceleratedGraphicsActorHideAnimMs = 500;
+
+// How frequently should we send _NET_WM_PING messages to Chrome, and how
+// long should we wait for a response to each before killing the process?
+static const int kPingChromeFrequencyMs = 5000;
+static const int kPingChromeTimeoutMs = 4000;
+COMPILE_ASSERT(kPingChromeFrequencyMs > kPingChromeTimeoutMs,
+               ping_timeout_is_greater_than_ping_frequency);
 
 // Names of key binding actions that we register.
 static const char* kLaunchTerminalAction = "launch-terminal";
@@ -212,7 +220,8 @@ WindowManager::WindowManager(EventLoop* event_loop,
       logged_in_(false),
       initialize_logging_(false),
       last_video_time_(-1),
-      hide_unaccelerated_graphics_actor_timeout_id_(-1) {
+      hide_unaccelerated_graphics_actor_timeout_id_(-1),
+      chrome_watchdog_timeout_id_(-1) {
   CHECK(event_loop_);
   CHECK(xconn_);
   CHECK(compositor_);
@@ -225,6 +234,8 @@ WindowManager::~WindowManager() {
     xconn_->FreePixmap(startup_pixmap_);
   if (query_keyboard_state_timeout_id_ >= 0)
     event_loop_->RemoveTimeout(query_keyboard_state_timeout_id_);
+  if (chrome_watchdog_timeout_id_ >= 0)
+    event_loop_->RemoveTimeout(chrome_watchdog_timeout_id_);
   if (hide_unaccelerated_graphics_actor_timeout_id_ >= 0)
     event_loop_->RemoveTimeout(hide_unaccelerated_graphics_actor_timeout_id_);
   if (panel_manager_.get())
@@ -392,6 +403,14 @@ bool WindowManager::Init() {
 
   screen_locker_handler_.reset(new ScreenLockerHandler(this));
   event_consumers_.insert(screen_locker_handler_.get());
+
+  chrome_watchdog_.reset(new ChromeWatchdog(this));
+  event_consumers_.insert(chrome_watchdog_.get());
+
+  chrome_watchdog_timeout_id_ =
+      event_loop_->AddTimeout(
+          NewPermanentCallback(this, &WindowManager::PingChrome),
+          kPingChromeFrequencyMs, kPingChromeFrequencyMs);
 
   hotkey_overlay_.reset(new HotkeyOverlay(xconn_, compositor_));
   stage_->AddActor(hotkey_overlay_->group());
@@ -1356,9 +1375,15 @@ void WindowManager::HandleButtonRelease(const XButtonEvent& e) {
 }
 
 void WindowManager::HandleClientMessage(const XClientMessageEvent& e) {
-  DLOG(INFO) << "Handling client message for window " << XidStr(e.window)
-             << " with type " << XidStr(e.message_type) << " ("
-             << GetXAtomName(e.message_type) << ") and format " << e.format;
+  // _NET_WM_PING responses are spammy; don't log them.
+  if (!(e.message_type == GetXAtom(ATOM_WM_PROTOCOLS) &&
+        e.format == XConnection::kLongFormat &&
+        static_cast<XAtom>(e.data.l[0]) == GetXAtom(ATOM_NET_WM_PING))) {
+    DLOG(INFO) << "Handling client message for window " << XidStr(e.window)
+               << " with type " << XidStr(e.message_type) << " ("
+               << GetXAtomName(e.message_type) << ") and format " << e.format;
+  }
+
   WmIpc::Message msg;
   if (wm_ipc_->GetMessage(e.window, e.message_type, e.format, e.data.l, &msg)) {
     if (msg.type() == chromeos::WM_IPC_MESSAGE_WM_NOTIFY_IPC_VERSION) {
@@ -1770,6 +1795,8 @@ void WindowManager::HandlePropertyNotify(const XPropertyEvent& e) {
       win->FetchAndApplySizeHints();
     } else if (e.atom == GetXAtom(ATOM_WM_TRANSIENT_FOR)) {
       win->FetchAndApplyTransientHint();
+    } else if (e.atom == GetXAtom(ATOM_WM_PROTOCOLS)) {
+      win->FetchAndApplyWmProtocols();
     } else if (e.atom == GetXAtom(ATOM_CHROME_WINDOW_TYPE)) {
       win->FetchAndApplyWindowType();
     } else if (e.atom == GetXAtom(ATOM_NET_WM_WINDOW_TYPE)) {
@@ -2029,6 +2056,11 @@ void WindowManager::DestroyLoginControllerInternal() {
   DLOG(INFO) << "Destroying login controller";
   event_consumers_.erase(login_controller_.get());
   login_controller_.reset();
+}
+
+void WindowManager::PingChrome() {
+  chrome_watchdog_->SendPingToChrome(GetCurrentTimeFromServer(),
+                                     kPingChromeTimeoutMs);
 }
 
 }  // namespace window_manager

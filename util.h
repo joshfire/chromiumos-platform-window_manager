@@ -284,6 +284,9 @@ void SetMonotonicTimeMsForTest(int64_t ms);
 bool SetUpLogSymlink(const std::string& symlink_path,
                      const std::string& log_basename);
 
+// Get the machine's hostname, as returned by gethostname().
+std::string GetHostname();
+
 }  // namespace util
 
 }  // namespace window_manager

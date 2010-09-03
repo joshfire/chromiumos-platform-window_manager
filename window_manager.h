@@ -36,6 +36,7 @@ extern "C" {
 
 namespace window_manager {
 
+class ChromeWatchdog;
 class EventConsumer;
 class EventLoop;
 class FocusManager;
@@ -256,6 +257,7 @@ class WindowManager : public PanelManagerAreaChangeListener,
   friend class PanelBarTest;              // uses 'panel_manager_'
   friend class PanelDockTest;             // uses 'panel_manager_'
   friend class PanelManagerTest;          // uses 'panel_manager_'
+  FRIEND_TEST(ChromeWatchdogTest, Basic);
   FRIEND_TEST(LayoutManagerTest, Basic);  // uses TrackWindow()
   FRIEND_TEST(LayoutManagerTest, OverviewSpacing);
   FRIEND_TEST(LayoutManagerTest, InitialWindowStacking);
@@ -373,9 +375,9 @@ class WindowManager : public PanelManagerAreaChangeListener,
   // run it in the background.
   void RunCommand(std::string command);
 
-  // Returns arbitrary chrome window. Used when sending a
-  // message to Chrome, when particular window does not matter.
-  // Returns 0 if there is no Chrome window currently.
+  // Get an arbitrary window owned by Chrome.  This can be used when
+  // sending a message to Chrome, when the particular window that's used
+  // doesn't matter.  Returns 0 if there aren't any Chrome windows.
   XWindow GetArbitraryChromeWindow();
 
   // Sends WM_IPC_MESSAGE_CHROME_NOTIFY_SYSKEY_PRESSED notification to Chrome.
@@ -412,6 +414,10 @@ class WindowManager : public PanelManagerAreaChangeListener,
   // Helper method posted as a task on the event loop by
   // DestroyLoginController().  This actually does the deleting.
   void DestroyLoginControllerInternal();
+
+  // Callback invoked by 'chrome_watchdog_timeout_id_' to call
+  // chrome_watchdog_->SendPingToChrome().
+  void PingChrome();
 
   EventLoop* event_loop_;   // not owned
   XConnection* xconn_;      // not owned
@@ -506,6 +512,7 @@ class WindowManager : public PanelManagerAreaChangeListener,
   scoped_ptr<LoginController> login_controller_;
 
   scoped_ptr<ScreenLockerHandler> screen_locker_handler_;
+  scoped_ptr<ChromeWatchdog> chrome_watchdog_;
 
   // ID for the timeout that calls QueryKeyboardState().
   int query_keyboard_state_timeout_id_;
@@ -556,6 +563,9 @@ class WindowManager : public PanelManagerAreaChangeListener,
 
   // ID for the timeout that calls HideUnacceleratedGraphicsActor().
   int hide_unaccelerated_graphics_actor_timeout_id_;
+
+  // Id for the timeout that calls PingChrome().
+  int chrome_watchdog_timeout_id_;
 
   DISALLOW_COPY_AND_ASSIGN(WindowManager);
 };

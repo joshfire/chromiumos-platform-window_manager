@@ -95,6 +95,7 @@ class Window {
   void SetTitle(const std::string& title);
 
   const XConnection::SizeHints& size_hints() const { return size_hints_; }
+  bool supports_wm_ping() const { return supports_wm_ping_; }
   const std::vector<XAtom>& wm_window_type_xatoms() const {
     return wm_window_type_xatoms_;
   }
