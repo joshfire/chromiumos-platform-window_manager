@@ -38,5 +38,5 @@ XTERM_COMMAND="/usr/bin/cros-term"
   --rectangular_shadow_image_dir="${IMAGES}/rectangular_shadow"         \
   --separator_image="${IMAGES}/separator.png"                           \
   --unaccelerated_graphics_image="${IMAGES}/unaccelerated_graphics.png" \
-  --unredirect_fullscreen_window=true                                   \
+  --unredirect_fullscreen_window=false                                  \
   --xterm_command="${XTERM_COMMAND}"
