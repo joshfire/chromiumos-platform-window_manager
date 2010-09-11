@@ -1010,25 +1010,23 @@ TEST_F(WindowManagerTest, StartNewLogAfterLogin) {
 
   // The logged-in directory should be empty, but the logged-out directory
   // should contain data.
+  LOG(INFO) << "Pre-login log message";
   EXPECT_EQ(static_cast<off_t>(0),
             GetTotalFileSizeInDirectory(logged_in_dir.path()));
   EXPECT_GT(GetTotalFileSizeInDirectory(logged_out_dir.path()),
             static_cast<off_t>(0));
 
-  // After we log in and send some events, both directories should have data.
+  // After we log in and log a message, both directories should have data.
   SetLoggedInState(true);
   ASSERT_TRUE(wm_->logged_in());
-  XWindow xid = CreateSimpleWindow();
-  SendInitialEventsForWindow(xid);
+  LOG(INFO) << "Post-login log message";
   off_t logged_in_size = GetTotalFileSizeInDirectory(logged_in_dir.path());
   off_t logged_out_size = GetTotalFileSizeInDirectory(logged_out_dir.path());
   EXPECT_GT(logged_in_size, static_cast<off_t>(0));
 
-  // Send some more events to give the window manager more information to
-  // log, and check that the logged-in directory increased in size but the
-  // logged-out one remained the same.
-  XWindow xid2 = CreateSimpleWindow();
-  SendInitialEventsForWindow(xid2);
+  // Log another message and check that the logged-in directory increased in
+  // size but the logged-out one remained the same.
+  LOG(INFO) << "Another post-login log message";
   EXPECT_GT(GetTotalFileSizeInDirectory(logged_in_dir.path()), logged_in_size);
   EXPECT_EQ(logged_out_size,
             GetTotalFileSizeInDirectory(logged_out_dir.path()));
