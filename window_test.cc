@@ -34,6 +34,29 @@ namespace window_manager {
 
 class WindowTest : public BasicWindowManagerTest {};
 
+// Test that we load a window's title when it's first created (instead of
+// waiting until we get a PropertyNotify event to load it).
+TEST_F(WindowTest, Title) {
+  XWindow xid = CreateSimpleWindow();
+  const string kTitle = "foo";
+  const XAtom kAtom = xconn_->GetAtomOrDie("_NET_WM_NAME");
+  xconn_->SetStringProperty(xid, kAtom, kTitle);
+
+  XConnection::WindowGeometry geometry;
+  ASSERT_TRUE(xconn_->GetWindowGeometry(xid, &geometry));
+  Window win(wm_.get(), xid, false, geometry);
+  EXPECT_EQ(kTitle, win.title());
+
+  const string kNewTitle = "bar";
+  xconn_->SetStringProperty(xid, kAtom, kNewTitle);
+  win.FetchAndApplyTitle();
+  EXPECT_EQ(kNewTitle, win.title());
+
+  xconn_->DeletePropertyIfExists(xid, kAtom);
+  win.FetchAndApplyTitle();
+  EXPECT_EQ("", win.title());
+}
+
 TEST_F(WindowTest, WindowType) {
   XWindow xid = CreateSimpleWindow();
   XConnection::WindowGeometry geometry;

@@ -1784,11 +1784,7 @@ void WindowManager::HandlePropertyNotify(const XPropertyEvent& e) {
                << (deleted ? "deleted " : "") << "property "
                << XidStr(e.atom) << " (" << GetXAtomName(e.atom) << ")";
     if (e.atom == GetXAtom(ATOM_NET_WM_NAME)) {
-      string title;
-      if (deleted || !xconn_->GetStringProperty(win->xid(), e.atom, &title))
-        win->SetTitle("");
-      else
-        win->SetTitle(title);
+      win->FetchAndApplyTitle();
     } else if (e.atom == GetXAtom(ATOM_WM_HINTS)) {
       win->FetchAndApplyWmHints();
     } else if (e.atom == GetXAtom(ATOM_WM_NORMAL_HINTS)) {

@@ -100,8 +100,6 @@ Window::Window(WindowManager* wm, XWindow xid, bool override_redirect,
   damage_ = wm_->xconn()->CreateDamage(
       xid_, XConnection::DAMAGE_REPORT_LEVEL_BOUNDING_BOX);
 
-  // This will update the actor's name based on the current title and xid.
-  SetTitle(title_);
   actor_->Move(composited_x_, composited_y_, 0);
   actor_->Hide();
   wm_->stage()->AddActor(actor_.get());
@@ -109,6 +107,7 @@ Window::Window(WindowManager* wm, XWindow xid, bool override_redirect,
   // Various properties could've been set on this window after it was
   // created but before we selected PropertyChangeMask, so we need to query
   // them here.
+  FetchAndApplyTitle();
   FetchAndApplyWindowType();
   FetchAndApplyShape();
   FetchAndApplyWindowOpacity();
@@ -131,18 +130,22 @@ Window::~Window() {
   DestroyWmSyncRequestAlarm();
 }
 
-void Window::SetTitle(const string& title) {
-  DCHECK(actor_.get());
-  title_ = title;
-  if (title_.empty()) {
-    actor_->SetName(string("window ") + xid_str());
-  } else {
-    actor_->SetName(string("window '") + title_ + "' (" + xid_str() + ")");
-  }
-}
-
 bool Window::IsFocused() const {
   return wm_->focus_manager()->focused_win() == this;
+}
+
+void Window::FetchAndApplyTitle() {
+  DCHECK(xid_);
+  DCHECK(actor_.get());
+
+  title_.clear();
+  wm_->xconn()->GetStringProperty(
+      xid_, wm_->GetXAtom(ATOM_NET_WM_NAME), &title_);
+
+  if (title_.empty())
+    actor_->SetName(string("window ") + xid_str());
+  else
+    actor_->SetName(string("window '") + title_ + "' (" + xid_str() + ")");
 }
 
 bool Window::FetchAndApplySizeHints() {
