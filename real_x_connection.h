@@ -117,6 +117,7 @@ class RealXConnection : public XConnection {
                         scoped_ptr_malloc<uint8_t>* data_out,
                         ImageFormat* format_out);
   virtual bool SetWindowCursor(XWindow xid, uint32 shape);
+  virtual bool GetParentWindow(XWindow xid, XWindow* parent_out);
   virtual bool GetChildWindows(XWindow xid, std::vector<XWindow>* children_out);
   virtual void RefreshKeyboardMap(
       int request, KeyCode first_keycode, int count);

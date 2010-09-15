@@ -1040,8 +1040,30 @@ void LayoutManager::HandleTransientWindowMap(Window* win) {
   DCHECK(win);
   DCHECK(win->transient_for_xid());
 
+  XWindow owner_xid = win->transient_for_xid();
+  if (!wm_->GetWindow(owner_xid)) {
+    // Flash can create a transient window that claims to belong to the
+    // window deep in the tree that's embedding it, so if we see an owner
+    // that's not a direct child of the root, walk up the tree.
+    XConnection::ScopedServerGrab server_grab(wm_->xconn());
+    while (true) {
+      XWindow parent_xid = 0;
+      if (!wm_->xconn()->GetParentWindow(owner_xid, &parent_xid)) {
+        LOG(WARNING) << "Got error while querying parent of "
+                     << XidStr(owner_xid) << " while tracing lineage of "
+                     << "transient window " << win->xid_str() << " with "
+                     << "non-toplevel owner "
+                     << XidStr(win->transient_for_xid());
+        return;
+      }
+      if (parent_xid == wm_->root())
+        break;
+      owner_xid = parent_xid;
+    }
+  }
+
   ToplevelWindow* toplevel_owner = NULL;
-  Window* owner_win = wm_->GetWindow(win->transient_for_xid());
+  Window* owner_win = wm_->GetWindow(owner_xid);
   if (owner_win) {
     // Try to find the toplevel window representing the owner.  If
     // the owner is itself a transient window, just give the new

@@ -1060,16 +1060,37 @@ bool RealXConnection::SetWindowCursor(XWindow xid, uint32 shape) {
   return true;
 }
 
-bool RealXConnection::GetChildWindows(XWindow xid,
-                                      vector<XWindow>* children_out) {
-  CHECK(children_out);
+bool RealXConnection::GetParentWindow(XWindow xid, XWindow* parent_out) {
+  DCHECK(parent_out);
+  if (xid == root_) {
+    *parent_out = 0;
+    return true;
+  }
+
   xcb_query_tree_cookie_t cookie = xcb_query_tree(xcb_conn_, xid);
   xcb_generic_error_t* error = NULL;
   scoped_ptr_malloc<xcb_query_tree_reply_t> reply(
       xcb_query_tree_reply(xcb_conn_, cookie, &error));
   scoped_ptr_malloc<xcb_generic_error_t> scoped_error(error);
   if (error) {
-    LOG(WARNING) << "Got X error while querying tree for " << XidStr(xid);
+    LOG(WARNING) << "Got X error while querying for parent of " << XidStr(xid);
+    return false;
+  }
+  *parent_out = reply->parent;
+  return true;
+}
+
+bool RealXConnection::GetChildWindows(XWindow xid,
+                                      vector<XWindow>* children_out) {
+  DCHECK(children_out);
+  xcb_query_tree_cookie_t cookie = xcb_query_tree(xcb_conn_, xid);
+  xcb_generic_error_t* error = NULL;
+  scoped_ptr_malloc<xcb_query_tree_reply_t> reply(
+      xcb_query_tree_reply(xcb_conn_, cookie, &error));
+  scoped_ptr_malloc<xcb_generic_error_t> scoped_error(error);
+  if (error) {
+    LOG(WARNING) << "Got X error while querying for children of "
+                 << XidStr(xid);
     return false;
   }
 

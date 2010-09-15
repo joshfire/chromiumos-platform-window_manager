@@ -290,11 +290,11 @@ class XConnection {
   // Get the root window.
   virtual XWindow GetRootWindow() = 0;
 
-  // Create a new override-redirect window.  'width' and 'height' must be
-  // positive.  'event_mask' determines which events the window receives;
-  // it takes values from the "Input Event Masks" section of X.h.  The
-  // window is a child of 'parent'.  'visual' can be either the ID of the
-  // desired visual, or 0 to mean copy-from-parent.
+  // Create a new window.  'width' and 'height' must be positive.
+  // 'event_mask' determines which events the window receives; it takes
+  // values from the "Input Event Masks" section of X.h.  The window is a
+  // child of 'parent'.  'visual' can be either the ID of the desired
+  // visual, or 0 to mean copy-from-parent.
   virtual XWindow CreateWindow(
       XWindow parent,
       int x, int y,
@@ -428,6 +428,10 @@ class XConnection {
   // Change the cursor for a window.  'shape' is a definition from
   // Xlib's cursorfont.h header.
   virtual bool SetWindowCursor(XWindow xid, uint32 shape) = 0;
+
+  // Get the parent window of 'xid'.  Sets 'parent_out' to 0 if passed the
+  // root window.
+  virtual bool GetParentWindow(XWindow xid, XWindow* parent_out) = 0;
 
   // Get all subwindows of a window in bottom-to-top stacking order.
   virtual bool GetChildWindows(

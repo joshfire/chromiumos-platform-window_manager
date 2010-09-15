@@ -1799,6 +1799,49 @@ TEST_F(LayoutManagerTest, SwitchToToplevelWithModalTransient) {
   EXPECT_FALSE(WindowIsOffscreen(xid2));
 }
 
+// Test that when we see a transient window claim to be owned by a
+// non-toplevel window, we walk up the window tree until we find a toplevel
+// window.  See http://crosbug.com/5846.
+TEST_F(LayoutManagerTest, TransientOwnedByChildWindow) {
+  XWindow toplevel_xid = CreateSimpleWindow();
+  SendInitialEventsForWindow(toplevel_xid);
+
+  XWindow first_child_xid = xconn_->CreateWindow(
+      toplevel_xid,  // parent
+      0, 0,          // x, y
+      10, 10,        // width, height
+      false,         // override_redirect
+      false,         // input_only
+      0,             // event_mask
+      0);            // visual
+  XWindow second_child_xid = xconn_->CreateWindow(
+      first_child_xid,  // parent
+      0, 0,             // x, y
+      10, 10,           // width, height
+      false,            // override_redirect
+      false,            // input_only
+      0,                // event_mask
+      0);               // visual
+
+  XWindow transient_xid = CreateSimpleWindow();
+  MockXConnection::WindowInfo* transient_info =
+      xconn_->GetWindowInfoOrDie(transient_xid);
+  transient_info->transient_for = second_child_xid;
+  SendInitialEventsForWindow(transient_xid);
+
+  // Check that the transient window's actor is shown and that the
+  // transient window is correctly associated with the toplevel window.
+  MockCompositor::TexturePixmapActor* transient_actor =
+      GetMockActorForWindow(wm_->GetWindowOrDie(transient_xid));
+  EXPECT_TRUE(transient_actor->is_shown());
+  LayoutManager::ToplevelWindow* toplevel =
+      lm_->GetToplevelWindowByXid(toplevel_xid);
+  ASSERT_TRUE(toplevel != NULL);
+  EXPECT_EQ(toplevel,
+            lm_->GetToplevelWindowOwningTransientWindow(
+                *(wm_->GetWindowOrDie(transient_xid))));
+}
+
 }  // namespace window_manager
 
 int main(int argc, char** argv) {

@@ -135,6 +135,7 @@ class LayoutManager : public EventConsumer,
   FRIEND_TEST(LayoutManagerTest, ChangeBackgroundsAfterInitialWindow);
   FRIEND_TEST(LayoutManagerTest, DontGrabBackAndForwardKeysInActiveMode);
   FRIEND_TEST(LayoutManagerTest, SwitchToToplevelWithModalTransient);
+  FRIEND_TEST(LayoutManagerTest, TransientOwnedByChildWindow);
 
   // Internal private class, declared in toplevel_window.h
   class ToplevelWindow;

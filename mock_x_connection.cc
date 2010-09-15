@@ -40,7 +40,7 @@ MockXConnection::MockXConnection()
     : windows_(),
       stacked_xids_(new Stacker<XWindow>),
       next_xid_(1),
-      root_(CreateWindow(None, 0, 0,
+      root_(CreateWindow(0, 0, 0,
                          kDisplayWidth, kDisplayHeight, true, false, 0, 0)),
       overlay_(CreateWindow(root_, 0, 0,
                             kDisplayWidth, kDisplayHeight, true, false, 0, 0)),
@@ -666,6 +666,15 @@ bool MockXConnection::QueryPointerPosition(int* x_root, int* y_root) {
     *x_root = pointer_x_;
   if (y_root)
     *y_root = pointer_y_;
+  return true;
+}
+
+bool MockXConnection::GetParentWindow(XWindow xid, XWindow* parent_out) {
+  DCHECK(parent_out);
+  WindowInfo* info = GetWindowInfo(xid);
+  if (!info)
+    return false;
+  *parent_out = info->parent;
   return true;
 }
 
