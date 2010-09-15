@@ -144,8 +144,8 @@ class LoginController : public EventConsumer {
   // selected. This invokes SelectGuest if index corresponds to the guest.
   void SelectEntryAt(size_t index);
 
-  // Selects the guest entry.
-  void SelectGuest();
+  // Selects the wizard window.
+  void SelectWizardWindow();
 
   // Sets whether the user can select other entries.
   void SetEntrySelectionEnabled(bool enable);
@@ -215,8 +215,9 @@ class LoginController : public EventConsumer {
   // Used when the selection changes.
   SelectionChangedManager selection_changed_manager_;
 
-  // The guest window.
-  Window* guest_window_;
+  // One of the OOBE/wizard screens ("Take picture" or "Create account").
+  // "Guest mode" or "guest user" windows are represented with LoginEntry.
+  Window* wizard_window_;
 
   // Window placed in the background.
   Window* background_window_;

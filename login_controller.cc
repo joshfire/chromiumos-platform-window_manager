@@ -100,7 +100,7 @@ LoginController::LoginController(WindowManager* wm)
       all_windows_are_ready_(false),
       selected_entry_index_(kNoSelection),
       selection_changed_manager_(this),
-      guest_window_(NULL),
+      wizard_window_(NULL),
       background_window_(NULL),
       login_window_to_focus_(NULL),
       waiting_for_browser_window_(false),
@@ -183,11 +183,11 @@ void LoginController::HandleWindowMap(Window* win) {
 
   switch (win->type()) {
     case chromeos::WM_IPC_WINDOW_LOGIN_GUEST: {
-      if (guest_window_)
-        LOG(WARNING) << "two guest windows encountered.";
-      guest_window_ = win;
-      wm_->focus_manager()->UseClickToFocusForWindow(guest_window_);
-      registrar_.RegisterForWindowEvents(guest_window_->xid());
+      if (wizard_window_)
+        LOG(WARNING) << "two wizard windows encountered.";
+      wizard_window_ = win;
+      wm_->focus_manager()->UseClickToFocusForWindow(wizard_window_);
+      registrar_.RegisterForWindowEvents(wizard_window_->xid());
       break;
     }
     case chromeos::WM_IPC_WINDOW_LOGIN_BORDER: {
@@ -270,12 +270,12 @@ void LoginController::HandleWindowMap(Window* win) {
   // Chrome to keep the current state as a parameter on one of the windows so
   // that we know what state it was in.
 
-  // If guest entry is present and selected and guest window is created, do
+  // If guest entry is present and selected and wizard window is created, do
   // the animation for switching between entry and screen windows.
-  if (win == guest_window_ &&
+  if (win == wizard_window_ &&
       !entries_.empty() &&
       IsGuestEntryIndex(selected_entry_index_))
-    SelectGuest();
+    SelectWizardWindow();
 }
 
 void LoginController::HandleWindowUnmap(Window* win) {
@@ -320,9 +320,9 @@ void LoginController::HandleWindowUnmap(Window* win) {
   if (win == background_window_) {
     registrar_.UnregisterForWindowEvents(background_window_->xid());
     background_window_ = NULL;
-  } else if (win == guest_window_) {
-    registrar_.UnregisterForWindowEvents(guest_window_->xid());
-    guest_window_ = NULL;
+  } else if (win == wizard_window_) {
+    registrar_.UnregisterForWindowEvents(wizard_window_->xid());
+    wizard_window_ = NULL;
   } else {
     for (Entries::iterator it = entries_.begin(); it < entries_.end(); ++it) {
       if ((*it)->HandleWindowUnmap(win)) {
@@ -332,7 +332,7 @@ void LoginController::HandleWindowUnmap(Window* win) {
           size_t active_index = selected_entry_index_;
           selected_entry_index_ = kNoSelection;
           entries_.erase(it);
-          if (!guest_window_ && !entries_.empty()) {
+          if (!wizard_window_ && !entries_.empty()) {
             // Update other entries positions on screen.
             if (deleted_index < active_index ||
                 active_index == entries_.size() ||
@@ -603,9 +603,9 @@ void LoginController::SetEntrySelectionEnabled(bool enable) {
   is_entry_selection_enabled_ = enable;
 }
 
-void LoginController::SelectGuest() {
+void LoginController::SelectWizardWindow() {
   DLOG(INFO) << "Switching to wizard screen window.";
-  DCHECK(guest_window_);
+  DCHECK(wizard_window_);
 
   DCHECK(!entries_.empty());
   LoginEntry* guest_entry = entries_.back().get();
@@ -614,32 +614,32 @@ void LoginController::SelectGuest() {
   if (!guest_entry->has_all_windows())
     return;
 
-  // Move the guest window to its original location of guest border.
+  // Move the wizard window to its original location of guest border.
   // TODO(dpolukhin): create GuestEntry class to encapsulate guest animation.
-  const int guest_width = guest_window_->client_width();
-  const int guest_height = guest_window_->client_height();
+  const int guest_width = wizard_window_->client_width();
+  const int guest_height = wizard_window_->client_height();
   const float x_scale = (static_cast<float>(guest_entry->selected_width()) /
                          static_cast<float>(guest_width));
   const float y_scale = (static_cast<float>(guest_entry->selected_height()) /
                          static_cast<float>(guest_height));
-  guest_window_->ScaleComposited(x_scale, y_scale, 0);
-  guest_window_->SetCompositedOpacity(0, 0);
-  guest_window_->MoveComposited(guest_entry->border_window()->composited_x(),
+  wizard_window_->ScaleComposited(x_scale, y_scale, 0);
+  wizard_window_->SetCompositedOpacity(0, 0);
+  wizard_window_->MoveComposited(guest_entry->border_window()->composited_x(),
                                 guest_entry->border_window()->composited_y(),
                                 0);
-  guest_window_->StackCompositedBelow(guest_entry->border_window()->actor(),
+  wizard_window_->StackCompositedBelow(guest_entry->border_window()->actor(),
                                       NULL, true);
-  guest_window_->StackClientBelow(guest_entry->border_window()->xid());
-  guest_window_->ShowComposited();
+  wizard_window_->StackClientBelow(guest_entry->border_window()->xid());
+  wizard_window_->ShowComposited();
 
-  // Move the guest window to its target location and focus it.
-  guest_window_->ScaleComposited(1, 1, kAnimationTimeInMs);
-  guest_window_->SetCompositedOpacity(1, kAnimationTimeInMs);
-  guest_window_->MoveComposited((wm_->width() - guest_width) / 2,
-                                (wm_->height() - guest_height) / 2,
-                                kAnimationTimeInMs);
-  guest_window_->MoveClientToComposited();
-  FocusLoginWindow(guest_window_);
+  // Move the wizard window to its target location and focus it.
+  wizard_window_->ScaleComposited(1, 1, kAnimationTimeInMs);
+  wizard_window_->SetCompositedOpacity(1, kAnimationTimeInMs);
+  wizard_window_->MoveComposited((wm_->width() - guest_width) / 2,
+                                 (wm_->height() - guest_height) / 2,
+                                 kAnimationTimeInMs);
+  wizard_window_->MoveClientToComposited();
+  FocusLoginWindow(wizard_window_);
 
   for (Entries::iterator it = entries_.begin(); it < entries_.end(); ++it) {
     if (!(*it)->has_all_windows())
@@ -740,19 +740,26 @@ void LoginController::DoInitialSetupIfWindowsAreReady() {
     ConfigureBackgroundWindow();
     StackWindows();
     InitialShow();
-  } else if (entries_.empty() && guest_window_ && IsBackgroundWindowReady()) {
-    ConfigureBackgroundWindow();
+  } else if (entries_.empty() && wizard_window_ && IsBackgroundWindowReady()) {
+    // If we're running an older version of Chrome (param[0] is missing) or
+    // this is the first time that the wizard window has been mapped
+    // (param[0] is non-zero), make the background window fade in.
+    // Otherwise, the background should have already been configured previously.
+    if (wizard_window_->type_params().empty() ||
+        wizard_window_->type_params()[0]) {
+      ConfigureBackgroundWindow();
+    }
 
-    guest_window_->MoveClient(
-        (wm_->width() - guest_window_->client_width()) / 2,
-        (wm_->height() - guest_window_->client_height()) / 2);
-    guest_window_->MoveCompositedToClient();
+    wizard_window_->MoveClient(
+        (wm_->width() - wizard_window_->client_width()) / 2,
+        (wm_->height() - wizard_window_->client_height()) / 2);
+    wizard_window_->MoveCompositedToClient();
     wm_->stacking_manager()->StackWindowAtTopOfLayer(
-        guest_window_, StackingManager::LAYER_LOGIN_WINDOW);
-    guest_window_->SetCompositedOpacity(0, 0);
-    guest_window_->ShowComposited();
-    guest_window_->SetCompositedOpacity(1, kInitialShowAnimationTimeInMs);
-    FocusLoginWindow(guest_window_);
+        wizard_window_, StackingManager::LAYER_LOGIN_WINDOW);
+    wizard_window_->SetCompositedOpacity(0, 0);
+    wizard_window_->ShowComposited();
+    wizard_window_->SetCompositedOpacity(1, kInitialShowAnimationTimeInMs);
+    FocusLoginWindow(wizard_window_);
   }
 }
 
