@@ -150,9 +150,7 @@ backend_defines = {'opengl': ['COMPOSITOR_OPENGL'],
                    'opengles': ['COMPOSITOR_OPENGLES']}
 wm_env.Append(CPPDEFINES=backend_defines[backend])
 
-# Do not include crash dumper in the unit test environment
 test_env = wm_env.Clone()
-wm_env.Append(LIBS=['libcrash'])
 
 wm_env.Program('wm', 'main.cc')
 
