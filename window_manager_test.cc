@@ -1381,6 +1381,31 @@ TEST_F(WindowManagerTest, NotifyAboutInitialPixmap) {
   EXPECT_EQ(0, ec.num_initial_pixmaps());
 }
 
+// Test that we make a second attempt at loading the sync request counter
+// ID if it only gets set after WM_PROTOCOLS has already told us that the
+// protocol is supported.  See comment #3 at http://crosbug.com/5846.
+TEST_F(WindowManagerTest, HandleLateSyncRequestCounter) {
+  XWindow xid = CreateSimpleWindow();
+  AppendAtomToProperty(xid,
+                       xconn_->GetAtomOrDie("WM_PROTOCOLS"),
+                       xconn_->GetAtomOrDie("_NET_WM_SYNC_REQUEST"));
+  XEvent event;
+  xconn_->InitCreateWindowEvent(&event, xid);
+  wm_->HandleEvent(&event);
+  Window* win = wm_->GetWindowOrDie(xid);
+  EXPECT_EQ(0, win->wm_sync_request_alarm_);
+
+  ASSERT_TRUE(xconn_->SetIntProperty(
+              xid,
+              xconn_->GetAtomOrDie("_NET_WM_SYNC_REQUEST_COUNTER"),  // atom
+              xconn_->GetAtomOrDie("CARDINAL"),                      // type
+              50));  // arbitrary counter ID
+  xconn_->InitPropertyNotifyEvent(
+      &event, xid, xconn_->GetAtomOrDie("_NET_WM_SYNC_REQUEST_COUNTER"));
+  wm_->HandleEvent(&event);
+  EXPECT_NE(0, win->wm_sync_request_alarm_);
+}
+
 }  // namespace window_manager
 
 int main(int argc, char** argv) {

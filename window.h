@@ -369,6 +369,7 @@ class Window {
   FRIEND_TEST(WindowTest, SyncRequest);
   FRIEND_TEST(WindowTest, DeferFetchingPixmapUntilPainted);
   FRIEND_TEST(WindowManagerTest, VideoTimeProperty);
+  FRIEND_TEST(WindowManagerTest, HandleLateSyncRequestCounter);
 
   // Minimum dimensions and rate per second for damage events at which we
   // conclude that a video is currently playing in this window.

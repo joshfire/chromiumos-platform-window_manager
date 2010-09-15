@@ -1805,6 +1805,11 @@ void WindowManager::HandlePropertyNotify(const XPropertyEvent& e) {
       win->FetchAndApplyWmClientMachine();
     } else if (e.atom == GetXAtom(ATOM_NET_WM_PID)) {
       win->FetchAndApplyWmPid();
+    } else if (e.atom == GetXAtom(ATOM_NET_WM_SYNC_REQUEST_COUNTER)) {
+      // Just re-fetch WM_PROTOCOLS here; this property is sometimes only set
+      // after we've already read WM_PROTOCOLS -- see comment #3 at
+      // http://crosbug.com/5846.
+      win->FetchAndApplyWmProtocols();
     }
   }
 
@@ -1888,7 +1893,10 @@ void WindowManager::HandleSyncAlarmNotify(const XSyncAlarmNotifyEvent& e) {
   Window* win = FindWithDefault(
       sync_alarms_to_windows_, e.alarm, static_cast<Window*>(NULL));
   if (!win) {
-    LOG(WARNING) << "Ignoring unregistered alarm " << XidStr(e.alarm);
+    // We get notification that counters have been reset to 0 after the
+    // corresponding windows are destroyed; don't log a warning for that.
+    if (value != 0)
+      LOG(WARNING) << "Ignoring unregistered alarm " << XidStr(e.alarm);
     return;
   }
   win->HandleSyncAlarmNotify(e.alarm, value);
