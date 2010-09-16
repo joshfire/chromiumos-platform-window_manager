@@ -21,7 +21,7 @@ LOGGED_IN_SCREENSHOT_DIR="${HOME}/Downloads/Screenshots"
 LOGGED_OUT_SCREENSHOT_DIR="/tmp"
 XTERM_COMMAND="/usr/bin/cros-term"
 
-"${WM}"                                                                 \
+exec "${WM}"                                                            \
   --background_image="${IMAGES}/background_1024x600.png"                \
   --hotkey_overlay_image_dir="${IMAGES}"                                \
   --initial_chrome_window_mapped_file="${INITIAL_CHROME_FILE}"          \
