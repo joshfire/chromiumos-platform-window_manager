@@ -44,9 +44,11 @@ OpenGlesDrawVisitor::OpenGlesDrawVisitor(Gles2Interface* gl,
   CHECK(gl_);
   egl_display_ = gl_->egl_display();
 
-  // TODO: We need to allocate a 32 bit color buffer, when all of the
-  // platforms properly support it
   static const EGLint egl_config_attributes[] = {
+    // Use the highest supported color depth.
+    EGL_RED_SIZE, 1,
+    EGL_GREEN_SIZE, 1,
+    EGL_BLUE_SIZE, 1,
     EGL_DEPTH_SIZE, 16,
     EGL_RENDERABLE_TYPE, EGL_OPENGL_ES2_BIT,
     EGL_SURFACE_TYPE, EGL_WINDOW_BIT,
