@@ -204,6 +204,21 @@ class LoginControllerTest : public BasicWindowManagerTest {
     }
   }
 
+  void UpdateEntriesCount(int num_entries) {
+    for (size_t i = 0; i < entries_.size(); ++i) {
+      vector<int> params;
+      params.push_back(static_cast<int>(i));  // entry index
+      params.push_back(num_entries);
+      params.push_back(kUnselectedImageSize);
+      params.push_back(kGapBetweenImageAndControls);
+      wm_->wm_ipc()->SetWindowType(
+          entries_[i].border_xid,
+          chromeos::WM_IPC_WINDOW_LOGIN_BORDER,
+          &params);
+      SendWindowTypeEvent(entries_[i].border_xid);
+    }
+  }
+
   // Selects user entry with the specified index by sending IPC message to
   // wm.
   void SelectEntry(int index) {
@@ -652,6 +667,28 @@ TEST_F(LoginControllerTest, RemoveUser) {
   // The guest window should be focused.
   EXPECT_EQ(guest_xid_, xconn_->focused_xid());
   EXPECT_EQ(guest_xid_, GetActiveWindowProperty());
+}
+
+TEST_F(LoginControllerTest, AllWindowsAreReady) {
+  EXPECT_FALSE(login_controller_->all_windows_are_ready_);
+
+  // Create 3 entries for new Chrome.
+  CreateLoginWindows(3, true, true, false);
+  EXPECT_TRUE(login_controller_->all_windows_are_ready_);
+
+  // When all windows for one entry are all unmapped, login screen is
+  // still considered complete.
+  UpdateEntriesCount(2);
+  UnmapLoginEntry(1);
+  EXPECT_TRUE(login_controller_->all_windows_are_ready_);
+
+  // If not all entry windows are unmapped yet, login screen is incomplete.
+  XEvent event;
+  ASSERT_NE(0, entries_[0].border_xid);
+  xconn_->UnmapWindow(entries_[0].border_xid);
+  xconn_->InitUnmapEvent(&event, entries_[0].border_xid);
+  wm_->HandleEvent(&event);
+  EXPECT_FALSE(login_controller_->all_windows_are_ready_);
 }
 
 // Test which windows of selected and unselected entry should be off or on

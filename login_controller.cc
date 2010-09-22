@@ -350,6 +350,10 @@ void LoginController::HandleWindowUnmap(Window* win) {
             }
             DCHECK_LT(active_index, entries_.size());
             SelectEntryAt(active_index);
+
+            // In case only one user pod was removed we should reset our state
+            // to ready.
+            all_windows_are_ready_ = AllWindowsAreReady();
           }
         }
         // Only one entry can possibly contain a window, no need to continue

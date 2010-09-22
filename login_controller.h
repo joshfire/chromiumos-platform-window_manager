@@ -79,6 +79,7 @@ class LoginController : public EventConsumer {
   FRIEND_TEST(LoginControllerTest, KeyBindingsDuringStateChange);
   FRIEND_TEST(LoginControllerTest, SelectGuest);
   FRIEND_TEST(LoginControllerTest, RemoveUser);
+  FRIEND_TEST(LoginControllerTest, AllWindowsAreReady);
   FRIEND_TEST(LoginControllerTest, ClientOnOffScreen);
   FRIEND_TEST(LoginControllerTest, SelectTwice);
   FRIEND_TEST(LoginControllerTest, ShowEntriesAfterTheyGetPixmaps);
