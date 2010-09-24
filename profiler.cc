@@ -163,8 +163,9 @@ unsigned int Profiler::AddSymbol(const char* name) {
   if (status_ == STATUS_STOP || num_symbols_ == max_num_symbols_) {
     return max_num_symbols_;
   }
-  strncpy(symbols_[num_symbols_].name, name,
-          sizeof(symbols_[num_symbols_].name) - 1);
+  const int kBufferSize = sizeof(symbols_[num_symbols_].name);
+  strncpy(symbols_[num_symbols_].name, name, kBufferSize - 1);
+  symbols_[num_symbols_].name[kBufferSize - 1] = '\0';
 
   return num_symbols_++;
 }
