@@ -151,7 +151,7 @@ LayoutManager::LayoutManager(WindowManager* wm, PanelManager* panel_manager)
       NewPermanentCallback(this, &LayoutManager::SetMode, MODE_OVERVIEW),
       NULL, NULL);
   active_mode_key_bindings_group_->AddBinding(
-      KeyBindings::KeyCombo(XK_F3, 0), kSwitchToOverviewModeAction);
+      KeyBindings::KeyCombo(XK_F5, 0), kSwitchToOverviewModeAction);
 
   key_bindings_actions_->AddAction(
       kSwitchToActiveModeAction,
@@ -222,7 +222,7 @@ LayoutManager::LayoutManager(WindowManager* wm, PanelManager* panel_manager)
       KeyBindings::KeyCombo(XK_Return, 0),
       kSwitchToActiveModeForSelectedAction);
   overview_mode_key_bindings_group_->AddBinding(
-      KeyBindings::KeyCombo(XK_F3, 0), kSwitchToActiveModeForSelectedAction);
+      KeyBindings::KeyCombo(XK_F5, 0), kSwitchToActiveModeForSelectedAction);
 
   for (int i = 0; i < 8; ++i) {
     key_bindings_actions_->AddAction(
