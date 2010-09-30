@@ -107,8 +107,7 @@ class OpenGlesEglImageData : public TextureData {
   virtual ~OpenGlesEglImageData();
 
   // Bind to a pixmap.
-  // HACK: work around broken eglCreateImageKHR calls that need the context
-  bool Bind(RealCompositor::TexturePixmapActor* actor, EGLContext egl_context);
+  bool Bind(RealCompositor::TexturePixmapActor* actor);
 
   // Has this been successfully bound?
   bool bound() const { return bound_; }

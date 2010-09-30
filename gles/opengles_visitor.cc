@@ -211,7 +211,7 @@ void OpenGlesDrawVisitor::VisitTexturePixmap(
   if (!actor->texture_data()) {
     OpenGlesEglImageData image_data(gl_);
 
-    if (!image_data.Bind(actor, egl_context_))
+    if (!image_data.Bind(actor))
       return;
 
     OpenGlesTextureData* texture = new OpenGlesTextureData(gl_);
@@ -381,8 +381,7 @@ OpenGlesEglImageData::~OpenGlesEglImageData() {
     gl_->EglDestroyImageKHR(gl_->egl_display(), egl_image_);
 }
 
-bool OpenGlesEglImageData::Bind(RealCompositor::TexturePixmapActor* actor,
-                                EGLContext egl_context) {
+bool OpenGlesEglImageData::Bind(RealCompositor::TexturePixmapActor* actor) {
   DCHECK(actor);
   CHECK(!bound_);
 
@@ -395,15 +394,9 @@ bool OpenGlesEglImageData::Bind(RealCompositor::TexturePixmapActor* actor,
     EGL_IMAGE_PRESERVED_KHR, EGL_TRUE,
     EGL_NONE
   };
-  // Work around broken eglCreateImageKHR that improperly takes a context
   egl_image_ = gl_->EglCreateImageKHR(
-      gl_->egl_display(), egl_context, EGL_NATIVE_PIXMAP_KHR,
+      gl_->egl_display(), EGL_NO_CONTEXT, EGL_NATIVE_PIXMAP_KHR,
       reinterpret_cast<EGLClientBuffer>(actor->pixmap()), egl_image_attribs);
-  if (egl_image_ == EGL_NO_IMAGE_KHR) {
-    egl_image_ = gl_->EglCreateImageKHR(
-        gl_->egl_display(), EGL_NO_CONTEXT, EGL_NATIVE_PIXMAP_KHR,
-        reinterpret_cast<EGLClientBuffer>(actor->pixmap()), egl_image_attribs);
-  }
   if (egl_image_ == EGL_NO_IMAGE_KHR) {
     LOG(INFO) << "eglCreateImageKHR() returned EGL_NO_IMAGE_KHR.";
     return false;
