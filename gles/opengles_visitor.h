@@ -46,6 +46,9 @@ class OpenGlesDrawVisitor : virtual public RealCompositor::ActorVisitor {
   virtual void VisitActor(RealCompositor::Actor* actor) {}
   virtual void VisitStage(RealCompositor::StageActor* actor);
   virtual void VisitContainer(RealCompositor::ContainerActor* actor);
+  virtual void VisitImage(RealCompositor::ImageActor* actor) {
+    VisitQuad(actor);
+  }
   virtual void VisitTexturePixmap(RealCompositor::TexturePixmapActor* actor);
   virtual void VisitQuad(RealCompositor::QuadActor* actor);
 
