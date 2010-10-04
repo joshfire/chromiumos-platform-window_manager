@@ -12,6 +12,7 @@
 #include "base/basictypes.h"
 #include "base/logging.h"
 #include "base/scoped_ptr.h"
+#include "window_manager/geometry.h"
 #include "window_manager/image_enums.h"
 #include "window_manager/x_types.h"
 
@@ -38,18 +39,12 @@ class XConnection {
   // Data returned by GetWindowGeometry().
   struct WindowGeometry {
     WindowGeometry()
-        : x(0),
-          y(0),
-          width(1),
-          height(1),
+        : bounds(0, 0, 1, 1),
           border_width(0),
           depth(0) {
     }
 
-    int x;
-    int y;
-    int width;
-    int height;
+    Rect bounds;
     int border_width;
     int depth;
   };
@@ -62,38 +57,24 @@ class XConnection {
 
     // Reset all of the hints to -1.
     void reset() {
-      width = -1;
-      height = -1;
-      min_width = -1;
-      min_height = -1;
-      max_width = -1;
-      max_height = -1;
-      width_increment = -1;
-      height_increment = -1;
-      min_aspect_x = -1;
-      min_aspect_y = -1;
-      max_aspect_x = -1;
-      max_aspect_y = -1;
-      base_width = -1;
-      base_height = -1;
+      size.reset(-1, -1);
+      min_size.reset(-1, -1);
+      max_size.reset(-1, -1);
+      size_increment.reset(-1, -1);
+      min_aspect_ratio.reset(-1, -1);
+      max_aspect_ratio.reset(-1, -1);
+      base_size.reset(-1, -1);
       win_gravity = -1;
     }
 
     // Hints are set to -1 if not defined.
-    int width;
-    int height;
-    int min_width;
-    int min_height;
-    int max_width;
-    int max_height;
-    int width_increment;
-    int height_increment;
-    int min_aspect_x;
-    int min_aspect_y;
-    int max_aspect_x;
-    int max_aspect_y;
-    int base_width;
-    int base_height;
+    Size size;
+    Size min_size;
+    Size max_size;
+    Size size_increment;
+    Size min_aspect_ratio;
+    Size max_aspect_ratio;
+    Size base_size;
     int win_gravity;
   };
 
@@ -165,14 +146,13 @@ class XConnection {
   virtual bool UnmapWindow(XWindow xid) = 0;
 
   // Move or resize a window.  'width' and 'height' must be positive.
-  virtual bool MoveWindow(XWindow xid, int x, int y) = 0;
-  virtual bool ResizeWindow(XWindow xid, int width, int height) = 0;
-  virtual bool ConfigureWindow(
-      XWindow xid, int x, int y, int width, int height) = 0;
+  virtual bool MoveWindow(XWindow xid, const Point& pos) = 0;
+  virtual bool ResizeWindow(XWindow xid, const Size& size) = 0;
+  virtual bool ConfigureWindow(XWindow xid, const Rect& bounds) = 0;
 
   // Configure a window to be 1x1 and offscreen.
   virtual bool ConfigureWindowOffscreen(XWindow xid) {
-    return ConfigureWindow(xid, -1, -1, 1, 1);
+    return ConfigureWindow(xid, Rect(-1, -1, 1, 1));
   }
 
   // Raise a window on top of all other windows.
@@ -187,7 +167,9 @@ class XConnection {
   virtual bool FocusWindow(XWindow xid, XTime event_time) = 0;
 
   // Reparent a window in another window.
-  virtual bool ReparentWindow(XWindow xid, XWindow parent, int x, int y) = 0;
+  virtual bool ReparentWindow(XWindow xid,
+                              XWindow parent,
+                              const Point& offset) = 0;
 
   // Set the width of a window's border.
   virtual bool SetWindowBorderWidth(XWindow xid, int width) = 0;
@@ -219,8 +201,10 @@ class XConnection {
   // using RemovePointerGrab() -- this is useful in conjunction with
   // RemovePointerGrab()'s 'replay_events' parameter to send initial clicks
   // to client apps when implementing click-to-focus behavior.
-  virtual bool AddButtonGrabOnWindow(
-      XWindow xid, int button, int event_mask, bool synchronous) = 0;
+  virtual bool AddButtonGrabOnWindow(XWindow xid,
+                                     int button,
+                                     int event_mask,
+                                     bool synchronous) = 0;
 
   // Uninstall a passive button grab.
   virtual bool RemoveButtonGrabOnWindow(XWindow xid, int button) = 0;
@@ -229,8 +213,9 @@ class XConnection {
   // matching 'event_mask' will be reported to the calling client.  Returns
   // false if an error occurs or if the grab fails (e.g. because it's
   // already grabbed by another client).
-  virtual bool AddPointerGrabForWindow(
-      XWindow xid, int event_mask, XTime timestamp) = 0;
+  virtual bool AddPointerGrabForWindow(XWindow xid,
+                                       int event_mask,
+                                       XTime timestamp) = 0;
 
   // Remove a pointer grab, possibly also replaying the pointer events that
   // occurred during it if it was synchronous and 'replay_events' is true
@@ -272,7 +257,7 @@ class XConnection {
 
   // Create a pixmap on the same screen as 'drawable'.
   virtual XPixmap CreatePixmap(XDrawable drawable,
-                               int width, int height,
+                               const Size& size,
                                int depth) = 0;
 
   // Get a pixmap referring to a redirected window's offscreen storage.
@@ -282,34 +267,26 @@ class XConnection {
   virtual bool FreePixmap(XPixmap pixmap) = 0;
 
   // Copy an area of one drawable to another drawable.
-  virtual void CopyArea(XDrawable src_drawable, XDrawable dest_drawable,
-                        int src_x, int src_y,
-                        int dest_x, int dest_y,
-                        int width, int height) = 0;
+  virtual void CopyArea(XDrawable src_drawable,
+                        XDrawable dest_drawable,
+                        const Point& src_pos,
+                        const Point& dest_pos,
+                        const Size& size) = 0;
 
   // Get the root window.
   virtual XWindow GetRootWindow() = 0;
 
-  // Create a new window.  'width' and 'height' must be positive.
+  // Create a new window.  The width and height must be positive.
   // 'event_mask' determines which events the window receives; it takes
   // values from the "Input Event Masks" section of X.h.  The window is a
   // child of 'parent'.  'visual' can be either the ID of the desired
   // visual, or 0 to mean copy-from-parent.
-  virtual XWindow CreateWindow(
-      XWindow parent,
-      int x, int y,
-      int width, int height,
-      bool override_redirect,
-      bool input_only,
-      int event_mask,
-      XVisualID visual) = 0;
-
-  // Create a new simple window.  'width' and 'height' must be
-  // positive. The window is a child of 'parent'.  The border width is
-  // zero.
-  XWindow CreateSimpleWindow(XWindow parent,
-                             int x, int y,
-                             int width, int height);
+  virtual XWindow CreateWindow(XWindow parent,
+                               const Rect& bounds,
+                               bool override_redirect,
+                               bool input_only,
+                               int event_mask,
+                               XVisualID visual) = 0;
 
   // Destroy a window.
   virtual bool DestroyWindow(XWindow xid) = 0;
@@ -324,8 +301,8 @@ class XConnection {
   virtual bool GetWindowBoundingRegion(XWindow xid, ByteMap* bytemap) = 0;
 
   // Set/remove bounding region for a window.
-  virtual bool SetWindowBoundingRegionToRect(
-      XWindow xid, const Rect& region) = 0;
+  virtual bool SetWindowBoundingRegionToRect(XWindow xid,
+                                             const Rect& region) = 0;
   virtual bool RemoveWindowBoundingRegion(XWindow xid) = 0;
 
   // Select RandR events on a window.
@@ -352,17 +329,22 @@ class XConnection {
   bool SetIntProperty(XWindow xid, XAtom xatom, XAtom type, int value);
 
   // Get or set a property consisting of one or more 32-bit integers.
-  virtual bool GetIntArrayProperty(
-      XWindow xid, XAtom xatom, std::vector<int>* values) = 0;
-  virtual bool SetIntArrayProperty(
-      XWindow xid, XAtom xatom, XAtom type, const std::vector<int>& values) = 0;
+  virtual bool GetIntArrayProperty(XWindow xid,
+                                   XAtom xatom,
+                                   std::vector<int>* values) = 0;
+  virtual bool SetIntArrayProperty(XWindow xid,
+                                   XAtom xatom,
+                                   XAtom type,
+                                   const std::vector<int>& values) = 0;
 
   // Get or set a string property (of type STRING or UTF8_STRING when
   // getting and UTF8_STRING when setting).
-  virtual bool GetStringProperty(
-      XWindow xid, XAtom xatom, std::string* out) = 0;
-  virtual bool SetStringProperty(
-      XWindow xid, XAtom xatom, const std::string& value) = 0;
+  virtual bool GetStringProperty(XWindow xid,
+                                 XAtom xatom,
+                                 std::string* out) = 0;
+  virtual bool SetStringProperty(XWindow xid,
+                                 XAtom xatom,
+                                 const std::string& value) = 0;
 
   // Delete a property on a window if it exists.
   virtual bool DeletePropertyIfExists(XWindow xid, XAtom xatom) = 0;
@@ -398,8 +380,7 @@ class XConnection {
   // a synthetic ConfigureNotify event needs to be sent for some reason
   // (e.g. _NET_WM_SYNC_REQUEST).
   virtual bool SendConfigureNotifyEvent(XWindow xid,
-                                        int x, int y,
-                                        int width, int height,
+                                        const Rect& bounds,
                                         int border_width,
                                         XWindow above_xid,
                                         bool override_redirect) = 0;
@@ -420,8 +401,9 @@ class XConnection {
 
   // Get the contents of a drawable.
   // Returns false for unsupported formats or X errors.
-  virtual bool GetImage(XID drawable, int x, int y,
-                        int width, int height, int drawable_depth,
+  virtual bool GetImage(XID drawable,
+                        const Rect& bounds,
+                        int drawable_depth,
                         scoped_ptr_malloc<uint8_t>* data_out,
                         ImageFormat* format_out) = 0;
 
@@ -434,14 +416,15 @@ class XConnection {
   virtual bool GetParentWindow(XWindow xid, XWindow* parent_out) = 0;
 
   // Get all subwindows of a window in bottom-to-top stacking order.
-  virtual bool GetChildWindows(
-      XWindow xid, std::vector<XWindow>* children_out) = 0;
+  virtual bool GetChildWindows(XWindow xid,
+                               std::vector<XWindow>* children_out) = 0;
 
   // Refresh the mapping between keysyms and keycodes.
   // The parameters correspond to the matching fields in the MappingNotify
   // event.
-  virtual void RefreshKeyboardMap(
-      int request, KeyCode first_keycode, int count) = 0;
+  virtual void RefreshKeyboardMap(int request,
+                                  KeyCode first_keycode,
+                                  int count) = 0;
 
   // Convert between keysyms and keycodes.
   virtual KeySym GetKeySymFromKeyCode(KeyCode keycode) = 0;
@@ -503,7 +486,7 @@ class XConnection {
   }
 
   // Query the pointer's current position relative to the root window.
-  virtual bool QueryPointerPosition(int* x_root, int* y_root) = 0;
+  virtual bool QueryPointerPosition(Point* absolute_pos_out) = 0;
 
   // Value that should be used in event and property 'format' fields for
   // byte and long arguments.

@@ -40,7 +40,9 @@ const int Window::kVideoMinWidth = 300;
 const int Window::kVideoMinHeight = 225;
 const int Window::kVideoMinFramerate = 15;
 
-Window::Window(WindowManager* wm, XWindow xid, bool override_redirect,
+Window::Window(WindowManager* wm,
+               XWindow xid,
+               bool override_redirect,
                const XConnection::WindowGeometry& geometry)
     : xid_(xid),
       xid_str_(XidStr(xid_)),
@@ -51,14 +53,14 @@ Window::Window(WindowManager* wm, XWindow xid, bool override_redirect,
       mapped_(false),
       shaped_(false),
       type_(chromeos::WM_IPC_WINDOW_UNKNOWN),
-      client_x_(geometry.x),
-      client_y_(geometry.y),
-      client_width_(geometry.width),
-      client_height_(geometry.height),
+      client_x_(geometry.bounds.x),
+      client_y_(geometry.bounds.y),
+      client_width_(geometry.bounds.width),
+      client_height_(geometry.bounds.height),
       client_opacity_(1.0),
       composited_shown_(false),
-      composited_x_(geometry.x),
-      composited_y_(geometry.y),
+      composited_x_(geometry.bounds.x),
+      composited_y_(geometry.bounds.y),
       composited_scale_x_(1.0),
       composited_scale_y_(1.0),
       composited_opacity_(1.0),
@@ -82,9 +84,7 @@ Window::Window(WindowManager* wm, XWindow xid, bool override_redirect,
   DCHECK(xid_);
   DLOG(INFO) << "Constructing object to track "
              << (override_redirect_ ? "override-redirect " : "")
-             << "window " << xid_str() << " "
-             << "at (" << client_x_ << ", " << client_y_ << ") "
-             << "with dimensions " << client_width_ << "x" << client_height_;
+             << "window " << xid_str() << " at " << geometry.bounds;
 
   // Listen for property and shape changes on this window.
   wm_->xconn()->SelectInputOnWindow(xid_, PropertyChangeMask, true);
@@ -155,20 +155,21 @@ bool Window::FetchAndApplySizeHints() {
 
   const XConnection::SizeHints& h = size_hints_;
   DLOG(INFO) << "Got size hints for " << xid_str() << ":"
-             << " size=" << h.width << "x" << h.height
-             << " min_size=" << h.min_width << "x" << h.min_height
-             << " max_size=" << h.max_width << "x" << h.max_height
-             << " inc=" << h.width_increment << "x" << h.height_increment
-             << " min_aspect=" << h.min_aspect_x << ":" << h.min_aspect_y
-             << " max_aspect=" << h.max_aspect_x << ":" << h.max_aspect_y
-             << " base=" << h.max_aspect_x << "x" << h.max_aspect_y;
+             << " size=" << h.size
+             << " min_size=" << h.min_size
+             << " max_size=" << h.max_size
+             << " inc=" << h.size_increment
+             << " min_aspect=" << h.min_aspect_ratio
+             << " max_aspect=" << h.max_aspect_ratio
+             << " base=" << h.base_size;
 
   // If windows are override-redirect or have already been mapped, they
   // should just make/request any desired changes directly.  Also ignore
   // position, aspect ratio, etc. hints for now.
   if (!mapped_ && !override_redirect_ &&
-      (size_hints_.width > 0 && size_hints_.height > 0)) {
-    ResizeClient(size_hints_.width, size_hints_.height, GRAVITY_NORTHWEST);
+      (size_hints_.size.width > 0 && size_hints_.size.height > 0)) {
+    ResizeClient(size_hints_.size.width, size_hints_.size.height,
+                 GRAVITY_NORTHWEST);
   }
 
   return true;
@@ -549,36 +550,36 @@ void Window::GetMaxSize(int desired_width, int desired_height,
   CHECK(desired_width > 0);
   CHECK(desired_height > 0);
 
-  if (size_hints_.max_width > 0)
-    desired_width = min(size_hints_.max_width, desired_width);
-  if (size_hints_.min_width > 0)
-    desired_width = max(size_hints_.min_width, desired_width);
+  if (size_hints_.max_size.width > 0)
+    desired_width = min(size_hints_.max_size.width, desired_width);
+  if (size_hints_.min_size.width > 0)
+    desired_width = max(size_hints_.min_size.width, desired_width);
 
-  if (size_hints_.width_increment > 0) {
+  if (size_hints_.size_increment.width > 0) {
     int base_width =
-        (size_hints_.base_width > 0) ? size_hints_.base_width :
-        (size_hints_.min_width > 0) ? size_hints_.min_width :
+        (size_hints_.base_size.width > 0) ? size_hints_.base_size.width :
+        (size_hints_.min_size.width > 0) ? size_hints_.min_size.width :
         0;
     *width_out = base_width +
-        ((desired_width - base_width) / size_hints_.width_increment) *
-        size_hints_.width_increment;
+        ((desired_width - base_width) / size_hints_.size_increment.width) *
+        size_hints_.size_increment.width;
   } else {
     *width_out = desired_width;
   }
 
-  if (size_hints_.max_height > 0)
-    desired_height = min(size_hints_.max_height, desired_height);
-  if (size_hints_.min_height > 0)
-    desired_height = max(size_hints_.min_height, desired_height);
+  if (size_hints_.max_size.height > 0)
+    desired_height = min(size_hints_.max_size.height, desired_height);
+  if (size_hints_.min_size.height > 0)
+    desired_height = max(size_hints_.min_size.height, desired_height);
 
-  if (size_hints_.height_increment > 0) {
+  if (size_hints_.size_increment.height > 0) {
     int base_height =
-        (size_hints_.base_height > 0) ? size_hints_.base_height :
-        (size_hints_.min_height > 0) ? size_hints_.min_height :
+        (size_hints_.base_size.height > 0) ? size_hints_.base_size.height :
+        (size_hints_.min_size.height > 0) ? size_hints_.min_size.height :
         0;
     *height_out = base_height +
-        ((desired_height - base_height) / size_hints_.height_increment) *
-        size_hints_.height_increment;
+        ((desired_height - base_height) / size_hints_.size_increment.height) *
+        size_hints_.size_increment.height;
   } else {
     *height_out = desired_height;
   }
@@ -609,7 +610,7 @@ bool Window::MoveClient(int x, int y) {
   DLOG(INFO) << "Moving " << xid_str() << "'s client window to ("
              << x << ", " << y << ")";
   DCHECK(xid_);
-  if (!wm_->xconn()->MoveWindow(xid_, x, y))
+  if (!wm_->xconn()->MoveWindow(xid_, Point(x, y)))
     return false;
   SaveClientPosition(x, y);
   return true;
@@ -653,7 +654,7 @@ bool Window::ResizeClient(int width, int height, Gravity gravity) {
     // If we need to move the window as well due to gravity, do it all in
     // one ConfigureWindow request to the server.
     if (!wm_->xconn()->ConfigureWindow(
-            xid_, client_x_ - dx, client_y_ - dy, width, height)) {
+            xid_, Rect(client_x_ - dx, client_y_ - dy, width, height))) {
       return false;
     }
     SaveClientPosition(client_x_ - dx, client_y_ - dy);
@@ -662,7 +663,7 @@ bool Window::ResizeClient(int width, int height, Gravity gravity) {
                    composited_y_ - composited_scale_y_ * dy,
                    0);
   } else  {
-    if (!wm_->xconn()->ResizeWindow(xid_, width, height))
+    if (!wm_->xconn()->ResizeWindow(xid_, Size(width, height)))
       return false;
   }
 
@@ -807,10 +808,11 @@ void Window::HandleRedirect() {
   // the content of the root window has not yet repainted, so using the
   // coordinates of the root window (0, 0)-(width, height) for the copying
   // will work while the coordinates of the window will not.
-  wm_->xconn()->CopyArea(wm_->root(), pixmap_,
-                         0, 0,  // src_x, src_y
-                         0, 0,  // dest_x, dest_y
-                         wm_->width(), wm_->height());
+  wm_->xconn()->CopyArea(wm_->root(),
+                         pixmap_,
+                         Point(0, 0),  // src
+                         Point(0, 0),  // dest
+                         Size(wm_->width(), wm_->height()));
 }
 
 void Window::HandleConfigureNotify(int width, int height) {
@@ -953,13 +955,12 @@ void Window::HandleSyncAlarmNotify(XID alarm_id, int64_t value) {
 void Window::SendSyntheticConfigureNotify() {
   const XWindow* xid_under_us_ptr = wm_->stacked_xids().GetUnder(xid_);
   const XWindow xid_under_us = xid_under_us_ptr ? *xid_under_us_ptr : 0;
+  Rect rect(client_x_, client_y_, client_width_, client_height_);
   DLOG(INFO) << "Sending synthetic configure notify for " << xid_str() << ": "
-             << "(" << client_x_ << ", " << client_y_ << ") " << client_width_
-             << "x" << client_height_ << ", above " << XidStr(xid_under_us);
+             << rect << ", above " << XidStr(xid_under_us);
   wm_->xconn()->SendConfigureNotifyEvent(
       xid_,
-      client_x_, client_y_,
-      client_width_, client_height_,
+      rect,
       0,  // border_width
       xid_under_us,
       false);  // override_redirect

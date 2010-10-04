@@ -54,10 +54,10 @@ TEST_F(ScreenLockerHandlerTest, Basic) {
 
   // Check that the window was moved to (0, 0), resized to cover the whole
   // screen, stacked correctly, and shown.
-  EXPECT_EQ(0, screen_locker_info->x);
-  EXPECT_EQ(0, screen_locker_info->y);
-  EXPECT_EQ(wm_->width(), screen_locker_info->width);
-  EXPECT_EQ(wm_->height(), screen_locker_info->height);
+  EXPECT_EQ(0, screen_locker_info->bounds.x);
+  EXPECT_EQ(0, screen_locker_info->bounds.y);
+  EXPECT_EQ(wm_->width(), screen_locker_info->bounds.width);
+  EXPECT_EQ(wm_->height(), screen_locker_info->bounds.height);
   EXPECT_EQ(0, screen_locker_actor->GetX());
   EXPECT_EQ(0, screen_locker_actor->GetY());
   EXPECT_TRUE(WindowIsInLayer(screen_locker_win,
@@ -88,14 +88,14 @@ TEST_F(ScreenLockerHandlerTest, Basic) {
   // also resized.
   const XWindow root_xid = xconn_->GetRootWindow();
   MockXConnection::WindowInfo* root_info = xconn_->GetWindowInfoOrDie(root_xid);
-  const int new_width = root_info->width + 20;
-  const int new_height = root_info->height + 20;
-  xconn_->ResizeWindow(root_xid, new_width, new_height);
+  const int new_width = root_info->bounds.width + 20;
+  const int new_height = root_info->bounds.height + 20;
+  xconn_->ResizeWindow(root_xid, Size(new_width, new_height));
   XEvent resize_event;
   xconn_->InitConfigureNotifyEvent(&resize_event, root_xid);
   wm_->HandleEvent(&resize_event);
-  EXPECT_EQ(new_width, screen_locker_info->width);
-  EXPECT_EQ(new_height, screen_locker_info->height);
+  EXPECT_EQ(new_width, screen_locker_info->bounds.width);
+  EXPECT_EQ(new_height, screen_locker_info->bounds.height);
 
   // Unmap the screen locker window and check that the original toplevel
   // window would be drawn again.

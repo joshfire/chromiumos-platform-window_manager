@@ -97,8 +97,8 @@ TEST_F(PanelManagerTest, AttachAndDetach) {
 
   // Move the panel to the right side of the screen so it gets attached to
   // one of the panel docks.
-  SendPanelDraggedMessage(panel, root_geometry.width - 10, 200);
-  EXPECT_EQ(root_geometry.width, panel->right());
+  SendPanelDraggedMessage(panel, root_geometry.bounds.width - 10, 200);
+  EXPECT_EQ(root_geometry.bounds.width, panel->right());
   EXPECT_EQ(200, panel->titlebar_y());
 
   // Move it left so it's attached to the other dock.
@@ -176,7 +176,7 @@ TEST_F(PanelManagerTest, ChromeInitiatedPanelResize) {
   // We should ignore requests to resize the titlebar.
   XEvent event;
   xconn_->InitConfigureRequestEvent(
-      &event, panel->titlebar_xid(), 0, 0, 300, 30);
+      &event, panel->titlebar_xid(), Rect(0, 0, 300, 30));
   wm_->HandleEvent(&event);
   EXPECT_EQ(200, panel->width());
   EXPECT_EQ(20, panel->titlebar_height());
@@ -186,7 +186,7 @@ TEST_F(PanelManagerTest, ChromeInitiatedPanelResize) {
 
   // A request to resize the content to 300x500 should be honored, though.
   xconn_->InitConfigureRequestEvent(
-      &event, panel->content_xid(), 0, 0, 300, 500);
+      &event, panel->content_xid(), Rect(0, 0, 300, 500));
   wm_->HandleEvent(&event);
   EXPECT_EQ(300, panel->width());
   EXPECT_EQ(20, panel->titlebar_height());
@@ -197,7 +197,7 @@ TEST_F(PanelManagerTest, ChromeInitiatedPanelResize) {
 
   // Test that shrinking the content works too.
   xconn_->InitConfigureRequestEvent(
-      &event, panel->content_xid(), 0, 0, 200, 300);
+      &event, panel->content_xid(), Rect(0, 0, 200, 300));
   wm_->HandleEvent(&event);
   EXPECT_EQ(200, panel->width());
   EXPECT_EQ(20, panel->titlebar_height());
@@ -207,14 +207,14 @@ TEST_F(PanelManagerTest, ChromeInitiatedPanelResize) {
 
   // We should ignore requests if the user is already resizing the panel.
   XWindow input_xid = panel->top_left_input_xid_;
-  xconn_->InitButtonPressEvent(&event, input_xid, 0, 0, 1);
+  xconn_->InitButtonPressEvent(&event, input_xid, Point(0, 0), 1);
   wm_->HandleEvent(&event);
-  xconn_->InitMotionNotifyEvent(&event, input_xid, -200, -200);
+  xconn_->InitMotionNotifyEvent(&event, input_xid, Point(-200, -200));
   wm_->HandleEvent(&event);
 
   // We should have the same values as before.
   xconn_->InitConfigureRequestEvent(
-      &event, panel->content_xid(), 0, 0, 200, 400);
+      &event, panel->content_xid(), Rect(0, 0, 200, 400));
   wm_->HandleEvent(&event);
   EXPECT_EQ(200, panel->width());
   EXPECT_EQ(20, panel->titlebar_height());
@@ -223,7 +223,7 @@ TEST_F(PanelManagerTest, ChromeInitiatedPanelResize) {
   EXPECT_EQ(initial_titlebar_y + 100, panel->titlebar_y());
 
   // Finish the user-initiated resize and check that it's applied.
-  xconn_->InitButtonReleaseEvent(&event, input_xid, -200, -200, 1);
+  xconn_->InitButtonReleaseEvent(&event, input_xid, Point(-200, -200), 1);
   wm_->HandleEvent(&event);
   EXPECT_EQ(400, panel->width());
   EXPECT_EQ(20, panel->titlebar_height());
@@ -369,9 +369,9 @@ TEST_F(PanelManagerTest, FocusPanelInDock) {
                                         &root_geometry));
 
   // Drag the second panel to the dock and check that it sticks there.
-  SendPanelDraggedMessage(panel_in_dock, root_geometry.width - 1, 0);
+  SendPanelDraggedMessage(panel_in_dock, root_geometry.bounds.width - 1, 0);
   SendPanelDragCompleteMessage(panel_in_dock);
-  EXPECT_EQ(root_geometry.width, panel_in_dock->right());
+  EXPECT_EQ(root_geometry.bounds.width, panel_in_dock->right());
   EXPECT_EQ(0, panel_in_dock->titlebar_y());
 
   // The docked panel should have the focus, since it was opened second.
@@ -405,8 +405,8 @@ TEST_F(PanelManagerTest, DockVisibilityAndResizing) {
   // The layout manager should initially fill the whole screen.
   EXPECT_EQ(0, layout_manager_->x());
   EXPECT_EQ(0, layout_manager_->y());
-  EXPECT_EQ(root_info->width, layout_manager_->width());
-  EXPECT_EQ(root_info->height, layout_manager_->height());
+  EXPECT_EQ(root_info->bounds.width, layout_manager_->width());
+  EXPECT_EQ(root_info->bounds.height, layout_manager_->height());
 
   // Drag the first panel to the left dock.
   SendPanelDraggedMessage(panel1, 0, 0);
@@ -421,30 +421,30 @@ TEST_F(PanelManagerTest, DockVisibilityAndResizing) {
   // room for the left dock.
   EXPECT_EQ(PanelManager::kPanelDockWidth, layout_manager_->x());
   EXPECT_EQ(0, layout_manager_->y());
-  EXPECT_EQ(root_info->width - PanelManager::kPanelDockWidth,
+  EXPECT_EQ(root_info->bounds.width - PanelManager::kPanelDockWidth,
             layout_manager_->width());
-  EXPECT_EQ(root_info->height, layout_manager_->height());
+  EXPECT_EQ(root_info->bounds.height, layout_manager_->height());
 
   // Dock the second panel on the right.
-  SendPanelDraggedMessage(panel2, root_info->width - 1, 0);
+  SendPanelDraggedMessage(panel2, root_info->bounds.width - 1, 0);
   SendPanelDragCompleteMessage(panel2);
 
   // The right dock should become visible.
   EXPECT_TRUE(right_panel_dock_->is_visible());
-  EXPECT_EQ(root_info->width - PanelManager::kPanelDockWidth,
+  EXPECT_EQ(root_info->bounds.width - PanelManager::kPanelDockWidth,
             right_panel_dock_->x());
   EXPECT_EQ(0, right_panel_dock_->y());
 
   // The layout manager should get narrower to make room for the right dock.
   EXPECT_EQ(PanelManager::kPanelDockWidth, layout_manager_->x());
   EXPECT_EQ(0, layout_manager_->y());
-  EXPECT_EQ(root_info->width - 2 * PanelManager::kPanelDockWidth,
+  EXPECT_EQ(root_info->bounds.width - 2 * PanelManager::kPanelDockWidth,
             layout_manager_->width());
-  EXPECT_EQ(root_info->height, layout_manager_->height());
+  EXPECT_EQ(root_info->bounds.height, layout_manager_->height());
 
   // Make the screen a bit smaller and send a ConfigureNotify event about it.
-  root_info->width -= 40;
-  root_info->height -= 30;
+  root_info->bounds.width -= 40;
+  root_info->bounds.height -= 30;
   XEvent event;
   xconn_->InitConfigureNotifyEvent(&event, root_xid);
   wm_->HandleEvent(&event);
@@ -453,7 +453,7 @@ TEST_F(PanelManagerTest, DockVisibilityAndResizing) {
   // shift over as needed.
   EXPECT_EQ(0, left_panel_dock_->x());
   EXPECT_EQ(0, left_panel_dock_->y());
-  EXPECT_EQ(root_info->width - PanelManager::kPanelDockWidth,
+  EXPECT_EQ(root_info->bounds.width - PanelManager::kPanelDockWidth,
             right_panel_dock_->x());
   EXPECT_EQ(0, right_panel_dock_->y());
 
@@ -461,13 +461,13 @@ TEST_F(PanelManagerTest, DockVisibilityAndResizing) {
   // leave room for the panel docks).
   EXPECT_EQ(PanelManager::kPanelDockWidth, layout_manager_->x());
   EXPECT_EQ(0, layout_manager_->y());
-  EXPECT_EQ(root_info->width - 2 * PanelManager::kPanelDockWidth,
+  EXPECT_EQ(root_info->bounds.width - 2 * PanelManager::kPanelDockWidth,
             layout_manager_->width());
-  EXPECT_EQ(root_info->height, layout_manager_->height());
+  EXPECT_EQ(root_info->bounds.height, layout_manager_->height());
 
   // Undock the left panel and check that the dock becomes invisible.
   SendPanelDraggedMessage(
-      panel1, root_info->width * 0.5, root_info->height - 1);
+      panel1, root_info->bounds.width * 0.5, root_info->bounds.height - 1);
   SendPanelDragCompleteMessage(panel1);
   EXPECT_FALSE(left_panel_dock_->is_visible());
 
@@ -475,9 +475,9 @@ TEST_F(PanelManagerTest, DockVisibilityAndResizing) {
   // get a bit wider, so that it's just leaving room for the right dock.
   EXPECT_EQ(0, layout_manager_->x());
   EXPECT_EQ(0, layout_manager_->y());
-  EXPECT_EQ(root_info->width - PanelManager::kPanelDockWidth,
+  EXPECT_EQ(root_info->bounds.width - PanelManager::kPanelDockWidth,
             layout_manager_->width());
-  EXPECT_EQ(root_info->height, layout_manager_->height());
+  EXPECT_EQ(root_info->bounds.height, layout_manager_->height());
 }
 
 // Test that we support transient windows for panels.
@@ -512,14 +512,14 @@ TEST_F(PanelManagerTest, TransientWindows) {
   // to the degree that we can while still keeping the transient onscreen).
   EXPECT_EQ(min(panel->content_x() +
                   (panel->content_width() - transient_width) / 2,
-                root_geometry.width - transient_width),
-            transient_info->x);
+                root_geometry.bounds.width - transient_width),
+            transient_info->bounds.x);
   EXPECT_EQ(min(panel->content_win()->client_y() +
                   (panel->content_height() - transient_height) / 2,
-                root_geometry.height - transient_height),
-            transient_info->y);
-  EXPECT_EQ(transient_width, transient_info->width);
-  EXPECT_EQ(transient_height, transient_info->height);
+                root_geometry.bounds.height - transient_height),
+            transient_info->bounds.y);
+  EXPECT_EQ(transient_width, transient_info->bounds.width);
+  EXPECT_EQ(transient_height, transient_info->bounds.height);
 
   // Check that the transient is stacked within the same layer as the
   // panel, and that it's stacked above the content window.
@@ -564,10 +564,10 @@ TEST_F(PanelManagerTest, TransientWindows) {
   infobubble_info->transient_for = panel->content_xid();
   SendInitialEventsForWindow(infobubble_xid);
 
-  EXPECT_EQ(infobubble_x, infobubble_info->x);
-  EXPECT_EQ(infobubble_y, infobubble_info->y);
-  EXPECT_EQ(infobubble_width, infobubble_info->width);
-  EXPECT_EQ(infobubble_height, infobubble_info->height);
+  EXPECT_EQ(infobubble_x, infobubble_info->bounds.x);
+  EXPECT_EQ(infobubble_y, infobubble_info->bounds.y);
+  EXPECT_EQ(infobubble_width, infobubble_info->bounds.width);
+  EXPECT_EQ(infobubble_height, infobubble_info->bounds.height);
 
   // Check that we'll honor a request to make the infobubble modal.
   xconn_->InitClientMessageEvent(

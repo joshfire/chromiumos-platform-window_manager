@@ -142,7 +142,7 @@ void MockCompositor::TexturePixmapActor::SetPixmap(XWindow pixmap) {
   pixmap_ = pixmap;
   XConnection::WindowGeometry geometry;
   if (xconn_->GetWindowGeometry(pixmap_, &geometry)) {
-    SetSizeInternal(geometry.width, geometry.height);
+    SetSizeInternal(geometry.bounds.width, geometry.bounds.height);
   } else {
     SetSizeInternal(0, 0);
   }

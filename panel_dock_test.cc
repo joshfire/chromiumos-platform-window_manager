@@ -183,7 +183,7 @@ TEST_F(PanelDockTest, HandleResizeRequests) {
   const int new_height = 250;
   XEvent event;
   xconn_->InitConfigureRequestEvent(
-      &event, panel1->content_xid(), 0, 0, initial_width, new_height);
+      &event, panel1->content_xid(), Rect(0, 0, initial_width, new_height));
   wm_->HandleEvent(&event);
 
   EXPECT_EQ(0, panel1->titlebar_y());

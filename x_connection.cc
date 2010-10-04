@@ -81,9 +81,4 @@ bool XConnection::SetIntProperty(
   return SetIntArrayProperty(xid, xatom, type, values);
 }
 
-XWindow XConnection::CreateSimpleWindow(XWindow parent,
-                                        int x, int y,
-                                        int width, int height) {
-  return CreateWindow(parent, x, y, width, height, false, false, 0, 0);
-}
 }  // namespace window_manager

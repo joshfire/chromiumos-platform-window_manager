@@ -166,8 +166,7 @@ XWindow BasicWindowManagerTest::CreateBasicWindow(int x, int y,
                                                   int width, int height) {
   return xconn_->CreateWindow(
       xconn_->GetRootWindow(),
-      x, y,
-      width, height,
+      Rect(x, y, width, height),
       false,  // override redirect
       false,  // input only
       0, 0);  // event mask, visual
@@ -528,10 +527,10 @@ bool BasicWindowManagerTest::WindowIsOffscreen(XWindow xid) {
   const MockXConnection::WindowInfo* info = xconn_->GetWindowInfoOrDie(xid);
   const MockXConnection::WindowInfo* root_info =
       xconn_->GetWindowInfoOrDie(xconn_->GetRootWindow());
-  return (info->x + info->width <= 0 ||
-          info->y + info->height <= 0 ||
-          info->x >= root_info->width ||
-          info->y >= root_info->height);
+  return (info->bounds.x + info->bounds.width <= 0 ||
+          info->bounds.y + info->bounds.height <= 0 ||
+          info->bounds.x >= root_info->bounds.width ||
+          info->bounds.y >= root_info->bounds.height);
 }
 
 void BasicWindowManagerTest::TestIntArrayProperty(

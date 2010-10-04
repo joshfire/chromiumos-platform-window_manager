@@ -317,8 +317,8 @@ bool WindowManager::Init() {
   xconn_->SelectRandREventsOnWindow(root_);
   XConnection::WindowGeometry root_geometry;
   CHECK(xconn_->GetWindowGeometry(root_, &root_geometry));
-  width_ = root_geometry.width;
-  height_ = root_geometry.height;
+  width_ = root_geometry.bounds.width;
+  height_ = root_geometry.bounds.height;
   root_depth_ = root_geometry.depth;
 
   // Create the atom cache first; RegisterExistence() needs it.
@@ -364,7 +364,7 @@ bool WindowManager::Init() {
   CHECK(overlay_xid_);
   LOG(INFO) << "Reparenting stage window " << XidStr(stage_xid_)
             << " into Xcomposite overlay window " << XidStr(overlay_xid_);
-  CHECK(xconn_->ReparentWindow(stage_xid_, overlay_xid_, 0, 0));
+  CHECK(xconn_->ReparentWindow(stage_xid_, overlay_xid_, Point()));
   CHECK(xconn_->RemoveInputRegionFromWindow(overlay_xid_));
   CHECK(xconn_->RemoveInputRegionFromWindow(stage_xid_));
 
@@ -583,8 +583,7 @@ XWindow WindowManager::CreateInputWindow(
     int x, int y, int width, int height, int event_mask) {
   XWindow xid = xconn_->CreateWindow(
       root_,  // parent
-      x, y,
-      width, height,
+      Rect(x, y, width, height),
       true,   // override redirect
       true,   // input only
       event_mask,
@@ -601,10 +600,9 @@ XWindow WindowManager::CreateInputWindow(
 
 bool WindowManager::ConfigureInputWindow(
     XWindow xid, int x, int y, int width, int height) {
-  DLOG(INFO) << "Configuring input window " << XidStr(xid)
-             << " to (" << x << ", " << y << ") and size "
-             << width << "x" << height;
-  return xconn_->ConfigureWindow(xid, x, y, width, height);
+  Rect rect(x, y, width, height);
+  DLOG(INFO) << "Configuring input window " << XidStr(xid) << " to " << rect;
+  return xconn_->ConfigureWindow(xid, rect);
 }
 
 XAtom WindowManager::GetXAtom(Atom atom) {
@@ -860,12 +858,12 @@ void WindowManager::UpdateClientWindowDebugging() {
 
     Compositor::ColoredBoxActor* rect =
         compositor_->CreateColoredBox(
-            geometry.width, geometry.height, bg_color);
+            geometry.bounds.width, geometry.bounds.height, bg_color);
     stage_->AddActor(rect);
     stacking_manager_->StackActorAtTopOfLayer(
         rect, StackingManager::LAYER_DEBUGGING);
     rect->SetName("debug box");
-    rect->Move(geometry.x, geometry.y, 0);
+    rect->Move(geometry.bounds.x, geometry.bounds.y, 0);
     rect->SetOpacity(0, 0);
     rect->SetOpacity(0.3, kDebugFadeMs);
     rect->Show();
@@ -935,8 +933,7 @@ bool WindowManager::RegisterExistence() {
   // Create an offscreen window to take ownership of the selection and
   // receive properties.
   wm_xid_ = xconn_->CreateWindow(root_,   // parent
-                                 -1, -1,  // position
-                                 1, 1,    // dimensions
+                                 Rect(-1, -1, 1, 1),
                                  true,    // override redirect
                                  false,   // input only
                                  PropertyChangeMask,  // event mask
@@ -1210,7 +1207,8 @@ bool WindowManager::ManageExistingWindows() {
   return true;
 }
 
-Window* WindowManager::TrackWindow(XWindow xid, bool override_redirect,
+Window* WindowManager::TrackWindow(XWindow xid,
+                                   bool override_redirect,
                                    XConnection::WindowGeometry& geometry) {
   // Don't manage our internal windows.
   if (IsInternalWindow(xid) || stacking_manager_->IsInternalWindow(xid))
@@ -1612,10 +1610,7 @@ void WindowManager::HandleCreateNotify(const XCreateWindowEvent& e) {
   stacked_xids_->AddOnTop(e.window);
 
   XConnection::WindowGeometry geometry;
-  geometry.x = e.x;
-  geometry.y = e.y;
-  geometry.width = e.width;
-  geometry.height = e.height;
+  geometry.bounds.reset(e.x, e.y, e.width, e.height);
   geometry.border_width = e.border_width;
   // We don't get the depth in the event, but at least for now, Window's
   // constructor doesn't need it.
@@ -2021,8 +2016,13 @@ void WindowManager::QueryKeyboardState() {
 }
 
 void WindowManager::CreateStartupBackground() {
-  startup_pixmap_ = xconn_->CreatePixmap(root_, width_, height_, root_depth_);
-  xconn_->CopyArea(root_, startup_pixmap_, 0, 0, 0, 0, width_, height_);
+  startup_pixmap_ =
+      xconn_->CreatePixmap(root_, Size(width_, height_), root_depth_);
+  xconn_->CopyArea(root_,            // src
+                   startup_pixmap_,  // dest
+                   Point(0, 0),      // src_pos
+                   Point(0, 0),      // dest_pos
+                   Size(width_, height_));
   Compositor::TexturePixmapActor* pixmap_actor =
       compositor_->CreateTexturePixmap();
   pixmap_actor->SetPixmap(startup_pixmap_);

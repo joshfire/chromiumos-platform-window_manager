@@ -372,11 +372,10 @@ TEST_F(RealCompositorTest, HandleXEvents) {
 
   XWindow xid = xconn_->CreateWindow(
       xconn_->GetRootWindow(),  // parent
-      0, 0,      // x, y
-      400, 300,  // width, height
-      false,     // override_redirect=false
-      false,     // input_only=false
-      0, 0);     // event_mask, visual
+      Rect(0, 0, 400, 300),
+      false,  // override_redirect=false
+      false,  // input_only=false
+      0, 0);  // event_mask, visual
   MockXConnection::WindowInfo* info = xconn_->GetWindowInfoOrDie(xid);
   XID pixmap_id = xconn_->GetCompositingPixmapForWindow(xid);
 
@@ -384,8 +383,8 @@ TEST_F(RealCompositorTest, HandleXEvents) {
   // should be updated and the compositor should be marked dirty.
   cast_actor->SetPixmap(pixmap_id);
   EXPECT_EQ(pixmap_id, cast_actor->pixmap());
-  EXPECT_EQ(info->width, cast_actor->GetWidth());
-  EXPECT_EQ(info->height, cast_actor->GetHeight());
+  EXPECT_EQ(info->bounds.width, cast_actor->GetWidth());
+  EXPECT_EQ(info->bounds.height, cast_actor->GetHeight());
   EXPECT_TRUE(cast_actor->texture_data() == NULL);
   EXPECT_TRUE(compositor_->dirty());
 
@@ -396,13 +395,15 @@ TEST_F(RealCompositorTest, HandleXEvents) {
 
   // Now resize the window.  The new pixmap should be loaded and the old
   // texture data should be discarded.
-  ASSERT_TRUE(xconn_->ResizeWindow(xid, info->width + 20, info->height + 10));
+  ASSERT_TRUE(xconn_->ResizeWindow(xid,
+                                   Size(info->bounds.width + 20,
+                                        info->bounds.height + 10)));
   ASSERT_TRUE(xconn_->FreePixmap(pixmap_id));
   pixmap_id = xconn_->GetCompositingPixmapForWindow(xid);
   actor->SetPixmap(pixmap_id);
   EXPECT_EQ(pixmap_id, cast_actor->pixmap());
-  EXPECT_EQ(info->width, cast_actor->GetWidth());
-  EXPECT_EQ(info->height, cast_actor->GetHeight());
+  EXPECT_EQ(info->bounds.width, cast_actor->GetWidth());
+  EXPECT_EQ(info->bounds.height, cast_actor->GetHeight());
   EXPECT_FALSE(cast_actor->texture_data());
   EXPECT_TRUE(compositor_->dirty());
 
@@ -663,8 +664,7 @@ TEST_F(RealCompositorTest, PartialUpdates) {
 
   XWindow xid = xconn_->CreateWindow(
       xconn_->GetRootWindow(),  // parent
-      0, 0,       // x, y
-      1366, 768,  // width, height
+      Rect(0, 0, 1366, 768),
       false,      // override_redirect=false
       false,      // input_only=false
       0, 0);      // event_mask, visual
@@ -733,22 +733,19 @@ TEST_F(RealCompositorTest, LayerVisitorTopFullscreenWindow) {
   // xwin3 is non-fullscreen and opaque.
   XWindow xwin1 = xconn_->CreateWindow(
       xconn_->GetRootWindow(),  // parent
-      0, 0,      // x, y
-      stage->width(), stage->height(),
+      Rect(0, 0, stage->width(), stage->height()),
       false,     // override_redirect=false
       false,     // input_only=false
       0, 0);     // event_mask, visual
   XWindow xwin2 = xconn_->CreateWindow(
       xconn_->GetRootWindow(),  // parent
-      0, 0,      // x, y
-      stage->width(), stage->height(),
+      Rect(0, 0, stage->width(), stage->height()),
       false,     // override_redirect=false
       false,     // input_only=false
       0, 0);     // event_mask, visual
   XWindow xwin3 = xconn_->CreateWindow(
       xconn_->GetRootWindow(),  // parent
-      0, 0,      // x, y
-      300, 400,  // width, height
+      Rect(0, 0, 300, 400),
       false,     // override_redirect=false
       false,     // input_only=false
       0, 0);     // event_mask, visual

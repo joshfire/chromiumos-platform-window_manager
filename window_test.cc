@@ -95,15 +95,15 @@ TEST_F(WindowTest, ChangeClient) {
 
   // Move the window.
   EXPECT_TRUE(window.MoveClient(100, 200));
-  EXPECT_EQ(100, info->x);
-  EXPECT_EQ(200, info->y);
+  EXPECT_EQ(100, info->bounds.x);
+  EXPECT_EQ(200, info->bounds.y);
   EXPECT_EQ(100, window.client_x());
   EXPECT_EQ(200, window.client_y());
 
   // Resize the window.
   EXPECT_TRUE(window.ResizeClient(300, 400, GRAVITY_NORTHWEST));
-  EXPECT_EQ(300, info->width);
-  EXPECT_EQ(400, info->height);
+  EXPECT_EQ(300, info->bounds.width);
+  EXPECT_EQ(400, info->bounds.height);
   EXPECT_EQ(300, window.client_width());
   EXPECT_EQ(400, window.client_height());
 
@@ -176,14 +176,10 @@ TEST_F(WindowTest, GetMaxSize) {
   XWindow xid = CreateBasicWindow(10, 20, 30, 40);
 
   MockXConnection::WindowInfo* info = xconn_->GetWindowInfoOrDie(xid);
-  info->size_hints.min_width = 400;
-  info->size_hints.min_height = 300;
-  info->size_hints.max_width = 800;
-  info->size_hints.max_height = 600;
-  info->size_hints.width_increment = 10;
-  info->size_hints.height_increment = 5;
-  info->size_hints.base_width = 40;
-  info->size_hints.base_width = 30;
+  info->size_hints.min_size.reset(400, 300);
+  info->size_hints.max_size.reset(800, 600);
+  info->size_hints.size_increment.reset(10, 5);
+  info->size_hints.base_size.reset(40, 30);
 
   XConnection::WindowGeometry geometry;
   ASSERT_TRUE(xconn_->GetWindowGeometry(xid, &geometry));
@@ -560,8 +556,8 @@ TEST_F(WindowTest, UpdatePixmapAndShadowSizes) {
   // Resize the window once before it gets mapped, to make sure that we get
   // the updated size later after the window is mapped.
   const int second_width = orig_width + 10, second_height = orig_height + 10;
-  ASSERT_TRUE(xconn_->ResizeWindow(xid, second_width, second_height));
-  win.HandleConfigureNotify(info->width, info->height);
+  ASSERT_TRUE(xconn_->ResizeWindow(xid, Size(second_width, second_height)));
+  win.HandleConfigureNotify(info->bounds.width, info->bounds.height);
 
   // Now map the window and check that everything starts out at the right size.
   ASSERT_TRUE(xconn_->MapWindow(xid));
@@ -576,7 +572,7 @@ TEST_F(WindowTest, UpdatePixmapAndShadowSizes) {
   // ConfigureNotify event (like what we'll receive whenever the window
   // gets moved).
   XID prev_pixmap = actor->pixmap();
-  win.HandleConfigureNotify(info->width, info->height);
+  win.HandleConfigureNotify(info->bounds.width, info->bounds.height);
   EXPECT_EQ(prev_pixmap, actor->pixmap());
 
   // Now act as if the window gets resized two more times, but the second
@@ -584,7 +580,7 @@ TEST_F(WindowTest, UpdatePixmapAndShadowSizes) {
   // window manager receives the ConfigureNotify for the first resize.
   const int third_width = second_width + 10, third_height = second_height + 10;
   const int fourth_width = third_width + 10, fourth_height = third_height + 10;
-  xconn_->ResizeWindow(xid, fourth_width, fourth_height);
+  xconn_->ResizeWindow(xid, Size(fourth_width, fourth_height));
   win.HandleConfigureNotify(third_width, third_height);
 
   // We should load the pixmap now and resize the shadow to the dimensions
@@ -648,8 +644,8 @@ TEST_F(WindowTest, SyncRequest) {
   MockCompositor::TexturePixmapActor* actor = GetMockActorForWindow(&win);
 
   EXPECT_TRUE(win.client_has_redrawn_after_last_resize_);
-  EXPECT_EQ(geometry.width, actor->GetWidth());
-  EXPECT_EQ(geometry.height, actor->GetHeight());
+  EXPECT_EQ(geometry.bounds.width, actor->GetWidth());
+  EXPECT_EQ(geometry.bounds.height, actor->GetHeight());
 
   // If the client doesn't support the sync request protocol, we should
   // just pretend like it's always redrawn the window immediately after a
@@ -770,10 +766,10 @@ TEST_F(WindowTest, DeferFetchingPixmapUntilPainted) {
 
   ASSERT_EQ(1, info->configure_notify_events.size());
   const XConfigureEvent& conf_notify = info->configure_notify_events[0];
-  EXPECT_EQ(info->x, conf_notify.x);
-  EXPECT_EQ(info->y, conf_notify.y);
-  EXPECT_EQ(info->width, conf_notify.width);
-  EXPECT_EQ(info->height, conf_notify.height);
+  EXPECT_EQ(info->bounds.x, conf_notify.x);
+  EXPECT_EQ(info->bounds.y, conf_notify.y);
+  EXPECT_EQ(info->bounds.width, conf_notify.width);
+  EXPECT_EQ(info->bounds.height, conf_notify.height);
   EXPECT_EQ(info->border_width, conf_notify.border_width);
   // Don't bother checking the stacking here.  We never registered this
   // window with WindowManager (we don't want event consumers messing

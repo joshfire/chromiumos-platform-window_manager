@@ -16,6 +16,7 @@ extern "C" {
 #include <gtest/gtest_prod.h>  // for FRIEND_TEST() macro
 #include <xcb/xcb.h>
 
+#include "window_manager/geometry.h"
 #include "window_manager/image_enums.h"
 #include "window_manager/x_connection.h"
 #include "window_manager/x_types.h"
@@ -34,23 +35,26 @@ class RealXConnection : public XConnection {
   virtual bool GetWindowGeometry(XWindow xid, WindowGeometry* geom_out);
   virtual bool MapWindow(XWindow xid);
   virtual bool UnmapWindow(XWindow xid);
-  virtual bool MoveWindow(XWindow xid, int x, int y);
-  virtual bool ResizeWindow(XWindow xid, int width, int height);
-  virtual bool ConfigureWindow(
-      XWindow xid, int x, int y, int width, int height);
+  virtual bool MoveWindow(XWindow xid, const Point& pos);
+  virtual bool ResizeWindow(XWindow xid, const Size& size);
+  virtual bool ConfigureWindow(XWindow xid, const Rect& bounds);
   virtual bool RaiseWindow(XWindow xid);
   virtual bool FocusWindow(XWindow xid, XTime event_time);
   virtual bool StackWindow(XWindow xid, XWindow other, bool above);
-  virtual bool ReparentWindow(XWindow xid, XWindow parent, int x, int y);
+  virtual bool ReparentWindow(XWindow xid, XWindow parent, const Point& offset);
   virtual bool SetWindowBorderWidth(XWindow xid, int width);
-  virtual bool SelectInputOnWindow(
-      XWindow xid, int event_mask, bool preserve_existing);
+  virtual bool SelectInputOnWindow(XWindow xid,
+                                   int event_mask,
+                                   bool preserve_existing);
   virtual bool DeselectInputOnWindow(XWindow xid, int event_mask);
-  virtual bool AddButtonGrabOnWindow(
-      XWindow xid, int button, int event_mask, bool synchronous);
+  virtual bool AddButtonGrabOnWindow(XWindow xid,
+                                     int button,
+                                     int event_mask,
+                                     bool synchronous);
   virtual bool RemoveButtonGrabOnWindow(XWindow xid, int button);
-  virtual bool AddPointerGrabForWindow(
-      XWindow xid, int event_mask, XTime timestamp);
+  virtual bool AddPointerGrabForWindow(XWindow xid,
+                                       int event_mask,
+                                       XTime timestamp);
   virtual bool RemovePointerGrab(bool replay_events, XTime timestamp);
   virtual bool RemoveInputRegionFromWindow(XWindow xid);
   virtual bool SetInputRegionForWindow(XWindow xid, const Rect& rect);
@@ -62,19 +66,22 @@ class RealXConnection : public XConnection {
   virtual bool UnredirectWindowForCompositing(XWindow xid);
   virtual XWindow GetCompositingOverlayWindow(XWindow root);
   virtual XPixmap CreatePixmap(XDrawable drawable,
-                               int width, int height,
+                               const Size& size,
                                int depth);
   virtual XPixmap GetCompositingPixmapForWindow(XWindow xid);
   virtual bool FreePixmap(XPixmap pixmap);
-  virtual void CopyArea(XDrawable src_drawable, XDrawable dest_drawable,
-                        int src_x, int src_y,
-                        int dest_x, int dest_y,
-                        int width, int height);
+  virtual void CopyArea(XDrawable src_drawable,
+                        XDrawable dest_drawable,
+                        const Point& src_pos,
+                        const Point& dest_pos,
+                        const Size& size);
   virtual XWindow GetRootWindow() { return root_; }
-  virtual XWindow CreateWindow(
-      XWindow parent, int x, int y, int width, int height,
-      bool override_redirect, bool input_only, int event_mask,
-      XVisualID visual);
+  virtual XWindow CreateWindow(XWindow parent,
+                               const Rect& bounds,
+                               bool override_redirect,
+                               bool input_only,
+                               int event_mask,
+                               XVisualID visual);
   virtual bool DestroyWindow(XWindow xid);
   virtual bool IsWindowShaped(XWindow xid);
   virtual bool SelectShapeEventsOnWindow(XWindow xid);
@@ -85,13 +92,17 @@ class RealXConnection : public XConnection {
   virtual bool GetAtoms(const std::vector<std::string>& names,
                         std::vector<XAtom>* atoms_out);
   virtual bool GetAtomName(XAtom atom, std::string* name);
-  virtual bool GetIntArrayProperty(
-      XWindow xid, XAtom xatom, std::vector<int>* values);
-  virtual bool SetIntArrayProperty(
-      XWindow xid, XAtom xatom, XAtom type, const std::vector<int>& values);
+  virtual bool GetIntArrayProperty(XWindow xid,
+                                   XAtom xatom,
+                                   std::vector<int>* values);
+  virtual bool SetIntArrayProperty(XWindow xid,
+                                   XAtom xatom,
+                                   XAtom type,
+                                   const std::vector<int>& values);
   virtual bool GetStringProperty(XWindow xid, XAtom xatom, std::string* out);
-  virtual bool SetStringProperty(
-      XWindow xid, XAtom xatom, const std::string& value);
+  virtual bool SetStringProperty(XWindow xid,
+                                 XAtom xatom,
+                                 const std::string& value);
   virtual bool DeletePropertyIfExists(XWindow xid, XAtom xatom);
   virtual int GetConnectionFileDescriptor();
   virtual bool IsEventPending();
@@ -103,8 +114,7 @@ class RealXConnection : public XConnection {
                                       long data[5],
                                       int event_mask);
   virtual bool SendConfigureNotifyEvent(XWindow xid,
-                                        int x, int y,
-                                        int width, int height,
+                                        const Rect& bounds,
                                         int border_width,
                                         XWindow above_xid,
                                         bool override_redirect);
@@ -112,15 +122,17 @@ class RealXConnection : public XConnection {
   virtual bool WaitForPropertyChange(XWindow xid, XTime* timestamp_out);
   virtual XWindow GetSelectionOwner(XAtom atom);
   virtual bool SetSelectionOwner(XAtom atom, XWindow xid, XTime timestamp);
-  virtual bool GetImage(XID drawable, int x, int y,
-                        int width, int height, int drawable_depth,
+  virtual bool GetImage(XID drawable,
+                        const Rect& bounds,
+                        int drawable_depth,
                         scoped_ptr_malloc<uint8_t>* data_out,
                         ImageFormat* format_out);
   virtual bool SetWindowCursor(XWindow xid, uint32 shape);
   virtual bool GetParentWindow(XWindow xid, XWindow* parent_out);
   virtual bool GetChildWindows(XWindow xid, std::vector<XWindow>* children_out);
-  virtual void RefreshKeyboardMap(
-      int request, KeyCode first_keycode, int count);
+  virtual void RefreshKeyboardMap(int request,
+                                  KeyCode first_keycode,
+                                  int count);
   virtual KeySym GetKeySymFromKeyCode(KeyCode keycode);
   virtual KeyCode GetKeyCodeFromKeySym(KeySym keysym);
   virtual std::string GetStringFromKeySym(KeySym keysym);
@@ -135,7 +147,7 @@ class RealXConnection : public XConnection {
   virtual void DestroySyncCounterAlarm(XID alarm_id);
   virtual bool SetDetectableKeyboardAutoRepeat(bool detectable);
   virtual bool QueryKeyboardState(std::vector<uint8_t>* keycodes_out);
-  virtual bool QueryPointerPosition(int* x_root, int* y_root);
+  virtual bool QueryPointerPosition(Point* absolute_pos_out);
   // End XConnection methods.
 
   // This convenience function is ONLY available for a real X

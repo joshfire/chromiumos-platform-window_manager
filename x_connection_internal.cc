@@ -27,8 +27,7 @@ void InitXClientMessageEvent(XEvent* event_out,
 
 void InitXConfigureEvent(XEvent* event_out,
                          XWindow xid,
-                         int x, int y,
-                         int width, int height,
+                         const Rect& bounds,
                          int border_width,
                          XWindow above_xid,
                          bool override_redirect) {
@@ -37,10 +36,10 @@ void InitXConfigureEvent(XEvent* event_out,
   configure_event->type = ConfigureNotify;
   configure_event->event = xid;
   configure_event->window = xid;
-  configure_event->x = x;
-  configure_event->y = y;
-  configure_event->width = width;
-  configure_event->height = height;
+  configure_event->x = bounds.x;
+  configure_event->y = bounds.y;
+  configure_event->width = bounds.width;
+  configure_event->height = bounds.height;
   configure_event->border_width = 0;
   configure_event->above = above_xid;
   configure_event->override_redirect = override_redirect ? 1 : 0;

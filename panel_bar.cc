@@ -698,9 +698,9 @@ void PanelBar::HandlePanelDragComplete(Panel* panel) {
   if (collapsed_panel_state_ == COLLAPSED_PANEL_STATE_WAITING_TO_HIDE) {
     // If the user moved the pointer up from the bottom of the screen while
     // they were dragging the panel...
-    int pointer_y = 0;
-    wm()->xconn()->QueryPointerPosition(NULL, &pointer_y);
-    if (pointer_y < wm()->height() - kHideCollapsedPanelsDistancePixels) {
+    Point pointer_pos;
+    wm()->xconn()->QueryPointerPosition(&pointer_pos);
+    if (pointer_pos.y < wm()->height() - kHideCollapsedPanelsDistancePixels) {
       // Hide the panels if they didn't move the pointer back down again
       // before releasing the button.
       HideCollapsedPanels();
@@ -871,12 +871,12 @@ void PanelBar::ShiftFloatingPanelsAroundFixedPanel(Panel* fixed_panel,
 }
 
 void PanelBar::CreateAnchor(Panel* panel) {
-  int pointer_x = 0;
-  wm()->xconn()->QueryPointerPosition(&pointer_x, NULL);
+  Point pointer_pos;
+  wm()->xconn()->QueryPointerPosition(&pointer_pos);
 
   const int width = anchor_actor_->GetWidth();
   const int height = anchor_actor_->GetHeight();
-  const int x = min(max(static_cast<int>(pointer_x - 0.5 * width), 0),
+  const int x = min(max(static_cast<int>(pointer_pos.x - 0.5 * width), 0),
                     wm()->width() - width);
   const int y = wm()->height() - height;
 

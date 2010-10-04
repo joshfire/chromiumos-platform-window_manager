@@ -30,7 +30,8 @@ StackingManager::StackingManager(XConnection* xconn,
     Layer layer = static_cast<Layer>(i);
     string name = StringPrintf("%s layer", LayerToName(layer));
 
-    XWindow xid = xconn_->CreateWindow(root, -1, -1, 1, 1, true, true, 0, 0);
+    XWindow xid =
+        xconn_->CreateWindow(root, Rect(-1, -1, 1, 1), true, true, 0, 0);
     xconn_->SetStringProperty(xid, atom_cache->GetXAtom(ATOM_WM_NAME), name);
     xconn_->SetStringProperty(
         xid, atom_cache->GetXAtom(ATOM_NET_WM_NAME), name);

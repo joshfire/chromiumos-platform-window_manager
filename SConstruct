@@ -72,6 +72,7 @@ elif backend == 'opengles':
 # Define an IPC library that will be used both by the WM and by client apps.
 srcs = Split('''\
   atom_cache.cc
+  geometry.cc
   real_x_connection.cc
   util.cc
   wm_ipc.cc

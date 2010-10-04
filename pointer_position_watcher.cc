@@ -52,15 +52,15 @@ void PointerPositionWatcher::CancelTimeoutIfActive() {
 }
 
 void PointerPositionWatcher::HandleTimeout() {
-  int pointer_x = 0, pointer_y = 0;
-  if (!xconn_->QueryPointerPosition(&pointer_x, &pointer_y))
+  Point pointer_pos;
+  if (!xconn_->QueryPointerPosition(&pointer_pos))
     return;
 
   // Bail out if we're not in the desired state yet.
-  bool in_target = pointer_x >= target_x_ &&
-                   pointer_x < target_x_ + target_width_ &&
-                   pointer_y >= target_y_ &&
-                   pointer_y < target_y_ + target_height_;
+  bool in_target = pointer_pos.x >= target_x_ &&
+                   pointer_pos.x < target_x_ + target_width_ &&
+                   pointer_pos.y >= target_y_ &&
+                   pointer_pos.y < target_y_ + target_height_;
   if ((watch_for_entering_target_ && !in_target) ||
       (!watch_for_entering_target_ && in_target))
     return;

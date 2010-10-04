@@ -51,8 +51,7 @@ class LayoutManagerTest : public BasicWindowManagerTest {
 TEST_F(LayoutManagerTest, Basic) {
   XWindow xid1 = xconn_->CreateWindow(
       xconn_->GetRootWindow(),
-      100, 100,  // x, y
-      640, 480,  // width, height
+      Rect(100, 100, 640, 480),
       false,     // override redirect
       false,     // input only
       0, 0);     // event mask, visual
@@ -79,8 +78,7 @@ TEST_F(LayoutManagerTest, Basic) {
   // Now create two more windows and map them.
   XWindow xid2 = xconn_->CreateWindow(
       xconn_->GetRootWindow(),
-      100, 100,  // x, y
-      640, 480,  // width, height
+      Rect(100, 100, 640, 480),
       false,     // override redirect
       false,     // input only
       0, 0);     // event mask, visual
@@ -93,8 +91,7 @@ TEST_F(LayoutManagerTest, Basic) {
 
   XWindow xid3 = xconn_->CreateWindow(
       xconn_->GetRootWindow(),
-      100, 100,  // x, y
-      640, 480,  // width, height
+      Rect(100, 100, 640, 480),
       false,     // override redirect
       false,     // input only
       0, 0);     // event mask, visual
@@ -213,16 +210,15 @@ TEST_F(LayoutManagerTest, ConfigureTransient) {
       xconn_->GetWindowInfoOrDie(owner_xid);
   SendInitialEventsForWindow(owner_xid);
 
-  EXPECT_EQ(0, owner_info->x);
-  EXPECT_EQ(0, owner_info->y);
-  EXPECT_EQ(lm_->width(), owner_info->width);
-  EXPECT_EQ(lm_->height(), owner_info->height);
+  EXPECT_EQ(0, owner_info->bounds.x);
+  EXPECT_EQ(0, owner_info->bounds.y);
+  EXPECT_EQ(lm_->width(), owner_info->bounds.width);
+  EXPECT_EQ(lm_->height(), owner_info->bounds.height);
 
   // Now create and map a transient window.
   XWindow transient_xid = xconn_->CreateWindow(
       xconn_->GetRootWindow(),
-      60, 70,    // x, y
-      320, 240,  // width, height
+      Rect(60, 70, 320, 240),
       false,     // override redirect
       false,     // input only
       0, 0);     // event mask, visual
@@ -232,45 +228,52 @@ TEST_F(LayoutManagerTest, ConfigureTransient) {
   SendInitialEventsForWindow(transient_xid);
 
   // The transient window should initially be centered over its owner.
-  EXPECT_EQ(owner_info->x + 0.5 * (owner_info->width - transient_info->width),
-            transient_info->x);
-  EXPECT_EQ(owner_info->y + 0.5 * (owner_info->height - transient_info->height),
-            transient_info->y);
+  EXPECT_EQ(owner_info->bounds.x +
+              0.5 * (owner_info->bounds.width - transient_info->bounds.width),
+            transient_info->bounds.x);
+  EXPECT_EQ(owner_info->bounds.y +
+              0.5 * (owner_info->bounds.height - transient_info->bounds.height),
+            transient_info->bounds.y);
 
   // Now resize the transient window and make sure that it gets re-centered.
-  xconn_->InitConfigureRequestEvent(&event, transient_xid, 0, 0, 400, 300);
+  xconn_->InitConfigureRequestEvent(
+      &event, transient_xid, Rect(0, 0, 400, 300));
   event.xconfigurerequest.value_mask = CWWidth | CWHeight;
   wm_->HandleEvent(&event);
-  EXPECT_EQ(400, transient_info->width);
-  EXPECT_EQ(300, transient_info->height);
-  EXPECT_EQ(owner_info->x + 0.5 * (owner_info->width - transient_info->width),
-            transient_info->x);
-  EXPECT_EQ(owner_info->y + 0.5 * (owner_info->height - transient_info->height),
-            transient_info->y);
+  EXPECT_EQ(400, transient_info->bounds.width);
+  EXPECT_EQ(300, transient_info->bounds.height);
+  EXPECT_EQ(owner_info->bounds.x +
+              0.5 * (owner_info->bounds.width - transient_info->bounds.width),
+            transient_info->bounds.x);
+  EXPECT_EQ(owner_info->bounds.y +
+              0.5 * (owner_info->bounds.height - transient_info->bounds.height),
+            transient_info->bounds.y);
   xconn_->InitConfigureNotifyEvent(&event, owner_xid);
   wm_->HandleEvent(&event);
 
   // Send a ConfigureRequest event to move and resize the transient window
   // and make sure that it gets applied.
   xconn_->InitConfigureRequestEvent(
-      &event, transient_xid, owner_info->x + 20, owner_info->y + 10, 200, 150);
+      &event,
+      transient_xid,
+      Rect(owner_info->bounds.x + 20, owner_info->bounds.y + 10, 200, 150));
   wm_->HandleEvent(&event);
-  EXPECT_EQ(owner_info->x + 20, transient_info->x);
-  EXPECT_EQ(owner_info->y + 10, transient_info->y);
-  EXPECT_EQ(200, transient_info->width);
-  EXPECT_EQ(150, transient_info->height);
+  EXPECT_EQ(owner_info->bounds.x + 20, transient_info->bounds.x);
+  EXPECT_EQ(owner_info->bounds.y + 10, transient_info->bounds.y);
+  EXPECT_EQ(200, transient_info->bounds.width);
+  EXPECT_EQ(150, transient_info->bounds.height);
   xconn_->InitConfigureNotifyEvent(&event, owner_xid);
   wm_->HandleEvent(&event);
 
   // If we resize the transient window again now, it shouldn't get
   // re-centered (since we explicitly moved it previously).
-  xconn_->InitConfigureRequestEvent(&event, transient_xid, 0, 0, 40, 30);
+  xconn_->InitConfigureRequestEvent(&event, transient_xid, Rect(0, 0, 40, 30));
   event.xconfigurerequest.value_mask = CWWidth | CWHeight;
   wm_->HandleEvent(&event);
-  EXPECT_EQ(owner_info->x + 20, transient_info->x);
-  EXPECT_EQ(owner_info->y + 10, transient_info->y);
-  EXPECT_EQ(40, transient_info->width);
-  EXPECT_EQ(30, transient_info->height);
+  EXPECT_EQ(owner_info->bounds.x + 20, transient_info->bounds.x);
+  EXPECT_EQ(owner_info->bounds.y + 10, transient_info->bounds.y);
+  EXPECT_EQ(40, transient_info->bounds.width);
+  EXPECT_EQ(30, transient_info->bounds.height);
   xconn_->InitConfigureNotifyEvent(&event, owner_xid);
   wm_->HandleEvent(&event);
 
@@ -285,12 +288,11 @@ TEST_F(LayoutManagerTest, ConfigureTransient) {
   wm_->HandleEvent(&event);
 
   // Create and map an info bubble window.
-  int bubble_x = owner_info->x + 40;
-  int bubble_y = owner_info->y + 30;
+  int bubble_x = owner_info->bounds.x + 40;
+  int bubble_y = owner_info->bounds.y + 30;
   XWindow bubble_xid = xconn_->CreateWindow(
       xconn_->GetRootWindow(),
-      bubble_x, bubble_y,
-      320, 240,  // width, height
+      Rect(bubble_x, bubble_y, 320, 240),
       false,     // override redirect
       false,     // input only
       0, 0);     // event mask, visual
@@ -304,8 +306,8 @@ TEST_F(LayoutManagerTest, ConfigureTransient) {
   SendInitialEventsForWindow(bubble_xid);
 
   // The bubble's initial position should be preserved.
-  EXPECT_EQ(bubble_x, bubble_info->x);
-  EXPECT_EQ(bubble_y, bubble_info->y);
+  EXPECT_EQ(bubble_x, bubble_info->bounds.x);
+  EXPECT_EQ(bubble_y, bubble_info->bounds.y);
 
   // Now switch to overview mode and check that the bubble's client window
   // is moved offscreen and its compositing actor is hidden.
@@ -317,7 +319,9 @@ TEST_F(LayoutManagerTest, ConfigureTransient) {
 
   // We should ignore configure requests while the transient is hidden.
   xconn_->InitConfigureRequestEvent(
-      &event, bubble_xid, 20, 30, bubble_info->width, bubble_info->height);
+      &event,
+      bubble_xid,
+      Rect(20, 30, bubble_info->bounds.width, bubble_info->bounds.height));
   event.xconfigurerequest.value_mask = CWWidth | CWHeight;
   wm_->HandleEvent(&event);
   EXPECT_TRUE(WindowIsOffscreen(bubble_xid));
@@ -325,8 +329,10 @@ TEST_F(LayoutManagerTest, ConfigureTransient) {
   // Make the screen much larger and check that the bubble's client window
   // gets moved to remain offscreen.
   const XWindow root_xid = xconn_->GetRootWindow();
-  MockXConnection::WindowInfo* root_info =xconn_->GetWindowInfoOrDie(root_xid);
-  xconn_->ResizeWindow(root_xid, root_info->width * 2, root_info->height * 2);
+  MockXConnection::WindowInfo* root_info = xconn_->GetWindowInfoOrDie(root_xid);
+  xconn_->ResizeWindow(
+      root_xid,
+      Size(root_info->bounds.width * 2, root_info->bounds.height * 2));
   xconn_->InitConfigureNotifyEvent(&event, root_xid);
   wm_->HandleEvent(&event);
   EXPECT_TRUE(WindowIsOffscreen(bubble_xid));
@@ -334,8 +340,8 @@ TEST_F(LayoutManagerTest, ConfigureTransient) {
   // After switching back to active mode, the bubble should be moved back
   // to its original position and the actor should be shown.
   lm_->SetMode(LayoutManager::MODE_ACTIVE);
-  EXPECT_EQ(bubble_x, bubble_info->x);
-  EXPECT_EQ(bubble_y, bubble_info->y);
+  EXPECT_EQ(bubble_x, bubble_info->bounds.x);
+  EXPECT_EQ(bubble_y, bubble_info->bounds.y);
   EXPECT_TRUE(bubble_actor->is_shown());
 }
 
@@ -376,7 +382,7 @@ TEST_F(LayoutManagerTest, FocusTransient) {
 
   // Now simulate a button press on the owner window.
   xconn_->set_pointer_grab_xid(xid);
-  xconn_->InitButtonPressEvent(&event, xid, 0, 0, 1);  // x, y, button
+  xconn_->InitButtonPressEvent(&event, xid, Point(0, 0), 1);  // x, y, button
   wm_->HandleEvent(&event);
 
   // LayoutManager should remove the active pointer grab and try to focus
@@ -391,7 +397,7 @@ TEST_F(LayoutManagerTest, FocusTransient) {
 
   // Give the focus back to the transient window.
   xconn_->set_pointer_grab_xid(transient_xid);
-  xconn_->InitButtonPressEvent(&event, transient_xid, 0, 0, 1);
+  xconn_->InitButtonPressEvent(&event, transient_xid, Point(0, 0), 1);
   wm_->HandleEvent(&event);
   EXPECT_EQ(transient_xid, xconn_->focused_xid());
   EXPECT_EQ(transient_xid, GetActiveWindowProperty());
@@ -407,7 +413,7 @@ TEST_F(LayoutManagerTest, FocusTransient) {
   // Since it's modal, the transient window should still keep the focus
   // after a button press in the owner window.
   xconn_->set_pointer_grab_xid(xid);
-  xconn_->InitButtonPressEvent(&event, xid, 0, 0, 1);
+  xconn_->InitButtonPressEvent(&event, xid, Point(0, 0), 1);
   wm_->HandleEvent(&event);
   EXPECT_EQ(transient_xid, xconn_->focused_xid());
   EXPECT_EQ(transient_xid, GetActiveWindowProperty());
@@ -523,7 +529,7 @@ TEST_F(LayoutManagerTest, MultipleTransients) {
   // Click on the first transient.  It should get the focused and be moved to
   // the top of the stack.
   xconn_->set_pointer_grab_xid(first_transient_xid);
-  xconn_->InitButtonPressEvent(&event, first_transient_xid, 0, 0, 1);
+  xconn_->InitButtonPressEvent(&event, first_transient_xid, Point(0, 0), 1);
   wm_->HandleEvent(&event);
   EXPECT_EQ(first_transient_xid, xconn_->focused_xid());
   EXPECT_LT(stage->GetStackingIndex(first_transient_win->actor()),
@@ -568,10 +574,10 @@ TEST_F(LayoutManagerTest, Resize) {
 
   // Set up a background Actor.
   Compositor::ColoredBoxActor* background = compositor_->CreateColoredBox(
-      root_info->width, root_info->height, Compositor::Color());
+      root_info->bounds.width, root_info->bounds.height, Compositor::Color());
   lm_->SetBackground(background);
-  ASSERT_EQ(root_info->width, background->GetWidth());
-  ASSERT_EQ(root_info->height, background->GetHeight());
+  ASSERT_EQ(root_info->bounds.width, background->GetWidth());
+  ASSERT_EQ(root_info->bounds.height, background->GetHeight());
 
   XWindow xid = CreateSimpleWindow();
   MockXConnection::WindowInfo* info = xconn_->GetWindowInfoOrDie(xid);
@@ -581,15 +587,15 @@ TEST_F(LayoutManagerTest, Resize) {
 
   EXPECT_EQ(0, lm_->x());
   EXPECT_EQ(0, lm_->y());
-  EXPECT_EQ(root_info->width, lm_->width());
-  EXPECT_EQ(root_info->height, lm_->height());
+  EXPECT_EQ(root_info->bounds.width, lm_->width());
+  EXPECT_EQ(root_info->bounds.height, lm_->height());
 
   // The client window and its composited counterpart should be resized to
   // take up all the space onscreen.
-  EXPECT_EQ(lm_->x(), info->x);
-  EXPECT_EQ(lm_->y(), info->y);
-  EXPECT_EQ(lm_->width(), info->width);
-  EXPECT_EQ(lm_->height(), info->height);
+  EXPECT_EQ(lm_->x(), info->bounds.x);
+  EXPECT_EQ(lm_->y(), info->bounds.y);
+  EXPECT_EQ(lm_->width(), info->bounds.width);
+  EXPECT_EQ(lm_->height(), info->bounds.height);
   EXPECT_EQ(lm_->x(), win->composited_x());
   EXPECT_EQ(lm_->y(), win->composited_y());
   EXPECT_DOUBLE_EQ(1.0, win->composited_scale_x());
@@ -597,9 +603,9 @@ TEST_F(LayoutManagerTest, Resize) {
 
   // Now resize the screen and check that both the layout manager and
   // client are also resized.
-  const int new_width = root_info->width / 2;
-  const int new_height = root_info->height / 2;
-  xconn_->ResizeWindow(root_xid, new_width, new_height);
+  const int new_width = root_info->bounds.width / 2;
+  const int new_height = root_info->bounds.height / 2;
+  xconn_->ResizeWindow(root_xid, Size(new_width, new_height));
 
   XEvent event;
   xconn_->InitConfigureNotifyEvent(&event, root_xid);
@@ -607,16 +613,16 @@ TEST_F(LayoutManagerTest, Resize) {
 
   EXPECT_EQ(new_width, lm_->width());
   EXPECT_EQ(new_height, lm_->height());
-  EXPECT_EQ(lm_->width(), info->width);
-  EXPECT_EQ(lm_->height(), info->height);
+  EXPECT_EQ(lm_->width(), info->bounds.width);
+  EXPECT_EQ(lm_->height(), info->bounds.height);
 
   // The background window should be resized too.
   MockXConnection::WindowInfo* background_info =
       xconn_->GetWindowInfoOrDie(lm_->background_xid_);
-  EXPECT_EQ(0, background_info->x);
-  EXPECT_EQ(0, background_info->y);
-  EXPECT_EQ(new_width, background_info->width);
-  EXPECT_EQ(new_height, background_info->height);
+  EXPECT_EQ(0, background_info->bounds.x);
+  EXPECT_EQ(0, background_info->bounds.y);
+  EXPECT_EQ(new_width, background_info->bounds.width);
+  EXPECT_EQ(new_height, background_info->bounds.height);
   EXPECT_EQ(
       static_cast<int>(
           new_width * LayoutManager::kBackgroundExpansionFactor + 0.5f),
@@ -629,12 +635,12 @@ TEST_F(LayoutManagerTest, Resize) {
           background->GetHeight() * background->GetYScale() + 0.5f));
 
   // Now check that background config works with different aspects.
-  background->SetSize(root_info->width * 2, root_info->height);
+  background->SetSize(root_info->bounds.width * 2, root_info->bounds.height);
   lm_->ConfigureBackground(new_width, new_height);
   EXPECT_EQ(new_width * 2, background->GetWidth());
   EXPECT_EQ(new_height, background->GetHeight());
 
-  background->SetSize(root_info->width, root_info->height * 2);
+  background->SetSize(root_info->bounds.width, root_info->bounds.height * 2);
   lm_->ConfigureBackground(new_width, new_height);
   EXPECT_EQ(
       static_cast<int>(
@@ -659,10 +665,10 @@ TEST_F(LayoutManagerTest, ConfigureToplevel) {
 
   // The window should initially be maximized to fit the area available to
   // the layout manager.
-  EXPECT_EQ(lm_->x(), info->x);
-  EXPECT_EQ(lm_->y(), info->y);
-  EXPECT_EQ(lm_->width(), info->width);
-  EXPECT_EQ(lm_->height(), info->height);
+  EXPECT_EQ(lm_->x(), info->bounds.x);
+  EXPECT_EQ(lm_->y(), info->bounds.y);
+  EXPECT_EQ(lm_->width(), info->bounds.width);
+  EXPECT_EQ(lm_->height(), info->bounds.height);
 
   // Now ask for a new position and larger size.
   int new_x = 20;
@@ -671,15 +677,15 @@ TEST_F(LayoutManagerTest, ConfigureToplevel) {
   int new_height = lm_->y() + 5;
   XEvent event;
   xconn_->InitConfigureRequestEvent(
-      &event, xid, new_x, new_y, new_width, new_height);
+      &event, xid, Rect(new_x, new_y, new_width, new_height));
   info->configure_notify_events.clear();
   wm_->HandleEvent(&event);
 
   // The window should have the same position and size as before.
-  EXPECT_EQ(lm_->x(), info->x);
-  EXPECT_EQ(lm_->y(), info->y);
-  EXPECT_EQ(lm_->width(), info->width);
-  EXPECT_EQ(lm_->height(), info->height);
+  EXPECT_EQ(lm_->x(), info->bounds.x);
+  EXPECT_EQ(lm_->y(), info->bounds.y);
+  EXPECT_EQ(lm_->width(), info->bounds.width);
+  EXPECT_EQ(lm_->height(), info->bounds.height);
 
   // We should've sent it a synthetic ConfigureNotify event containing its
   // current position and size.
@@ -905,18 +911,18 @@ TEST_F(LayoutManagerTest, OverviewFocus) {
 
   // Click on the first window's input window to make it current.
   XWindow input_xid = lm_->GetInputXidForWindow(*(wm_->GetWindowOrDie(xid)));
-  xconn_->InitButtonPressEvent(&event, input_xid, 0, 0, 1);
+  xconn_->InitButtonPressEvent(&event, input_xid, Point(0, 0), 1);
   wm_->HandleEvent(&event);
-  xconn_->InitButtonReleaseEvent(&event, input_xid, 0, 0, 1);
+  xconn_->InitButtonReleaseEvent(&event, input_xid, Point(0, 0), 1);
   wm_->HandleEvent(&event);
   EXPECT_EQ(lm_->GetSnapshotWindowByXid(xid), lm_->current_snapshot_);
 
   // Now click on it again to activate it.  The first window should be
   // focused and set as the active window, and only the second window
   // should still have a button grab.
-  xconn_->InitButtonPressEvent(&event, input_xid, 0, 0, 1);
+  xconn_->InitButtonPressEvent(&event, input_xid, Point(0, 0), 1);
   wm_->HandleEvent(&event);
-  xconn_->InitButtonReleaseEvent(&event, input_xid, 0, 0, 1);
+  xconn_->InitButtonReleaseEvent(&event, input_xid, Point(0, 0), 1);
   wm_->HandleEvent(&event);
   EXPECT_EQ(lm_->GetToplevelWindowByXid(toplevel_xid), lm_->current_toplevel_);
   EXPECT_EQ(toplevel_xid, xconn_->focused_xid());
@@ -1024,7 +1030,7 @@ TEST_F(LayoutManagerTest, OverviewSpacing) {
 
   MockXConnection::WindowInfo* win_info = xconn_->GetWindowInfo(input_xid);
   EXPECT_TRUE(win_info != NULL);
-  EXPECT_EQ(win_info->height,
+  EXPECT_EQ(win_info->bounds.height,
             lm_->current_snapshot_->win()->composited_height() +
             lm_->current_snapshot_->title()->composited_height() +
             LayoutManager::SnapshotWindow::kTitlePadding);
@@ -1032,9 +1038,9 @@ TEST_F(LayoutManagerTest, OverviewSpacing) {
   // Now click on the second window and make sure things move appropriately.
   XEvent event;
   input_xid = lm_->GetInputXidForWindow(*wm_->GetWindowOrDie(snapshot2));
-  xconn_->InitButtonPressEvent(&event, input_xid, 0, 0, 1);
+  xconn_->InitButtonPressEvent(&event, input_xid, Point(0, 0), 1);
   wm_->HandleEvent(&event);
-  xconn_->InitButtonReleaseEvent(&event, input_xid, 0, 0, 1);
+  xconn_->InitButtonReleaseEvent(&event, input_xid, Point(0, 0), 1);
   wm_->HandleEvent(&event);
 
   int second_snapshot_x = snapshot_width *
@@ -1292,8 +1298,8 @@ TEST_F(LayoutManagerTest, ResizeWindowsBeforeMapping) {
   wm_->HandleEvent(&event);
   xconn_->InitMapRequestEvent(&event, nonchrome_xid);
   wm_->HandleEvent(&event);
-  EXPECT_EQ(lm_->width(), nonchrome_info->width);
-  EXPECT_EQ(lm_->height(), nonchrome_info->height);
+  EXPECT_EQ(lm_->width(), nonchrome_info->bounds.width);
+  EXPECT_EQ(lm_->height(), nonchrome_info->bounds.height);
 
   // We should do the same thing with toplevel Chrome windows.
   const XWindow toplevel_xid = CreateToplevelWindow(1, 0, 0, 0, 50, 40);
@@ -1303,8 +1309,8 @@ TEST_F(LayoutManagerTest, ResizeWindowsBeforeMapping) {
   wm_->HandleEvent(&event);
   xconn_->InitMapRequestEvent(&event, toplevel_xid);
   wm_->HandleEvent(&event);
-  EXPECT_EQ(lm_->width(), toplevel_info->width);
-  EXPECT_EQ(lm_->height(), toplevel_info->height);
+  EXPECT_EQ(lm_->width(), toplevel_info->bounds.width);
+  EXPECT_EQ(lm_->height(), toplevel_info->bounds.height);
 
   // Snapshot windows should retain their original dimensions.
   const int orig_width = 50, orig_height = 40;
@@ -1316,8 +1322,8 @@ TEST_F(LayoutManagerTest, ResizeWindowsBeforeMapping) {
   wm_->HandleEvent(&event);
   xconn_->InitMapRequestEvent(&event, snapshot_xid);
   wm_->HandleEvent(&event);
-  EXPECT_EQ(orig_width, snapshot_info->width);
-  EXPECT_EQ(orig_height, snapshot_info->height);
+  EXPECT_EQ(orig_width, snapshot_info->bounds.width);
+  EXPECT_EQ(orig_height, snapshot_info->bounds.height);
 
   // Transient windows should, too.
   const XWindow transient_xid =
@@ -1329,8 +1335,8 @@ TEST_F(LayoutManagerTest, ResizeWindowsBeforeMapping) {
   wm_->HandleEvent(&event);
   xconn_->InitMapRequestEvent(&event, transient_xid);
   wm_->HandleEvent(&event);
-  EXPECT_EQ(orig_width, transient_info->width);
-  EXPECT_EQ(orig_height, transient_info->height);
+  EXPECT_EQ(orig_width, transient_info->bounds.width);
+  EXPECT_EQ(orig_height, transient_info->bounds.height);
 }
 
 // Test that the layout manager handles windows that claim to be transient
@@ -1353,8 +1359,8 @@ TEST_F(LayoutManagerTest, NestedTransients) {
   SendInitialEventsForWindow(transient_xid);
 
   // Check that its initial size is preserved.
-  EXPECT_EQ(initial_width, transient_info->width);
-  EXPECT_EQ(initial_height, transient_info->height);
+  EXPECT_EQ(initial_width, transient_info->bounds.width);
+  EXPECT_EQ(initial_height, transient_info->bounds.height);
   EXPECT_TRUE(lm_->GetToplevelWindowOwningTransientWindow(
       *(wm_->GetWindowOrDie(transient_xid))) == toplevel);;
 
@@ -1370,8 +1376,8 @@ TEST_F(LayoutManagerTest, NestedTransients) {
   // The second transient window should be treated as a transient of the
   // toplevel instead.  We check that it keeps its initial size rather than
   // being maximized.
-  EXPECT_EQ(initial_width, nested_transient_info->width);
-  EXPECT_EQ(initial_height, nested_transient_info->height);
+  EXPECT_EQ(initial_width, nested_transient_info->bounds.width);
+  EXPECT_EQ(initial_height, nested_transient_info->bounds.height);
   EXPECT_TRUE(lm_->GetToplevelWindowOwningTransientWindow(
       *(wm_->GetWindowOrDie(nested_transient_xid))) == toplevel);;
 
@@ -1383,8 +1389,8 @@ TEST_F(LayoutManagerTest, NestedTransients) {
       xconn_->GetWindowInfoOrDie(another_transient_xid);
   another_transient_info->transient_for = nested_transient_xid;
   SendInitialEventsForWindow(another_transient_xid);
-  EXPECT_EQ(initial_width, another_transient_info->width);
-  EXPECT_EQ(initial_height, another_transient_info->height);
+  EXPECT_EQ(initial_width, another_transient_info->bounds.width);
+  EXPECT_EQ(initial_height, another_transient_info->bounds.height);
   EXPECT_TRUE(lm_->GetToplevelWindowOwningTransientWindow(
       *(wm_->GetWindowOrDie(another_transient_xid))) == toplevel);;
 }
@@ -1527,9 +1533,9 @@ TEST_F(LayoutManagerTest, Fullscreen) {
   // Now resize the screen and check that the window is resized to cover it.
   const XWindow root_xid = xconn_->GetRootWindow();
   MockXConnection::WindowInfo* root_info = xconn_->GetWindowInfoOrDie(root_xid);
-  const int new_width = root_info->width + 20;
-  const int new_height = root_info->height + 20;
-  xconn_->ResizeWindow(root_xid, new_width, new_height);
+  const int new_width = root_info->bounds.width + 20;
+  const int new_height = root_info->bounds.height + 20;
+  xconn_->ResizeWindow(root_xid, Size(new_width, new_height));
   XEvent resize_event;
   xconn_->InitConfigureNotifyEvent(&resize_event, root_xid);
   wm_->HandleEvent(&resize_event);
@@ -1808,16 +1814,14 @@ TEST_F(LayoutManagerTest, TransientOwnedByChildWindow) {
 
   XWindow first_child_xid = xconn_->CreateWindow(
       toplevel_xid,  // parent
-      0, 0,          // x, y
-      10, 10,        // width, height
+      Rect(0, 0, 10, 10),
       false,         // override_redirect
       false,         // input_only
       0,             // event_mask
       0);            // visual
   XWindow second_child_xid = xconn_->CreateWindow(
       first_child_xid,  // parent
-      0, 0,             // x, y
-      10, 10,           // width, height
+      Rect(0, 0, 10, 10),
       false,            // override_redirect
       false,            // input_only
       0,                // event_mask

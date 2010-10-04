@@ -305,21 +305,21 @@ TEST_F(LoginControllerTest, OtherWindows) {
   xconn_->InitMapRequestEvent(&event, xid);
   wm_->HandleEvent(&event);
   EXPECT_TRUE(info->mapped);
-  EXPECT_EQ((wm_->width() - initial_width) / 2, info->x);
-  EXPECT_EQ((wm_->height() - initial_height) / 2, info->y);
-  EXPECT_EQ(initial_width, info->width);
-  EXPECT_EQ(initial_height, info->height);
+  EXPECT_EQ((wm_->width() - initial_width) / 2, info->bounds.x);
+  EXPECT_EQ((wm_->height() - initial_height) / 2, info->bounds.y);
+  EXPECT_EQ(initial_width, info->bounds.width);
+  EXPECT_EQ(initial_height, info->bounds.height);
 
   // The window should still be in the same spot after it's mapped, and it
   // should be visible and have a shadow too.
   xconn_->InitMapEvent(&event, xid);
   wm_->HandleEvent(&event);
-  EXPECT_EQ((wm_->width() - initial_width) / 2, info->x);
-  EXPECT_EQ((wm_->height() - initial_height) / 2, info->y);
-  EXPECT_EQ(initial_width, info->width);
-  EXPECT_EQ(initial_height, info->height);
-  EXPECT_EQ((wm_->width() - initial_width) / 2, info->x);
-  EXPECT_EQ((wm_->height() - initial_height) / 2, info->y);
+  EXPECT_EQ((wm_->width() - initial_width) / 2, info->bounds.x);
+  EXPECT_EQ((wm_->height() - initial_height) / 2, info->bounds.y);
+  EXPECT_EQ(initial_width, info->bounds.width);
+  EXPECT_EQ(initial_height, info->bounds.height);
+  EXPECT_EQ((wm_->width() - initial_width) / 2, info->bounds.x);
+  EXPECT_EQ((wm_->height() - initial_height) / 2, info->bounds.y);
   EXPECT_EQ(initial_width, actor->GetWidth());
   EXPECT_EQ(initial_height, actor->GetHeight());
   EXPECT_TRUE(actor->is_shown());
@@ -333,12 +333,12 @@ TEST_F(LoginControllerTest, OtherWindows) {
   const int new_width = 500;
   const int new_height = 400;
   xconn_->InitConfigureRequestEvent(
-      &event, xid, new_x, new_y, new_width, new_height);
+      &event, xid, Rect(new_x, new_y, new_width, new_height));
   wm_->HandleEvent(&event);
-  EXPECT_EQ(new_x, info->x);
-  EXPECT_EQ(new_y, info->y);
-  EXPECT_EQ(new_width, info->width);
-  EXPECT_EQ(new_height, info->height);
+  EXPECT_EQ(new_x, info->bounds.x);
+  EXPECT_EQ(new_y, info->bounds.y);
+  EXPECT_EQ(new_width, info->bounds.width);
+  EXPECT_EQ(new_height, info->bounds.height);
 
   xconn_->InitConfigureNotifyEvent(&event, xid);
   wm_->HandleEvent(&event);
@@ -438,7 +438,7 @@ TEST_F(LoginControllerTest, Focus) {
   // non-login window.
   XEvent event;
   xconn_->set_pointer_grab_xid(background_xid_);
-  xconn_->InitButtonPressEvent(&event, background_xid_, 0, 0, 1);
+  xconn_->InitButtonPressEvent(&event, background_xid_, Point(0, 0), 1);
   wm_->HandleEvent(&event);
   EXPECT_EQ(entries_[1].controls_xid, xconn_->focused_xid());
   EXPECT_EQ(entries_[1].controls_xid, GetActiveWindowProperty());
@@ -535,7 +535,7 @@ TEST_F(LoginControllerTest, Modality) {
   // controls window.
   int initial_num_replays = xconn_->num_pointer_ungrabs_with_replayed_events();
   xconn_->set_pointer_grab_xid(controls_xid);
-  xconn_->InitButtonPressEvent(&event, controls_xid, 0, 0, 1);
+  xconn_->InitButtonPressEvent(&event, controls_xid, Point(0, 0), 1);
   wm_->HandleEvent(&event);
   EXPECT_EQ(transient_xid, xconn_->focused_xid());
   EXPECT_EQ(transient_xid, GetActiveWindowProperty());
@@ -886,8 +886,8 @@ TEST_F(LoginControllerTest, DontSelectEntryAfterLogin) {
   XConnection::WindowGeometry new_geometry;
   ASSERT_TRUE(xconn_->GetWindowGeometry(entries_[1].controls_xid,
                                         &new_geometry));
-  EXPECT_EQ(orig_geometry.x, new_geometry.x);
-  EXPECT_EQ(orig_geometry.y, new_geometry.y);
+  EXPECT_EQ(orig_geometry.bounds.x, new_geometry.bounds.x);
+  EXPECT_EQ(orig_geometry.bounds.y, new_geometry.bounds.y);
 
   EXPECT_FLOAT_EQ(orig_actor_x, image_actor->x());
   EXPECT_FLOAT_EQ(orig_actor_y, image_actor->y());

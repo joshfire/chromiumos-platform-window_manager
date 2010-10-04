@@ -8,6 +8,7 @@ extern "C" {
 }
 
 #include "base/basictypes.h"
+#include "window_manager/geometry.h"
 #include "window_manager/x_types.h"
 
 #ifndef WINDOW_MANAGER_X_CONNECTION_INTERNAL_H_
@@ -30,8 +31,7 @@ void InitXClientMessageEvent(XEvent* event_out,
 // Initialize an Xlib event to hold a synthetic ConfigureNotify event.
 void InitXConfigureEvent(XEvent* event_out,
                          XWindow xid,
-                         int x, int y,
-                         int width, int height,
+                         const Rect& bounds,
                          int border_width,
                          XWindow above_xid,
                          bool override_redirect);

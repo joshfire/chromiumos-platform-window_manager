@@ -6,6 +6,7 @@
 #define WINDOW_MANAGER_GEOMETRY_H_
 
 #include <algorithm>
+#include <iosfwd>
 
 namespace window_manager {
 
@@ -30,14 +31,39 @@ struct Point {
   Point() : x(0), y(0) {}
   Point(int x, int y) : x(x), y(y) {}
 
+  void reset(int new_x, int new_y) {
+    x = new_x;
+    y = new_y;
+  }
+
   int x;
   int y;
+};
+
+struct Size {
+  Size() : width(0), height(0) {}
+  Size(int width, int height) : width(width), height(height) {}
+
+  void reset(int new_width, int new_height) {
+    width = new_width;
+    height = new_height;
+  }
+
+  int width;
+  int height;
 };
 
 struct Rect {
   Rect() : x(0), y(0), width(0), height(0) {}
   Rect(int x, int y, int w, int h) : x(x), y(y), width(w), height(h) {}
+  Rect(const Point& pos, const Size& size) { reset(pos, size); }
 
+  Point position() const { return Point(x, y); }
+  Size size() const { return Size(width, height); }
+
+  void reset(const Point& pos, const Size& size) {
+    reset(pos.x, pos.y, size.width, size.height);
+  }
   void reset(int new_x, int new_y, int new_width, int new_height) {
     x = new_x;
     y = new_y;
@@ -45,6 +71,15 @@ struct Rect {
     height = new_height;
   }
 
+  void move(const Point& pos) { move(pos.x, pos.y); }
+  void move(int new_x, int new_y) {
+    x = new_x;
+    y = new_y;
+  }
+
+  void resize(const Size& size, Gravity gravity) {
+    resize(size.width, size.height, gravity);
+  }
   void resize(int w, int h, Gravity gravity) {
     if (gravity == GRAVITY_NORTHEAST || gravity == GRAVITY_SOUTHEAST)
       x += (width - w);
@@ -79,5 +114,9 @@ struct Rect {
 };
 
 }  // namespace window_manager
+
+std::ostream& operator<<(std::ostream& out, const window_manager::Point& point);
+std::ostream& operator<<(std::ostream& out, const window_manager::Size& size);
+std::ostream& operator<<(std::ostream& out, const window_manager::Rect& rect);
 
 #endif  // WINDOW_MANAGER_GEOMETRY_H_

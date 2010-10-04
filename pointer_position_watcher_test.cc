@@ -33,7 +33,7 @@ struct WatcherContainer {
 TEST_F(PointerPositionWatcherTest, Basic) {
   EventLoop event_loop;
   MockXConnection xconn;
-  xconn.SetPointerPosition(0, 0);
+  xconn.SetPointerPosition(Point(0, 0));
 
   // Watch for the pointer moving into a 20x30 rectangle at (50, 100).
   TestCallbackCounter counter;
@@ -53,14 +53,14 @@ TEST_F(PointerPositionWatcherTest, Basic) {
   EXPECT_EQ(0, counter.num_calls());
   EXPECT_GE(watcher->timeout_id(), 0);
 
-  xconn.SetPointerPosition(49, 105);
+  xconn.SetPointerPosition(Point(49, 105));
   watcher->TriggerTimeout();
   EXPECT_EQ(0, counter.num_calls());
   EXPECT_GE(watcher->timeout_id(), 0);
 
   // As soon as the pointer moves into the rectangle, the callback should
   // be run and the timer should be destroyed.
-  xconn.SetPointerPosition(50, 105);
+  xconn.SetPointerPosition(Point(50, 105));
   watcher->TriggerTimeout();
   EXPECT_EQ(1, counter.num_calls());
   EXPECT_EQ(-1, watcher->timeout_id());
@@ -82,12 +82,12 @@ TEST_F(PointerPositionWatcherTest, Basic) {
   EXPECT_EQ(0, counter.num_calls());
   EXPECT_GE(watcher->timeout_id(), 0);
 
-  xconn.SetPointerPosition(69, 129);
+  xconn.SetPointerPosition(Point(69, 129));
   watcher->TriggerTimeout();
   EXPECT_EQ(0, counter.num_calls());
   EXPECT_GE(watcher->timeout_id(), 0);
 
-  xconn.SetPointerPosition(69, 130);
+  xconn.SetPointerPosition(Point(69, 130));
   watcher->TriggerTimeout();
   EXPECT_EQ(1, counter.num_calls());
   EXPECT_EQ(-1, watcher->timeout_id());
@@ -97,7 +97,7 @@ TEST_F(PointerPositionWatcherTest, Basic) {
 TEST_F(PointerPositionWatcherTest, DeleteFromCallback) {
   EventLoop event_loop;
   MockXConnection xconn;
-  xconn.SetPointerPosition(0, 0);
+  xconn.SetPointerPosition(Point(0, 0));
 
   // Register a callback that deletes its own watcher.
   WatcherContainer container;

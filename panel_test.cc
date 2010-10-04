@@ -79,52 +79,58 @@ TEST_F(PanelTest, InputWindows) {
 
   MockXConnection::WindowInfo* top_info =
       xconn_->GetWindowInfoOrDie(panel.top_input_xid_);
-  EXPECT_EQ(content_info->x - Panel::kResizeBorderWidth +
+  EXPECT_EQ(content_info->bounds.x - Panel::kResizeBorderWidth +
               Panel::kResizeCornerSize,
-            top_info->x);
-  EXPECT_EQ(titlebar_info->y - Panel::kResizeBorderWidth, top_info->y);
-  EXPECT_EQ(titlebar_info->width + 2 * Panel::kResizeBorderWidth -
+            top_info->bounds.x);
+  EXPECT_EQ(titlebar_info->bounds.y - Panel::kResizeBorderWidth,
+            top_info->bounds.y);
+  EXPECT_EQ(titlebar_info->bounds.width + 2 * Panel::kResizeBorderWidth -
               2 * Panel::kResizeCornerSize,
-            top_info->width);
-  EXPECT_EQ(Panel::kResizeBorderWidth, top_info->height);
+            top_info->bounds.width);
+  EXPECT_EQ(Panel::kResizeBorderWidth, top_info->bounds.height);
 
   MockXConnection::WindowInfo* top_left_info =
       xconn_->GetWindowInfoOrDie(panel.top_left_input_xid_);
-  EXPECT_EQ(titlebar_info->x - Panel::kResizeBorderWidth, top_left_info->x);
-  EXPECT_EQ(titlebar_info->y - Panel::kResizeBorderWidth, top_left_info->y);
-  EXPECT_EQ(Panel::kResizeCornerSize, top_left_info->width);
-  EXPECT_EQ(Panel::kResizeCornerSize, top_left_info->height);
+  EXPECT_EQ(titlebar_info->bounds.x - Panel::kResizeBorderWidth,
+            top_left_info->bounds.x);
+  EXPECT_EQ(titlebar_info->bounds.y - Panel::kResizeBorderWidth,
+            top_left_info->bounds.y);
+  EXPECT_EQ(Panel::kResizeCornerSize, top_left_info->bounds.width);
+  EXPECT_EQ(Panel::kResizeCornerSize, top_left_info->bounds.height);
 
   MockXConnection::WindowInfo* top_right_info =
       xconn_->GetWindowInfoOrDie(panel.top_right_input_xid_);
-  EXPECT_EQ(titlebar_info->x + titlebar_info->width +
+  EXPECT_EQ(titlebar_info->bounds.x + titlebar_info->bounds.width +
               Panel::kResizeBorderWidth - Panel::kResizeCornerSize,
-            top_right_info->x);
-  EXPECT_EQ(titlebar_info->y - Panel::kResizeBorderWidth, top_right_info->y);
-  EXPECT_EQ(Panel::kResizeCornerSize, top_right_info->width);
-  EXPECT_EQ(Panel::kResizeCornerSize, top_right_info->height);
+            top_right_info->bounds.x);
+  EXPECT_EQ(titlebar_info->bounds.y - Panel::kResizeBorderWidth,
+            top_right_info->bounds.y);
+  EXPECT_EQ(Panel::kResizeCornerSize, top_right_info->bounds.width);
+  EXPECT_EQ(Panel::kResizeCornerSize, top_right_info->bounds.height);
 
   MockXConnection::WindowInfo* left_info =
       xconn_->GetWindowInfoOrDie(panel.left_input_xid_);
-  EXPECT_EQ(content_info->x - Panel::kResizeBorderWidth, left_info->x);
-  EXPECT_EQ(titlebar_info->y - Panel::kResizeBorderWidth +
+  EXPECT_EQ(content_info->bounds.x - Panel::kResizeBorderWidth,
+            left_info->bounds.x);
+  EXPECT_EQ(titlebar_info->bounds.y - Panel::kResizeBorderWidth +
               Panel::kResizeCornerSize,
-            left_info->y);
-  EXPECT_EQ(Panel::kResizeBorderWidth, left_info->width);
-  EXPECT_EQ(content_info->height + titlebar_info->height +
+            left_info->bounds.y);
+  EXPECT_EQ(Panel::kResizeBorderWidth, left_info->bounds.width);
+  EXPECT_EQ(content_info->bounds.height + titlebar_info->bounds.height +
               Panel::kResizeBorderWidth - Panel::kResizeCornerSize,
-            left_info->height);
+            left_info->bounds.height);
 
   MockXConnection::WindowInfo* right_info =
       xconn_->GetWindowInfoOrDie(panel.right_input_xid_);
-  EXPECT_EQ(content_info->x + content_info->width, right_info->x);
-  EXPECT_EQ(titlebar_info->y - Panel::kResizeBorderWidth +
+  EXPECT_EQ(content_info->bounds.x + content_info->bounds.width,
+            right_info->bounds.x);
+  EXPECT_EQ(titlebar_info->bounds.y - Panel::kResizeBorderWidth +
               Panel::kResizeCornerSize,
-            right_info->y);
-  EXPECT_EQ(Panel::kResizeBorderWidth, right_info->width);
-  EXPECT_EQ(content_info->height + titlebar_info->height +
+            right_info->bounds.y);
+  EXPECT_EQ(Panel::kResizeBorderWidth, right_info->bounds.width);
+  EXPECT_EQ(content_info->bounds.height + titlebar_info->bounds.height +
               Panel::kResizeBorderWidth - Panel::kResizeCornerSize,
-            right_info->height);
+            right_info->bounds.height);
 
   // Input windows need to get restacked even when the panel isn't
   // resizable (so they'll be stacked correctly if it becomes resizable
@@ -202,15 +208,16 @@ TEST_F(PanelTest, Resize) {
       panel.top_left_input_xid_, 0, 0, 2, CurrentTime);
 
   // Check that the panel's dimensions are unchanged.
-  EXPECT_EQ(orig_width, titlebar_info->width);
-  EXPECT_EQ(orig_titlebar_height, titlebar_info->height);
-  EXPECT_EQ(orig_width, content_info->width);
-  EXPECT_EQ(orig_content_height, content_info->height);
+  EXPECT_EQ(orig_width, titlebar_info->bounds.width);
+  EXPECT_EQ(orig_titlebar_height, titlebar_info->bounds.height);
+  EXPECT_EQ(orig_width, content_info->bounds.width);
+  EXPECT_EQ(orig_content_height, content_info->bounds.height);
 
-  int initial_x = titlebar_info->x;
-  EXPECT_EQ(initial_x, content_info->x);
-  int initial_titlebar_y = titlebar_info->y;
-  EXPECT_EQ(initial_titlebar_y + titlebar_info->height, content_info->y);
+  int initial_x = titlebar_info->bounds.x;
+  EXPECT_EQ(initial_x, content_info->bounds.x);
+  int initial_titlebar_y = titlebar_info->bounds.y;
+  EXPECT_EQ(initial_titlebar_y + titlebar_info->bounds.height,
+            content_info->bounds.y);
 
   // Now start a second resize using the upper-left handle.  Drag a few
   // pixels up and to the left and then let go of the button.
@@ -224,17 +231,18 @@ TEST_F(PanelTest, Resize) {
       panel.top_left_input_xid_, -5, -6, 1, CurrentTime);
 
   // The titlebar should be offset by the drag and made a bit wider.
-  EXPECT_EQ(initial_x - 5, titlebar_info->x);
-  EXPECT_EQ(initial_titlebar_y - 6, titlebar_info->y);
-  EXPECT_EQ(orig_width + 5, titlebar_info->width);
-  EXPECT_EQ(orig_titlebar_height, titlebar_info->height);
+  EXPECT_EQ(initial_x - 5, titlebar_info->bounds.x);
+  EXPECT_EQ(initial_titlebar_y - 6, titlebar_info->bounds.y);
+  EXPECT_EQ(orig_width + 5, titlebar_info->bounds.width);
+  EXPECT_EQ(orig_titlebar_height, titlebar_info->bounds.height);
 
   // The panel should move along with its titlebar, and it should get wider
   // and taller by the amount of the drag.
-  EXPECT_EQ(initial_x - 5, content_info->x);
-  EXPECT_EQ(titlebar_info->y + titlebar_info->height, content_info->y);
-  EXPECT_EQ(orig_width + 5, content_info->width);
-  EXPECT_EQ(orig_content_height + 6, content_info->height);
+  EXPECT_EQ(initial_x - 5, content_info->bounds.x);
+  EXPECT_EQ(titlebar_info->bounds.y + titlebar_info->bounds.height,
+            content_info->bounds.y);
+  EXPECT_EQ(orig_width + 5, content_info->bounds.width);
+  EXPECT_EQ(orig_content_height + 6, content_info->bounds.height);
 }
 
 // Test that the _CHROME_STATE property is updated correctly to reflect the
@@ -348,17 +356,17 @@ TEST_F(PanelTest, SizeLimits) {
   XWindow content_xid = CreatePanelContentWindow(20, 20, titlebar_xid);
   MockXConnection::WindowInfo* content_info =
       xconn_->GetWindowInfoOrDie(content_xid);
-  content_info->size_hints.min_width = 150;
-  content_info->size_hints.min_height = 100;
-  content_info->size_hints.max_width = 300;
-  content_info->size_hints.max_height = 250;
+  content_info->size_hints.min_size.reset(150, 100);
+  content_info->size_hints.max_size.reset(300, 250);
   ASSERT_TRUE(xconn_->GetWindowGeometry(content_xid, &geometry));
   Window content_win(wm_.get(), content_xid, false, geometry);
 
   // The content window should've been resized to the minimum size.
   Panel panel(panel_manager_, &content_win, &titlebar_win, true);
-  EXPECT_EQ(content_info->size_hints.min_width, content_win.client_width());
-  EXPECT_EQ(content_info->size_hints.min_height, content_win.client_height());
+  EXPECT_EQ(content_info->size_hints.min_size.width,
+            content_win.client_width());
+  EXPECT_EQ(content_info->size_hints.min_size.height,
+            content_win.client_height());
 
   // Drag the upper-left resize handle down and to the right.
   xconn_->set_pointer_grab_xid(panel.top_left_input_xid_);
@@ -371,8 +379,10 @@ TEST_F(PanelTest, SizeLimits) {
 
   // The content window size should be unchanged, since we tried to make it
   // smaller while it was already at the minimum.
-  EXPECT_EQ(content_info->size_hints.min_width, content_win.client_width());
-  EXPECT_EQ(content_info->size_hints.min_height, content_win.client_height());
+  EXPECT_EQ(content_info->size_hints.min_size.width,
+            content_win.client_width());
+  EXPECT_EQ(content_info->size_hints.min_size.height,
+            content_win.client_height());
 
   // Now drag the handle up and to the left and check that we restrict the
   // content window to the max size.
@@ -383,18 +393,24 @@ TEST_F(PanelTest, SizeLimits) {
   xconn_->set_pointer_grab_xid(None);
   panel.HandleInputWindowButtonRelease(
       panel.top_left_input_xid_, -300, -300, 1, CurrentTime);
-  EXPECT_EQ(content_info->size_hints.max_width, content_win.client_width());
-  EXPECT_EQ(content_info->size_hints.max_height, content_win.client_height());
+  EXPECT_EQ(content_info->size_hints.max_size.width,
+            content_win.client_width());
+  EXPECT_EQ(content_info->size_hints.max_size.height,
+            content_win.client_height());
 
   // Now tell the panel to make the content window bigger or smaller (this
   // is the path that gets taken when we get a ConfigureRequest).  These
   // requests should be capped as well.
   panel.ResizeContent(500, 500, GRAVITY_SOUTHEAST);
-  EXPECT_EQ(content_info->size_hints.max_width, content_win.client_width());
-  EXPECT_EQ(content_info->size_hints.max_height, content_win.client_height());
+  EXPECT_EQ(content_info->size_hints.max_size.width,
+            content_win.client_width());
+  EXPECT_EQ(content_info->size_hints.max_size.height,
+            content_win.client_height());
   panel.ResizeContent(50, 50, GRAVITY_SOUTHEAST);
-  EXPECT_EQ(content_info->size_hints.min_width, content_win.client_width());
-  EXPECT_EQ(content_info->size_hints.min_height, content_win.client_height());
+  EXPECT_EQ(content_info->size_hints.min_size.width,
+            content_win.client_width());
+  EXPECT_EQ(content_info->size_hints.min_size.height,
+            content_win.client_height());
 }
 
 // Check that the resize input windows get configured correctly depending
@@ -408,10 +424,11 @@ TEST_F(PanelTest, ResizeParameter) {
 
   MockXConnection::WindowInfo* top_info =
       xconn_->GetWindowInfoOrDie(panel->top_input_xid_);
-  EXPECT_EQ(panel->content_x(), top_info->x);
-  EXPECT_EQ(panel->titlebar_y() - Panel::kResizeBorderWidth, top_info->y);
-  EXPECT_EQ(panel->width(), top_info->width);
-  EXPECT_EQ(Panel::kResizeBorderWidth, top_info->height);
+  EXPECT_EQ(panel->content_x(), top_info->bounds.x);
+  EXPECT_EQ(panel->titlebar_y() - Panel::kResizeBorderWidth,
+            top_info->bounds.y);
+  EXPECT_EQ(panel->width(), top_info->bounds.width);
+  EXPECT_EQ(Panel::kResizeBorderWidth, top_info->bounds.height);
 
   EXPECT_TRUE(WindowIsOffscreen(panel->top_left_input_xid_));
   EXPECT_TRUE(WindowIsOffscreen(panel->top_right_input_xid_));
@@ -425,17 +442,18 @@ TEST_F(PanelTest, ResizeParameter) {
 
   MockXConnection::WindowInfo* left_info =
       xconn_->GetWindowInfoOrDie(panel->left_input_xid_);
-  EXPECT_EQ(panel->content_x() - Panel::kResizeBorderWidth, left_info->x);
-  EXPECT_EQ(panel->titlebar_y(), left_info->y);
-  EXPECT_EQ(Panel::kResizeBorderWidth, left_info->width);
-  EXPECT_EQ(panel->total_height(), left_info->height);
+  EXPECT_EQ(panel->content_x() - Panel::kResizeBorderWidth,
+            left_info->bounds.x);
+  EXPECT_EQ(panel->titlebar_y(), left_info->bounds.y);
+  EXPECT_EQ(Panel::kResizeBorderWidth, left_info->bounds.width);
+  EXPECT_EQ(panel->total_height(), left_info->bounds.height);
 
   MockXConnection::WindowInfo* right_info =
       xconn_->GetWindowInfoOrDie(panel->right_input_xid_);
-  EXPECT_EQ(panel->right(), right_info->x);
-  EXPECT_EQ(panel->titlebar_y(), right_info->y);
-  EXPECT_EQ(Panel::kResizeBorderWidth, right_info->width);
-  EXPECT_EQ(panel->total_height(), right_info->height);
+  EXPECT_EQ(panel->right(), right_info->bounds.x);
+  EXPECT_EQ(panel->titlebar_y(), right_info->bounds.y);
+  EXPECT_EQ(Panel::kResizeBorderWidth, right_info->bounds.width);
+  EXPECT_EQ(panel->total_height(), right_info->bounds.height);
 
   EXPECT_TRUE(WindowIsOffscreen(panel->top_input_xid_));
   EXPECT_TRUE(WindowIsOffscreen(panel->top_left_input_xid_));
@@ -543,27 +561,28 @@ TEST_F(PanelTest, ReloadSizeLimits) {
   const XWindow content_xid = panel->content_xid();
   MockXConnection::WindowInfo* content_info =
       xconn_->GetWindowInfoOrDie(content_xid);
-  ASSERT_EQ(kWidth, content_info->width);
-  ASSERT_EQ(kContentHeight, content_info->height);
+  ASSERT_EQ(kWidth, content_info->bounds.width);
+  ASSERT_EQ(kContentHeight, content_info->bounds.height);
 
   // Set a minimum size for the content window that's larger than its
   // current size.  We shouldn't resize the window immediately when we see
   // the property change...
-  content_info->size_hints.min_width = 300;
-  content_info->size_hints.min_height = 250;
+  content_info->size_hints.min_size.reset(300, 250);
   XEvent event;
   xconn_->InitPropertyNotifyEvent(
       &event, content_xid, xconn_->GetAtomOrDie("WM_NORMAL_HINTS"));
   wm_->HandleEvent(&event);
-  EXPECT_EQ(kWidth, content_info->width);
-  EXPECT_EQ(kContentHeight, content_info->height);
+  EXPECT_EQ(kWidth, content_info->bounds.width);
+  EXPECT_EQ(kContentHeight, content_info->bounds.height);
 
   // ... but we should use the updated limits when we get a
   // ConfigureRequest event.
-  xconn_->InitConfigureRequestEvent(&event, content_xid, 0, 0, 230, 220);
+  xconn_->InitConfigureRequestEvent(&event, content_xid, Rect(0, 0, 230, 220));
   wm_->HandleEvent(&event);
-  EXPECT_EQ(content_info->size_hints.min_width, content_info->width);
-  EXPECT_EQ(content_info->size_hints.min_height, content_info->height);
+  EXPECT_EQ(content_info->size_hints.min_size.width,
+            content_info->bounds.width);
+  EXPECT_EQ(content_info->size_hints.min_size.height,
+            content_info->bounds.height);
 }
 
 }  // namespace window_manager

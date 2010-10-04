@@ -19,6 +19,7 @@ extern "C" {
 
 #include "base/logging.h"
 #include "window_manager/callback.h"
+#include "window_manager/geometry.h"
 #include "window_manager/x_connection.h"
 
 namespace window_manager {
@@ -36,27 +37,33 @@ class MockXConnection : public XConnection {
   virtual bool GetWindowGeometry(XWindow xid, WindowGeometry* geom_out);
   virtual bool MapWindow(XWindow xid);
   virtual bool UnmapWindow(XWindow xid);
-  virtual bool MoveWindow(XWindow xid, int x, int y);
-  virtual bool ResizeWindow(XWindow xid, int width, int height);
-  virtual bool ConfigureWindow(
-      XWindow xid, int x, int y, int width, int height) {
-    return (MoveWindow(xid, x, y) && ResizeWindow(xid, width, height));
+  virtual bool MoveWindow(XWindow xid, const Point& pos);
+  virtual bool ResizeWindow(XWindow xid, const Size& size);
+  virtual bool ConfigureWindow(XWindow xid, const Rect& bounds) {
+    return (MoveWindow(xid, Point(bounds.x, bounds.y)) &&
+            ResizeWindow(xid, Size(bounds.width, bounds.height)));
   }
   virtual bool RaiseWindow(XWindow xid);
   virtual bool FocusWindow(XWindow xid, XTime event_time);
   virtual bool StackWindow(XWindow xid, XWindow other, bool above);
-  virtual bool ReparentWindow(XWindow xid, XWindow parent, int x, int y) {
+  virtual bool ReparentWindow(XWindow xid,
+                              XWindow parent,
+                              const Point& offset) {
     return true;
   }
   virtual bool SetWindowBorderWidth(XWindow xid, int width);
-  virtual bool SelectInputOnWindow(
-      XWindow xid, int event_mask, bool preserve_existing);
+  virtual bool SelectInputOnWindow(XWindow xid,
+                                   int event_mask,
+                                   bool preserve_existing);
   virtual bool DeselectInputOnWindow(XWindow xid, int event_mask);
-  virtual bool AddButtonGrabOnWindow(
-      XWindow xid, int button, int event_mask, bool synchronous);
+  virtual bool AddButtonGrabOnWindow(XWindow xid,
+                                     int button,
+                                     int event_mask,
+                                     bool synchronous);
   virtual bool RemoveButtonGrabOnWindow(XWindow xid, int button);
-  virtual bool AddPointerGrabForWindow(
-      XWindow xid, int event_mask, XTime timestamp);
+  virtual bool AddPointerGrabForWindow(XWindow xid,
+                                       int event_mask,
+                                       XTime timestamp);
   virtual bool RemovePointerGrab(bool replay_events, XTime timestamp);
   virtual bool RemoveInputRegionFromWindow(XWindow xid) { return true; }
   virtual bool SetInputRegionForWindow(XWindow xid, const Rect& rect) {
@@ -69,20 +76,20 @@ class MockXConnection : public XConnection {
   virtual bool RedirectWindowForCompositing(XWindow xid);
   virtual bool UnredirectWindowForCompositing(XWindow xid);
   virtual XWindow GetCompositingOverlayWindow(XWindow root) { return overlay_; }
-  virtual XPixmap CreatePixmap(XDrawable drawable,
-                               int width, int height,
-                               int depth);
+  virtual XPixmap CreatePixmap(XDrawable drawable, const Size& size, int depth);
   virtual XPixmap GetCompositingPixmapForWindow(XWindow xid);
   virtual bool FreePixmap(XPixmap pixmap);
   virtual void CopyArea(XDrawable src_drawable, XDrawable dest_drawable,
-                        int src_x, int src_y,
-                        int dest_x, int dest_y,
-                        int width, int height) {}
+                        const Point& src_pos,
+                        const Point& dest_pos,
+                        const Size& size) {}
   virtual XWindow GetRootWindow() { return root_; }
-  virtual XWindow CreateWindow(
-      XWindow parent, int x, int y, int width, int height,
-      bool override_redirect, bool input_only, int event_mask,
-      XVisualID visual);
+  virtual XWindow CreateWindow(XWindow parent,
+                               const Rect& bounds,
+                               bool override_redirect,
+                               bool input_only,
+                               int event_mask,
+                               XVisualID visual);
   virtual bool DestroyWindow(XWindow xid);
   virtual bool IsWindowShaped(XWindow xid);
   virtual bool SelectShapeEventsOnWindow(XWindow xid);
@@ -93,13 +100,17 @@ class MockXConnection : public XConnection {
   virtual bool GetAtoms(const std::vector<std::string>& names,
                         std::vector<XAtom>* atoms_out);
   virtual bool GetAtomName(XAtom atom, std::string* name);
-  virtual bool GetIntArrayProperty(
-      XWindow xid, XAtom xatom, std::vector<int>* values);
-  virtual bool SetIntArrayProperty(
-      XWindow xid, XAtom xatom, XAtom type, const std::vector<int>& values);
+  virtual bool GetIntArrayProperty(XWindow xid,
+                                   XAtom xatom,
+                                   std::vector<int>* values);
+  virtual bool SetIntArrayProperty(XWindow xid,
+                                   XAtom xatom,
+                                   XAtom type,
+                                   const std::vector<int>& values);
   virtual bool GetStringProperty(XWindow xid, XAtom xatom, std::string* out);
-  virtual bool SetStringProperty(
-      XWindow xid, XAtom xatom, const std::string& value);
+  virtual bool SetStringProperty(XWindow xid,
+                                 XAtom xatom,
+                                 const std::string& value);
   virtual bool DeletePropertyIfExists(XWindow xid, XAtom xatom);
   virtual int GetConnectionFileDescriptor() { return connection_pipe_fds_[0]; }
   virtual bool IsEventPending();
@@ -115,8 +126,7 @@ class MockXConnection : public XConnection {
                                       long data[5],
                                       int event_mask);
   virtual bool SendConfigureNotifyEvent(XWindow xid,
-                                        int x, int y,
-                                        int width, int height,
+                                        const Rect& bounds,
                                         int border_width,
                                         XWindow above_xid,
                                         bool override_redirect);
@@ -124,15 +134,17 @@ class MockXConnection : public XConnection {
   virtual bool WaitForPropertyChange(XWindow xid, XTime* timestamp_out);
   virtual XWindow GetSelectionOwner(XAtom atom);
   virtual bool SetSelectionOwner(XAtom atom, XWindow xid, XTime timestamp);
-  virtual bool GetImage(XID drawable, int x, int y,
-                        int width, int height, int drawable_depth,
+  virtual bool GetImage(XID drawable,
+                        const Rect& bounds,
+                        int drawable_depth,
                         scoped_ptr_malloc<uint8_t>* data_out,
                         ImageFormat* format_out);
   virtual bool SetWindowCursor(XWindow xid, uint32 shape);
   virtual bool GetParentWindow(XWindow xid, XWindow* parent_out);
   virtual bool GetChildWindows(XWindow xid, std::vector<XWindow>* children_out);
-  virtual void RefreshKeyboardMap(
-      int request, KeyCode first_keycode, int count) {
+  virtual void RefreshKeyboardMap(int request,
+                                  KeyCode first_keycode,
+                                  int count) {
     num_keymap_refreshes_++;
   }
   virtual KeySym GetKeySymFromKeyCode(KeyCode keycode);
@@ -156,7 +168,7 @@ class MockXConnection : public XConnection {
   virtual bool QueryKeyboardState(std::vector<uint8_t>* keycodes_out) {
     return true;
   }
-  virtual bool QueryPointerPosition(int* x_root, int* y_root);
+  virtual bool QueryPointerPosition(Point* absolute_pos_out);
   // End XConnection methods.
 
   // Testing-specific code.
@@ -181,8 +193,7 @@ class MockXConnection : public XConnection {
 
     XWindow xid;
     XWindow parent;
-    int x, y;
-    int width, height;
+    Rect bounds;
     int border_width;
     int depth;
     bool mapped;
@@ -232,10 +243,10 @@ class MockXConnection : public XConnection {
   };
 
   struct PixmapInfo {
-    PixmapInfo(XWindow xid, int width, int height, int depth);
+    PixmapInfo(XWindow xid, const Size& size, int depth);
 
     XID xid;
-    int width, height;
+    Size size;
     int depth;
 
    private:
@@ -307,10 +318,7 @@ class MockXConnection : public XConnection {
   }
 
   // Set the pointer position for QueryPointerPosition().
-  void SetPointerPosition(int x, int y) {
-    pointer_x_ = x;
-    pointer_y_ = y;
-  }
+  void SetPointerPosition(const Point& pos) { pointer_pos_ = pos; }
 
   // Get the window beneath 'xid', or 0 if 'xid' is at the bottom.
   XWindow GetWindowBelowWindow(XWindow xid) const;
@@ -333,15 +341,22 @@ class MockXConnection : public XConnection {
 
   // Helper methods tests can use to initialize events.
   // 'x' and 'y' are relative to the window.
-  void InitButtonEvent(XEvent* event, XWindow xid,
-                       int x, int y, int button, bool press) const;
-  void InitButtonPressEvent(XEvent* event, XWindow xid,
-                            int x, int y, int button) const {
-    InitButtonEvent(event, xid, x, y, button, true);
+  void InitButtonEvent(XEvent* event,
+                       XWindow xid,
+                       const Point& pos,
+                       int button,
+                       bool press) const;
+  void InitButtonPressEvent(XEvent* event,
+                            XWindow xid,
+                            const Point& pos,
+                            int button) const {
+    InitButtonEvent(event, xid, pos, button, true);
   }
-  void InitButtonReleaseEvent(XEvent* event, XWindow xid,
-                              int x, int y, int button) const {
-    InitButtonEvent(event, xid, x, y, button, false);
+  void InitButtonReleaseEvent(XEvent* event,
+                              XWindow xid,
+                              const Point& pos,
+                              int button) const {
+    InitButtonEvent(event, xid, pos, button, false);
   }
   // |press| is true if this is a key press instead of a key release.
   // |key_mask| can be any combination of: ShiftMask, LockMask,
@@ -373,25 +388,32 @@ class MockXConnection : public XConnection {
       long arg1, long arg2, long arg3, long arg4, long arg5) const;
   void InitConfigureNotifyEvent(XEvent* event, XWindow xid) const;
   void InitConfigureRequestEvent(
-      XEvent* event, XWindow xid, int x, int y, int width, int height) const;
+      XEvent* event, XWindow xid, const Rect& bounds) const;
   void InitCreateWindowEvent(XEvent* event, XWindow xid) const;
-  void InitDamageNotifyEvent(XEvent* event, XWindow drawable,
-                             int x, int y, int width, int height) const;
+  void InitDamageNotifyEvent(XEvent* event,
+                             XWindow drawable,
+                             const Rect& bounds) const;
   void InitDestroyWindowEvent(XEvent* event, XWindow xid) const;
   // 'x' and 'y' are relative to the window.
-  void InitEnterOrLeaveWindowEvent(XEvent* event, XWindow xid,
-                                   int x, int y, bool enter) const;
-  void InitEnterWindowEvent(XEvent* event, XWindow xid,
-                            int x, int y) const {
-    InitEnterOrLeaveWindowEvent(event, xid, x, y, true);
+  void InitEnterOrLeaveWindowEvent(XEvent* event,
+                                   XWindow xid,
+                                   const Point& pos,
+                                   bool enter) const;
+  void InitEnterWindowEvent(XEvent* event,
+                            XWindow xid,
+                            const Point& pos) const {
+    InitEnterOrLeaveWindowEvent(event, xid, pos, true);
   }
-  void InitLeaveWindowEvent(XEvent* event, XWindow xid,
-                            int x, int y) const {
-    InitEnterOrLeaveWindowEvent(event, xid, x, y, false);
+  void InitLeaveWindowEvent(XEvent* event,
+                            XWindow xid,
+                            const Point& pos) const {
+    InitEnterOrLeaveWindowEvent(event, xid, pos, false);
   }
   void InitMapEvent(XEvent* event, XWindow xid) const;
   void InitMapRequestEvent(XEvent* event, XWindow xid) const;
-  void InitMotionNotifyEvent(XEvent* event, XWindow xid, int x, int y) const;
+  void InitMotionNotifyEvent(XEvent* event,
+                             XWindow xid,
+                             const Point& pos) const;
   void InitPropertyNotifyEvent(XEvent* event, XWindow xid, XAtom xatom) const;
   void InitSyncAlarmNotifyEvent(
       XEvent* event, XID alarm_xid, int64_t value) const;
@@ -453,8 +475,7 @@ class MockXConnection : public XConnection {
       property_callbacks_;
 
   // Current position of the mouse pointer for QueryPointerPosition().
-  int pointer_x_;
-  int pointer_y_;
+  Point pointer_pos_;
 
   // Value set by SetDetectableKeyboardAutoRepeat().
   bool using_detectable_keyboard_auto_repeat_;

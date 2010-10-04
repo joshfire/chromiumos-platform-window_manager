@@ -152,15 +152,21 @@ bool OpenGlPixmapData::CopyPixmapImageToTexture() {
   scoped_ptr_malloc<uint8_t> data;
   ImageFormat format = IMAGE_FORMAT_UNKNOWN;
   if (!visitor_->xconn()->GetImage(
-          pixmap_, 0, 0, pixmap_geometry_.width, pixmap_geometry_.height,
-          pixmap_geometry_.depth, &data, &format)) {
+          pixmap_,
+          Rect(Point(0, 0), pixmap_geometry_.bounds.size()),
+          pixmap_geometry_.depth,
+          &data,
+          &format)) {
     LOG(WARNING) << "Unable to fetch image from pixmap " << XidStr(pixmap_);
     return false;
   }
 
   InMemoryImageContainer image_container(
-      data.release(), pixmap_geometry_.width, pixmap_geometry_.height,
-      format, true);
+      data.release(),
+      pixmap_geometry_.bounds.width,
+      pixmap_geometry_.bounds.height,
+      format,
+      true);
 
   GLenum pixel_data_format = 0;
   GLenum pixel_data_type = GL_UNSIGNED_BYTE;

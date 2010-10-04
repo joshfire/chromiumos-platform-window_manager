@@ -203,8 +203,7 @@ TEST_F(WindowManagerTest, OverrideRedirectMapping) {
   // afterwards and display the window.
   XWindow xid = xconn_->CreateWindow(
         xconn_->GetRootWindow(),
-        10, 20,  // x, y
-        30, 40,  // width, height
+        Rect(10, 20, 30, 40),
         true,    // override redirect
         false,   // input only
         0, 0);   // event mask, visual
@@ -225,8 +224,7 @@ TEST_F(WindowManagerTest, OverrideRedirectMapping) {
 
   XWindow xid2 = xconn_->CreateWindow(
         xconn_->GetRootWindow(),
-        10, 20,  // x, y
-        30, 40,  // width, height
+        Rect(10, 20, 30, 40),
         true,    // override redirect
         false,   // input only
         0, 0);   // event mask, visual
@@ -249,20 +247,20 @@ TEST_F(WindowManagerTest, InputWindows) {
   XWindow xid = wm_->CreateInputWindow(100, 200, 300, 400, event_mask);
   MockXConnection::WindowInfo* info = xconn_->GetWindowInfo(xid);
   ASSERT_TRUE(info != NULL);
-  EXPECT_EQ(100, info->x);
-  EXPECT_EQ(200, info->y);
-  EXPECT_EQ(300, info->width);
-  EXPECT_EQ(400, info->height);
+  EXPECT_EQ(100, info->bounds.x);
+  EXPECT_EQ(200, info->bounds.y);
+  EXPECT_EQ(300, info->bounds.width);
+  EXPECT_EQ(400, info->bounds.height);
   EXPECT_EQ(true, info->mapped);
   EXPECT_EQ(true, info->override_redirect);
   EXPECT_EQ(event_mask, info->event_mask);
 
   // Move and resize the window.
   EXPECT_TRUE(wm_->ConfigureInputWindow(xid, 500, 600, 700, 800));
-  EXPECT_EQ(500, info->x);
-  EXPECT_EQ(600, info->y);
-  EXPECT_EQ(700, info->width);
-  EXPECT_EQ(800, info->height);
+  EXPECT_EQ(500, info->bounds.x);
+  EXPECT_EQ(600, info->bounds.y);
+  EXPECT_EQ(700, info->bounds.width);
+  EXPECT_EQ(800, info->bounds.height);
   EXPECT_EQ(true, info->mapped);
 }
 
@@ -285,7 +283,7 @@ TEST_F(WindowManagerTest, EventConsumer) {
   EXPECT_TRUE(info->mapped);
   xconn_->InitMapEvent(&event, xid);
   wm_->HandleEvent(&event);
-  xconn_->InitButtonPressEvent(&event, xid, 5, 5, 1);
+  xconn_->InitButtonPressEvent(&event, xid, Point(5, 5), 1);
   wm_->HandleEvent(&event);
   xconn_->InitUnmapEvent(&event, xid);
   wm_->HandleEvent(&event);
@@ -309,7 +307,7 @@ TEST_F(WindowManagerTest, EventConsumer) {
   wm_->HandleEvent(&event);
   xconn_->InitMapEvent(&event, xid2);
   wm_->HandleEvent(&event);
-  xconn_->InitButtonPressEvent(&event, xid2, 5, 5, 1);
+  xconn_->InitButtonPressEvent(&event, xid2, Point(5, 5), 1);
   wm_->HandleEvent(&event);
   xconn_->InitUnmapEvent(&event, xid2);
   wm_->HandleEvent(&event);
@@ -407,8 +405,7 @@ TEST_F(WindowManagerTest, RestackOverrideRedirectWindows) {
   // Create two override-redirect windows and map them both.
   XWindow xid = xconn_->CreateWindow(
       xconn_->GetRootWindow(),
-      10, 20,  // x, y
-      30, 40,  // width, height
+      Rect(10, 20, 30, 40),
       true,    // override redirect
       false,   // input only
       0, 0);   // event mask, visual
@@ -420,8 +417,7 @@ TEST_F(WindowManagerTest, RestackOverrideRedirectWindows) {
 
   XWindow xid2 = xconn_->CreateWindow(
       xconn_->GetRootWindow(),
-      10, 20,  // x, y
-      30, 40,  // width, height
+      Rect(10, 20, 30, 40),
       true,    // override redirect
       false,   // input only
       0, 0);   // event mask, visual
@@ -466,8 +462,7 @@ TEST_F(WindowManagerTest, StackOverrideRedirectWindowsAboveLayers) {
   // Create an override-redirect window and map it.
   XWindow xid = xconn_->CreateWindow(
       xconn_->GetRootWindow(),
-      10, 20,  // x, y
-      30, 40,  // width, height
+      Rect(10, 20, 30, 40),
       true,    // override redirect
       false,   // input only
       0, 0);   // event mask, visual
@@ -515,8 +510,8 @@ TEST_F(WindowManagerTest, StackOverrideRedirectWindowsAboveLayers) {
 TEST_F(WindowManagerTest, ConfigureRequestResize) {
   XWindow xid = CreateSimpleWindow();
   MockXConnection::WindowInfo* info = xconn_->GetWindowInfoOrDie(xid);
-  const int orig_width = info->width;
-  const int orig_height = info->height;
+  const int orig_width = info->bounds.width;
+  const int orig_height = info->bounds.height;
 
   XEvent event;
   xconn_->InitCreateWindowEvent(&event, xid);
@@ -527,23 +522,23 @@ TEST_F(WindowManagerTest, ConfigureRequestResize) {
   const int new_width = orig_width * 2;
   const int new_height = orig_height * 2;
   xconn_->InitConfigureRequestEvent(
-      &event, xid, info->x, info->y, new_width, new_height);
+      &event, xid, Rect(info->bounds.x, info->bounds.y, new_width, new_height));
   event.xconfigurerequest.value_mask &= ~(CWWidth | CWHeight);
   wm_->HandleEvent(&event);
-  EXPECT_EQ(orig_width, info->width);
-  EXPECT_EQ(orig_height, info->height);
+  EXPECT_EQ(orig_width, info->bounds.width);
+  EXPECT_EQ(orig_height, info->bounds.height);
 
   // Now turn on the width bit and check that it gets applied.
   event.xconfigurerequest.value_mask |= CWWidth;
   wm_->HandleEvent(&event);
-  EXPECT_EQ(new_width, info->width);
-  EXPECT_EQ(orig_height, info->height);
+  EXPECT_EQ(new_width, info->bounds.width);
+  EXPECT_EQ(orig_height, info->bounds.height);
 
   // Turn on the height bit as well.
   event.xconfigurerequest.value_mask |= CWHeight;
   wm_->HandleEvent(&event);
-  EXPECT_EQ(new_width, info->width);
-  EXPECT_EQ(new_height, info->height);
+  EXPECT_EQ(new_width, info->bounds.width);
+  EXPECT_EQ(new_height, info->bounds.height);
 }
 
 TEST_F(WindowManagerTest, ResizeScreen) {
@@ -558,20 +553,20 @@ TEST_F(WindowManagerTest, ResizeScreen) {
 
   // Check that they're set correctly.
   TestIntArrayProperty(root_xid, geometry_atom, 2,
-                       root_info->width, root_info->height);
+                       root_info->bounds.width, root_info->bounds.height);
   TestIntArrayProperty(root_xid, workarea_atom, 4,
-                       0, 0, root_info->width, root_info->height);
+                       0, 0, root_info->bounds.width, root_info->bounds.height);
 
-  int new_width = root_info->width / 2;
-  int new_height = root_info->height / 2;
+  int new_width = root_info->bounds.width / 2;
+  int new_height = root_info->bounds.height / 2;
 
   // Resize the root and compositing overlay windows to half their size.
-  root_info->width = new_width;
-  root_info->height = new_height;
+  root_info->bounds.width = new_width;
+  root_info->bounds.height = new_height;
   MockXConnection::WindowInfo* composite_info =
       xconn_->GetWindowInfoOrDie(xconn_->GetCompositingOverlayWindow(root_xid));
-  composite_info->width = new_width;
-  composite_info->height = new_height;
+  composite_info->bounds.width = new_width;
+  composite_info->bounds.height = new_height;
 
   // Send the WM an event saying that the screen has been resized.
   XEvent event;
@@ -604,7 +599,7 @@ TEST_F(WindowManagerTest, SubtractPanelDocksFromNetWorkareaProperty) {
   XWindow root_xid = xconn_->GetRootWindow();
   MockXConnection::WindowInfo* root_info = xconn_->GetWindowInfoOrDie(root_xid);
   TestIntArrayProperty(root_xid, workarea_atom, 4,
-                       0, 0, root_info->width, root_info->height);
+                       0, 0, root_info->bounds.width, root_info->bounds.height);
 
   // Create a panel and drag it to the left so it's attached to the left
   // dock.  The workarea property should leave room on the left side of the
@@ -614,28 +609,28 @@ TEST_F(WindowManagerTest, SubtractPanelDocksFromNetWorkareaProperty) {
   SendPanelDragCompleteMessage(panel);
   TestIntArrayProperty(root_xid, workarea_atom, 4,
                        PanelManager::kPanelDockWidth, 0,
-                       root_info->width - PanelManager::kPanelDockWidth,
-                       root_info->height);
+                       root_info->bounds.width - PanelManager::kPanelDockWidth,
+                       root_info->bounds.height);
 
   // Now dock it on the right.
-  SendPanelDraggedMessage(panel, root_info->width - 1, 0);
+  SendPanelDraggedMessage(panel, root_info->bounds.width - 1, 0);
   SendPanelDragCompleteMessage(panel);
   TestIntArrayProperty(root_xid, workarea_atom, 4,
                        0, 0,
-                       root_info->width - PanelManager::kPanelDockWidth,
-                       root_info->height);
+                       root_info->bounds.width - PanelManager::kPanelDockWidth,
+                       root_info->bounds.height);
 
   // After the screen gets resized, the dock should still be taken into
   // account.
-  root_info->width += 20;
-  root_info->height += 10;
+  root_info->bounds.width += 20;
+  root_info->bounds.height += 10;
   XEvent event;
   xconn_->InitConfigureNotifyEvent(&event, root_xid);
   wm_->HandleEvent(&event);
   TestIntArrayProperty(root_xid, workarea_atom, 4,
                        0, 0,
-                       root_info->width - PanelManager::kPanelDockWidth,
-                       root_info->height);
+                       root_info->bounds.width - PanelManager::kPanelDockWidth,
+                       root_info->bounds.height);
 }
 
 // Test that the _NET_CLIENT_LIST and _NET_CLIENT_LIST_STACKING properties
@@ -662,8 +657,7 @@ TEST_F(WindowManagerTest, ClientListProperties) {
   XWindow override_redirect_xid =
       xconn_->CreateWindow(
           root_xid,  // parent
-          0, 0,      // x, y
-          200, 200,  // width, height
+          Rect(0, 0, 200, 200),
           true,      // override_redirect
           false,     // input_only
           0, 0);     // event mask, visual
@@ -793,8 +787,7 @@ TEST_F(WindowManagerTest, RedirectWindows) {
   // should still get redirected automatically.
   XWindow override_redirect_xid = xconn_->CreateWindow(
         xconn_->GetRootWindow(),
-        10, 20,  // x, y
-        30, 40,  // width, height
+        Rect(10, 20, 30, 40),
         true,    // override redirect
         false,   // input only
         0, 0);   // event mask, visual
@@ -937,8 +930,7 @@ TEST_F(WindowManagerTest, HandleMappingNotify) {
 TEST_F(WindowManagerTest, FetchNewPixmap) {
   XWindow xid = xconn_->CreateWindow(
         xconn_->GetRootWindow(),
-        10, 20,  // x, y
-        30, 40,  // width, height
+        Rect(10, 20, 30, 40),
         true,    // override redirect
         false,   // input only
         0, 0);   // event mask, visual
@@ -953,12 +945,14 @@ TEST_F(WindowManagerTest, FetchNewPixmap) {
   MockXConnection::PixmapInfo* pixmap_info =
       xconn_->GetPixmapInfo(actor->pixmap());
   ASSERT_TRUE(pixmap_info != NULL);
-  EXPECT_EQ(info->width, pixmap_info->width);
-  EXPECT_EQ(info->height, pixmap_info->height);
+  EXPECT_EQ(info->bounds.width, pixmap_info->size.width);
+  EXPECT_EQ(info->bounds.height, pixmap_info->size.height);
 
   // Check that the pixmap gets reset when the window gets resized.
   XID prev_pixmap = actor->pixmap();
-  ASSERT_TRUE(xconn_->ResizeWindow(xid, info->width + 10, info->height));
+  ASSERT_TRUE(xconn_->ResizeWindow(
+                  xid,
+                  Size(info->bounds.width + 10, info->bounds.height)));
   XEvent event;
   xconn_->InitConfigureNotifyEvent(&event, xid);
   wm_->HandleEvent(&event);
@@ -966,8 +960,8 @@ TEST_F(WindowManagerTest, FetchNewPixmap) {
   EXPECT_NE(prev_pixmap, actor->pixmap());
   pixmap_info = xconn_->GetPixmapInfo(actor->pixmap());
   ASSERT_TRUE(pixmap_info != NULL);
-  EXPECT_EQ(info->width, pixmap_info->width);
-  EXPECT_EQ(info->height, pixmap_info->height);
+  EXPECT_EQ(info->bounds.width, pixmap_info->size.width);
+  EXPECT_EQ(info->bounds.height, pixmap_info->size.height);
 
   // We should reset it when the window is remapped, too (but we should
   // continue using the old pixmap until we actually see the window get
@@ -982,8 +976,8 @@ TEST_F(WindowManagerTest, FetchNewPixmap) {
   EXPECT_NE(prev_pixmap, actor->pixmap());
   pixmap_info = xconn_->GetPixmapInfo(actor->pixmap());
   ASSERT_TRUE(pixmap_info != NULL);
-  EXPECT_EQ(info->width, pixmap_info->width);
-  EXPECT_EQ(info->height, pixmap_info->height);
+  EXPECT_EQ(info->bounds.width, pixmap_info->size.width);
+  EXPECT_EQ(info->bounds.height, pixmap_info->size.height);
 }
 
 // Test that we switch log files after the user logs in.
@@ -1043,14 +1037,16 @@ TEST_F(WindowManagerTest, OverrideRedirectShadows) {
   // An override-redirect window with no _NET_WM_WINDOW_TYPE property
   // shouldn't get a shadow.
   const XWindow root = xconn_->GetRootWindow();
-  XWindow xid1 = xconn_->CreateWindow(root, 0, 0, 10, 10, true, false, 0, 0);
+  XWindow xid1 =
+      xconn_->CreateWindow(root, Rect(0, 0, 10, 10), true, false, 0, 0);
   ASSERT_TRUE(xconn_->MapWindow(xid1));
   SendInitialEventsForWindow(xid1);
   EXPECT_TRUE(wm_->GetWindowOrDie(xid1)->shadow() == NULL);
 
   // _NET_WM_WINDOW_TYPE_MENU (or several other menu-related types) should
   // result in a shadow getting shown.
-  XWindow xid2 = xconn_->CreateWindow(root, 0, 0, 10, 10, true, false, 0, 0);
+  XWindow xid2 =
+      xconn_->CreateWindow(root, Rect(0, 0, 10, 10), true, false, 0, 0);
   xconn_->SetIntProperty(xid2, win_type_xatom, atom_xatom, menu_xatom);
   ASSERT_TRUE(xconn_->MapWindow(xid2));
   SendInitialEventsForWindow(xid2);
@@ -1061,14 +1057,16 @@ TEST_F(WindowManagerTest, OverrideRedirectShadows) {
   ASSERT_TRUE(xconn_->GetAtom("_NET_WM_WINDOW_TYPE_NORMAL", &normal_xatom));
 
   // A non-menu type should result in no shadow getting shown...
-  XWindow xid3 = xconn_->CreateWindow(root, 0, 0, 10, 10, true, false, 0, 0);
+  XWindow xid3 =
+      xconn_->CreateWindow(root, Rect(0, 0, 10, 10), true, false, 0, 0);
   xconn_->SetIntProperty(xid3, win_type_xatom, atom_xatom, normal_xatom);
   ASSERT_TRUE(xconn_->MapWindow(xid3));
   SendInitialEventsForWindow(xid3);
   EXPECT_TRUE(wm_->GetWindowOrDie(xid3)->shadow() == NULL);
 
   // ...unless there's another menu type in the property.
-  XWindow xid4 = xconn_->CreateWindow(root, 0, 0, 10, 10, true, false, 0, 0);
+  XWindow xid4 =
+      xconn_->CreateWindow(root, Rect(0, 0, 10, 10), true, false, 0, 0);
   vector<int> values;
   values.push_back(normal_xatom);
   values.push_back(popup_xatom);
@@ -1097,8 +1095,8 @@ TEST_F(WindowManagerTest, VideoTimeProperty) {
   // that are too small to trigger the code.
   XEvent event;
   xconn_->InitDamageNotifyEvent(
-      &event, xid, 0, 0,
-      Window::kVideoMinWidth - 1, Window::kVideoMinHeight - 1);
+      &event, xid,
+      Rect(0, 0, Window::kVideoMinWidth - 1, Window::kVideoMinHeight - 1));
   for (int i = 0; i < Window::kVideoMinFramerate + 3; ++i)
     wm_->HandleEvent(&event);
   EXPECT_FALSE(xconn_->GetIntProperty(xconn_->GetRootWindow(),
@@ -1107,7 +1105,8 @@ TEST_F(WindowManagerTest, VideoTimeProperty) {
   // Now send events with larger regions, but send one fewer than the
   // required number of frames.
   xconn_->InitDamageNotifyEvent(
-      &event, xid, 0, 0, Window::kVideoMinWidth, Window::kVideoMinHeight);
+      &event, xid,
+      Rect(0, 0, Window::kVideoMinWidth, Window::kVideoMinHeight));
   for (int i = 0; i < Window::kVideoMinFramerate - 1; ++i)
     wm_->HandleEvent(&event);
   EXPECT_FALSE(xconn_->GetIntProperty(xconn_->GetRootWindow(),
@@ -1173,16 +1172,14 @@ TEST_F(WindowManagerTest, VideoTimeProperty) {
 TEST_F(WindowManagerTest, HandleTopFullscreenActorChange) {
   XWindow xwin1 = xconn_->CreateWindow(
         xconn_->GetRootWindow(),
-        0, 0,    // x, y
-        wm_->width(), wm_->height(),
+        Rect(0, 0, wm_->width(), wm_->height()),
         true,    // override redirect
         false,   // input only
         0, 0);   // event mask, visual
 
   XWindow xwin2 = xconn_->CreateWindow(
         xconn_->GetRootWindow(),
-        0, 0,    // x, y
-        wm_->width(), wm_->height(),
+        Rect(0, 0, wm_->width(), wm_->height()),
         true,    // override redirect
         false,   // input only
         0, 0);   // event mask, visual
@@ -1198,8 +1195,8 @@ TEST_F(WindowManagerTest, HandleTopFullscreenActorChange) {
       wm_->GetWindowOrDie(xwin2));
 
   // Move and scale the two windows to fit the screen.
-  xconn_->ConfigureWindow(xwin1, 0, 0, wm_->width(), wm_->height());
-  xconn_->ConfigureWindow(xwin2, 0, 0, wm_->width(), wm_->height());
+  xconn_->ConfigureWindow(xwin1, Rect(0, 0, wm_->width(), wm_->height()));
+  xconn_->ConfigureWindow(xwin2, Rect(0, 0, wm_->width(), wm_->height()));
   XEvent event;
   xconn_->InitConfigureNotifyEvent(&event, xwin1);
   wm_->HandleEvent(&event);
@@ -1209,10 +1206,10 @@ TEST_F(WindowManagerTest, HandleTopFullscreenActorChange) {
   // Set up overlay regions for comparison.
   MockXConnection::WindowInfo* overlay_info =
     xconn_->GetWindowInfoOrDie(wm_->overlay_xid_);
-  scoped_ptr<ByteMap> expected_overlay(new ByteMap(overlay_info->width,
-                                                   overlay_info->height));
-  scoped_ptr<ByteMap> actual_overlay(new ByteMap(overlay_info->width,
-                                                 overlay_info->height));
+  scoped_ptr<ByteMap> expected_overlay(
+      new ByteMap(overlay_info->bounds.width, overlay_info->bounds.height));
+  scoped_ptr<ByteMap> actual_overlay(
+      new ByteMap(overlay_info->bounds.width, overlay_info->bounds.height));
 
   // Make sure no window is unredirected.
   FLAGS_unredirect_fullscreen_window = true;

@@ -317,7 +317,8 @@ void LayoutManager::HandleScreenResize() {
   MoveAndResizeForAvailableArea();
   ConfigureBackground(wm_->width(), wm_->height());
   if (background_xid_)
-    wm_->xconn()->ResizeWindow(background_xid_, wm_->width(), wm_->height());
+    wm_->xconn()->ResizeWindow(background_xid_,
+                               Size(wm_->width(), wm_->height()));
 
   // Make sure the snapshot windows and hidden transient client windows are
   // still offscreen.

@@ -16,7 +16,6 @@ extern "C" {
 
 #include "base/logging.h"
 #include "base/eintr_wrapper.h"
-#include "window_manager/geometry.h"
 #include "window_manager/image_enums.h"
 #include "window_manager/util.h"
 #include "window_manager/x_connection_internal.h"
@@ -40,18 +39,25 @@ MockXConnection::MockXConnection()
     : windows_(),
       stacked_xids_(new Stacker<XWindow>),
       next_xid_(1),
-      root_(CreateWindow(0, 0, 0,
-                         kDisplayWidth, kDisplayHeight, true, false, 0, 0)),
-      overlay_(CreateWindow(root_, 0, 0,
-                            kDisplayWidth, kDisplayHeight, true, false, 0, 0)),
+      root_(CreateWindow(0,      // parent
+                         Rect(0, 0, kDisplayWidth, kDisplayHeight),
+                         true,   // override_redirect
+                         false,  // input_only
+                         0,      // event_mask
+                         0)),    // visual
+      overlay_(CreateWindow(root_,  // parent
+                            Rect(0, 0, kDisplayWidth, kDisplayHeight),
+                            true,   // override_redirect
+                            false,  // input_only
+                            0,      // event_mask
+                            0)),    // visual
       next_atom_(1000),
       focused_xid_(None),
       last_focus_timestamp_(0),
       current_time_(0),
       pointer_grab_xid_(None),
       num_keymap_refreshes_(0),
-      pointer_x_(0),
-      pointer_y_(0),
+      pointer_pos_(0, 0),
       using_detectable_keyboard_auto_repeat_(false),
       connection_pipe_has_data_(false),
       num_pointer_ungrabs_with_replayed_events_(0) {
@@ -75,20 +81,14 @@ MockXConnection::~MockXConnection() {
 bool MockXConnection::GetWindowGeometry(XWindow xid, WindowGeometry* geom_out) {
   CHECK(geom_out);
   if (WindowInfo* window_info = GetWindowInfo(xid)) {
-    geom_out->x = window_info->x;
-    geom_out->y = window_info->y;
-    geom_out->width = window_info->width;
-    geom_out->height = window_info->height;
+    geom_out->bounds = window_info->bounds;
     geom_out->border_width = window_info->border_width;
     geom_out->depth = window_info->depth;
     return true;
   }
 
   if (PixmapInfo* pixmap_info = GetPixmapInfo(xid)) {
-    geom_out->x = 0;
-    geom_out->y = 0;
-    geom_out->width = pixmap_info->width;
-    geom_out->height = pixmap_info->height;
+    geom_out->bounds.reset(Point(), pixmap_info->size);
     geom_out->border_width = 0;
     geom_out->depth = pixmap_info->depth;
     return true;
@@ -117,23 +117,21 @@ bool MockXConnection::UnmapWindow(XWindow xid) {
   return true;
 }
 
-bool MockXConnection::MoveWindow(XWindow xid, int x, int y) {
+bool MockXConnection::MoveWindow(XWindow xid, const Point& pos) {
   WindowInfo* info = GetWindowInfo(xid);
   if (!info)
     return false;
-  info->x = x;
-  info->y = y;
+  info->bounds.move(pos);
   info->changed = true;
   info->num_configures++;
   return true;
 }
 
-bool MockXConnection::ResizeWindow(XWindow xid, int width, int height) {
+bool MockXConnection::ResizeWindow(XWindow xid, const Size& size) {
   WindowInfo* info = GetWindowInfo(xid);
   if (!info)
     return false;
-  info->width = width;
-  info->height = height;
+  info->bounds.resize(size, GRAVITY_NORTHWEST);
   info->changed = true;
   info->num_configures++;
   info->shape.reset(NULL);
@@ -226,8 +224,9 @@ bool MockXConnection::RemoveButtonGrabOnWindow(XWindow xid, int button) {
   return true;
 }
 
-bool MockXConnection::AddPointerGrabForWindow(
-    XWindow xid, int event_mask, XTime timestamp) {
+bool MockXConnection::AddPointerGrabForWindow(XWindow xid,
+                                              int event_mask,
+                                              XTime timestamp) {
   WindowInfo* info = GetWindowInfo(xid);
   if (!info)
     return false;
@@ -256,8 +255,8 @@ bool MockXConnection::GetSizeHintsForWindow(XWindow xid, SizeHints* hints_out) {
   return true;
 }
 
-bool MockXConnection::GetTransientHintForWindow(
-    XWindow xid, XWindow* owner_out) {
+bool MockXConnection::GetTransientHintForWindow(XWindow xid,
+                                                XWindow* owner_out) {
   CHECK(owner_out);
   WindowInfo* info = GetWindowInfo(xid);
   if (!info)
@@ -266,8 +265,8 @@ bool MockXConnection::GetTransientHintForWindow(
   return true;
 }
 
-bool MockXConnection::GetWindowAttributes(
-    XWindow xid, WindowAttributes* attr_out) {
+bool MockXConnection::GetWindowAttributes(XWindow xid,
+                                          WindowAttributes* attr_out) {
   CHECK(attr_out);
   WindowInfo* info = GetWindowInfo(xid);
   if (!info)
@@ -315,10 +314,11 @@ bool MockXConnection::UnredirectWindowForCompositing(XWindow xid) {
   return true;
 }
 
-XPixmap MockXConnection::CreatePixmap(
-    XDrawable drawable, int width, int height, int depth) {
+XPixmap MockXConnection::CreatePixmap(XDrawable drawable,
+                                      const Size& size,
+                                      int depth) {
   XID xid = next_xid_++;
-  shared_ptr<PixmapInfo> info(new PixmapInfo(xid, width, height, depth));
+  shared_ptr<PixmapInfo> info(new PixmapInfo(xid, size, depth));
   pixmaps_[xid] = info;
   return xid;
 }
@@ -327,7 +327,7 @@ XPixmap MockXConnection::GetCompositingPixmapForWindow(XWindow xid) {
   WindowInfo* info = GetWindowInfo(xid);
   if (!info)
     return 0;
-  return CreatePixmap(xid, info->width, info->height, info->depth);
+  return CreatePixmap(xid, info->bounds.size(), info->depth);
 }
 
 bool MockXConnection::FreePixmap(XPixmap pixmap) {
@@ -340,18 +340,14 @@ bool MockXConnection::FreePixmap(XPixmap pixmap) {
 
 XWindow MockXConnection::CreateWindow(
     XWindow parent,
-    int x, int y,
-    int width, int height,
+    const Rect& bounds,
     bool override_redirect,
     bool input_only,
     int event_mask,
     XVisualID visual) {
   XWindow xid = next_xid_++;
   shared_ptr<WindowInfo> info(new WindowInfo(xid, parent));
-  info->x = x;
-  info->y = y;
-  info->width = width;
-  info->height = height;
+  info->bounds = bounds;
   info->override_redirect = override_redirect;
   info->input_only = input_only;
   info->event_mask = event_mask;
@@ -413,21 +409,22 @@ bool MockXConnection::GetWindowBoundingRegion(XWindow xid, ByteMap* bytemap) {
   if (info->shape.get())
     bytemap->Copy(*(info->shape.get()));
   else
-    bytemap->SetRectangle(0, 0, info->width, info->height, 0xff);
+    bytemap->SetRectangle(0, 0, info->bounds.width, info->bounds.height, 0xff);
   return true;
 }
 
-bool MockXConnection::SetWindowBoundingRegionToRect(
-    XWindow xid, const Rect& region) {
+bool MockXConnection::SetWindowBoundingRegionToRect(XWindow xid,
+                                                    const Rect& region) {
   WindowInfo* info = GetWindowInfo(xid);
   if (!info)
     return false;
   if (region.x == 0 && region.y == 0 &&
-      region.width == info->width && region.height == info->height) {
+      region.width == info->bounds.width &&
+      region.height == info->bounds.height) {
     info->shape.reset(NULL);
   } else {
     if (info->shape.get() == NULL)
-      info->shape.reset(new ByteMap(info->width, info->height));
+      info->shape.reset(new ByteMap(info->bounds.width, info->bounds.height));
     info->shape->Clear(0);
     info->shape->SetRectangle(
         region.x, region.y, region.width, region.height, 0xff);
@@ -440,7 +437,7 @@ bool MockXConnection::RemoveWindowBoundingRegion(XWindow xid) {
   if (!info)
     return false;
   if (info->shape.get() == NULL)
-    info->shape.reset(new ByteMap(info->width, info->height));
+    info->shape.reset(new ByteMap(info->bounds.width, info->bounds.height));
   info->shape->Clear(0);
   return true;
 }
@@ -453,8 +450,8 @@ bool MockXConnection::SelectRandREventsOnWindow(XWindow xid) {
   return true;
 }
 
-bool MockXConnection::GetAtoms(
-    const vector<string>& names, vector<XAtom>* atoms_out) {
+bool MockXConnection::GetAtoms(const vector<string>& names,
+                               vector<XAtom>* atoms_out) {
   CHECK(atoms_out);
   atoms_out->clear();
   for (vector<string>::const_iterator name_it = names.begin();
@@ -473,8 +470,9 @@ bool MockXConnection::GetAtoms(
   return true;
 }
 
-bool MockXConnection::GetIntArrayProperty(
-    XWindow xid, XAtom xatom, vector<int>* values) {
+bool MockXConnection::GetIntArrayProperty(XWindow xid,
+                                          XAtom xatom,
+                                          vector<int>* values) {
   WindowInfo* info = GetWindowInfo(xid);
   if (!info)
     return false;
@@ -486,8 +484,10 @@ bool MockXConnection::GetIntArrayProperty(
   return true;
 }
 
-bool MockXConnection::SetIntArrayProperty(
-    XWindow xid, XAtom xatom, XAtom type, const vector<int>& values) {
+bool MockXConnection::SetIntArrayProperty(XWindow xid,
+                                          XAtom xatom,
+                                          XAtom type,
+                                          const vector<int>& values) {
   WindowInfo* info = GetWindowInfo(xid);
   if (!info)
     return false;
@@ -513,8 +513,9 @@ bool MockXConnection::GetStringProperty(XWindow xid, XAtom xatom, string* out) {
   return true;
 }
 
-bool MockXConnection::SetStringProperty(
-    XWindow xid, XAtom xatom, const string& value) {
+bool MockXConnection::SetStringProperty(XWindow xid,
+                                        XAtom xatom,
+                                        const string& value) {
   WindowInfo* info = GetWindowInfo(xid);
   if (!info)
     return false;
@@ -566,8 +567,7 @@ bool MockXConnection::SendClientMessageEvent(XWindow dest_xid,
 }
 
 bool MockXConnection::SendConfigureNotifyEvent(XWindow xid,
-                                               int x, int y,
-                                               int width, int height,
+                                               const Rect& bounds,
                                                int border_width,
                                                XWindow above_xid,
                                                bool override_redirect) {
@@ -577,8 +577,7 @@ bool MockXConnection::SendConfigureNotifyEvent(XWindow xid,
 
   XEvent event;
   x_connection_internal::InitXConfigureEvent(
-      &event, xid, x, y, width, height, border_width, above_xid,
-      override_redirect);
+      &event, xid, bounds, border_width, above_xid, override_redirect);
 
   info->configure_notify_events.push_back(event.xconfigure);
   return true;
@@ -604,8 +603,9 @@ bool MockXConnection::SetSelectionOwner(
   return true;
 }
 
-bool MockXConnection::GetImage(XID drawable, int x, int y,
-                               int width, int height, int drawable_depth,
+bool MockXConnection::GetImage(XID drawable,
+                               const Rect& bounds,
+                               int drawable_depth,
                                scoped_ptr_malloc<uint8_t>* data_out,
                                ImageFormat* format_out) {
   CHECK(data_out);
@@ -661,11 +661,8 @@ void MockXConnection::DestroySyncCounterAlarm(XID alarm_id) {
       << "Sync counter alarm " << XidStr(alarm_id) << " not registered";
 }
 
-bool MockXConnection::QueryPointerPosition(int* x_root, int* y_root) {
-  if (x_root)
-    *x_root = pointer_x_;
-  if (y_root)
-    *y_root = pointer_y_;
+bool MockXConnection::QueryPointerPosition(Point* absolute_pos_out) {
+  *absolute_pos_out = pointer_pos_;
   return true;
 }
 
@@ -714,10 +711,7 @@ KeyCode MockXConnection::GetKeyCodeFromKeySym(KeySym keysym) {
 MockXConnection::WindowInfo::WindowInfo(XWindow xid, XWindow parent)
     : xid(xid),
       parent(parent),
-      x(-1),
-      y(-1),
-      width(1),
-      height(1),
+      bounds(-1, -1, 1, 1),
       border_width(0),
       depth(32),
       mapped(false),
@@ -735,11 +729,11 @@ MockXConnection::WindowInfo::WindowInfo(XWindow xid, XWindow parent)
       num_configures(0) {
 }
 
-MockXConnection::PixmapInfo::PixmapInfo(
-    XWindow xid, int width, int height, int depth)
+MockXConnection::PixmapInfo::PixmapInfo(XWindow xid,
+                                        const Size& size,
+                                        int depth)
     : xid(xid),
-      width(width),
-      height(height),
+      size(size),
       depth(depth) {
 }
 
@@ -815,18 +809,21 @@ void MockXConnection::RegisterPropertyCallback(
             make_pair(make_pair(xid, xatom), shared_ptr<Closure>(cb))).second);
 }
 
-void MockXConnection::InitButtonEvent(
-    XEvent* event, XWindow xid, int x, int y, int button, bool press) const {
+void MockXConnection::InitButtonEvent(XEvent* event,
+                                      XWindow xid,
+                                      const Point& pos,
+                                      int button,
+                                      bool press) const {
   CHECK(event);
   const WindowInfo* info = GetWindowInfoOrDie(xid);
   XButtonEvent* button_event = &(event->xbutton);
   memset(button_event, 0, sizeof(*button_event));
   button_event->type = press ? ButtonPress : ButtonRelease;
   button_event->window = info->xid;
-  button_event->x = x;
-  button_event->y = y;
-  button_event->x_root = info->x + x;
-  button_event->y_root = info->y + y;
+  button_event->x = pos.x;
+  button_event->y = pos.y;
+  button_event->x_root = info->bounds.x + pos.x;
+  button_event->y_root = info->bounds.y + pos.y;
   button_event->button = button;
 }
 
@@ -878,23 +875,24 @@ void MockXConnection::InitConfigureNotifyEvent(XEvent* event,
   conf_event->window = info->xid;
   conf_event->above = GetWindowBelowWindow(xid);
   conf_event->override_redirect = info->override_redirect;
-  conf_event->x = info->x;
-  conf_event->y = info->y;
-  conf_event->width = info->width;
-  conf_event->height = info->height;
+  conf_event->x = info->bounds.x;
+  conf_event->y = info->bounds.y;
+  conf_event->width = info->bounds.width;
+  conf_event->height = info->bounds.height;
 }
 
-void MockXConnection::InitConfigureRequestEvent(
-    XEvent* event, XWindow xid, int x, int y, int width, int height) const {
+void MockXConnection::InitConfigureRequestEvent(XEvent* event,
+                                                XWindow xid,
+                                                const Rect& bounds) const {
   CHECK(event);
   XConfigureRequestEvent* conf_event = &(event->xconfigurerequest);
   memset(conf_event, 0, sizeof(*conf_event));
   conf_event->type = ConfigureRequest;
   conf_event->window = xid;
-  conf_event->x = x;
-  conf_event->y = y;
-  conf_event->width = width;
-  conf_event->height = height;
+  conf_event->x = bounds.x;
+  conf_event->y = bounds.y;
+  conf_event->width = bounds.width;
+  conf_event->height = bounds.height;
   conf_event->value_mask = CWX | CWY | CWWidth | CWHeight;
 }
 
@@ -906,27 +904,27 @@ void MockXConnection::InitCreateWindowEvent(XEvent* event, XWindow xid) const {
   create_event->type = CreateNotify;
   create_event->parent = info->parent;
   create_event->window = info->xid;
-  create_event->x = info->x;
-  create_event->y = info->y;
-  create_event->width = info->width;
-  create_event->height = info->height;
+  create_event->x = info->bounds.x;
+  create_event->y = info->bounds.y;
+  create_event->width = info->bounds.width;
+  create_event->height = info->bounds.height;
   create_event->border_width = info->border_width;
   create_event->override_redirect = info->override_redirect ? True : False;
 }
 
-void MockXConnection::InitDamageNotifyEvent(XEvent* event, XWindow drawable,
-                                            int x, int y,
-                                            int width, int height) const {
+void MockXConnection::InitDamageNotifyEvent(XEvent* event,
+                                            XWindow drawable,
+                                            const Rect& bounds) const {
   CHECK(event);
   XDamageNotifyEvent* damage_event =
       reinterpret_cast<XDamageNotifyEvent*>(event);
   memset(damage_event, 0, sizeof(*damage_event));
   damage_event->type = damage_event_base_ + XDamageNotify;
   damage_event->drawable = drawable;
-  damage_event->area.x = x;
-  damage_event->area.y = y;
-  damage_event->area.width = width;
-  damage_event->area.height = height;
+  damage_event->area.x = bounds.x;
+  damage_event->area.y = bounds.y;
+  damage_event->area.width = bounds.width;
+  damage_event->area.height = bounds.height;
 }
 
 void MockXConnection::InitDestroyWindowEvent(XEvent* event, XWindow xid) const {
@@ -937,18 +935,20 @@ void MockXConnection::InitDestroyWindowEvent(XEvent* event, XWindow xid) const {
   destroy_event->window = xid;
 }
 
-void MockXConnection::InitEnterOrLeaveWindowEvent(
-    XEvent* event, XWindow xid, int x, int y, bool enter) const {
+void MockXConnection::InitEnterOrLeaveWindowEvent(XEvent* event,
+                                                  XWindow xid,
+                                                  const Point& pos,
+                                                  bool enter) const {
   CHECK(event);
   const WindowInfo* info = GetWindowInfoOrDie(xid);
   XEnterWindowEvent* enter_event = &(event->xcrossing);
   memset(enter_event, 0, sizeof(*enter_event));
   enter_event->type = enter ? EnterNotify : LeaveNotify;
   enter_event->window = info->xid;
-  enter_event->x = x;
-  enter_event->y = y;
-  enter_event->x_root = info->x + x;
-  enter_event->y_root = info->y + y;
+  enter_event->x = pos.x;
+  enter_event->y = pos.y;
+  enter_event->x_root = info->bounds.x + pos.x;
+  enter_event->y_root = info->bounds.y + pos.y;
   // Leave everything else blank for now; we don't use it.
 }
 
@@ -970,18 +970,19 @@ void MockXConnection::InitMapRequestEvent(XEvent* event, XWindow xid) const {
   req_event->parent = info->parent;
 }
 
-void MockXConnection::InitMotionNotifyEvent(XEvent* event, XWindow xid,
-                                            int x, int y) const {
+void MockXConnection::InitMotionNotifyEvent(XEvent* event,
+                                            XWindow xid,
+                                            const Point& pos) const {
   CHECK(event);
   const WindowInfo* info = GetWindowInfoOrDie(xid);
   XMotionEvent* motion_event = &(event->xmotion);
   memset(motion_event, 0, sizeof(*motion_event));
   motion_event->type = MotionNotify;
   motion_event->window = info->xid;
-  motion_event->x = x;
-  motion_event->y = y;
-  motion_event->x_root = info->x + x;
-  motion_event->y_root = info->y + y;
+  motion_event->x = pos.x;
+  motion_event->y = pos.y;
+  motion_event->x_root = info->bounds.x + pos.x;
+  motion_event->y_root = info->bounds.y + pos.y;
   // Leave everything else blank for now; we don't use it.
 }
 

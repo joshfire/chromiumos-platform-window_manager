@@ -150,10 +150,7 @@ bool RealXConnection::GetWindowGeometry(XDrawable xid,
     return false;
   }
 
-  geom_out->x = reply->x;
-  geom_out->y = reply->y;
-  geom_out->width = reply->width;
-  geom_out->height = reply->height;
+  geom_out->bounds.reset(reply->x, reply->y, reply->width, reply->height);
   geom_out->border_width = reply->border_width;
   geom_out->depth = reply->depth;
   return true;
@@ -169,25 +166,24 @@ bool RealXConnection::UnmapWindow(XWindow xid) {
   return true;
 }
 
-bool RealXConnection::MoveWindow(XWindow xid, int x, int y) {
-  const uint32_t values[] = { x, y };
+bool RealXConnection::MoveWindow(XWindow xid, const Point& pos) {
+  const uint32_t values[] = { pos.x, pos.y };
   xcb_configure_window(xcb_conn_, xid,
                        XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y,
                        values);
   return true;
 }
 
-bool RealXConnection::ResizeWindow(XWindow xid, int width, int height) {
-  const uint32_t values[] = { width, height };
+bool RealXConnection::ResizeWindow(XWindow xid, const Size& size) {
+  const uint32_t values[] = { size.width, size.height };
   xcb_configure_window(xcb_conn_, xid,
                        XCB_CONFIG_WINDOW_WIDTH | XCB_CONFIG_WINDOW_HEIGHT,
                        values);
   return true;
 }
 
-bool RealXConnection::ConfigureWindow(
-    XWindow xid, int x, int y, int width, int height) {
-  const uint32_t values[] = { x, y, width, height };
+bool RealXConnection::ConfigureWindow(XWindow xid, const Rect& bounds) {
+  const uint32_t values[] = { bounds.x, bounds.y, bounds.width, bounds.height };
   xcb_configure_window(xcb_conn_, xid,
                        XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y |
                          XCB_CONFIG_WINDOW_WIDTH | XCB_CONFIG_WINDOW_HEIGHT,
@@ -216,9 +212,10 @@ bool RealXConnection::StackWindow(XWindow xid, XWindow other, bool above) {
   return true;
 }
 
-bool RealXConnection::ReparentWindow(
-    XWindow xid, XWindow parent, int x, int y) {
-  xcb_reparent_window(xcb_conn_, xid, parent, x, y);
+bool RealXConnection::ReparentWindow(XWindow xid,
+                                     XWindow parent,
+                                     const Point& offset) {
+  xcb_reparent_window(xcb_conn_, xid, parent, offset.x, offset.y);
   return true;
 }
 
@@ -406,41 +403,28 @@ bool RealXConnection::GetSizeHintsForWindow(XWindow xid, SizeHints* hints_out) {
 
   uint32_t flags = values[0];
 
-  if ((flags & USSize) || (flags & PSize)) {
-    hints_out->width = values[3];
-    hints_out->height = values[4];
-  }
-  if (flags & PMinSize) {
-    hints_out->min_width = values[5];
-    hints_out->min_height = values[6];
-  }
-  if (flags & PMaxSize) {
-    hints_out->max_width = values[7];
-    hints_out->max_height = values[8];
-  }
-  if (flags & PResizeInc) {
-    hints_out->width_increment = values[9];
-    hints_out->height_increment = values[10];
-  }
+  if ((flags & USSize) || (flags & PSize))
+    hints_out->size.reset(values[3], values[4]);
+  if (flags & PMinSize)
+    hints_out->min_size.reset(values[5], values[6]);
+  if (flags & PMaxSize)
+    hints_out->max_size.reset(values[7], values[8]);
+  if (flags & PResizeInc)
+    hints_out->size_increment.reset(values[9], values[10]);
   if (flags & PAspect) {
-    hints_out->min_aspect_x = values[11];
-    hints_out->min_aspect_y = values[12];
-    hints_out->max_aspect_x = values[13];
-    hints_out->max_aspect_y = values[14];
+    hints_out->min_aspect_ratio.reset(values[11], values[12]);
+    hints_out->max_aspect_ratio.reset(values[13], values[14]);
   }
-  if ((flags & PBaseSize) && values.size() >= 17) {
-    hints_out->base_width = values[15];
-    hints_out->base_height = values[16];
-  }
-  if ((flags & PWinGravity) && values.size() >= 18) {
+  if ((flags & PBaseSize) && values.size() >= 17)
+    hints_out->base_size.reset(values[15], values[16]);
+  if ((flags & PWinGravity) && values.size() >= 18)
     hints_out->win_gravity = values[17];
-  }
 
   return true;
 }
 
-bool RealXConnection::GetTransientHintForWindow(
-    XWindow xid, XWindow* owner_out) {
+bool RealXConnection::GetTransientHintForWindow(XWindow xid,
+                                                XWindow* owner_out) {
   int owner = XCB_NONE;
   if (!GetIntProperty(xid, XA_WM_TRANSIENT_FOR, &owner))
     return false;
@@ -526,10 +510,11 @@ XWindow RealXConnection::GetCompositingOverlayWindow(XWindow root) {
 }
 
 XPixmap RealXConnection::CreatePixmap(XDrawable drawable,
-                                      int width, int height,
+                                      const Size& size,
                                       int depth) {
   xcb_pixmap_t pixmap = xcb_generate_id(xcb_conn_);
-  xcb_create_pixmap(xcb_conn_, depth, pixmap, drawable, width, height);
+  xcb_create_pixmap(
+      xcb_conn_, depth, pixmap, drawable, size.width, size.height);
   return pixmap;
 }
 
@@ -548,10 +533,11 @@ bool RealXConnection::FreePixmap(XPixmap pixmap) {
   return true;
 }
 
-void RealXConnection::CopyArea(XDrawable src_drawable, XDrawable dest_drawable,
-                               int src_x, int src_y,
-                               int dest_x, int dest_y,
-                               int width, int height) {
+void RealXConnection::CopyArea(XDrawable src_drawable,
+                               XDrawable dest_drawable,
+                               const Point& src_pos,
+                               const Point& dest_pos,
+                               const Size& size) {
 
   xcb_gcontext_t gc = xcb_generate_id(xcb_conn_);
   const static uint32_t kGcValueMask =
@@ -564,20 +550,21 @@ void RealXConnection::CopyArea(XDrawable src_drawable, XDrawable dest_drawable,
   };
   xcb_create_gc(xcb_conn_, gc, dest_drawable, kGcValueMask, kGcValues);
   xcb_copy_area(xcb_conn_, src_drawable, dest_drawable, gc,
-                src_x, src_y, dest_x, dest_y, width, height);
+                src_pos.x, src_pos.y,
+                dest_pos.x, dest_pos.y,
+                size.width, size.height);
   xcb_free_gc(xcb_conn_, gc);
 }
 
 XWindow RealXConnection::CreateWindow(
     XWindow parent,
-    int x, int y,
-    int width, int height,
+    const Rect& bounds,
     bool override_redirect,
     bool input_only,
     int event_mask,
     XVisualID visual) {
-  CHECK(width > 0);
-  CHECK(height > 0);
+  CHECK(bounds.width > 0);
+  CHECK(bounds.height > 0);
   CHECK(parent != XCB_NONE);
 
   uint32_t value_mask = XCB_CW_OVERRIDE_REDIRECT | XCB_CW_EVENT_MASK;
@@ -618,8 +605,8 @@ XWindow RealXConnection::CreateWindow(
                     depth,
                     xid,
                     parent,
-                    x, y,
-                    width, height,
+                    bounds.x, bounds.y,
+                    bounds.width, bounds.height,
                     0,  // border_width
                     input_only ?
                       XCB_WINDOW_CLASS_INPUT_ONLY :
@@ -707,8 +694,8 @@ bool RealXConnection::GetWindowBoundingRegion(XWindow xid, ByteMap* bytemap) {
   return true;
 }
 
-bool RealXConnection::SetWindowBoundingRegionToRect(
-    XWindow xid, const Rect& region) {
+bool RealXConnection::SetWindowBoundingRegionToRect(XWindow xid,
+                                                    const Rect& region) {
   xcb_rectangle_t rect;
   rect.x = region.x;
   rect.y = region.y;
@@ -933,15 +920,13 @@ bool RealXConnection::SendClientMessageEvent(XWindow dest_xid,
 }
 
 bool RealXConnection::SendConfigureNotifyEvent(XWindow xid,
-                                               int x, int y,
-                                               int width, int height,
+                                               const Rect& bounds,
                                                int border_width,
                                                XWindow above_xid,
                                                bool override_redirect) {
   XEvent event;
   x_connection_internal::InitXConfigureEvent(
-      &event, xid, x, y, width, height, border_width, above_xid,
-      override_redirect);
+      &event, xid, bounds, border_width, above_xid, override_redirect);
 
   TrapErrors();
   XSendEvent(display_,
@@ -1006,16 +991,21 @@ bool RealXConnection::SetSelectionOwner(
   return true;
 }
 
-bool RealXConnection::GetImage(XID drawable, int x, int y,
-                               int width, int height, int drawable_depth,
+bool RealXConnection::GetImage(XID drawable,
+                               const Rect& bounds,
+                               int drawable_depth,
                                scoped_ptr_malloc<uint8_t>* data_out,
                                ImageFormat* format_out) {
   DCHECK(data_out);
   DCHECK(format_out);
 
   TrapErrors();
-  XImage* image = XGetImage(
-      display_, drawable, x, y, width, height, AllPlanes, ZPixmap);
+  XImage* image = XGetImage(display_,
+                            drawable,
+                            bounds.x, bounds.y,
+                            bounds.width, bounds.height,
+                            AllPlanes,
+                            ZPixmap);
   if (int error = UntrapErrors()) {
     DLOG(WARNING) << "Got X error while getting image for drawable "
                   << XidStr(drawable) << ": " << GetErrorText(error);
@@ -1037,12 +1027,11 @@ bool RealXConnection::GetImage(XID drawable, int x, int y,
 
   const size_t data_size = image->bytes_per_line * image->height;
   const int format_bpp = GetBitsPerPixelInImageFormat(*format_out);
-  const size_t expected_size = width * height * format_bpp / 8;
+  const size_t expected_size = bounds.width * bounds.height * format_bpp / 8;
   if (data_size != expected_size) {
     DLOG(WARNING) << "Expected " << expected_size << " bytes in image from "
-                  << XidStr(drawable) << " (" << width << "x" << height
-                  << " at " << format_bpp << " bpp) " << " but got "
-                  << data_size;
+                  << XidStr(drawable) << " (" << bounds.size() << " at "
+                  << format_bpp << " bpp) " << " but got " << data_size;
     XDestroyImage(image);
     return false;
   }
@@ -1237,7 +1226,8 @@ bool RealXConnection::QueryKeyboardState(vector<uint8_t>* keycodes_out) {
   return true;
 }
 
-bool RealXConnection::QueryPointerPosition(int* x_root, int* y_root) {
+bool RealXConnection::QueryPointerPosition(Point* absolute_pos_out) {
+  DCHECK(absolute_pos_out);
   xcb_query_pointer_cookie_t cookie = xcb_query_pointer(xcb_conn_, root_);
   xcb_generic_error_t* error = NULL;
   scoped_ptr_malloc<xcb_query_pointer_reply_t> reply(
@@ -1247,10 +1237,7 @@ bool RealXConnection::QueryPointerPosition(int* x_root, int* y_root) {
     LOG(WARNING) << "Querying pointer position failed";
     return false;
   }
-  if (x_root)
-    *x_root = reply->root_x;
-  if (y_root)
-    *y_root = reply->root_y;
+  absolute_pos_out->reset(reply->root_x, reply->root_y);
   return true;
 }
 

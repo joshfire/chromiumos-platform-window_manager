@@ -551,7 +551,7 @@ void RealCompositor::TexturePixmapActor::SetPixmap(XID pixmap) {
   if (pixmap_) {
     XConnection::WindowGeometry geometry;
     if (compositor()->x_conn()->GetWindowGeometry(pixmap_, &geometry)) {
-      SetSizeInternal(geometry.width, geometry.height);
+      SetSizeInternal(geometry.bounds.width, geometry.bounds.height);
       pixmap_is_opaque_ = (geometry.depth != 32);
     } else {
       LOG(WARNING) << "Unable to get geometry for pixmap " << XidStr(pixmap_);
@@ -598,7 +598,7 @@ void RealCompositor::StageActor::SetSize(int width, int height) {
   // Have to resize the window to match the stage.
   CHECK(window_) << "Missing window in StageActor::SetSize()";
   SetSizeInternal(width, height);
-  compositor()->x_conn()->ResizeWindow(window_, width, height);
+  compositor()->x_conn()->ResizeWindow(window_, Size(width, height));
   was_resized_ = true;
 }
 
@@ -638,20 +638,18 @@ RealCompositor::RealCompositor(EventLoop* event_loop,
   XWindow root = x_conn()->GetRootWindow();
   XConnection::WindowGeometry geometry;
   x_conn()->GetWindowGeometry(root, &geometry);
+  XVisualID visual_id = 0;
 #if defined(COMPOSITOR_OPENGL)
-  XVisualID visual_id = gl_interface->GetVisual();
-  XWindow window = x_conn()->CreateWindow(root, 0, 0,
-                                          geometry.width, geometry.height,
-                                          false, false, 0, visual_id);
-#elif defined(COMPOSITOR_OPENGLES)
-  XWindow window = x_conn()->CreateSimpleWindow(root, 0, 0,
-                                                geometry.width,
-                                                geometry.height);
+  visual_id = gl_interface->GetVisual();
 #endif
+  XWindow window = x_conn()->CreateWindow(
+      root, geometry.bounds, false, false, 0, visual_id);
   x_conn()->MapWindow(window);
-  default_stage_.reset(new RealCompositor::StageActor(this, window,
-                                                      geometry.width,
-                                                      geometry.height));
+  default_stage_.reset(
+      new RealCompositor::StageActor(this,
+                                     window,
+                                     geometry.bounds.width,
+                                     geometry.bounds.height));
 
   draw_visitor_.reset(
 #if defined(COMPOSITOR_OPENGL)

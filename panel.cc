@@ -615,10 +615,10 @@ void Panel::ConfigureInputWindows() {
   } else {
     wm()->xconn()->ConfigureWindow(
         top_input_xid_,
-        content_x() - (top_resize_edge_width - content_width()) / 2,
-        titlebar_y() - kResizeBorderWidth,
-        top_resize_edge_width,
-        kResizeBorderWidth);
+        Rect(content_x() - (top_resize_edge_width - content_width()) / 2,
+             titlebar_y() - kResizeBorderWidth,
+             top_resize_edge_width,
+             kResizeBorderWidth));
   }
 
   if (!(vertical_resize_allowed_ && horizontal_resize_allowed_)) {
@@ -627,16 +627,16 @@ void Panel::ConfigureInputWindows() {
   } else {
     wm()->xconn()->ConfigureWindow(
         top_left_input_xid_,
-        content_x() - kResizeBorderWidth,
-        titlebar_y() - kResizeBorderWidth,
-        kResizeCornerSize,
-        kResizeCornerSize);
+        Rect(content_x() - kResizeBorderWidth,
+             titlebar_y() - kResizeBorderWidth,
+             kResizeCornerSize,
+             kResizeCornerSize));
     wm()->xconn()->ConfigureWindow(
         top_right_input_xid_,
-        right() + kResizeBorderWidth - kResizeCornerSize,
-        titlebar_y() - kResizeBorderWidth,
-        kResizeCornerSize,
-        kResizeCornerSize);
+        Rect(right() + kResizeBorderWidth - kResizeCornerSize,
+             titlebar_y() - kResizeBorderWidth,
+             kResizeCornerSize,
+             kResizeCornerSize));
   }
 
   const int side_resize_edge_height =
@@ -648,16 +648,16 @@ void Panel::ConfigureInputWindows() {
   } else {
     wm()->xconn()->ConfigureWindow(
         left_input_xid_,
-        content_x() - kResizeBorderWidth,
-        titlebar_y() + total_height() - side_resize_edge_height,
-        kResizeBorderWidth,
-        side_resize_edge_height);
+        Rect(content_x() - kResizeBorderWidth,
+             titlebar_y() + total_height() - side_resize_edge_height,
+             kResizeBorderWidth,
+             side_resize_edge_height));
     wm()->xconn()->ConfigureWindow(
         right_input_xid_,
-        right(),
-        titlebar_y() + total_height() - side_resize_edge_height,
-        kResizeBorderWidth,
-        side_resize_edge_height);
+        Rect(right(),
+             titlebar_y() + total_height() - side_resize_edge_height,
+             kResizeBorderWidth,
+             side_resize_edge_height));
   }
 }
 
@@ -741,17 +741,17 @@ bool Panel::UpdateChromeStateProperty() {
 
 void Panel::UpdateContentWindowSizeLimits() {
   DCHECK(content_win_->shadow());
-  min_content_width_ = max(content_win_->size_hints().min_width,
+  min_content_width_ = max(content_win_->size_hints().min_size.width,
                            max(kResizeCornerSize + kResizeCornerSize + 1,
                                content_win_->shadow()->min_width()));
-  min_content_height_ = max(content_win_->size_hints().min_height,
+  min_content_height_ = max(content_win_->size_hints().min_size.height,
                             max(1, content_win_->shadow()->min_height()));
 
-  max_content_width_ = content_win_->size_hints().max_width > 0 ?
-                       content_win_->size_hints().max_width :
+  max_content_width_ = content_win_->size_hints().max_size.width > 0 ?
+                       content_win_->size_hints().max_size.width :
                        numeric_limits<int>::max();
-  max_content_height_ = content_win_->size_hints().max_height > 0 ?
-                        content_win_->size_hints().max_height :
+  max_content_height_ = content_win_->size_hints().max_size.height > 0 ?
+                        content_win_->size_hints().max_size.height :
                         numeric_limits<int>::max();
 }
 
