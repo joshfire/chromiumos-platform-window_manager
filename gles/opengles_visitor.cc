@@ -33,6 +33,63 @@
 
 namespace window_manager {
 
+// Base for rendering passes.
+class BasePass : virtual public RealCompositor::ActorVisitor {
+ public:
+  explicit BasePass(const OpenGlesDrawVisitor* gles_visitor)
+      : gles_visitor_(gles_visitor) {}
+  virtual ~BasePass() {}
+  virtual void VisitActor(RealCompositor::Actor* actor) {}
+  virtual void VisitContainer(RealCompositor::ContainerActor* actor) = 0;
+  virtual void VisitTexturePixmap(RealCompositor::TexturePixmapActor* actor);
+  virtual void VisitQuad(RealCompositor::QuadActor* actor) = 0;
+  virtual void VisitImage(RealCompositor::ImageActor* actor) {
+    VisitQuad(actor);
+  }
+
+ protected:
+  const OpenGlesDrawVisitor* gles_visitor() const { return gles_visitor_; }
+
+ private:
+  const OpenGlesDrawVisitor* gles_visitor_;  // Not owned.
+
+  DISALLOW_COPY_AND_ASSIGN(BasePass);
+};
+
+// Back to front pass with blending on.
+class TransparentPass : public BasePass {
+ public:
+  explicit TransparentPass(const OpenGlesDrawVisitor* gles_visitor)
+      : BasePass(gles_visitor) {}
+  virtual ~TransparentPass() {}
+  virtual void VisitStage(RealCompositor::StageActor* actor);
+  virtual void VisitContainer(RealCompositor::ContainerActor* actor);
+  virtual void VisitQuad(RealCompositor::QuadActor* actor) {
+    gles_visitor()->DrawQuad(actor, ancestor_opacity_);
+  }
+
+ private:
+  // Cumulative opacity of the ancestors
+  float ancestor_opacity_;
+
+  DISALLOW_COPY_AND_ASSIGN(TransparentPass);
+};
+
+// Front to back pass with blending off.
+class OpaquePass : public BasePass {
+ public:
+  explicit OpaquePass(const OpenGlesDrawVisitor* gles_visitor)
+      : BasePass(gles_visitor) {}
+  virtual ~OpaquePass() {}
+  virtual void VisitContainer(RealCompositor::ContainerActor* actor);
+  virtual void VisitQuad(RealCompositor::QuadActor* actor) {
+    gles_visitor()->DrawQuad(actor, 1.f);
+  }
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(OpaquePass);
+};
+
 OpenGlesDrawVisitor::OpenGlesDrawVisitor(Gles2Interface* gl,
                                          RealCompositor* compositor,
                                          Compositor::StageActor* stage)
@@ -99,6 +156,10 @@ OpenGlesDrawVisitor::OpenGlesDrawVisitor(Gles2Interface* gl,
     1.f, 1.f,
   };
   gl_->BufferData(GL_ARRAY_BUFFER, sizeof(kQuad), kQuad, GL_STATIC_DRAW);
+
+  // Unchanging state
+  gl_->BlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+  gl_->Enable(GL_DEPTH_TEST);
 }
 
 OpenGlesDrawVisitor::~OpenGlesDrawVisitor() {
@@ -186,48 +247,57 @@ void OpenGlesDrawVisitor::VisitStage(RealCompositor::StageActor* actor) {
     gl_->Clear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
   projection_ = actor->projection();
-  ancestor_opacity_ = actor->opacity();
 
-  // Back to front rendering
-  // TODO: Switch to two pass Z-buffered rendering
-  gl_->BlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+  // Front to back opaque rendering pass
+  OpaquePass opaque_pass(this);
+  actor->Accept(&opaque_pass);
+
+  // Back to front rendering transparent pass
   gl_->Enable(GL_BLEND);
-
-  // Back to front rendering
-  const RealCompositor::ActorVector children = actor->GetChildren();
-  for (RealCompositor::ActorVector::const_reverse_iterator i =
-       children.rbegin(); i != children.rend(); ++i) {
-    (*i)->Accept(this);
-  }
+  gl_->DepthMask(GL_FALSE);
+  TransparentPass transparent_pass(this);
+  actor->Accept(&transparent_pass);
+  gl_->DepthMask(GL_TRUE);
+  gl_->Disable(GL_BLEND);
 
   gl_->EglSwapBuffers(egl_display_, egl_surface_);
 }
 
-void OpenGlesDrawVisitor::VisitTexturePixmap(
+void OpenGlesDrawVisitor::CreateTextureData(
+    RealCompositor::TexturePixmapActor* actor) const {
+  OpenGlesEglImageData image_data(gl_);
+
+  if (!image_data.Bind(actor))
+    return;
+
+  OpenGlesTextureData* texture = new OpenGlesTextureData(gl_);
+  image_data.BindTexture(texture, !actor->pixmap_is_opaque());
+  actor->set_texture_data(texture);
+}
+
+void BasePass::VisitTexturePixmap(
     RealCompositor::TexturePixmapActor* actor) {
   if (!actor->IsVisible())
     return;
 
-  if (!actor->texture_data()) {
-    OpenGlesEglImageData image_data(gl_);
-
-    if (!image_data.Bind(actor))
-      return;
-
-    OpenGlesTextureData* texture = new OpenGlesTextureData(gl_);
-    image_data.BindTexture(texture, !actor->pixmap_is_opaque());
-    actor->set_texture_data(texture);
-  }
+  if (!actor->texture_data())
+    gles_visitor_->CreateTextureData(actor);
 
   VisitQuad(actor);
 }
 
-void OpenGlesDrawVisitor::VisitQuad(RealCompositor::QuadActor* actor) {
+void TransparentPass::VisitStage(RealCompositor::StageActor* actor) {
+  ancestor_opacity_ = actor->opacity();
+  VisitContainer(actor);
+}
+
+void OpenGlesDrawVisitor::DrawQuad(RealCompositor::QuadActor* actor,
+                                   float ancestor_opacity) const {
   if (!actor->IsVisible())
     return;
 
   // This must live until after the draw call, so it's at the top level
-  scoped_array<float> colors;
+  GLfloat colors[4 * 4];
 
   // mvp matrix
   Matrix4 mvp = projection_ * actor->model_view();
@@ -250,7 +320,7 @@ void OpenGlesDrawVisitor::VisitQuad(RealCompositor::QuadActor* actor) {
       gl_->Uniform1i(tex_color_shader_->SamplerLocation(), 0);
       gl_->Uniform4f(tex_color_shader_->ColorLocation(), actor->color().red,
                      actor->color().green, actor->color().blue,
-                     actor->opacity() * ancestor_opacity_);
+                     actor->opacity() * ancestor_opacity);
 
       gl_->BindBuffer(GL_ARRAY_BUFFER, vertex_buffer_object_);
       gl_->VertexAttribPointer(tex_color_shader_->PosLocation(),
@@ -266,7 +336,7 @@ void OpenGlesDrawVisitor::VisitQuad(RealCompositor::QuadActor* actor) {
       gl_->Uniform4f(no_alpha_color_shader_->ColorLocation(),
                      actor->color().red, actor->color().green,
                      actor->color().blue,
-                     actor->opacity() * ancestor_opacity_);
+                     actor->opacity() * ancestor_opacity);
 
       gl_->BindBuffer(GL_ARRAY_BUFFER, vertex_buffer_object_);
       gl_->VertexAttribPointer(no_alpha_color_shader_->PosLocation(),
@@ -276,31 +346,31 @@ void OpenGlesDrawVisitor::VisitQuad(RealCompositor::QuadActor* actor) {
       no_alpha_color_shader_->EnableVertexAttribs();
     }
   } else {
-    const float actor_opacity = actor->opacity() * ancestor_opacity_;
+    const float actor_opacity = actor->opacity() * ancestor_opacity;
     const float dimmed_transparency_begin = 1.f - actor->dimmed_opacity_begin();
     const float dimmed_transparency_end = 1.f - actor->dimmed_opacity_end();
 
     // TODO: Consider managing a ring buffer in a VBO ourselves.  Could be
     // better performance depending on driver quality.
-    colors_[ 0] = dimmed_transparency_begin * actor->color().red;
-    colors_[ 1] = dimmed_transparency_begin * actor->color().green;
-    colors_[ 2] = dimmed_transparency_begin * actor->color().blue;
-    colors_[ 3] = actor_opacity;
+    colors[ 0] = dimmed_transparency_begin * actor->color().red;
+    colors[ 1] = dimmed_transparency_begin * actor->color().green;
+    colors[ 2] = dimmed_transparency_begin * actor->color().blue;
+    colors[ 3] = actor_opacity;
 
-    colors_[ 4] = dimmed_transparency_begin * actor->color().red;
-    colors_[ 5] = dimmed_transparency_begin * actor->color().green;
-    colors_[ 6] = dimmed_transparency_begin * actor->color().blue;
-    colors_[ 7] = actor_opacity;
+    colors[ 4] = dimmed_transparency_begin * actor->color().red;
+    colors[ 5] = dimmed_transparency_begin * actor->color().green;
+    colors[ 6] = dimmed_transparency_begin * actor->color().blue;
+    colors[ 7] = actor_opacity;
 
-    colors_[ 8] = dimmed_transparency_end * actor->color().red;
-    colors_[ 9] = dimmed_transparency_end * actor->color().green;
-    colors_[10] = dimmed_transparency_end * actor->color().blue;
-    colors_[11] = actor_opacity;
+    colors[ 8] = dimmed_transparency_end * actor->color().red;
+    colors[ 9] = dimmed_transparency_end * actor->color().green;
+    colors[10] = dimmed_transparency_end * actor->color().blue;
+    colors[11] = actor_opacity;
 
-    colors_[12] = dimmed_transparency_end * actor->color().red;
-    colors_[13] = dimmed_transparency_end * actor->color().green;
-    colors_[14] = dimmed_transparency_end * actor->color().blue;
-    colors_[15] = actor_opacity;
+    colors[12] = dimmed_transparency_end * actor->color().red;
+    colors[13] = dimmed_transparency_end * actor->color().green;
+    colors[14] = dimmed_transparency_end * actor->color().blue;
+    colors[15] = actor_opacity;
 
     if (texture_has_alpha) {
       gl_->UseProgram(tex_shade_shader_->program());
@@ -314,7 +384,7 @@ void OpenGlesDrawVisitor::VisitQuad(RealCompositor::QuadActor* actor) {
                                2, GL_FLOAT, GL_FALSE, 0, 0);
       gl_->BindBuffer(GL_ARRAY_BUFFER, 0);
       gl_->VertexAttribPointer(tex_shade_shader_->ColorInLocation(),
-                               4, GL_FLOAT, GL_FALSE, 0, colors_);
+                               4, GL_FLOAT, GL_FALSE, 0, colors);
       tex_shade_shader_->EnableVertexAttribs();
     } else {
       gl_->UseProgram(no_alpha_shade_shader_->program());
@@ -328,7 +398,7 @@ void OpenGlesDrawVisitor::VisitQuad(RealCompositor::QuadActor* actor) {
                                2, GL_FLOAT, GL_FALSE, 0, 0);
       gl_->BindBuffer(GL_ARRAY_BUFFER, 0);
       gl_->VertexAttribPointer(no_alpha_shade_shader_->ColorInLocation(),
-                               4, GL_FLOAT, GL_FALSE, 0, colors_);
+                               4, GL_FLOAT, GL_FALSE, 0, colors);
       no_alpha_shade_shader_->EnableVertexAttribs();
     }
   }
@@ -337,7 +407,7 @@ void OpenGlesDrawVisitor::VisitQuad(RealCompositor::QuadActor* actor) {
   gl_->DrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 }
 
-void OpenGlesDrawVisitor::VisitContainer(
+void TransparentPass::VisitContainer(
     RealCompositor::ContainerActor* actor) {
   if (!actor->IsVisible())
     return;
@@ -351,11 +421,29 @@ void OpenGlesDrawVisitor::VisitContainer(
   const RealCompositor::ActorVector children = actor->GetChildren();
   for (RealCompositor::ActorVector::const_reverse_iterator i =
        children.rbegin(); i != children.rend(); ++i) {
-    (*i)->Accept(this);
+    if (ancestor_opacity_ <= 0.999f || (*i)->has_children() ||
+        !(*i)->is_opaque())
+      (*i)->Accept(this);
   }
 
   // Reset opacity.
   ancestor_opacity_ = original_opacity;
+}
+
+void OpaquePass::VisitContainer(
+    RealCompositor::ContainerActor* actor) {
+  if (!actor->IsVisible())
+    return;
+
+  LOG(INFO) << "Visit container: " << actor->name();
+
+  // Front to back rendering
+  const RealCompositor::ActorVector children = actor->GetChildren();
+  for (RealCompositor::ActorVector::const_iterator i = children.begin();
+       i != children.end(); ++i) {
+    if ((*i)->is_opaque())
+      (*i)->Accept(this);
+  }
 }
 
 OpenGlesTextureData::OpenGlesTextureData(Gles2Interface* gl)

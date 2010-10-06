@@ -45,12 +45,10 @@ class OpenGlesDrawVisitor : virtual public RealCompositor::ActorVisitor {
 
   virtual void VisitActor(RealCompositor::Actor* actor) {}
   virtual void VisitStage(RealCompositor::StageActor* actor);
-  virtual void VisitContainer(RealCompositor::ContainerActor* actor);
-  virtual void VisitImage(RealCompositor::ImageActor* actor) {
-    VisitQuad(actor);
-  }
-  virtual void VisitTexturePixmap(RealCompositor::TexturePixmapActor* actor);
-  virtual void VisitQuad(RealCompositor::QuadActor* actor);
+
+  void DrawQuad(RealCompositor::QuadActor* actor,
+                float ancestor_opacity) const;
+  void CreateTextureData(RealCompositor::TexturePixmapActor *actor) const;
 
  private:
   Gles2Interface* gl_;  // Not owned.
@@ -70,14 +68,9 @@ class OpenGlesDrawVisitor : virtual public RealCompositor::ActorVisitor {
   // Matrix state
   Matrix4 projection_;
 
-  // Cumulative opacity of the ancestors
-  float ancestor_opacity_;
 
   // global vertex buffer object
   GLuint vertex_buffer_object_;
-
-  // Temporary storage for client side vertex colors
-  GLfloat colors_[4 * 4];
 
   // This is used to indicate whether the entire screen will be covered by an
   // actor so we can optimize by not clearing the COLOR_BUFFER_BIT.

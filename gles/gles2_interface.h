@@ -73,6 +73,7 @@ class Gles2Interface : virtual public GLInterfaceBase {
   virtual void DeleteProgram(GLuint program) = 0;
   virtual void DeleteShader(GLuint shader) = 0;
   virtual void DeleteTextures(GLsizei n, const GLuint* textures) = 0;
+  virtual void DepthMask(GLboolean flag) = 0;
   virtual void Disable(GLenum cap) = 0;
   virtual void DisableVertexAttribArray(GLuint index) = 0;
   virtual void DrawArrays(GLenum mode, GLint first, GLsizei count) = 0;

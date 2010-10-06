@@ -249,6 +249,11 @@ void RealGles2Interface::DeleteTextures(GLsizei n, const GLuint* textures) {
   GLES2_DCHECK_ERROR();
 }
 
+void RealGles2Interface::DepthMask(GLboolean flag) {
+  glDepthMask(flag);
+  GLES2_DCHECK_ERROR();
+}
+
 void RealGles2Interface::Disable(GLenum cap) {
   glDisable(cap);
   GLES2_DCHECK_ERROR();

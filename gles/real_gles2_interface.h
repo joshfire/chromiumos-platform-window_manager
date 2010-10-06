@@ -70,6 +70,7 @@ class RealGles2Interface : public Gles2Interface {
   void DeleteProgram(GLuint program);
   void DeleteShader(GLuint shader);
   void DeleteTextures(GLsizei n, const GLuint* textures);
+  void DepthMask(GLboolean flag);
   void Disable(GLenum cap);
   void DisableVertexAttribArray(GLuint index);
   void DrawArrays(GLenum mode, GLint first, GLsizei count);
