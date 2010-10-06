@@ -932,6 +932,52 @@ TEST_F(LoginControllerTest, ShowEntriesAfterTheyGetPixmaps) {
   }
 }
 
+// Test that the login controller handles screen resizes.
+TEST_F(LoginControllerTest, Resize) {
+  const XWindow root_xid = xconn_->GetRootWindow();
+  MockXConnection::WindowInfo* root_info = xconn_->GetWindowInfoOrDie(root_xid);
+
+  Rect small_bounds = root_info->bounds;
+  Rect large_bounds(
+      Point(0, 0), Size(small_bounds.width + 256, small_bounds.height + 256));
+
+  // Create a background window but no entries or wizard window.
+  CreateLoginWindows(0, true, false, false);
+  MockXConnection::WindowInfo* bg_info =
+      xconn_->GetWindowInfoOrDie(background_xid_);
+  EXPECT_EQ(small_bounds.size(), bg_info->bounds.size());
+
+  // Resize the root window and check that the background gets resized.
+  xconn_->ResizeWindow(root_xid, large_bounds.size());
+  XEvent event;
+  xconn_->InitConfigureNotifyEvent(&event, root_xid);
+  wm_->HandleEvent(&event);
+  EXPECT_EQ(large_bounds.size(), bg_info->bounds.size());
+
+  // Now create some login entries.
+  const int kNumEntries = 2;
+  CreateLoginWindows(kNumEntries, true, true, false);
+  EXPECT_EQ(large_bounds, bg_info->bounds);
+
+  MockXConnection::WindowInfo* first_image_info =
+      xconn_->GetWindowInfoOrDie(entries_[0].image_xid);
+  Rect first_image_bounds = first_image_info->bounds;
+  MockXConnection::WindowInfo* second_image_info =
+      xconn_->GetWindowInfoOrDie(entries_[1].image_xid);
+  Rect second_image_bounds = second_image_info->bounds;
+
+  // Make the root window smaller.  Both entries' image windows should
+  // shift up and to the left to compensate for the smaller screen size.
+  xconn_->ResizeWindow(root_xid, small_bounds.size());
+  xconn_->InitConfigureNotifyEvent(&event, root_xid);
+  wm_->HandleEvent(&event);
+  EXPECT_EQ(small_bounds.size(), bg_info->bounds.size());
+  EXPECT_LT(first_image_info->bounds.x, first_image_bounds.x);
+  EXPECT_LT(first_image_info->bounds.y, first_image_bounds.y);
+  EXPECT_LT(second_image_info->bounds.x, second_image_bounds.x);
+  EXPECT_LT(second_image_info->bounds.y, second_image_bounds.y);
+}
+
 }  // namespace window_manager
 
 int main(int argc, char** argv) {

@@ -36,6 +36,10 @@ struct Point {
     y = new_y;
   }
 
+  bool operator==(const Point& o) const {
+    return x == o.x && y == o.y;
+  }
+
   int x;
   int y;
 };
@@ -47,6 +51,10 @@ struct Size {
   void reset(int new_width, int new_height) {
     width = new_width;
     height = new_height;
+  }
+
+  bool operator==(const Size& o) const {
+    return width == o.width && height == o.height;
   }
 
   int width;
@@ -105,6 +113,10 @@ struct Rect {
       y = std::min(y, other.y);
       height = y_max - y;
     }
+  }
+
+  bool operator==(const Rect& o) const {
+    return x == o.x && y == o.y && width == o.width && height == o.height;
   }
 
   int x;

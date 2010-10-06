@@ -120,7 +120,25 @@ bool LoginController::IsInputWindow(XWindow xid) {
 }
 
 void LoginController::HandleScreenResize() {
-  NOTIMPLEMENTED();
+  if (requested_destruction_)
+    return;
+
+  if (background_window_)
+    background_window_->ResizeClient(wm_->width(), wm_->height(),
+                                     GRAVITY_NORTHWEST);
+
+  if (all_windows_are_ready_ &&
+      is_entry_selection_enabled_ &&
+      !waiting_for_browser_window_) {
+    vector<Point> origins;
+    CalculateIdealOrigins(&origins);
+    for (size_t i = 0; i < entries_.size(); ++i) {
+      if (!entries_[i]->has_all_windows())
+        continue;
+      entries_[i]->UpdatePositionAndScale(
+          origins[i], i == selected_entry_index_, 0);
+    }
+  }
 }
 
 void LoginController::HandleLoggedInStateChange() {
