@@ -230,6 +230,11 @@ class Compositor {
   virtual void SetActiveVisibilityGroups(
       const std::tr1::unordered_set<int>& groups) = 0;
 
+  // Convenience methods to clear the current set of visibility groups (so
+  // we display all actors) or display just a single group.
+  void ResetActiveVisibilityGroups();
+  void SetActiveVisibilityGroup(int group);
+
   // Draw the scene.  This happens automatically as needed but can also be
   // triggered manually.
   virtual void Draw() = 0;

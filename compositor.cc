@@ -8,6 +8,7 @@
 #include <cstdio>
 
 using std::string;
+using std::tr1::unordered_set;
 
 namespace window_manager {
 
@@ -89,6 +90,17 @@ int Compositor::Actor::GetTiltedWidth(int width, double tilt) {
   double theta = tilt * M_PI / 2.0;
   double x_scale_factor = cos(theta) / (0.4 * sin(theta) + 1.0);
   return static_cast<int>(width * x_scale_factor + 0.5);
+}
+
+void Compositor::ResetActiveVisibilityGroups() {
+  unordered_set<int> groups;
+  SetActiveVisibilityGroups(groups);
+}
+
+void Compositor::SetActiveVisibilityGroup(int group) {
+  unordered_set<int> groups;
+  groups.insert(group);
+  SetActiveVisibilityGroups(groups);
 }
 
 }  // namespace window_manager

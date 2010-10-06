@@ -26,10 +26,8 @@ ScreenLockerHandler::ScreenLockerHandler(WindowManager* wm)
 }
 
 ScreenLockerHandler::~ScreenLockerHandler() {
-  if (is_locked()) {
-    unordered_set<int> visibility_groups;
-    wm_->compositor()->SetActiveVisibilityGroups(visibility_groups);
-  }
+  if (is_locked())
+    wm_->compositor()->ResetActiveVisibilityGroups();
 }
 
 void ScreenLockerHandler::HandleScreenResize() {
@@ -73,9 +71,8 @@ void ScreenLockerHandler::HandleWindowMap(Window* win) {
   if (!was_locked) {
     DLOG(INFO) << "First screen locker window " << win->xid_str()
                << " mapped; hiding other windows";
-    unordered_set<int> visibility_groups;
-    visibility_groups.insert(WindowManager::VISIBILITY_GROUP_SCREEN_LOCKER);
-    wm_->compositor()->SetActiveVisibilityGroups(visibility_groups);
+    wm_->compositor()->SetActiveVisibilityGroup(
+        WindowManager::VISIBILITY_GROUP_SCREEN_LOCKER);
 
     // Redraw and then let Chrome know that we're ready for the system to
     // be suspended now.
@@ -98,8 +95,7 @@ void ScreenLockerHandler::HandleWindowUnmap(Window* win) {
   if (!is_locked()) {
     DLOG(INFO) << "Last screen locker window " << win->xid_str()
                << " unmapped; unhiding other windows";
-    unordered_set<int> visibility_groups;
-    wm_->compositor()->SetActiveVisibilityGroups(visibility_groups);
+    wm_->compositor()->ResetActiveVisibilityGroups();
   }
 }
 

@@ -103,6 +103,10 @@ static const int kUnacceleratedGraphicsActorHideTimeoutMs = 15000;
 // hiding it?
 static const int kUnacceleratedGraphicsActorHideAnimMs = 500;
 
+// How quickly should we animate the screen zooming out when shutting down?
+// It needs to be pretty fast, since we'd like to finish before we get killed.
+static const int kShutdownAnimMs = 150;
+
 // How frequently should we send _NET_WM_PING messages to Chrome, and how
 // long should we wait for a response to each before killing the process?
 static const int kPingChromeFrequencyMs = 5000;
@@ -210,6 +214,8 @@ WindowManager::WindowManager(EventLoop* event_loop,
       stage_(NULL),
       stage_xid_(0),
       overlay_xid_(0),
+      startup_pixmap_(0),
+      shutdown_pixmap_(0),
       mapped_xids_(new Stacker<XWindow>),
       stacked_xids_(new Stacker<XWindow>),
       active_window_xid_(0),
@@ -232,6 +238,8 @@ WindowManager::~WindowManager() {
     xconn_->DestroyWindow(wm_xid_);
   if (startup_pixmap_)
     xconn_->FreePixmap(startup_pixmap_);
+  if (shutdown_pixmap_)
+    xconn_->FreePixmap(shutdown_pixmap_);
   if (query_keyboard_state_timeout_id_ >= 0)
     event_loop_->RemoveTimeout(query_keyboard_state_timeout_id_);
   if (chrome_watchdog_timeout_id_ >= 0)
@@ -1388,6 +1396,8 @@ void WindowManager::HandleClientMessage(const XClientMessageEvent& e) {
       wm_ipc_version_ = msg.param(0);
       LOG(INFO) << "Got WM_NOTIFY_IPC_VERSION message saying that Chrome is "
                 << "using version " << wm_ipc_version_;
+    } else if (msg.type() == chromeos::WM_IPC_MESSAGE_WM_NOTIFY_SHUTTING_DOWN) {
+      DisplayShutdownAnimation();
     } else {
       DLOG(INFO) << "Decoded " << chromeos::WmIpcMessageTypeToString(msg.type())
                  << " message";
@@ -2065,6 +2075,27 @@ void WindowManager::DestroyLoginControllerInternal() {
 void WindowManager::PingChrome() {
   chrome_watchdog_->SendPingToChrome(GetCurrentTimeFromServer(),
                                      kPingChromeTimeoutMs);
+}
+
+void WindowManager::DisplayShutdownAnimation() {
+  // Grab an image of the screen, stuff it into an actor, make sure that it's
+  // the only thing getting displayed onscreen, and animate it scaling down and
+  // fading out.
+  shutdown_pixmap_ =
+      xconn_->CreatePixmap(root_, Size(width_, height_), root_depth_);
+  xconn_->CopyArea(root_,             // src
+                   shutdown_pixmap_,  // dest
+                   Point(0, 0),       // src_pos
+                   Point(0, 0),       // dest_pos
+                   Size(width_, height_));
+  shutdown_actor_.reset(compositor_->CreateTexturePixmap());
+  shutdown_actor_->SetPixmap(shutdown_pixmap_);
+  stage_->AddActor(shutdown_actor_.get());
+  shutdown_actor_->AddToVisibilityGroup(VISIBILITY_GROUP_SHUTDOWN);
+  compositor_->SetActiveVisibilityGroup(VISIBILITY_GROUP_SHUTDOWN);
+  shutdown_actor_->Move(width_ / 2, height_ / 2, kShutdownAnimMs);
+  shutdown_actor_->Scale(0, 0, kShutdownAnimMs);
+  shutdown_actor_->SetOpacity(0, kShutdownAnimMs);
 }
 
 }  // namespace window_manager

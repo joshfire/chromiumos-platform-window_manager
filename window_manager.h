@@ -59,6 +59,7 @@ class WindowManager : public PanelManagerAreaChangeListener,
   // See Compositor::SetActiveVisibilityGroups().
   enum VisibilityGroups {
     VISIBILITY_GROUP_SCREEN_LOCKER = 1,
+    VISIBILITY_GROUP_SHUTDOWN = 2,
   };
 
   WindowManager(EventLoop* event_loop,
@@ -419,6 +420,10 @@ class WindowManager : public PanelManagerAreaChangeListener,
   // chrome_watchdog_->SendPingToChrome().
   void PingChrome();
 
+  // Called when we're notified that the system is shutting down to display a
+  // quick animation.
+  void DisplayShutdownAnimation();
+
   EventLoop* event_loop_;   // not owned
   XConnection* xconn_;      // not owned
   Compositor* compositor_;  // not owned
@@ -435,6 +440,12 @@ class WindowManager : public PanelManagerAreaChangeListener,
 
   Compositor::StageActor* stage_;  // not owned
 
+  // Window containing the compositor's stage.
+  XWindow stage_xid_;
+
+  // XComposite overlay window.
+  XWindow overlay_xid_;
+
   // If we're started before the user has logged in, this displays the
   // initial contents of the root window.  We use this as a background.
   scoped_ptr<Compositor::TexturePixmapActor> startup_background_;
@@ -443,11 +454,12 @@ class WindowManager : public PanelManagerAreaChangeListener,
   // We copy the root window here.
   XPixmap startup_pixmap_;
 
-  // Window containing the compositor's stage.
-  XWindow stage_xid_;
+  // Actor that we display onscreen while shutting down.  We copy the root
+  // window to 'shutdown_pixmap_' and display it here.
+  scoped_ptr<Compositor::TexturePixmapActor> shutdown_actor_;
 
-  // XComposite overlay window.
-  XWindow overlay_xid_;
+  // Screenshot of the screen used during shutdown.
+  XPixmap shutdown_pixmap_;
 
   scoped_ptr<AtomCache> atom_cache_;
   scoped_ptr<StackingManager> stacking_manager_;
