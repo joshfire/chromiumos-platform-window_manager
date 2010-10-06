@@ -120,6 +120,10 @@ class StackingManager {
   bool StackWindowRelativeToOtherWindow(
       Window* win, Window* sibling, bool above, Layer layer);
 
+  // Stack a compositor actor above or below another actor.
+  void StackActorRelativeToOtherActor(
+      Compositor::Actor* actor, Compositor::Actor* sibling, bool above);
+
   // If 'xid' is being used as a layer's stacking reference point, return
   // the actor corresponding to the layer.  Returns NULL otherwise.
   Compositor::Actor* GetActorIfLayerXid(XWindow xid);

@@ -99,6 +99,16 @@ bool StackingManager::StackWindowRelativeToOtherWindow(
          win->StackClientBelow(sibling->xid());
 }
 
+void StackingManager::StackActorRelativeToOtherActor(
+    Compositor::Actor* actor, Compositor::Actor* sibling, bool above) {
+  DCHECK(actor);
+  DCHECK(sibling);
+  if (above)
+    actor->Raise(sibling);
+  else
+    actor->Lower(sibling);
+}
+
 Compositor::Actor* StackingManager::GetActorIfLayerXid(XWindow xid) {
   map<XWindow, Layer>::const_iterator it = xid_to_layer_.find(xid);
   if (it == xid_to_layer_.end())

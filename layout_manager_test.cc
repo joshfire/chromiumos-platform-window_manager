@@ -601,6 +601,11 @@ TEST_F(LayoutManagerTest, Resize) {
   EXPECT_DOUBLE_EQ(1.0, win->composited_scale_x());
   EXPECT_DOUBLE_EQ(1.0, win->composited_scale_y());
 
+  // Ditto for the rectangle that we use to dim everything when a modal
+  // dialog is up.
+  EXPECT_EQ(root_info->bounds.width, lm_->modal_lightbox_->GetWidth());
+  EXPECT_EQ(root_info->bounds.height, lm_->modal_lightbox_->GetHeight());
+
   // Now resize the screen and check that both the layout manager and
   // client are also resized.
   const int new_width = root_info->bounds.width / 2;
@@ -633,6 +638,9 @@ TEST_F(LayoutManagerTest, Resize) {
           new_height * LayoutManager::kBackgroundExpansionFactor + 0.5f),
       static_cast<int>(
           background->GetHeight() * background->GetYScale() + 0.5f));
+
+  EXPECT_EQ(root_info->bounds.width, lm_->modal_lightbox_->GetWidth());
+  EXPECT_EQ(root_info->bounds.height, lm_->modal_lightbox_->GetHeight());
 
   // Now check that background config works with different aspects.
   background->SetSize(root_info->bounds.width * 2, root_info->bounds.height);
@@ -1716,6 +1724,12 @@ TEST_F(LayoutManagerTest, DeferAnimationsUntilPainted) {
 // window gets mapped, or when the modal hint is set on an existing
 // transient window.
 TEST_F(LayoutManagerTest, SwitchToToplevelWithModalTransient) {
+  MockCompositor::StageActor* stage = compositor_->GetDefaultStage();
+  MockCompositor::ColoredBoxActor* lightbox_actor =
+      dynamic_cast<MockCompositor::ColoredBoxActor*>(
+          lm_->modal_lightbox_.get());
+  CHECK(lightbox_actor);
+
   // Create two toplevel windows.
   XWindow xid1 = CreateToplevelWindow(2, 0, 0, 0, 200, 200);
   SendInitialEventsForWindow(xid1);
@@ -1728,8 +1742,14 @@ TEST_F(LayoutManagerTest, SwitchToToplevelWithModalTransient) {
   EXPECT_EQ(xid2, GetActiveWindowProperty());
   EXPECT_FALSE(WindowIsOffscreen(xid2));
 
+  // At first, we shouldn't be showing the actor that we use to dim windows
+  // behind modal dialogs, and key bindings should be enabled.
+  EXPECT_DOUBLE_EQ(0.0, lightbox_actor->opacity());
+  EXPECT_TRUE(lm_->active_mode_key_bindings_group_->enabled());
+
   // Create an already-modal transient window for the first toplevel.
-  // We should switch to the first toplevel and focus its transient.
+  // We should switch to the first toplevel and focus its transient, along
+  // with dimming the background and disabling key bindings.
   XWindow transient_xid1 = CreateSimpleWindow();
   xconn_->GetWindowInfoOrDie(transient_xid1)->transient_for = xid1;
   AppendAtomToProperty(transient_xid1,
@@ -1740,6 +1760,15 @@ TEST_F(LayoutManagerTest, SwitchToToplevelWithModalTransient) {
   EXPECT_EQ(transient_xid1, xconn_->focused_xid());
   EXPECT_EQ(transient_xid1, GetActiveWindowProperty());
   EXPECT_TRUE(WindowIsOffscreen(xid2));
+  EXPECT_GT(lightbox_actor->opacity(), 0.0);
+  EXPECT_FALSE(lm_->active_mode_key_bindings_group_->enabled());
+
+  // The actor that we use to dim the background should be stacked directly
+  // below the modal dialog's bottom actor (which is its shadow, in this
+  // case).
+  EXPECT_EQ(stage->GetStackingIndex(
+                wm_->GetWindowOrDie(transient_xid1)->GetBottomActor()) + 1,
+            stage->GetStackingIndex(lightbox_actor));
 
   // Create a non-modal transient for the second toplevel.  We should still
   // be showing the first toplevel.
@@ -1760,10 +1789,30 @@ TEST_F(LayoutManagerTest, SwitchToToplevelWithModalTransient) {
   EXPECT_EQ(transient_xid2, xconn_->focused_xid());
   EXPECT_EQ(transient_xid2, GetActiveWindowProperty());
   EXPECT_FALSE(WindowIsOffscreen(xid2));
+  EXPECT_GT(lightbox_actor->opacity(), 0.0);
+  EXPECT_FALSE(lm_->active_mode_key_bindings_group_->enabled());
+  EXPECT_EQ(stage->GetStackingIndex(
+                wm_->GetWindowOrDie(transient_xid2)->GetBottomActor()) + 1,
+            stage->GetStackingIndex(lightbox_actor));
 
-  // Destroy the two transients and switch to overview mode.
-  SendUnmapAndDestroyEventsForWindow(transient_xid1);
+  // Destroy the second transient window and check that we switch back to
+  // the first one, since it's still modal.
   SendUnmapAndDestroyEventsForWindow(transient_xid2);
+  EXPECT_FALSE(WindowIsOffscreen(xid1));
+  EXPECT_EQ(transient_xid1, xconn_->focused_xid());
+  EXPECT_EQ(transient_xid1, GetActiveWindowProperty());
+  EXPECT_TRUE(WindowIsOffscreen(xid2));
+  EXPECT_GT(lightbox_actor->opacity(), 0.0);
+  EXPECT_FALSE(lm_->active_mode_key_bindings_group_->enabled());
+  EXPECT_EQ(stage->GetStackingIndex(
+                wm_->GetWindowOrDie(transient_xid1)->GetBottomActor()) + 1,
+            stage->GetStackingIndex(lightbox_actor));
+
+  // Now destroy the first window, check that we undimmed and re-enabled
+  // key bindings, and then switch to overview mode.
+  SendUnmapAndDestroyEventsForWindow(transient_xid1);
+  EXPECT_DOUBLE_EQ(0.0, lightbox_actor->opacity());
+  EXPECT_TRUE(lm_->active_mode_key_bindings_group_->enabled());
   lm_->SetMode(LayoutManager::MODE_OVERVIEW);
   ASSERT_TRUE(WindowIsOffscreen(xid1));
   ASSERT_TRUE(WindowIsOffscreen(xid2));
@@ -1783,6 +1832,12 @@ TEST_F(LayoutManagerTest, SwitchToToplevelWithModalTransient) {
   EXPECT_EQ(transient_xid3, xconn_->focused_xid());
   EXPECT_EQ(transient_xid3, GetActiveWindowProperty());
   EXPECT_TRUE(WindowIsOffscreen(xid2));
+  EXPECT_GT(lightbox_actor->opacity(), 0.0);
+  EXPECT_FALSE(lm_->active_mode_key_bindings_group_->enabled());
+  EXPECT_EQ(stage->GetStackingIndex(
+                wm_->GetWindowOrDie(transient_xid3)->GetBottomActor()) + 1,
+            stage->GetStackingIndex(lightbox_actor));
+  SendUnmapAndDestroyEventsForWindow(transient_xid3);
 
   // Switch back to overview mode, create a non-modal transient for the
   // second window, and check that we don't exit overview mode.
@@ -1803,6 +1858,18 @@ TEST_F(LayoutManagerTest, SwitchToToplevelWithModalTransient) {
   EXPECT_EQ(transient_xid4, xconn_->focused_xid());
   EXPECT_EQ(transient_xid4, GetActiveWindowProperty());
   EXPECT_FALSE(WindowIsOffscreen(xid2));
+  EXPECT_GT(lightbox_actor->opacity(), 0.0);
+  EXPECT_FALSE(lm_->active_mode_key_bindings_group_->enabled());
+  EXPECT_EQ(stage->GetStackingIndex(
+                wm_->GetWindowOrDie(transient_xid4)->GetBottomActor()) + 1,
+            stage->GetStackingIndex(lightbox_actor));
+
+  // Now unmap the toplevel window owning the transient and check that we
+  // undim the screen and re-enable bindings again.
+  SendUnmapAndDestroyEventsForWindow(xid2);
+  EXPECT_FALSE(WindowIsOffscreen(xid1));
+  EXPECT_DOUBLE_EQ(0.0, lightbox_actor->opacity());
+  EXPECT_TRUE(lm_->active_mode_key_bindings_group_->enabled());
 }
 
 // Test that when we see a transient window claim to be owned by a

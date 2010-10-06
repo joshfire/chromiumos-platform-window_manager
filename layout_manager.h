@@ -9,6 +9,7 @@
 #include <map>
 #include <string>
 #include <tr1/memory>
+#include <tr1/unordered_set>
 
 #include <gtest/gtest_prod.h>  // for FRIEND_TEST() macro
 
@@ -405,6 +406,14 @@ class LayoutManager : public EventConsumer,
   // Set things up after we see the first toplevel Chrome window get mapped.
   void HandleFirstToplevelChromeWindowMapped(Window* win);
 
+  // Handle a change in a transient window's modality.  If it became modal,
+  // we switch to its owner, dim everything underneath the transient
+  // window, and disable keyboard shortcuts.  This method is also invoked
+  // when the window's _NET_WM_STATE_MODAL hint didn't change, but either
+  // the window or its owner was unmapped.
+  void HandleTransientWindowModalityChange(Window* transient_win,
+                                           bool window_or_owner_was_unmapped);
+
   WindowManager* wm_;            // not owned
   PanelManager* panel_manager_;  // not owned
 
@@ -522,6 +531,13 @@ class LayoutManager : public EventConsumer,
   // 'should_layout_windows_after_initial_pixmap_'?  We avoid animating if
   // this is the first browser window, but leave this set to true after that.
   bool should_animate_after_initial_pixmap_;
+
+  // Transient windows that have the _NET_WM_STATE_MODAL hint set.
+  std::tr1::unordered_set<Window*> modal_transients_;
+
+  // Partially-transparent black rectangle that we display beneath a modal
+  // transient window to emphasize the window.
+  scoped_ptr<Compositor::ColoredBoxActor> modal_lightbox_;
 
   DISALLOW_COPY_AND_ASSIGN(LayoutManager);
 };

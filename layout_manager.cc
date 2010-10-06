@@ -58,6 +58,14 @@ static const double kSeparatorHeightRatio = 0.8;
 // The width of the separator in pixels.
 static const int kSeparatorWidth = 2;
 
+// Opacity of the black rectangle that we use to dim everything in the
+// background when a modal dialog is being displayed.
+static const double kModalLightboxOpacity = 0.5;
+
+// Duration in milliseconds over which we dim and undim the background when
+// a modal dialog is mapped and unmapped.
+static const int kModalLightboxFadeMs = 100;
+
 // Various keybinding action names (finally made into static globals since
 // they keep getting typoed).
 static const char* kSwitchToOverviewModeAction = "switch-to-overview-mode";
@@ -122,7 +130,10 @@ LayoutManager::LayoutManager(WindowManager* wm, PanelManager* panel_manager)
       background_xid_(
           wm_->CreateInputWindow(0, 0, wm_->width(), wm_->height(), 0)),
       should_layout_windows_after_initial_pixmap_(false),
-      should_animate_after_initial_pixmap_(false) {
+      should_animate_after_initial_pixmap_(false),
+      modal_lightbox_(
+          wm_->compositor()->CreateColoredBox(
+              wm_->width(), wm_->height(), Compositor::Color(0, 0, 0))) {
   wm_->focus_manager()->RegisterFocusChangeListener(this);
   panel_manager_->RegisterAreaChangeListener(this);
   panel_manager_->GetArea(&panel_manager_left_width_,
@@ -140,6 +151,11 @@ LayoutManager::LayoutManager(WindowManager* wm, PanelManager* panel_manager)
   if (!FLAGS_background_image.empty())
     SetBackground(
         wm_->compositor()->CreateImageFromFile(FLAGS_background_image));
+
+  modal_lightbox_->SetName("modal window lightbox");
+  modal_lightbox_->SetOpacity(0, 0);
+  modal_lightbox_->Show();
+  wm_->stage()->AddActor(modal_lightbox_.get());
 
   int event_mask = ButtonPressMask | ButtonReleaseMask | PointerMotionMask;
   wm_->xconn()->AddButtonGrabOnWindow(
@@ -319,6 +335,7 @@ void LayoutManager::HandleScreenResize() {
   if (background_xid_)
     wm_->xconn()->ResizeWindow(background_xid_,
                                Size(wm_->width(), wm_->height()));
+  modal_lightbox_->SetSize(wm_->width(), wm_->height());
 
   // Make sure the snapshot windows and hidden transient client windows are
   // still offscreen.
@@ -530,15 +547,16 @@ void LayoutManager::HandleWindowUnmap(Window* win) {
           GetToplevelWindowOwningTransientWindow(*win);
 
       if (toplevel_owner) {
+        if (win->wm_state_modal())
+          HandleTransientWindowModalityChange(win, true);  // unmapped=true
         bool transient_had_focus = win->IsFocused();
         toplevel_owner->HandleTransientWindowUnmap(win);
         if (transient_to_toplevel_.erase(win->xid()) != 1)
           LOG(WARNING) << "No transient-to-toplevel mapping for "
                        << win->xid_str();
-        if (transient_had_focus) {
+        if (transient_had_focus)
           toplevel_owner->TakeFocus(wm_->GetCurrentTimeFromServer());
-          break;
-        }
+        break;
       }
 
       ToplevelWindow* toplevel = GetToplevelWindowByWindow(*win);
@@ -691,7 +709,7 @@ void LayoutManager::HandleClientMessage(XWindow xid,
         map<XAtom, bool> new_state;
         new_state[it->first] = it->second;
         win->ChangeWmState(new_state);
-        DisplayAndFocusToplevel(owner);
+        HandleTransientWindowModalityChange(win, false);  // unmapped=false
       }
     }
   } else if (message_type == wm_->GetXAtom(ATOM_NET_ACTIVE_WINDOW)) {
@@ -1090,7 +1108,7 @@ void LayoutManager::HandleTransientWindowMap(Window* win) {
   if (win->wm_state_modal()) {
     // If the transient is modal, make sure that it gets the focus and that
     // we're showing its toplevel window.
-    DisplayAndFocusToplevel(toplevel_owner);
+    HandleTransientWindowModalityChange(win, false);  // unmapped=false
   } else if (toplevel_owner->IsWindowOrTransientFocused()) {
     // The transient is non-modal, but we tell its toplevel to take the
     // focus if it's shown so it can pass the focus to the transient if it
@@ -1530,7 +1548,6 @@ void LayoutManager::DisplayAndFocusToplevel(ToplevelWindow* toplevel) {
   }
 }
 
-
 void LayoutManager::EnableKeyBindingsForMode(Mode mode) {
   switch (mode) {
     case MODE_ACTIVE:
@@ -1641,6 +1658,19 @@ void LayoutManager::RemoveToplevel(ToplevelWindow* toplevel) {
   DLOG(INFO) << "Removing toplevel " << toplevel->win()->xid_str()
              << " at index " << index;
 
+  // Find any transient windows associated with this toplevel window
+  // and remove them.
+  XWindowToToplevelMap::iterator transient_iter =
+      transient_to_toplevel_.begin();
+  while (transient_iter != transient_to_toplevel_.end()) {
+    if (transient_iter->second == toplevel) {
+      HandleTransientWindowModalityChange(
+          wm_->GetWindowOrDie(transient_iter->first), true);  // unmapped=true
+      transient_to_toplevel_.erase(transient_iter);
+    }
+    ++transient_iter;
+  }
+
   // Find any snapshots that reference this toplevel window, and
   // remove them.
   {
@@ -1651,16 +1681,6 @@ void LayoutManager::RemoveToplevel(ToplevelWindow* toplevel) {
         remaining.push_back(*it);
     }
     snapshots_.swap(remaining);
-  }
-
-  // Find any transient windows associated with this toplevel window
-  // and remove them.
-  XWindowToToplevelMap::iterator transient_iter =
-      transient_to_toplevel_.begin();
-  while (transient_iter != transient_to_toplevel_.end()) {
-    if (transient_iter->second == toplevel)
-      transient_to_toplevel_.erase(transient_iter);
-    ++transient_iter;
   }
 
   // Find a new active toplevel window if needed.  If there's no
@@ -1865,6 +1885,59 @@ void LayoutManager::HandleFirstToplevelChromeWindowMapped(Window* win) {
       fprintf(file, "%lu", win->xid());
       fclose(file);
     }
+  }
+}
+
+void LayoutManager::HandleTransientWindowModalityChange(
+    Window* transient_win, bool window_or_owner_was_unmapped) {
+  DCHECK(transient_win);
+
+  const bool was_modal = modal_transients_.count(transient_win);
+  const bool is_modal = !window_or_owner_was_unmapped &&
+                        transient_win->wm_state_modal();
+  if (was_modal == is_modal)
+    return;
+
+  const bool previously_had_modal_transients = !modal_transients_.empty();
+
+  Window* win_to_stack_lightbox_under = NULL;
+
+  if (is_modal) {
+    modal_transients_.insert(transient_win);
+    ToplevelWindow* owner =
+        GetToplevelWindowOwningTransientWindow(*transient_win);
+    DCHECK(owner);
+    if (owner)
+      DisplayAndFocusToplevel(owner);
+    win_to_stack_lightbox_under = transient_win;
+  } else {
+    modal_transients_.erase(transient_win);
+
+    // If there are still other modal windows, focus one of them.
+    if (!modal_transients_.empty()) {
+      Window* new_win_to_focus = *(modal_transients_.begin());
+      ToplevelWindow* owner =
+          GetToplevelWindowOwningTransientWindow(*new_win_to_focus);
+      DCHECK(owner);
+      if (owner)
+        DisplayAndFocusToplevel(owner);
+      win_to_stack_lightbox_under = new_win_to_focus;
+    }
+  }
+
+  if (win_to_stack_lightbox_under) {
+    wm_->stacking_manager()->StackActorRelativeToOtherActor(
+        modal_lightbox_.get(),
+        win_to_stack_lightbox_under->GetBottomActor(),
+        false);  // above=false
+  }
+
+  if (previously_had_modal_transients && modal_transients_.empty()) {
+    modal_lightbox_->SetOpacity(0, kModalLightboxFadeMs);
+    EnableKeyBindingsForMode(mode_);
+  } else if (!previously_had_modal_transients && !modal_transients_.empty()) {
+    modal_lightbox_->SetOpacity(kModalLightboxOpacity, kModalLightboxFadeMs);
+    DisableKeyBindingsForMode(mode_);
   }
 }
 
