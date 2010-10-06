@@ -37,7 +37,7 @@ base_env.Append(CPPPATH=['..'])
 
 # We need glib-2.0 ONLY to satisfy libbase.
 # TODO(derat): Weep.
-base_env.Append(LIBS=Split('base gflags glib-2.0 rt'))
+base_env.Append(LIBS=Split('base gflags glib-2.0 pthread rt'))
 
 base_env.ParseConfig('pkg-config --cflags --libs glib-2.0 x11')
 
