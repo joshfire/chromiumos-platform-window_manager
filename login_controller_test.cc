@@ -978,6 +978,38 @@ TEST_F(LoginControllerTest, Resize) {
   EXPECT_LT(second_image_info->bounds.y, second_image_bounds.y);
 }
 
+TEST_F(LoginControllerTest, LoginEntryStackOrder) {
+  CreateLoginWindows(2, true, true, true);
+  MockCompositor::StageActor* stage = compositor_->GetDefaultStage();
+  // entries_[0] --- existing user entry
+  // entries_[1] --- guest entry
+  // entries_[2] --- new user entry
+  for (int i = 0; i < 3; ++i) {
+    Window* border = wm_->GetWindowOrDie(entries_[0].border_xid);
+    Window* image = wm_->GetWindowOrDie(entries_[0].image_xid);
+    Window* controls = wm_->GetWindowOrDie(entries_[0].controls_xid);
+    Window* label = wm_->GetWindowOrDie(entries_[0].label_xid);
+    Window* unselected_label =
+        wm_->GetWindowOrDie(entries_[0].unselected_label_xid);
+    // Stacks the windows. The stacking we care about is:
+    // 1. the image_window is above the border_window;
+    EXPECT_LT(stage->GetStackingIndex(image->actor()),
+              stage->GetStackingIndex(border->actor()))
+        << "entry: " << i;
+    // 2. the controls_window is above the border window;
+    EXPECT_LT(stage->GetStackingIndex(controls->actor()),
+              stage->GetStackingIndex(border->actor()))
+        << "entry: " << i;
+    // 3. the label_window is above the image_window.
+    EXPECT_LT(stage->GetStackingIndex(label->actor()),
+              stage->GetStackingIndex(image->actor()))
+        << "entry: " << i;
+    EXPECT_LT(stage->GetStackingIndex(unselected_label->actor()),
+              stage->GetStackingIndex(image->actor()))
+        << "entry: " << i;
+  }
+}
+
 }  // namespace window_manager
 
 int main(int argc, char** argv) {

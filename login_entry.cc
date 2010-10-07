@@ -133,7 +133,7 @@ size_t LoginEntry::GetUserCount() const {
   return border_window_->type_params()[1];
 }
 
-bool LoginEntry::IsGuest() const {
+bool LoginEntry::IsNewUser() const {
   return GetUserIndex(border_window_) == GetUserCount() - 1;
 }
 
@@ -144,8 +144,6 @@ void LoginEntry::InitSizes() {
   int unselected_image_size = border_window_->type_params()[2];
   padding_ = border_window_->type_params()[3];
 
-  label_height_ = label_window_->client_height();
-  unselected_label_height_ = unselected_label_window_->client_height();
   border_width_ = border_window_->client_width();
   border_to_controls_gap_ = (border_width_ - image_window_->client_width()) / 2;
   border_height_ = border_window_->client_height();
@@ -191,7 +189,7 @@ void LoginEntry::ScaleCompositeWindows(bool is_selected, int anim_ms) {
                                     unselected_border_scale_y_, anim_ms);
     image_window_->ScaleComposited(unselected_image_scale_x_,
                                    unselected_image_scale_y_, anim_ms);
-    if (IsGuest()) {
+    if (IsNewUser()) {
       int unselected_image_size = border_window_->type_params()[2];
       double unselected_guest_scale_y =
           static_cast<double>(unselected_image_size) /
@@ -213,7 +211,7 @@ void LoginEntry::UpdateClientWindows(const Point& origin, bool is_selected) {
   int width = image_window_->client_width();
   int height = image_window_->client_height();
   if (is_selected) {
-    if (!IsGuest())
+    if (!IsNewUser())
       image_window_->MoveClientToComposited();
   } else {
     // Move client to cover whole border plus gap between border and label.
@@ -251,21 +249,25 @@ void LoginEntry::UpdatePositionAndScale(const Point& origin, bool is_selected,
   int y = origin.y + border_to_controls_gap_;
   image_window_->MoveComposited(x, y, anim_ms);
 
-  if (!IsGuest()) {
-    if (is_selected)
-      y += image_window_->client_height() + border_to_controls_gap_;
-    else
-      y = origin.y + unselected_border_height_ - border_to_controls_gap_;
+  if (!IsNewUser()) {
+    if (is_selected) {
+      y += image_window_->client_height() - label_window_->client_height();
+    } else {
+      y = origin.y + unselected_border_height_ -
+          unselected_label_window_->client_height() - border_to_controls_gap_;
+    }
+
+    label_window_->MoveComposited(x, y, anim_ms);
+    unselected_label_window_->MoveComposited(x, y, anim_ms);
+
+    if (is_selected) {
+      y += label_window_->client_height() + border_to_controls_gap_;
+    } else {
+      y += unselected_label_window_->client_height() + border_to_controls_gap_;
+    }
   }
+
   controls_window_->MoveComposited(x, y, anim_ms);
-
-  if (is_selected)
-    y = origin.y + border_height_ + border_to_controls_gap_;
-  else
-    y = origin.y + unselected_border_height_ + border_to_controls_gap_;
-
-  label_window_->MoveComposited(x, y, anim_ms);
-  unselected_label_window_->MoveComposited(x, y, anim_ms);
 
   ScaleCompositeWindows(is_selected, anim_ms);
   UpdateClientWindows(origin, is_selected);
@@ -278,7 +280,7 @@ void LoginEntry::FadeIn(const Point& origin, bool is_selected, int anim_ms) {
   border_window_->SetCompositedOpacity(1, anim_ms);
 
   if (is_selected) {
-    if (!IsGuest()) {
+    if (!IsNewUser()) {
       image_window_->ShowComposited();
       image_window_->SetCompositedOpacity(1, anim_ms);
     }
@@ -324,7 +326,7 @@ void LoginEntry::Select(const Point& origin, int anim_ms) {
   UpdatePositionAndScale(origin, true, anim_ms);
 
   controls_window_->ShowComposited();
-  if (IsGuest()) {
+  if (IsNewUser()) {
     controls_window_->SetCompositedOpacity(1, anim_ms);
     image_window_->SetCompositedOpacity(0, anim_ms);
   } else {
@@ -342,7 +344,7 @@ void LoginEntry::Deselect(const Point& origin, int anim_ms) {
 
   UpdatePositionAndScale(origin, false, anim_ms);
 
-  if (IsGuest()) {
+  if (IsNewUser()) {
     image_window_->ShowComposited();
     controls_window_->SetCompositedOpacity(0, anim_ms);
     image_window_->SetCompositedOpacity(1, anim_ms);
@@ -358,7 +360,7 @@ void LoginEntry::ProcessSelectionChangeCompleted(bool is_selected) {
   DCHECK(sizes_initialized_);
 
   if (is_selected) {
-    if (IsGuest())
+    if (IsNewUser())
       image_window_->HideComposited();
     unselected_label_window_->HideComposited();
   } else {
@@ -372,13 +374,13 @@ void LoginEntry::StackWindows() {
   DCHECK(sizes_initialized_);
 
   wm_->stacking_manager()->StackWindowAtTopOfLayer(
-      unselected_label_window_, StackingManager::LAYER_LOGIN_WINDOW);
-  wm_->stacking_manager()->StackWindowAtTopOfLayer(
-      label_window_, StackingManager::LAYER_LOGIN_WINDOW);
-  wm_->stacking_manager()->StackWindowAtTopOfLayer(
       border_window_, StackingManager::LAYER_LOGIN_WINDOW);
   wm_->stacking_manager()->StackWindowAtTopOfLayer(
       image_window_, StackingManager::LAYER_LOGIN_WINDOW);
+  wm_->stacking_manager()->StackWindowAtTopOfLayer(
+      unselected_label_window_, StackingManager::LAYER_LOGIN_WINDOW);
+  wm_->stacking_manager()->StackWindowAtTopOfLayer(
+      label_window_, StackingManager::LAYER_LOGIN_WINDOW);
   wm_->stacking_manager()->StackWindowAtTopOfLayer(
       controls_window_, StackingManager::LAYER_LOGIN_WINDOW);
 }

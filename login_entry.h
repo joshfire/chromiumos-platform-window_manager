@@ -49,14 +49,14 @@ class LoginEntry {
   bool HasAllPixmaps() const;
 
   int selected_width() const { return border_width_; }
-  int selected_height() const { return border_height_ + label_height_; }
+  int selected_height() const { return border_height_; }
   int unselected_width() const { return unselected_border_width_; }
   int unselected_height() const { return unselected_border_height_; }
   int padding() const { return padding_; }
 
   // Get number of users.
   size_t GetUserCount() const;
-  bool IsGuest() const;
+  bool IsNewUser() const;
 
   // Set corresponding windows for the entry.
   void SetBorderWindow(Window* win);
@@ -87,9 +87,10 @@ class LoginEntry {
   // Invoked when the selection change completes.
   void ProcessSelectionChangeCompleted(bool is_selected);
 
-  // Stacks the windows. The only stacking we care about is that the
-  // image_window is above the border_window and the controls_window is above
-  // the border window.
+  // Stacks the windows. The stacking we care about is:
+  // 1. the image_window is above the border_window;
+  // 2. the controls_window is above the border window;
+  // 3. the label_window is above the image_window.
   void StackWindows();
 
  private:
@@ -125,10 +126,6 @@ class LoginEntry {
 
   // Gap between border and image.
   int border_to_controls_gap_;
-
-  // Size of the label window.
-  int label_height_;
-  int unselected_label_height_;
 
   // Various scales.
   float unselected_border_scale_x_;
