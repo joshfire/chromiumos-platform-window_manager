@@ -29,6 +29,7 @@ class MockXConnection : public XConnection {
  public:
   static const int kDisplayWidth;
   static const int kDisplayHeight;
+  static const XID kTransparentCursor;
 
   MockXConnection();
   ~MockXConnection();
@@ -61,10 +62,12 @@ class MockXConnection : public XConnection {
                                      int event_mask,
                                      bool synchronous);
   virtual bool RemoveButtonGrabOnWindow(XWindow xid, int button);
-  virtual bool AddPointerGrabForWindow(XWindow xid,
-                                       int event_mask,
-                                       XTime timestamp);
-  virtual bool RemovePointerGrab(bool replay_events, XTime timestamp);
+  virtual bool GrabPointer(XWindow xid,
+                           int event_mask,
+                           XTime timestamp,
+                           XID cursor);
+  virtual bool UngrabPointer(bool replay_events, XTime timestamp);
+  virtual bool GrabKeyboard(XWindow xid, XTime timestamp);
   virtual bool RemoveInputRegionFromWindow(XWindow xid) { return true; }
   virtual bool SetInputRegionForWindow(XWindow xid, const Rect& rect) {
     return true;
@@ -139,7 +142,12 @@ class MockXConnection : public XConnection {
                         int drawable_depth,
                         scoped_ptr_malloc<uint8_t>* data_out,
                         ImageFormat* format_out);
-  virtual bool SetWindowCursor(XWindow xid, uint32 shape);
+  virtual bool SetWindowCursor(XWindow xid, XID cursor);
+  virtual XID CreateShapedCursor(uint32 shape) {
+    return static_cast<XID>(shape);
+  }
+  virtual XID CreateTransparentCursor() { return kTransparentCursor; }
+  virtual void FreeCursor(XID cursor) {}
   virtual bool GetParentWindow(XWindow xid, XWindow* parent_out);
   virtual bool GetChildWindows(XWindow xid, std::vector<XWindow>* children_out);
   virtual void RefreshKeyboardMap(int request,
@@ -206,7 +214,12 @@ class MockXConnection : public XConnection {
     std::map<XAtom, std::vector<int> > int_properties;
     std::map<XAtom, std::string> string_properties;
     XWindow transient_for;
-    uint32 cursor;
+
+    // Cursor assigned to this window via SetWindowCursor().  Note that our
+    // implementation of CreateShapedCursor() just casts the shape into an XID,
+    // so this will contain the shape that was used in the common case.
+    XID cursor;
+
     XConnection::SizeHints size_hints;
 
     // Window's shape, if it's been shaped using the shape extension.
@@ -294,6 +307,7 @@ class MockXConnection : public XConnection {
   XWindow focused_xid() const { return focused_xid_; }
   XTime last_focus_timestamp() const { return last_focus_timestamp_; }
   XWindow pointer_grab_xid() const { return pointer_grab_xid_; }
+  XWindow keyboard_grab_xid() const { return keyboard_grab_xid_; }
   int num_keymap_refreshes() const { return num_keymap_refreshes_; }
   bool using_detectable_keyboard_auto_repeat() const {
     return using_detectable_keyboard_auto_repeat_;
@@ -326,6 +340,9 @@ class MockXConnection : public XConnection {
   // Set a window as having an active pointer grab.  This is handy when
   // simulating a passive button grab being upgraded due to a button press.
   void set_pointer_grab_xid(XWindow xid) { pointer_grab_xid_ = xid; }
+
+  // Set a window as having the keyboard grabbed.
+  void set_keyboard_grab_xid(XWindow xid) { keyboard_grab_xid_ = xid; }
 
   // Append an event to the queue used by IsEventPending() and
   // GetNextEvent() and optionally write a single byte to
@@ -456,8 +473,9 @@ class MockXConnection : public XConnection {
   // incremented by 10 each time WaitForPropertyChange() is called.
   XTime current_time_;
 
-  // Window that has currently grabbed the pointer, or None.
+  // Window that has currently grabbed the pointer or keyboard, or 0.
   XWindow pointer_grab_xid_;
+  XWindow keyboard_grab_xid_;
 
   // Keys that have been grabbed (pairs are key codes and modifiers).
   std::set<std::pair<KeyCode, uint32> > grabbed_keys_;
@@ -494,7 +512,7 @@ class MockXConnection : public XConnection {
   // Event queue used by IsEventPending() and GetNextEvent().
   std::queue<XEvent> queued_events_;
 
-  // The number of times that RemovePointerGrab() has been invoked with
+  // The number of times that UngrabPointer() has been invoked with
   // 'replay_events' set to true.
   int num_pointer_ungrabs_with_replayed_events_;
 

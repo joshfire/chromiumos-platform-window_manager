@@ -207,9 +207,9 @@ class Window {
   // window.  When any button is pressed, a _synchronous_ active pointer
   // grab will be installed.  Note that this means that no pointer events
   // will be received until the pointer grab is manually removed using
-  // XConnection::RemovePointerGrab() -- this can be used to ensure that
-  // the client receives the initial click on its window when implementing
-  // click-to-focus behavior.
+  // XConnection::UngrabPointer() -- this can be used to ensure that the client
+  // receives the initial click on its window when implementing click-to-focus
+  // behavior.
   //
   // Most callers should use FocusManager::UseClickToFocusForWindow(),
   // which will handle all of this for them.

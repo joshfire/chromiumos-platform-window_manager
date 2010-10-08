@@ -25,6 +25,7 @@ class EventConsumerRegistrar;
 class PanelManager;
 class TransientWindowCollection;
 class WindowManager;
+class XConnection;
 
 // A panel, representing a pop-up window.  Each panel consists of a content
 // window (the panel's contents) and a titlebar window (a small window

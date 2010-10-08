@@ -198,9 +198,9 @@ class XConnection {
   // when all of the buttons are released, the pointer grab will be
   // automatically removed.  If 'synchronous' is true, no further pointer
   // events will be reported until the the pointer grab is manually removed
-  // using RemovePointerGrab() -- this is useful in conjunction with
-  // RemovePointerGrab()'s 'replay_events' parameter to send initial clicks
-  // to client apps when implementing click-to-focus behavior.
+  // using UngrabPointer() -- this is useful in conjunction with
+  // UngrabPointer()'s 'replay_events' parameter to send initial clicks to
+  // client apps when implementing click-to-focus behavior.
   virtual bool AddButtonGrabOnWindow(XWindow xid,
                                      int button,
                                      int event_mask,
@@ -209,19 +209,25 @@ class XConnection {
   // Uninstall a passive button grab.
   virtual bool RemoveButtonGrabOnWindow(XWindow xid, int button) = 0;
 
-  // Grab the pointer asynchronously, such that all subsequent events
-  // matching 'event_mask' will be reported to the calling client.  Returns
-  // false if an error occurs or if the grab fails (e.g. because it's
-  // already grabbed by another client).
-  virtual bool AddPointerGrabForWindow(XWindow xid,
-                                       int event_mask,
-                                       XTime timestamp) = 0;
+  // Grab the pointer asynchronously, such that all subsequent events matching
+  // 'event_mask' will be reported to the calling client.  If 'cursor' is
+  // non-zero, it will be displayed for the duration of the grab.  Returns false
+  // if an error occurs or if the grab fails (e.g. because it's already grabbed
+  // by another client).
+  virtual bool GrabPointer(XWindow xid,
+                           int event_mask,
+                           XTime timestamp,
+                           XID cursor) = 0;
 
   // Remove a pointer grab, possibly also replaying the pointer events that
   // occurred during it if it was synchronous and 'replay_events' is true
   // (sending them to the original window instead of just to the grabbing
   // client).
-  virtual bool RemovePointerGrab(bool replay_events, XTime timestamp) = 0;
+  virtual bool UngrabPointer(bool replay_events, XTime timestamp) = 0;
+
+  // Grab the keyboard asynchronously, such that all subsequent key events will
+  // be reported to the calling client.
+  virtual bool GrabKeyboard(XWindow xid, XTime timestamp) = 0;
 
   // Remove the input region from a window, so that events fall through it.
   virtual bool RemoveInputRegionFromWindow(XWindow xid) = 0;
@@ -409,7 +415,18 @@ class XConnection {
 
   // Change the cursor for a window.  'shape' is a definition from
   // Xlib's cursorfont.h header.
-  virtual bool SetWindowCursor(XWindow xid, uint32 shape) = 0;
+  virtual bool SetWindowCursor(XWindow xid, XID cursor) = 0;
+
+  // Create a cursor based in a given standard style.  'shape' is a definition
+  // from Xlib's cursorfont.h header.
+  virtual XID CreateShapedCursor(uint32 shape) = 0;
+
+  // Create a transparent cursor.  Returns 0 on failure.
+  virtual XID CreateTransparentCursor() = 0;
+
+  // Free a cursor previously allocated using CreateShapedCursor() or
+  // CreateTransparentCursor().
+  virtual void FreeCursor(XID cursor) = 0;
 
   // Get the parent window of 'xid'.  Sets 'parent_out' to 0 if passed the
   // root window.

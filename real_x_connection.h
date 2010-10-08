@@ -52,10 +52,12 @@ class RealXConnection : public XConnection {
                                      int event_mask,
                                      bool synchronous);
   virtual bool RemoveButtonGrabOnWindow(XWindow xid, int button);
-  virtual bool AddPointerGrabForWindow(XWindow xid,
-                                       int event_mask,
-                                       XTime timestamp);
-  virtual bool RemovePointerGrab(bool replay_events, XTime timestamp);
+  virtual bool GrabPointer(XWindow xid,
+                           int event_mask,
+                           XTime timestamp,
+                           XID cursor);
+  virtual bool UngrabPointer(bool replay_events, XTime timestamp);
+  virtual bool GrabKeyboard(XWindow xid, XTime timestamp);
   virtual bool RemoveInputRegionFromWindow(XWindow xid);
   virtual bool SetInputRegionForWindow(XWindow xid, const Rect& rect);
   virtual bool GetSizeHintsForWindow(XWindow xid, SizeHints* hints_out);
@@ -127,7 +129,10 @@ class RealXConnection : public XConnection {
                         int drawable_depth,
                         scoped_ptr_malloc<uint8_t>* data_out,
                         ImageFormat* format_out);
-  virtual bool SetWindowCursor(XWindow xid, uint32 shape);
+  virtual bool SetWindowCursor(XWindow xid, XID cursor);
+  virtual XID CreateShapedCursor(uint32 shape);
+  virtual XID CreateTransparentCursor();
+  virtual void FreeCursor(XID cursor);
   virtual bool GetParentWindow(XWindow xid, XWindow* parent_out);
   virtual bool GetChildWindows(XWindow xid, std::vector<XWindow>* children_out);
   virtual void RefreshKeyboardMap(int request,
@@ -210,9 +215,6 @@ class RealXConnection : public XConnection {
                            int* format_out,
                            XAtom* type_out);
 
-  // Get the font cursor with the given ID, loading it if necessary.
-  xcb_cursor_t GetCursorInternal(uint32 shape);
-
   // Check for an error caused by the XCB request using the passed-in
   // cookie.  If found, logs a warning of the form "Got XCB error while
   // [format]", with additional arguments printf-ed into 'format', and
@@ -234,9 +236,6 @@ class RealXConnection : public XConnection {
   // ID for the UTF8_STRING atom (we look this up ourselves so as to avoid
   // a circular dependency with AtomCache).
   XAtom utf8_string_atom_;
-
-  // Map from cursor shapes to their XIDs.
-  std::map<uint32, xcb_cursor_t> cursors_;
 
   DISALLOW_COPY_AND_ASSIGN(RealXConnection);
 };

@@ -224,6 +224,7 @@ WindowManager::WindowManager(EventLoop* event_loop,
       unredirected_fullscreen_xid_(0),
       wm_ipc_version_(1),
       logged_in_(false),
+      shutting_down_(false),
       initialize_logging_(false),
       last_video_time_(-1),
       hide_unaccelerated_graphics_actor_timeout_id_(-1),
@@ -1397,7 +1398,7 @@ void WindowManager::HandleClientMessage(const XClientMessageEvent& e) {
       LOG(INFO) << "Got WM_NOTIFY_IPC_VERSION message saying that Chrome is "
                 << "using version " << wm_ipc_version_;
     } else if (msg.type() == chromeos::WM_IPC_MESSAGE_WM_NOTIFY_SHUTTING_DOWN) {
-      DisplayShutdownAnimation();
+      HandleShutdown();
     } else {
       DLOG(INFO) << "Decoded " << chromeos::WmIpcMessageTypeToString(msg.type())
                  << " message";
@@ -1683,10 +1684,15 @@ void WindowManager::HandleEnterNotify(const XEnterWindowEvent& e) {
 }
 
 void WindowManager::HandleKeyPress(const XKeyEvent& e) {
+  // We grab the keyboard while shutting down; ignore any events that we get.
+  if (shutting_down_)
+    return;
   key_bindings_->HandleKeyPress(e.keycode, e.state, e.time);
 }
 
 void WindowManager::HandleKeyRelease(const XKeyEvent& e) {
+  if (shutting_down_)
+    return;
   key_bindings_->HandleKeyRelease(e.keycode, e.state, e.time);
 }
 
@@ -2077,7 +2083,19 @@ void WindowManager::PingChrome() {
                                      kPingChromeTimeoutMs);
 }
 
-void WindowManager::DisplayShutdownAnimation() {
+void WindowManager::HandleShutdown() {
+  if (shutting_down_)
+    return;
+
+  shutting_down_ = true;
+
+  XID cursor = xconn_->CreateTransparentCursor();
+  xconn_->SetWindowCursor(root_, cursor);
+  xconn_->GrabPointer(root_, 0, 0, cursor);
+  if (cursor)
+    xconn_->FreeCursor(cursor);
+  xconn_->GrabKeyboard(root_, 0);
+
   // Grab an image of the screen, stuff it into an actor, make sure that it's
   // the only thing getting displayed onscreen, and animate it scaling down and
   // fading out.

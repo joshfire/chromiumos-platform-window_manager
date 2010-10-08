@@ -128,10 +128,6 @@ RealXConnection::RealXConnection(XDisplay* display)
 }
 
 RealXConnection::~RealXConnection() {
-  for (map<uint32, xcb_cursor_t>::const_iterator it = cursors_.begin();
-       it != cursors_.end(); ++it) {
-    xcb_free_cursor(xcb_conn_, it->second);
-  }
   CHECK(XSetErrorHandler(old_error_handler) == &HandleXError)
       << "Our error handler was replaced with someone else's";
 }
@@ -290,9 +286,10 @@ bool RealXConnection::RemoveButtonGrabOnWindow(XWindow xid, int button) {
   return true;
 }
 
-bool RealXConnection::AddPointerGrabForWindow(XWindow xid,
-                                              int event_mask,
-                                              XTime timestamp) {
+bool RealXConnection::GrabPointer(XWindow xid,
+                                  int event_mask,
+                                  XTime timestamp,
+                                  XID cursor) {
   xcb_grab_pointer_cookie_t cookie =
       xcb_grab_pointer(xcb_conn_,
                        0,                    // owner_events
@@ -301,7 +298,7 @@ bool RealXConnection::AddPointerGrabForWindow(XWindow xid,
                        XCB_GRAB_MODE_ASYNC,  // pointer_mode
                        XCB_GRAB_MODE_ASYNC,  // keyboard_mode
                        XCB_NONE,             // confine_to
-                       XCB_NONE,             // cursor
+                       cursor,
                        timestamp);
   xcb_generic_error_t* error = NULL;
   scoped_ptr_malloc<xcb_grab_pointer_reply_t> reply(
@@ -320,11 +317,36 @@ bool RealXConnection::AddPointerGrabForWindow(XWindow xid,
   return true;
 }
 
-bool RealXConnection::RemovePointerGrab(bool replay_events, XTime timestamp) {
+bool RealXConnection::UngrabPointer(bool replay_events, XTime timestamp) {
   if (replay_events)
     xcb_allow_events(xcb_conn_, XCB_ALLOW_REPLAY_POINTER, timestamp);
   else
     xcb_ungrab_pointer(xcb_conn_, timestamp);
+  return true;
+}
+
+bool RealXConnection::GrabKeyboard(XWindow xid, XTime timestamp) {
+  xcb_grab_keyboard_cookie_t cookie =
+      xcb_grab_keyboard(xcb_conn_,
+                        0,                     // owner_events
+                        xid,
+                        timestamp,
+                        XCB_GRAB_MODE_ASYNC,   // pointer_mode
+                        XCB_GRAB_MODE_ASYNC);  // keyboard_mode
+  xcb_generic_error_t* error = NULL;
+  scoped_ptr_malloc<xcb_grab_keyboard_reply_t> reply(
+      xcb_grab_keyboard_reply(xcb_conn_, cookie, &error));
+  scoped_ptr_malloc<xcb_generic_error_t> scoped_error(error);
+  if (error) {
+    LOG(WARNING) << "Keyboard grab for window " << XidStr(xid) << " failed";
+    return false;
+  }
+
+  if (reply->status != XCB_GRAB_STATUS_SUCCESS) {
+    LOG(WARNING) << "Keyboard grab for window " << XidStr(xid)
+                 << " returned status " << reply->status;
+    return false;
+  }
   return true;
 }
 
@@ -1042,11 +1064,53 @@ bool RealXConnection::GetImage(XID drawable,
   return true;
 }
 
-bool RealXConnection::SetWindowCursor(XWindow xid, uint32 shape) {
+bool RealXConnection::SetWindowCursor(XWindow xid, XID cursor) {
   uint32_t value_mask = XCB_CW_CURSOR;
-  uint32_t values[] = { GetCursorInternal(shape) };
+  uint32_t values[] = { cursor };
   xcb_change_window_attributes(xcb_conn_, xid, value_mask, values);
   return true;
+}
+
+XID RealXConnection::CreateShapedCursor(uint32 shape) {
+  TrapErrors();
+  // XCreateFontCursor() tries to use the Xcursor library first before falling
+  // back on the default cursors from the "cursor" font.  Xcursor doesn't
+  // support XCB, but it lets us get nicer image-based cursors from our theme
+  // instead of the cruddy default cursors.
+  XID cursor = XCreateFontCursor(display_, shape);
+  if (int error = UntrapErrors()) {
+    LOG(WARNING) << "Got X error while creating cursor with shape " << shape
+                 << ": " << GetErrorText(error);
+    return 0;
+  }
+  return cursor;
+}
+
+XID RealXConnection::CreateTransparentCursor() {
+  TrapErrors();
+
+  static const char kEmptyData[] = { 0x01 };
+  XID bitmap = XCreateBitmapFromData(display_, root_, kEmptyData, 1, 1);
+  XColor black;
+  memset(&black, 0, sizeof(black));
+  XID cursor = XCreatePixmapCursor(
+      display_, bitmap, bitmap, &black, &black, 0, 0);
+
+  if (int error = UntrapErrors()) {
+    LOG(WARNING) << "Got X error while creating empty cursor: "
+                 << GetErrorText(error);
+    return 0;
+  }
+  return cursor;
+}
+
+void RealXConnection::FreeCursor(XID cursor) {
+  TrapErrors();
+  XFreeCursor(display_, cursor);
+  if (int error = UntrapErrors()) {
+    LOG(WARNING) << "Got X error while freeing cursor " << XidStr(cursor)
+                 << ": " << GetErrorText(error);
+  }
 }
 
 bool RealXConnection::GetParentWindow(XWindow xid, XWindow* parent_out) {
@@ -1393,20 +1457,6 @@ bool RealXConnection::GetPropertyInternal(XWindow xid,
     *type_out = reply->type;
 
   return true;
-}
-
-xcb_cursor_t RealXConnection::GetCursorInternal(uint32 shape) {
-  xcb_cursor_t cursor = FindWithDefault(
-      cursors_, shape, static_cast<xcb_cursor_t>(XCB_NONE));
-  if (cursor == XCB_NONE) {
-    // XCreateFontCursor() tries to use the Xcursor library first before
-    // falling back on the default cursors from the "cursor" font.  Xcursor
-    // doesn't support XCB, but it lets us get nicer image-based cursors
-    // from our theme instead of the cruddy default cursors.
-    cursor = XCreateFontCursor(display_, shape);
-    cursors_[shape] = cursor;
-  }
-  return cursor;
 }
 
 bool RealXConnection::CheckForXcbError(

@@ -273,6 +273,7 @@ class WindowManager : public PanelManagerAreaChangeListener,
   FRIEND_TEST(WindowManagerTest, ConfigureBackground);
   FRIEND_TEST(WindowManagerTest, VideoTimeProperty);
   FRIEND_TEST(WindowManagerTest, HandleTopFullscreenActorChange);
+  FRIEND_TEST(WindowManagerTest, HandleShutdown);
 
   typedef std::map<XWindow, std::set<EventConsumer*> > WindowEventConsumerMap;
   typedef std::map<std::pair<XWindow, XAtom>, std::set<EventConsumer*> >
@@ -422,7 +423,7 @@ class WindowManager : public PanelManagerAreaChangeListener,
 
   // Called when we're notified that the system is shutting down to display a
   // quick animation.
-  void DisplayShutdownAnimation();
+  void HandleShutdown();
 
   EventLoop* event_loop_;   // not owned
   XConnection* xconn_;      // not owned
@@ -559,6 +560,9 @@ class WindowManager : public PanelManagerAreaChangeListener,
   // window, but never transitions from true to false (the window manager
   // is restarted when the user logs out).
   bool logged_in_;
+
+  // Is the system shutting down?
+  bool shutting_down_;
 
   // Should we initialize the logging code when we switch between logged-in
   // and logged-out mode?  This defaults to off, since we typically don't

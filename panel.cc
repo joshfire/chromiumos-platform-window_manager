@@ -35,6 +35,25 @@ using std::string;
 using std::vector;
 using window_manager::util::XidStr;
 
+namespace {
+
+XID kTopCursor = 0;
+XID kTopLeftCursor = 0;
+XID kTopRightCursor = 0;
+XID kLeftCursor = 0;
+XID kRightCursor = 0;
+
+void InitCursors(window_manager::XConnection* xconn) {
+  DCHECK(!kTopCursor) << "Cursors were already created";
+  kTopCursor = xconn->CreateShapedCursor(XC_top_side);
+  kTopLeftCursor = xconn->CreateShapedCursor(XC_top_left_corner);
+  kTopRightCursor = xconn->CreateShapedCursor(XC_top_right_corner);
+  kLeftCursor = xconn->CreateShapedCursor(XC_left_side);
+  kRightCursor = xconn->CreateShapedCursor(XC_right_side);
+}
+
+}  // namespace
+
 namespace window_manager {
 
 // Amount of time to take to fade in the actor used for non-opaque resizes.
@@ -151,11 +170,13 @@ Panel::Panel(PanelManager* panel_manager,
   content_win_->CopyClientBoundsToRect(&content_bounds_);
   titlebar_win_->CopyClientBoundsToRect(&titlebar_bounds_);
 
-  wm()->xconn()->SetWindowCursor(top_input_xid_, XC_top_side);
-  wm()->xconn()->SetWindowCursor(top_left_input_xid_, XC_top_left_corner);
-  wm()->xconn()->SetWindowCursor(top_right_input_xid_, XC_top_right_corner);
-  wm()->xconn()->SetWindowCursor(left_input_xid_, XC_left_side);
-  wm()->xconn()->SetWindowCursor(right_input_xid_, XC_right_side);
+  if (!kTopCursor)
+    InitCursors(wm()->xconn());
+  wm()->xconn()->SetWindowCursor(top_input_xid_, kTopCursor);
+  wm()->xconn()->SetWindowCursor(top_left_input_xid_, kTopLeftCursor);
+  wm()->xconn()->SetWindowCursor(top_right_input_xid_, kTopRightCursor);
+  wm()->xconn()->SetWindowCursor(left_input_xid_, kLeftCursor);
+  wm()->xconn()->SetWindowCursor(right_input_xid_, kRightCursor);
 
   wm()->SetNamePropertiesForXid(
       top_input_xid_, string("top input window for panel ") + xid_str());
@@ -213,7 +234,7 @@ Panel::Panel(PanelManager* panel_manager,
 
 Panel::~Panel() {
   if (drag_xid_) {
-    wm()->xconn()->RemovePointerGrab(false, CurrentTime);
+    wm()->xconn()->UngrabPointer(false, 0);
     drag_xid_ = 0;
   }
   wm()->xconn()->DeselectInputOnWindow(titlebar_win_->xid(), EnterWindowMask);
@@ -290,7 +311,7 @@ void Panel::HandleInputWindowButtonRelease(
   // want the grab to end when the first button is released, to prevent the
   // user from essentially transferring the grab from one button to
   // another: see http://crosbug.com/4267.
-  wm()->xconn()->RemovePointerGrab(false, timestamp);
+  wm()->xconn()->UngrabPointer(false, timestamp);
   resize_event_coalescer_.StorePosition(x, y);
   resize_event_coalescer_.Stop();
   drag_xid_ = 0;

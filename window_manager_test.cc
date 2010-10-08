@@ -33,6 +33,7 @@
 #include "window_manager/util.h"
 #include "window_manager/window.h"
 #include "window_manager/window_manager.h"
+#include "window_manager/wm_ipc.h"
 
 DEFINE_bool(logtostderr, false,
             "Print debugging messages to stderr (suppressed otherwise)");
@@ -1401,6 +1402,37 @@ TEST_F(WindowManagerTest, HandleLateSyncRequestCounter) {
       &event, xid, xconn_->GetAtomOrDie("_NET_WM_SYNC_REQUEST_COUNTER"));
   wm_->HandleEvent(&event);
   EXPECT_NE(0, win->wm_sync_request_alarm_);
+}
+
+// Test that we do stuff in response to notification that the system is shutting
+// down.
+TEST_F(WindowManagerTest, HandleShutdown) {
+  WmIpc::Message msg;
+  msg.set_type(chromeos::WM_IPC_MESSAGE_WM_NOTIFY_SHUTTING_DOWN);
+  SendWmIpcMessage(msg);
+
+  // Check that we grabbed the pointer and keyboard and assigned a transparent
+  // cursor to the root window.
+  XWindow root = xconn_->GetRootWindow();
+  EXPECT_EQ(root, xconn_->pointer_grab_xid());
+  EXPECT_EQ(root, xconn_->keyboard_grab_xid());
+  EXPECT_EQ(MockXConnection::kTransparentCursor,
+            xconn_->GetWindowInfoOrDie(root)->cursor);
+
+  // Check that the actor used to display the shutdown animation has been
+  // initialized and that it's the only thing being displayed.
+  MockCompositor::TexturePixmapActor* actor =
+      dynamic_cast<MockCompositor::TexturePixmapActor*>(
+          wm_->shutdown_actor_.get());
+  ASSERT_TRUE(actor != NULL);
+  EXPECT_TRUE(actor->is_shown());
+  ASSERT_EQ(static_cast<size_t>(1), actor->visibility_groups().size());
+  EXPECT_EQ(WindowManager::VISIBILITY_GROUP_SHUTDOWN,
+            *(actor->visibility_groups().begin()));
+  ASSERT_EQ(static_cast<size_t>(1),
+            compositor_->active_visibility_groups().size());
+  EXPECT_EQ(WindowManager::VISIBILITY_GROUP_SHUTDOWN,
+            *(compositor_->active_visibility_groups().begin()));
 }
 
 }  // namespace window_manager

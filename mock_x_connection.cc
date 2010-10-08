@@ -34,6 +34,7 @@ namespace window_manager {
 
 const int MockXConnection::kDisplayWidth = 1024;
 const int MockXConnection::kDisplayHeight = 768;
+const XID MockXConnection::kTransparentCursor = 1000;  // arbitrary
 
 MockXConnection::MockXConnection()
     : windows_(),
@@ -56,6 +57,7 @@ MockXConnection::MockXConnection()
       last_focus_timestamp_(0),
       current_time_(0),
       pointer_grab_xid_(None),
+      keyboard_grab_xid_(None),
       num_keymap_refreshes_(0),
       pointer_pos_(0, 0),
       using_detectable_keyboard_auto_repeat_(false),
@@ -224,9 +226,10 @@ bool MockXConnection::RemoveButtonGrabOnWindow(XWindow xid, int button) {
   return true;
 }
 
-bool MockXConnection::AddPointerGrabForWindow(XWindow xid,
-                                              int event_mask,
-                                              XTime timestamp) {
+bool MockXConnection::GrabPointer(XWindow xid,
+                                  int event_mask,
+                                  XTime timestamp,
+                                  XID cursor) {
   WindowInfo* info = GetWindowInfo(xid);
   if (!info)
     return false;
@@ -239,10 +242,24 @@ bool MockXConnection::AddPointerGrabForWindow(XWindow xid,
   return true;
 }
 
-bool MockXConnection::RemovePointerGrab(bool replay_events, XTime timestamp) {
+bool MockXConnection::UngrabPointer(bool replay_events, XTime timestamp) {
   pointer_grab_xid_ = None;
   if (replay_events)
     num_pointer_ungrabs_with_replayed_events_++;
+  return true;
+}
+
+bool MockXConnection::GrabKeyboard(XWindow xid, XTime timestamp) {
+  WindowInfo* info = GetWindowInfo(xid);
+  if (!info)
+    return false;
+  if (keyboard_grab_xid_ != None) {
+    LOG(ERROR) << "Keyeboard is already grabbed for "
+               << XidStr(keyboard_grab_xid_)
+               << "; ignoring request to grab it for " << XidStr(xid);
+    return false;
+  }
+  keyboard_grab_xid_ = xid;
   return true;
 }
 
@@ -622,11 +639,11 @@ bool MockXConnection::GetImage(XID drawable,
   return true;
 }
 
-bool MockXConnection::SetWindowCursor(XWindow xid, uint32 shape) {
+bool MockXConnection::SetWindowCursor(XWindow xid, XID cursor) {
   WindowInfo* info = GetWindowInfo(xid);
   if (!info)
     return false;
-  info->cursor = shape;
+  info->cursor = cursor;
   return true;
 }
 
