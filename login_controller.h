@@ -83,6 +83,7 @@ class LoginController : public EventConsumer {
   FRIEND_TEST(LoginControllerTest, ClientOnOffScreen);
   FRIEND_TEST(LoginControllerTest, SelectTwice);
   FRIEND_TEST(LoginControllerTest, ShowEntriesAfterTheyGetPixmaps);
+  FRIEND_TEST(LoginControllerTest, LoginEntryRelativePositions);
 
   // SelectionChangedManager is used to cleanup after the selection changes.
   // When the selection changes |Schedule| is invoked on the

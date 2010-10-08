@@ -243,31 +243,42 @@ void LoginEntry::UpdatePositionAndScale(const Point& origin, bool is_selected,
                                         int anim_ms) {
   DCHECK(sizes_initialized_);
 
+  // Border window is always aligned with entry's origin.
   border_window_->MoveComposited(origin.x, origin.y, anim_ms);
 
-  int x = origin.x + border_to_controls_gap_;
-  int y = origin.y + border_to_controls_gap_;
-  image_window_->MoveComposited(x, y, anim_ms);
+  // Image window is always aligned with border, save the gap.
+  int image_x = origin.x + border_to_controls_gap_;
+  int image_y = origin.y + border_to_controls_gap_;
 
-  if (!IsNewUser()) {
-    if (is_selected) {
-      y += image_window_->client_height() - label_window_->client_height();
-    } else {
-      y = origin.y + unselected_border_height_ -
-          unselected_label_window_->client_height() - border_to_controls_gap_;
-    }
-
-    label_window_->MoveComposited(x, y, anim_ms);
-    unselected_label_window_->MoveComposited(x, y, anim_ms);
-
-    if (is_selected) {
-      y += label_window_->client_height() + border_to_controls_gap_;
-    } else {
-      y += unselected_label_window_->client_height() + border_to_controls_gap_;
-    }
+  int controls_x = image_x;
+  int controls_y = image_y;
+  int label_x = image_x;
+  int label_y = image_y;
+  if (IsNewUser()) {
+    // For New User entry controls window is always aligned with image,
+    // overlapping it if selected and hidden if not.
+    // Label is slightly below the border window.
+    int actual_border_height = unselected_border_height_;
+    if (is_selected)
+      actual_border_height = border_height_;
+    label_y = origin.y + actual_border_height + border_to_controls_gap_;
+  } else {
+    // For normal entries, label is aligned with the bottom of image,
+    // Controls window is below the image, mind the gap.
+    int label_height = unselected_label_window_->client_height();
+    if (is_selected)
+      label_height = label_window_->client_height();
+    int image_height = unselected_border_height_ - 2 * border_to_controls_gap_;
+    if (is_selected)
+      image_height = image_window_->client_height();
+    label_y = image_y + image_height - label_height;
+    controls_y = image_y + image_height + border_to_controls_gap_;
   }
 
-  controls_window_->MoveComposited(x, y, anim_ms);
+  image_window_->MoveComposited(image_x, image_y, anim_ms);
+  controls_window_->MoveComposited(controls_x, controls_y, anim_ms);
+  label_window_->MoveComposited(label_x, label_y, anim_ms);
+  unselected_label_window_->MoveComposited(label_x, label_y, anim_ms);
 
   ScaleCompositeWindows(is_selected, anim_ms);
   UpdateClientWindows(origin, is_selected);

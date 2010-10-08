@@ -238,6 +238,29 @@ class LoginControllerTest : public BasicWindowManagerTest {
     return window->composited_opacity();
   }
 
+  // A collection of bounds of login entry's composited windows.
+  struct EntryBounds {
+    Rect border;
+    Rect image;
+    Rect controls;
+    Rect label;
+    Rect unselected_label;
+  };
+
+  // Returns a vector of structures with bounds for all entries.
+  std::vector<EntryBounds> GetEntriesBounds() {
+    std::vector<EntryBounds> bounds(entries_.size(), EntryBounds());
+    for (size_t i = 0; i < entries_.size(); ++i) {
+      GetCompositedWindowBounds(entries_[i].border_xid, &bounds[i].border);
+      GetCompositedWindowBounds(entries_[i].image_xid, &bounds[i].image);
+      GetCompositedWindowBounds(entries_[i].controls_xid, &bounds[i].controls);
+      GetCompositedWindowBounds(entries_[i].label_xid, &bounds[i].label);
+      GetCompositedWindowBounds(entries_[i].unselected_label_xid,
+                                &bounds[i].unselected_label);
+    }
+    return bounds;
+  }
+
   // A collection of windows for a single login entry.
   struct EntryWindows {
     EntryWindows()
@@ -979,18 +1002,17 @@ TEST_F(LoginControllerTest, Resize) {
 }
 
 TEST_F(LoginControllerTest, LoginEntryStackOrder) {
-  CreateLoginWindows(2, true, true, true);
+  CreateLoginWindows(2, true, true, false);
   MockCompositor::StageActor* stage = compositor_->GetDefaultStage();
   // entries_[0] --- existing user entry
-  // entries_[1] --- guest entry
-  // entries_[2] --- new user entry
-  for (int i = 0; i < 3; ++i) {
-    Window* border = wm_->GetWindowOrDie(entries_[0].border_xid);
-    Window* image = wm_->GetWindowOrDie(entries_[0].image_xid);
-    Window* controls = wm_->GetWindowOrDie(entries_[0].controls_xid);
-    Window* label = wm_->GetWindowOrDie(entries_[0].label_xid);
+  // entries_[1] --- New User entry
+  for (size_t i = 0; i < entries_.size(); ++i) {
+    Window* border = wm_->GetWindowOrDie(entries_[i].border_xid);
+    Window* image = wm_->GetWindowOrDie(entries_[i].image_xid);
+    Window* controls = wm_->GetWindowOrDie(entries_[i].controls_xid);
+    Window* label = wm_->GetWindowOrDie(entries_[i].label_xid);
     Window* unselected_label =
-        wm_->GetWindowOrDie(entries_[0].unselected_label_xid);
+        wm_->GetWindowOrDie(entries_[i].unselected_label_xid);
     // Stacks the windows. The stacking we care about is:
     // 1. the image_window is above the border_window;
     EXPECT_LT(stage->GetStackingIndex(image->actor()),
@@ -1008,6 +1030,68 @@ TEST_F(LoginControllerTest, LoginEntryStackOrder) {
               stage->GetStackingIndex(image->actor()))
         << "entry: " << i;
   }
+}
+
+TEST_F(LoginControllerTest, LoginEntryRelativePositions) {
+  CreateLoginWindows(2, true, true, false);
+  std::vector<EntryBounds> bounds = GetEntriesBounds();
+
+  // First entry is an existing user/Guest entry and selected, so:
+  // - image window should be within borders window near the top,
+  EXPECT_GT(bounds[0].image.left(), bounds[0].border.left());
+  EXPECT_LT(bounds[0].image.right(), bounds[0].border.right());
+  EXPECT_GT(bounds[0].image.top(), bounds[0].border.top());
+  EXPECT_LT(bounds[0].image.bottom(), bounds[0].border.bottom());
+  // - label should be within image window at the bottom,
+  EXPECT_GE(bounds[0].label.left(), bounds[0].image.left());
+  EXPECT_LE(bounds[0].label.right(), bounds[0].image.right());
+  EXPECT_GT(bounds[0].label.top(), bounds[0].image.top());
+  EXPECT_LE(bounds[0].label.bottom(), bounds[0].image.bottom());
+  // - controls window should be within borders window below image window.
+  EXPECT_GT(bounds[0].controls.left(), bounds[0].border.left());
+  EXPECT_LT(bounds[0].controls.right(), bounds[0].border.right());
+  EXPECT_GT(bounds[0].controls.top(), bounds[0].border.top());
+  EXPECT_LT(bounds[0].controls.bottom(), bounds[0].border.bottom());
+  EXPECT_GT(bounds[0].controls.top(), bounds[0].image.bottom());
+
+  // Second entry is New User entry and is unselected, so:
+  // - image window should be within borders window in its center,
+  EXPECT_GT(bounds[1].image.left(), bounds[1].border.left());
+  EXPECT_LT(bounds[1].image.right(), bounds[1].border.right());
+  EXPECT_GT(bounds[1].image.top(), bounds[1].border.top());
+  EXPECT_LT(bounds[1].image.bottom(), bounds[1].border.bottom());
+  // - label should be under border window.
+  EXPECT_GE(bounds[1].unselected_label.left(), bounds[1].border.left());
+  EXPECT_GT(bounds[1].unselected_label.top(), bounds[1].border.bottom());
+  // - controls window is hidden, so no check here.
+
+  // Now select the guest entry.
+  SelectEntry(1);
+  login_controller_->ProcessSelectionChangeCompleted(0);
+
+  // First entry is an existing user/Guest entry and unselected, so:
+  // - image window should be within borders window in its center,
+  EXPECT_GT(bounds[0].image.left(), bounds[0].border.left());
+  EXPECT_LT(bounds[0].image.right(), bounds[0].border.right());
+  EXPECT_GT(bounds[0].image.top(), bounds[0].border.top());
+  EXPECT_LT(bounds[0].image.bottom(), bounds[0].border.bottom());
+  // - label should be within image window at the bottom,
+  EXPECT_GE(bounds[0].unselected_label.left(), bounds[0].image.left());
+  EXPECT_LE(bounds[0].unselected_label.right(), bounds[0].image.right());
+  EXPECT_GT(bounds[0].unselected_label.top(), bounds[0].image.top());
+  EXPECT_LE(bounds[0].unselected_label.bottom(), bounds[0].image.bottom());
+  // - controls window is hidden, so no check here.
+
+  // Second entry is New User entry and is selected, so:
+  // - image window is hidden, so no need to check for it,
+  // - label should be under border window,
+  EXPECT_GE(bounds[1].label.left(), bounds[1].border.left());
+  EXPECT_GT(bounds[1].label.top(), bounds[1].border.bottom());
+  // - controls window is should be within border window.
+  EXPECT_GT(bounds[1].controls.left(), bounds[1].border.left());
+  EXPECT_LT(bounds[1].controls.right(), bounds[1].border.right());
+  EXPECT_GT(bounds[1].controls.top(), bounds[1].border.top());
+  EXPECT_LT(bounds[1].controls.bottom(), bounds[1].border.bottom());
 }
 
 }  // namespace window_manager

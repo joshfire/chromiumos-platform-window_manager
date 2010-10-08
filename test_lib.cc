@@ -603,6 +603,15 @@ BasicWindowManagerTest::GetMockActorForWindow(Window* win) {
   return cast_actor;
 }
 
+void BasicWindowManagerTest::GetCompositedWindowBounds(
+    XWindow xid, Rect* bounds) const {
+  Window* window = wm_->GetWindowOrDie(xid);
+  bounds->reset(window->composited_x(),
+                window->composited_y(),
+                window->composited_width(),
+                window->composited_height());
+}
+
 
 BasicCompositingTest::~BasicCompositingTest() {}
 

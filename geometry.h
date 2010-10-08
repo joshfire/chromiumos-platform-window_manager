@@ -119,6 +119,11 @@ struct Rect {
     return x == o.x && y == o.y && width == o.width && height == o.height;
   }
 
+  int left() const { return x; }
+  int top() const { return y; }
+  int right() const { return x + width; }
+  int bottom() const { return y + height; }
+
   int x;
   int y;
   int width;

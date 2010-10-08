@@ -239,6 +239,10 @@ class BasicWindowManagerTest : public ::testing::Test {
   // Get the mock actor for the passed-in window.
   MockCompositor::TexturePixmapActor* GetMockActorForWindow(Window* win);
 
+  // Fills the rect specified with bounds of composited window attached to
+  // specified xid.
+  void GetCompositedWindowBounds(XWindow xid, Rect* bounds) const;
+
   scoped_ptr<EventLoop> event_loop_;
   scoped_ptr<MockXConnection> xconn_;
   scoped_ptr<MockCompositor> compositor_;
