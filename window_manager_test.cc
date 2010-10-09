@@ -897,16 +897,16 @@ TEST_F(WindowManagerTest, LoggedIn) {
 // MappingNotify event.
 TEST_F(WindowManagerTest, HandleMappingNotify) {
   // Check that a grab has been installed for an arbitrary key binding
-  // (Ctrl-Alt-l).
+  // (Ctrl-Alt-m).
   EXPECT_EQ(0, xconn_->num_keymap_refreshes());
-  const KeyCode old_keycode = xconn_->GetKeyCodeFromKeySym(XK_l);
+  const KeyCode old_keycode = xconn_->GetKeyCodeFromKeySym(XK_m);
   EXPECT_TRUE(xconn_->KeyIsGrabbed(old_keycode, ControlMask | Mod1Mask));
 
-  // Now remap the 'l' key and give the window manager a MappingNotify event.
+  // Now remap the 'm' key and give the window manager a MappingNotify event.
   const KeyCode new_keycode = 255;
   EXPECT_FALSE(xconn_->KeyIsGrabbed(new_keycode, ControlMask | Mod1Mask));
-  xconn_->RemoveKeyMapping(old_keycode, XK_l);
-  xconn_->AddKeyMapping(new_keycode, XK_l);
+  xconn_->RemoveKeyMapping(old_keycode, XK_m);
+  xconn_->AddKeyMapping(new_keycode, XK_m);
 
   XEvent event;
   XMappingEvent* mapping_event = &(event.xmapping);

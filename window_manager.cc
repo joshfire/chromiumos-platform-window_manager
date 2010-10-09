@@ -44,8 +44,6 @@ extern "C" {
 
 DEFINE_string(xterm_command, "xterm", "Command to launch a terminal");
 DEFINE_string(background_color, "#000", "Background color");
-DEFINE_string(lock_screen_command, "powerd_lock_screen",
-              "Command to lock the screen");
 DEFINE_string(configure_monitor_command,
               "/usr/sbin/monitor_reconfigure",
               "Command to configure an external monitor");
@@ -119,7 +117,6 @@ static const char* kLaunchTerminalAction = "launch-terminal";
 static const char* kToggleClientWindowDebuggingAction =
     "toggle-client-window-debugging";
 static const char* kToggleProfilerAction = "toggle-profiler";
-static const char* kLockScreenAction = "lock-screen";
 static const char* kConfigureMonitorAction = "configure-monitor";
 static const char* kToggleHotkeyOverlayAction = "toggle-hotkey-overlay";
 static const char* kTakeRootScreenshotAction = "take-root-screenshot";
@@ -1072,16 +1069,6 @@ void WindowManager::RegisterKeyBindings() {
       KeyBindings::KeyCombo(
           XK_p, KeyBindings::kControlMask | KeyBindings::kAltMask),
       kToggleProfilerAction);
-
-  key_bindings_actions_->AddAction(
-      kLockScreenAction,
-      NewPermanentCallback(
-          this, &WindowManager::RunCommand, FLAGS_lock_screen_command),
-      NULL, NULL);
-  logged_in_key_bindings_group_->AddBinding(
-      KeyBindings::KeyCombo(
-          XK_l, KeyBindings::kControlMask | KeyBindings::kAltMask),
-      kLockScreenAction);
 
   key_bindings_actions_->AddAction(
       kConfigureMonitorAction,
