@@ -321,6 +321,7 @@ bool WindowManager::Init() {
   CHECK(!root_) << "Init() may only be called once";
   root_ = xconn_->GetRootWindow();
   xconn_->SelectRandREventsOnWindow(root_);
+  xconn_->SelectInputOnWindow(root_, StructureNotifyMask, true);
   XConnection::WindowGeometry root_geometry;
   CHECK(xconn_->GetWindowGeometry(root_, &root_geometry));
   width_ = root_geometry.bounds.width;
@@ -432,8 +433,7 @@ bool WindowManager::Init() {
       xconn_->CreateScopedServerGrab());
   CHECK(xconn_->SelectInputOnWindow(
             root_,
-            SubstructureRedirectMask | StructureNotifyMask |
-              SubstructureNotifyMask,
+            SubstructureRedirectMask | SubstructureNotifyMask,
             true));  // preserve the existing event mask
   ManageExistingWindows();
   grab.reset();
