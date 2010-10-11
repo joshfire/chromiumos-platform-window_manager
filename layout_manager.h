@@ -137,6 +137,7 @@ class LayoutManager : public EventConsumer,
   FRIEND_TEST(LayoutManagerTest, DontGrabBackAndForwardKeysInActiveMode);
   FRIEND_TEST(LayoutManagerTest, SwitchToToplevelWithModalTransient);
   FRIEND_TEST(LayoutManagerTest, TransientOwnedByChildWindow);
+  FRIEND_TEST(LayoutManagerTest, CycleTabs);
 
   // Internal private class, declared in toplevel_window.h
   class ToplevelWindow;
@@ -334,6 +335,11 @@ class LayoutManager : public EventConsumer,
 
   // Cycle the current snapshot window.  Only makes sense in overview mode.
   void CycleCurrentSnapshotWindow(bool forward);
+
+  // Cycle the selected tab in the current window, switching to the next or
+  // previous window when we cycle off the end.  Only makes sense in active
+  // mode.
+  void CycleSelectedTab(bool forward);
 
   // Send a message to a window describing the current state of 'mode_'.
   // Does nothing if 'win' isn't a toplevel Chrome window.
