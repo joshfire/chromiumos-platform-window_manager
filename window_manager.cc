@@ -45,7 +45,7 @@ extern "C" {
 DEFINE_string(xterm_command, "xterm", "Command to launch a terminal");
 DEFINE_string(background_color, "#000", "Background color");
 DEFINE_string(configure_monitor_command,
-              "/usr/sbin/monitor_reconfigure",
+              "/usr/bin/monitor_reconfigure",
               "Command to configure an external monitor");
 DEFINE_string(screenshot_binary,
               "/usr/bin/screenshot",
