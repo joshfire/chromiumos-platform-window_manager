@@ -69,6 +69,13 @@ static void HandleLogAssert(const string& str) {
   abort();
 }
 
+// Handler called in response to Xlib I/O errors.  We install this so we won't
+// generate a window manager crash dump whenever the X server crashes.
+static int HandleXIOError(Display* display) {
+  LOG(ERROR) << "Got X I/O error (probably lost connection to server); exiting";
+  exit(EXIT_FAILURE);
+}
+
 int main(int argc, char** argv) {
   base::AtExitManager exit_manager;  // needed by base::Singleton
 
@@ -122,8 +129,12 @@ int main(int argc, char** argv) {
 
   const char* display_name = getenv("DISPLAY");
   Display* display = XOpenDisplay(display_name);
-  CHECK(display) << "Unable to open "
-                 << (display_name ? display_name : "default display");
+  if (!display) {
+    LOG(ERROR) << "Unable to open "
+               << (display_name ? display_name : "default display");
+    exit(EXIT_FAILURE);
+  }
+  XSetIOErrorHandler(HandleXIOError);
 
   RealXConnection xconn(display);
   EventLoop event_loop;
