@@ -23,7 +23,7 @@ XTERM_COMMAND="/usr/bin/cros-term"
 
 exec "${WM}"                                                            \
   --background_image="${IMAGES}/background_1024x600.png"                \
-  --hotkey_overlay_image_dir="${IMAGES}"                                \
+  --hotkey_overlay_image_dir="${IMAGES}/hotkey_overlay"                 \
   --initial_chrome_window_mapped_file="${INITIAL_CHROME_FILE}"          \
   --logged_in_log_dir="${LOGGED_IN_LOG_DIR}"                            \
   --logged_in_screenshot_output_dir="${LOGGED_IN_SCREENSHOT_DIR}"       \

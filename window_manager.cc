@@ -1084,8 +1084,16 @@ void WindowManager::RegisterKeyBindings() {
       kToggleHotkeyOverlayAction,
       NewPermanentCallback(this, &WindowManager::ToggleHotkeyOverlay),
       NULL, NULL);
-  // TODO: We don't have any keys bound to this for now; it'll be added
-  // back via another means later.
+  key_bindings_->AddBinding(
+      KeyBindings::KeyCombo(
+          XK_slash, KeyBindings::kControlMask | KeyBindings::kAltMask),
+      kToggleHotkeyOverlayAction);
+  key_bindings_->AddBinding(
+      KeyBindings::KeyCombo(
+          XK_slash,
+          KeyBindings::kControlMask | KeyBindings::kAltMask |
+            KeyBindings::kShiftMask),
+      kToggleHotkeyOverlayAction);
 
   key_bindings_actions_->AddAction(
       kTakeRootScreenshotAction,

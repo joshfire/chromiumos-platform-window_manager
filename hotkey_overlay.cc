@@ -12,7 +12,7 @@ extern "C" {
 #include "window_manager/compositor.h"
 #include "window_manager/x_connection.h"
 
-DEFINE_string(hotkey_overlay_image_dir, "../assets/images",
+DEFINE_string(hotkey_overlay_image_dir, "../assets/images/hotkey_overlay",
               "Path to directory containing hotkey overlay images");
 
 using std::map;
