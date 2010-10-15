@@ -90,7 +90,6 @@ static const char* kSelectSnapshotWithIndexActionFormat =
     "select-snapshot-with-index-%d";
 static const char* kSelectLastToplevelAction = "select-last-toplevel";
 static const char* kSelectLastSnapshotAction = "select-last-snapshot";
-static const char* kCloseCurrentToplevelAction = "close-current-toplevel";
 static const char* kPanOverviewModeLeftAction = "pan-overview-mode-left";
 static const char* kPanOverviewModeRightAction = "pan-overview-mode-right";
 
@@ -302,18 +301,6 @@ LayoutManager::LayoutManager(WindowManager* wm, PanelManager* panel_manager)
   overview_mode_key_bindings_group_->AddBinding(
       KeyBindings::KeyCombo(XK_9, KeyBindings::kAltMask),
       kSelectLastToplevelAction);
-
-  // TODO: When we support closing tabs in snapshot mode, we should
-  // bind that function to ctrl-w here.
-  key_bindings_actions_->AddAction(
-      kCloseCurrentToplevelAction,
-      NewPermanentCallback(
-          this, &LayoutManager::SendDeleteRequestToCurrentToplevel),
-      NULL, NULL);
-  active_mode_key_bindings_group_->AddBinding(
-      KeyBindings::KeyCombo(
-          XK_w, KeyBindings::kControlMask | KeyBindings::kShiftMask),
-      kCloseCurrentToplevelAction);
 
   // TODO: Choose better key bindings for panning in overview mode; these
   // were just stupid placeholders that were used for testing.
@@ -1562,14 +1549,6 @@ void LayoutManager::SendModeMessage(ToplevelWindow* toplevel, bool cancelled) {
   }
   msg.set_param(1, cancelled);
   wm_->wm_ipc()->SendMessage(toplevel->win()->xid(), msg);
-}
-
-void LayoutManager::SendDeleteRequestToCurrentToplevel() {
-  // TODO: If there's a focused transient window, the message should get
-  // sent to it instead.
-  if (mode_ == MODE_ACTIVE && current_toplevel_)
-    current_toplevel_->win()->SendDeleteRequest(
-        wm_->GetCurrentTimeFromServer());
 }
 
 void LayoutManager::PanOverviewMode(int offset) {
