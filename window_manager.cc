@@ -1052,6 +1052,7 @@ void WindowManager::RegisterKeyBindings() {
           XK_t, KeyBindings::kControlMask | KeyBindings::kAltMask),
       kLaunchTerminalAction);
 
+#ifndef NDEBUG
   key_bindings_actions_->AddAction(
       kToggleClientWindowDebuggingAction,
       NewPermanentCallback(this, &WindowManager::ToggleClientWindowDebugging),
@@ -1069,6 +1070,7 @@ void WindowManager::RegisterKeyBindings() {
       KeyBindings::KeyCombo(
           XK_p, KeyBindings::kControlMask | KeyBindings::kAltMask),
       kToggleProfilerAction);
+#endif
 
   key_bindings_actions_->AddAction(
       kConfigureMonitorAction,
@@ -1076,8 +1078,7 @@ void WindowManager::RegisterKeyBindings() {
                            FLAGS_configure_monitor_command),
       NULL, NULL);
   key_bindings_->AddBinding(
-      KeyBindings::KeyCombo(
-          XK_m, KeyBindings::kControlMask | KeyBindings::kAltMask),
+      KeyBindings::KeyCombo(XK_F4, KeyBindings::kControlMask),
       kConfigureMonitorAction);
 
   key_bindings_actions_->AddAction(
@@ -1100,7 +1101,7 @@ void WindowManager::RegisterKeyBindings() {
       NewPermanentCallback(this, &WindowManager::TakeScreenshot, false),
       NULL, NULL);
   key_bindings_->AddBinding(
-      KeyBindings::KeyCombo(XK_F4, KeyBindings::kControlMask),
+      KeyBindings::KeyCombo(XK_F5, KeyBindings::kControlMask),
       kTakeRootScreenshotAction);
   key_bindings_->AddBinding(
       KeyBindings::KeyCombo(XK_Print, 0), kTakeRootScreenshotAction);
