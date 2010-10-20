@@ -114,9 +114,11 @@ COMPILE_ASSERT(kPingChromeFrequencyMs > kPingChromeTimeoutMs,
 
 // Names of key binding actions that we register.
 static const char* kLaunchTerminalAction = "launch-terminal";
+#ifndef NDEBUG
 static const char* kToggleClientWindowDebuggingAction =
     "toggle-client-window-debugging";
 static const char* kToggleProfilerAction = "toggle-profiler";
+#endif
 static const char* kConfigureMonitorAction = "configure-monitor";
 static const char* kToggleHotkeyOverlayAction = "toggle-hotkey-overlay";
 static const char* kTakeRootScreenshotAction = "take-root-screenshot";
