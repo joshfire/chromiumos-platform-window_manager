@@ -2,6 +2,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#include <cmath>
+
 #include <gflags/gflags.h>
 #include <gtest/gtest.h>
 
@@ -10,6 +12,7 @@
 #include "window_manager/compositor.h"
 #include "window_manager/event_loop.h"
 #include "window_manager/mock_x_connection.h"
+#include "window_manager/screen_locker_handler.h"
 #include "window_manager/test_lib.h"
 #include "window_manager/window_manager.h"
 #include "window_manager/wm_ipc.h"
@@ -19,7 +22,64 @@ DEFINE_bool(logtostderr, false,
 
 namespace window_manager {
 
-class ScreenLockerHandlerTest : public BasicWindowManagerTest {};
+class ScreenLockerHandlerTest : public BasicWindowManagerTest {
+ protected:
+  virtual void SetUp() {
+    BasicWindowManagerTest::SetUp();
+    handler_ = wm_->screen_locker_handler_.get();
+  }
+
+  MockCompositor::TexturePixmapActor* GetSnapshotActor() {
+    return dynamic_cast<MockCompositor::TexturePixmapActor*>(
+        handler_->snapshot_actor_.get());
+  }
+
+  void TestActorConfiguredForSlowClose(
+      MockCompositor::TexturePixmapActor* actor) {
+    static const float kSizeRatio = ScreenLockerHandler::kSlowCloseSizeRatio;
+    CHECK(actor);
+    EXPECT_TRUE(actor->is_shown());
+    EXPECT_FLOAT_EQ(round(0.5 * (1.0 - kSizeRatio) * wm_->width()),
+                    actor->x());
+    EXPECT_FLOAT_EQ(round(0.5 * (1.0 - kSizeRatio) * wm_->height()),
+                    actor->y());
+    EXPECT_FLOAT_EQ(kSizeRatio, actor->scale_x());
+    EXPECT_FLOAT_EQ(kSizeRatio, actor->scale_y());
+    EXPECT_FLOAT_EQ(1.0, actor->opacity());
+  }
+
+  void TestActorConfiguredForUndoSlowClose(
+      MockCompositor::TexturePixmapActor* actor) {
+    CHECK(actor);
+    EXPECT_TRUE(actor->is_shown());
+    EXPECT_EQ(0, actor->x());
+    EXPECT_EQ(0, actor->y());
+    EXPECT_FLOAT_EQ(1.0, actor->scale_x());
+    EXPECT_FLOAT_EQ(1.0, actor->scale_y());
+    EXPECT_FLOAT_EQ(1.0, actor->opacity());
+  }
+
+  void TestActorConfiguredForFastClose(
+      MockCompositor::TexturePixmapActor* actor) {
+    CHECK(actor);
+    EXPECT_TRUE(actor->is_shown());
+    EXPECT_FLOAT_EQ(round(0.5 * wm_->width()), actor->x());
+    EXPECT_FLOAT_EQ(round(0.5 * wm_->height()), actor->y());
+    EXPECT_FLOAT_EQ(0.0, actor->scale_x());
+    EXPECT_FLOAT_EQ(0.0, actor->scale_y());
+    EXPECT_FLOAT_EQ(0.0, actor->opacity());
+  }
+
+  bool IsOnlyActiveVisibilityGroup(int group) {
+    if (compositor_->active_visibility_groups().size() !=
+        static_cast<size_t>(1)) {
+      return false;
+    }
+    return (*(compositor_->active_visibility_groups().begin()) == group);
+  }
+
+  ScreenLockerHandler* handler_;
+};
 
 TEST_F(ScreenLockerHandlerTest, Basic) {
   // Create a regular toplevel window.
@@ -104,6 +164,189 @@ TEST_F(ScreenLockerHandlerTest, Basic) {
   xconn_->InitUnmapEvent(&event, screen_locker_xid);
   wm_->HandleEvent(&event);
   EXPECT_TRUE(compositor_->active_visibility_groups().empty());
+}
+
+TEST_F(ScreenLockerHandlerTest, AbortedLock) {
+  // Tell the window manager that the user started holding the power button
+  // to lock the screen.
+  WmIpc::Message msg(chromeos::WM_IPC_MESSAGE_WM_NOTIFY_POWER_BUTTON_STATE);
+  msg.set_param(0, chromeos::WM_IPC_POWER_BUTTON_PRE_LOCK);
+  SendWmIpcMessage(msg);
+
+  // We should have taken a snapshot of the screen.
+  MockCompositor::TexturePixmapActor* actor = GetSnapshotActor();
+  ASSERT_TRUE(actor != NULL);
+  TestActorConfiguredForSlowClose(actor);
+  EXPECT_NE(-1, handler_->destroy_snapshot_timeout_id_);
+
+  // The snapshot should be the only actor currently visible.
+  EXPECT_EQ(static_cast<size_t>(2), actor->visibility_groups().size());
+  EXPECT_TRUE(actor->visibility_groups().count(
+                  WindowManager::VISIBILITY_GROUP_SCREEN_LOCKER) != 0);
+  EXPECT_TRUE(actor->visibility_groups().count(
+                  WindowManager::VISIBILITY_GROUP_SHUTDOWN) != 0);
+  EXPECT_TRUE(IsOnlyActiveVisibilityGroup(
+                  WindowManager::VISIBILITY_GROUP_SCREEN_LOCKER));
+
+  // Now tell the WM that the button was released before being held long
+  // enough to lock.
+  msg.set_param(0, chromeos::WM_IPC_POWER_BUTTON_ABORTED_LOCK);
+  SendWmIpcMessage(msg);
+
+  // Check that we're still showing the same actor, and that it's being
+  // scaled back to its natural size.
+  ASSERT_EQ(actor, GetSnapshotActor());
+  TestActorConfiguredForUndoSlowClose(actor);
+
+  // Check that a timeout was registered to destroy the snapshot, and then
+  // invoke the callback and check that the actor was destroyed and we're
+  // displaying all actors again.
+  ASSERT_NE(-1, handler_->destroy_snapshot_timeout_id_);
+  wm_->event_loop()->RunTimeoutForTesting(
+      handler_->destroy_snapshot_timeout_id_);
+  EXPECT_EQ(-1, handler_->destroy_snapshot_timeout_id_);
+  EXPECT_EQ(static_cast<size_t>(0),
+            compositor_->active_visibility_groups().size());
+}
+
+TEST_F(ScreenLockerHandlerTest, SuccessfulLock) {
+  // Tell the window manager that we're in the pre-lock state.
+  WmIpc::Message msg(chromeos::WM_IPC_MESSAGE_WM_NOTIFY_POWER_BUTTON_STATE);
+  msg.set_param(0, chromeos::WM_IPC_POWER_BUTTON_PRE_LOCK);
+  SendWmIpcMessage(msg);
+  MockCompositor::TexturePixmapActor* actor = GetSnapshotActor();
+  ASSERT_TRUE(actor != NULL);
+  TestActorConfiguredForSlowClose(actor);
+
+  // Map a screen locker window.
+  XWindow screen_locker_xid = CreateSimpleWindow();
+  wm_->wm_ipc()->SetWindowType(
+      screen_locker_xid, chromeos::WM_IPC_WINDOW_CHROME_SCREEN_LOCKER, NULL);
+  SendInitialEventsForWindow(screen_locker_xid);
+
+  // We should still be showing the snapshot actor, but it should be
+  // getting scaled down to the center of the screen.
+  ASSERT_EQ(actor, GetSnapshotActor());
+  TestActorConfiguredForFastClose(actor);
+
+  // Invoke the timeout to destroy it and check that we're showing only the
+  // screen locker window.
+  ASSERT_NE(-1, handler_->destroy_snapshot_timeout_id_);
+  wm_->event_loop()->RunTimeoutForTesting(
+      handler_->destroy_snapshot_timeout_id_);
+  EXPECT_EQ(-1, handler_->destroy_snapshot_timeout_id_);
+  EXPECT_TRUE(GetSnapshotActor() == NULL);
+  EXPECT_TRUE(IsOnlyActiveVisibilityGroup(
+                  WindowManager::VISIBILITY_GROUP_SCREEN_LOCKER));
+}
+
+TEST_F(ScreenLockerHandlerTest, AbortedShutdown) {
+  // Tell the window manager that the user started holding the power button
+  // to shut down the system.
+  WmIpc::Message msg(chromeos::WM_IPC_MESSAGE_WM_NOTIFY_POWER_BUTTON_STATE);
+  msg.set_param(0, chromeos::WM_IPC_POWER_BUTTON_PRE_SHUTDOWN);
+  SendWmIpcMessage(msg);
+
+  // We should have taken a snapshot of the screen.
+  MockCompositor::TexturePixmapActor* actor = GetSnapshotActor();
+  ASSERT_TRUE(actor != NULL);
+  TestActorConfiguredForSlowClose(actor);
+  EXPECT_NE(-1, handler_->destroy_snapshot_timeout_id_);
+
+  // The snapshot should be the only actor currently visible.
+  EXPECT_TRUE(actor->visibility_groups().count(
+                  WindowManager::VISIBILITY_GROUP_SHUTDOWN) != 0);
+  EXPECT_TRUE(IsOnlyActiveVisibilityGroup(
+                  WindowManager::VISIBILITY_GROUP_SHUTDOWN));
+
+  // Now tell the WM that the button was released before being held long
+  // enough to shut down.
+  msg.set_param(0, chromeos::WM_IPC_POWER_BUTTON_ABORTED_SHUTDOWN);
+  SendWmIpcMessage(msg);
+
+  // Check that we're still showing the same actor, and that it's being
+  // scaled back to its natural size.
+  ASSERT_EQ(actor, GetSnapshotActor());
+  TestActorConfiguredForUndoSlowClose(actor);
+
+  // Check that a timeout was registered to destroy the snapshot, and then
+  // invoke the callback and check that the actor was destroyed and we're
+  // displaying all actors again.
+  ASSERT_NE(-1, handler_->destroy_snapshot_timeout_id_);
+  wm_->event_loop()->RunTimeoutForTesting(
+      handler_->destroy_snapshot_timeout_id_);
+  EXPECT_EQ(-1, handler_->destroy_snapshot_timeout_id_);
+  EXPECT_EQ(static_cast<size_t>(0),
+            compositor_->active_visibility_groups().size());
+
+  // Now map a screen locker window so we can try the same thing from the
+  // locked state.
+  XWindow screen_locker_xid = CreateSimpleWindow();
+  wm_->wm_ipc()->SetWindowType(
+      screen_locker_xid, chromeos::WM_IPC_WINDOW_CHROME_SCREEN_LOCKER, NULL);
+  SendInitialEventsForWindow(screen_locker_xid);
+  ASSERT_TRUE(IsOnlyActiveVisibilityGroup(
+                  WindowManager::VISIBILITY_GROUP_SCREEN_LOCKER));
+
+  // Enter the pre-shutdown state as before.
+  msg.set_param(0, chromeos::WM_IPC_POWER_BUTTON_PRE_SHUTDOWN);
+  SendWmIpcMessage(msg);
+  actor = GetSnapshotActor();
+  ASSERT_TRUE(actor != NULL);
+  TestActorConfiguredForSlowClose(actor);
+  EXPECT_TRUE(IsOnlyActiveVisibilityGroup(
+                  WindowManager::VISIBILITY_GROUP_SHUTDOWN));
+
+  // After aborting, we should be showing just the screen locker window.
+  msg.set_param(0, chromeos::WM_IPC_POWER_BUTTON_ABORTED_SHUTDOWN);
+  SendWmIpcMessage(msg);
+  ASSERT_NE(-1, handler_->destroy_snapshot_timeout_id_);
+  wm_->event_loop()->RunTimeoutForTesting(
+      handler_->destroy_snapshot_timeout_id_);
+  EXPECT_EQ(-1, handler_->destroy_snapshot_timeout_id_);
+  EXPECT_TRUE(IsOnlyActiveVisibilityGroup(
+                  WindowManager::VISIBILITY_GROUP_SCREEN_LOCKER));
+}
+
+// Test that we do stuff in response to notification that the system is
+// shutting down.
+TEST_F(ScreenLockerHandlerTest, HandleShutdown) {
+  // Go into the pre-shutdown state first.
+  WmIpc::Message msg(chromeos::WM_IPC_MESSAGE_WM_NOTIFY_POWER_BUTTON_STATE);
+  msg.set_param(0, chromeos::WM_IPC_POWER_BUTTON_PRE_SHUTDOWN);
+  SendWmIpcMessage(msg);
+
+  // Check that we've started the slow-close animation.
+  MockCompositor::TexturePixmapActor* actor = GetSnapshotActor();
+  ASSERT_TRUE(actor != NULL);
+  TestActorConfiguredForSlowClose(actor);
+  EXPECT_NE(-1, handler_->destroy_snapshot_timeout_id_);
+  EXPECT_TRUE(IsOnlyActiveVisibilityGroup(
+                  WindowManager::VISIBILITY_GROUP_SHUTDOWN));
+
+  // Notify the window manager that the system is being shut down.
+  msg.set_type(chromeos::WM_IPC_MESSAGE_WM_NOTIFY_SHUTTING_DOWN);
+  msg.set_param(0, 0);
+  SendWmIpcMessage(msg);
+
+  // Check that we grabbed the pointer and keyboard and assigned a transparent
+  // cursor to the root window.
+  XWindow root = xconn_->GetRootWindow();
+  EXPECT_EQ(root, xconn_->pointer_grab_xid());
+  EXPECT_EQ(root, xconn_->keyboard_grab_xid());
+  EXPECT_EQ(MockXConnection::kTransparentCursor,
+            xconn_->GetWindowInfoOrDie(root)->cursor);
+
+  // We should be using the same snapshot that we already grabbed, and we
+  // should be displaying the fast-close animation.
+  ASSERT_EQ(actor, GetSnapshotActor());
+  TestActorConfiguredForFastClose(actor);
+  EXPECT_TRUE(IsOnlyActiveVisibilityGroup(
+                  WindowManager::VISIBILITY_GROUP_SHUTDOWN));
+
+  // There's no need to destroy the snapshot after we're done with the
+  // animation; we're not going to be showing anything else onscreen.
+  EXPECT_EQ(-1, handler_->destroy_snapshot_timeout_id_);
 }
 
 }  // namespace window_manager

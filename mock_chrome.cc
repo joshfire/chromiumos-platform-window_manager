@@ -26,6 +26,8 @@ DEFINE_string(panel_images, "data/panel_chat.png",
               "Comma-separated images to use for panels");
 DEFINE_string(panel_titles, "Chat",
               "Comma-separated titles to use for panels");
+DEFINE_string(screen_locker_image, "data/screen_locker.jpg",
+              "Image to use for screen locker windows");
 DEFINE_string(tab_images,
               "data/chrome_page_google.png,"
               "data/chrome_page_gmail.png,"
@@ -45,6 +47,7 @@ using std::vector;
 using window_manager::AtomCache;
 using window_manager::RealXConnection;
 using window_manager::WmIpc;
+using window_manager::util::GetMonotonicTimeMs;
 
 namespace mock_chrome {
 
@@ -61,6 +64,9 @@ const int ChromeWindow::kTabDragThreshold = 10;
 const char* ChromeWindow::kTabFontFace = "DejaVu Sans";
 const double ChromeWindow::kTabFontSize = 13;
 const int ChromeWindow::kTabFontPadding = 5;
+const int ChromeWindow::kLockTimeoutMs = 750;
+const int ChromeWindow::kShutdownTimeoutMs = 750;
+const int ChromeWindow::kLockToShutdownThresholdMs = 200;
 
 // Static images.
 Glib::RefPtr<Gdk::Pixbuf> ChromeWindow::image_nav_bg_;
@@ -135,7 +141,11 @@ ChromeWindow::ChromeWindow(MockChrome* chrome, int width, int height)
       dragging_tab_(false),
       tab_drag_start_offset_x_(0),
       tab_drag_start_offset_y_(0),
-      fullscreen_(false) {
+      fullscreen_(false),
+      power_button_is_pressed_(false),
+      lock_timeout_id_(-1),
+      lock_to_shutdown_timeout_id_(-1),
+      shutdown_timeout_id_(-1) {
   if (!image_nav_bg_) {
     InitImages();
   }
@@ -349,6 +359,36 @@ int ChromeWindow::GetTabIndexAtXPosition(int x) const {
   return tabs_.size();
 }
 
+void ChromeWindow::OnLockTimeout() {
+  lock_timeout_id_ = -1;
+  chrome_->LockScreen();
+  lock_to_shutdown_timeout_id_ =
+      g_timeout_add(kLockToShutdownThresholdMs,
+                    ChromeWindow::OnPreShutdownTimeoutThunk,
+                    this);
+}
+
+void ChromeWindow::OnLockToShutdownTimeout() {
+  lock_to_shutdown_timeout_id_ = -1;
+  AddShutdownTimeout();
+}
+
+void ChromeWindow::OnShutdownTimeout() {
+  shutdown_timeout_id_ = -1;
+  chrome_->ShutDown();
+}
+
+void ChromeWindow::AddShutdownTimeout() {
+  WmIpc::Message msg(
+      chromeos::WM_IPC_MESSAGE_WM_NOTIFY_POWER_BUTTON_STATE);
+  msg.set_param(0, chromeos::WM_IPC_POWER_BUTTON_PRE_SHUTDOWN);
+  chrome_->wm_ipc()->SendMessage(chrome_->wm_ipc()->wm_window(), msg);
+  shutdown_timeout_id_ =
+      g_timeout_add(kShutdownTimeoutMs,
+                    ChromeWindow::OnShutdownTimeoutThunk,
+                    this);
+}
+
 bool ChromeWindow::on_button_press_event(GdkEventButton* event) {
   if (event->button == 2) {
     chrome_->CloseWindow(this);
@@ -417,14 +457,80 @@ bool ChromeWindow::on_motion_notify_event(GdkEventMotion* event) {
 
 bool ChromeWindow::on_key_press_event(GdkEventKey* event) {
   if (strcmp(event->string, "p") == 0) {
+    // Create a new panel.
     chrome_->CreatePanel(FLAGS_new_panel_image, "New Panel", true);
+    // Create a new window.
   } else if (strcmp(event->string, "w") == 0) {
     chrome_->CreateWindow(width_, height_);
+    // Toggle fullscreen mode.
   } else if (strcmp(event->string, "f") == 0) {
     if (fullscreen_) {
       unfullscreen();
     } else {
       fullscreen();
+    }
+  } else if (strcmp(event->string, "l") == 0) {
+    // Pretend that the power button has been pressed.
+    if (!power_button_is_pressed_) {
+      power_button_is_pressed_ = true;
+      if (!chrome_->is_locked()) {
+        WmIpc::Message msg(
+            chromeos::WM_IPC_MESSAGE_WM_NOTIFY_POWER_BUTTON_STATE);
+        msg.set_param(0, chromeos::WM_IPC_POWER_BUTTON_PRE_LOCK);
+        chrome_->wm_ipc()->SendMessage(chrome_->wm_ipc()->wm_window(), msg);
+        lock_timeout_id_ = g_timeout_add(kLockTimeoutMs,
+                                         ChromeWindow::OnLockTimeoutThunk,
+                                         this);
+      } else if (!chrome_->is_shutting_down()) {
+        AddShutdownTimeout();
+      }
+    }
+  } else if (strcmp(event->string, "u") == 0) {
+    // Unlock the screen.
+    if (chrome_->is_locked())
+      chrome_->UnlockScreen();
+  }
+  return true;
+}
+
+bool ChromeWindow::on_key_release_event(GdkEventKey* event) {
+  // X reports autorepeated key events similarly to individual key presses, but
+  // we can detect that a release event is part of an autorepeated sequence by
+  // checking if the next event in the queue is a press event with a matching
+  // timestamp.
+  bool repeated = false;
+  if (XPending(GDK_DISPLAY())) {
+    XEvent xevent;
+    XPeekEvent(GDK_DISPLAY(), &xevent);
+    if (xevent.type == KeyPress &&
+        xevent.xkey.keycode == event->hardware_keycode &&
+        xevent.xkey.time == event->time) {
+      repeated = true;
+    }
+  }
+
+  if (strcmp(event->string, "l") == 0) {
+    // Pretend that the power button has been released.
+    if (!repeated) {
+      power_button_is_pressed_ = false;
+      if (lock_timeout_id_ >= 0) {
+        g_source_remove(lock_timeout_id_);
+        lock_timeout_id_ = -1;
+        WmIpc::Message msg(
+            chromeos::WM_IPC_MESSAGE_WM_NOTIFY_POWER_BUTTON_STATE);
+        msg.set_param(0, chromeos::WM_IPC_POWER_BUTTON_ABORTED_LOCK);
+        chrome_->wm_ipc()->SendMessage(chrome_->wm_ipc()->wm_window(), msg);
+      } else if (lock_to_shutdown_timeout_id_ >= 0) {
+        g_source_remove(lock_to_shutdown_timeout_id_);
+        lock_to_shutdown_timeout_id_ = -1;
+      } else if (shutdown_timeout_id_ >= 0) {
+        g_source_remove(shutdown_timeout_id_);
+        shutdown_timeout_id_ = -1;
+        WmIpc::Message msg(
+            chromeos::WM_IPC_MESSAGE_WM_NOTIFY_POWER_BUTTON_STATE);
+        msg.set_param(0, chromeos::WM_IPC_POWER_BUTTON_ABORTED_SHUTDOWN);
+        chrome_->wm_ipc()->SendMessage(chrome_->wm_ipc()->wm_window(), msg);
+      }
     }
   }
   return true;
@@ -455,7 +561,8 @@ bool ChromeWindow::on_configure_event(GdkEventConfigure* event) {
   width_ = event->width;
   height_ = event->height;
   DrawView();
-  return true;
+  Gtk::Window::on_configure_event(event);
+  return false;
 }
 
 bool ChromeWindow::on_window_state_event(GdkEventWindowState* event) {
@@ -689,10 +796,43 @@ bool Panel::on_window_state_event(GdkEventWindowState* event) {
 }
 
 
+ScreenLockWindow::ScreenLockWindow(MockChrome* chrome)
+    : chrome_(chrome),
+      image_(Gdk::Pixbuf::create_from_file(FLAGS_screen_locker_image)) {
+  GdkScreen* screen = gdk_screen_get_default();
+  set_size_request(gdk_screen_get_width(screen),
+                   gdk_screen_get_height(screen));
+  realize();
+  xid_ = GDK_WINDOW_XWINDOW(Glib::unwrap(get_window()));
+  CHECK(chrome_->wm_ipc()->SetWindowType(
+            xid(), chromeos::WM_IPC_WINDOW_CHROME_SCREEN_LOCKER, NULL));
+  show_all();
+}
+
+void ScreenLockWindow::Draw() {
+  DrawImage(image_,
+            this,  // dest
+            0, 0,  // x, y
+            get_width(), get_height());
+}
+
+bool ScreenLockWindow::on_expose_event(GdkEventExpose* event) {
+  Draw();
+  return false;
+}
+
+bool ScreenLockWindow::on_configure_event(GdkEventConfigure* event) {
+  Draw();
+  Gtk::Window::on_configure_event(event);
+  return false;
+}
+
+
 MockChrome::MockChrome()
     : xconn_(new RealXConnection(GDK_DISPLAY())),
       atom_cache_(new AtomCache(xconn_.get())),
-      wm_ipc_(new WmIpc(xconn_.get(), atom_cache_.get())) {
+      wm_ipc_(new WmIpc(xconn_.get(), atom_cache_.get())),
+      is_shutting_down_(false) {
   WmIpc::Message msg(chromeos::WM_IPC_MESSAGE_WM_NOTIFY_IPC_VERSION);
   msg.set_param(0, 1);
   wm_ipc_->SendMessage(wm_ipc_->wm_window(), msg);
@@ -721,6 +861,33 @@ Panel* MockChrome::CreatePanel(const string& image_filename,
 void MockChrome::ClosePanel(Panel* panel) {
   CHECK(panel);
   CHECK(panels_.erase(panel->xid()) == 1);
+}
+
+void MockChrome::LockScreen() {
+  if (screen_lock_window_.get())
+    return;
+
+  LOG(INFO) << "Locking screen";
+  screen_lock_window_.reset(new ScreenLockWindow(this));
+}
+
+void MockChrome::UnlockScreen() {
+  if (!screen_lock_window_.get())
+    return;
+
+  LOG(INFO) << "Unlocking screen";
+  screen_lock_window_.reset();
+}
+
+void MockChrome::ShutDown() {
+  if (is_shutting_down_)
+    return;
+
+  LOG(INFO) << "Shutting down";
+  is_shutting_down_ = true;
+  WmIpc::Message msg(
+      chromeos::WM_IPC_MESSAGE_WM_NOTIFY_SHUTTING_DOWN);
+  wm_ipc_->SendMessage(wm_ipc_->wm_window(), msg);
 }
 
 }  // namespace mock_chrome

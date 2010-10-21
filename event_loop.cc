@@ -225,6 +225,13 @@ bool EventLoop::IsTimerFdSupported() {
   }
 }
 
+void EventLoop::RunTimeoutForTesting(int id) {
+  CHECK(timeout_fds_.count(id)) << "Timeout " << id << " not registered";
+  FdCallbackMap::iterator it = callbacks_.find(id);
+  CHECK(it != callbacks_.end());
+  it->second->Run();
+}
+
 void EventLoop::RunAllPostedTasks() {
   while (!posted_tasks_.empty()) {
     vector<shared_ptr<Closure> > tasks_to_run;

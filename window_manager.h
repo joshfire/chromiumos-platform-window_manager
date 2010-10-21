@@ -86,6 +86,7 @@ class WindowManager : public PanelManagerAreaChangeListener,
 
   int width() const { return width_; }
   int height() const { return height_; }
+  int root_depth() const { return root_depth_; }
 
   XWindow wm_xid() const { return wm_xid_; }
   XWindow active_window_xid() const { return active_window_xid_; }
@@ -258,6 +259,7 @@ class WindowManager : public PanelManagerAreaChangeListener,
   friend class PanelBarTest;              // uses 'panel_manager_'
   friend class PanelDockTest;             // uses 'panel_manager_'
   friend class PanelManagerTest;          // uses 'panel_manager_'
+  friend class ScreenLockerHandlerTest;   // uses 'screen_locker_handler_'
   FRIEND_TEST(ChromeWatchdogTest, Basic);
   FRIEND_TEST(LayoutManagerTest, Basic);  // uses TrackWindow()
   FRIEND_TEST(LayoutManagerTest, OverviewSpacing);
@@ -273,7 +275,6 @@ class WindowManager : public PanelManagerAreaChangeListener,
   FRIEND_TEST(WindowManagerTest, ConfigureBackground);
   FRIEND_TEST(WindowManagerTest, VideoTimeProperty);
   FRIEND_TEST(WindowManagerTest, HandleTopFullscreenActorChange);
-  FRIEND_TEST(WindowManagerTest, HandleShutdown);
 
   typedef std::map<XWindow, std::set<EventConsumer*> > WindowEventConsumerMap;
   typedef std::map<std::pair<XWindow, XAtom>, std::set<EventConsumer*> >
@@ -289,6 +290,9 @@ class WindowManager : public PanelManagerAreaChangeListener,
   bool IsInternalWindow(XWindow xid) {
     return (xid == stage_xid_ || xid == overlay_xid_ || xid == wm_xid_);
   }
+
+  // Are we in the process of shutting down?
+  bool IsShuttingDown() const;
 
   // Get a manager selection as described in ICCCM section 2.8.  'atom' is
   // the selection to take, 'manager_win' is the window acquiring the
@@ -421,10 +425,6 @@ class WindowManager : public PanelManagerAreaChangeListener,
   // chrome_watchdog_->SendPingToChrome().
   void PingChrome();
 
-  // Called when we're notified that the system is shutting down to display a
-  // quick animation.
-  void HandleShutdown();
-
   EventLoop* event_loop_;   // not owned
   XConnection* xconn_;      // not owned
   Compositor* compositor_;  // not owned
@@ -454,13 +454,6 @@ class WindowManager : public PanelManagerAreaChangeListener,
   // This is the pixmap that gets displayed by 'startup_background_'.
   // We copy the root window here.
   XPixmap startup_pixmap_;
-
-  // Actor that we display onscreen while shutting down.  We copy the root
-  // window to 'shutdown_pixmap_' and display it here.
-  scoped_ptr<Compositor::TexturePixmapActor> shutdown_actor_;
-
-  // Screenshot of the screen used during shutdown.
-  XPixmap shutdown_pixmap_;
 
   scoped_ptr<AtomCache> atom_cache_;
   scoped_ptr<StackingManager> stacking_manager_;
@@ -560,9 +553,6 @@ class WindowManager : public PanelManagerAreaChangeListener,
   // window, but never transitions from true to false (the window manager
   // is restarted when the user logs out).
   bool logged_in_;
-
-  // Is the system shutting down?
-  bool shutting_down_;
 
   // Should we initialize the logging code when we switch between logged-in
   // and logged-out mode?  This defaults to off, since we typically don't

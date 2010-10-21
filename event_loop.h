@@ -62,8 +62,17 @@ class EventLoop {
   int AddTimeout(Closure* cb, int initial_timeout_ms, int recurring_timeout_ms);
 
   // Remove a timeout.  It is safe to call this from within the callback of
-  // the timeout that's being removed.
+  // the timeout that's being removed.  Crashes if the timeout doesn't exist.
   void RemoveTimeout(int id);
+
+  // If the variable pointed at by 'id' contains a timeout, remove the timeout
+  // and set the variable to -1.
+  void RemoveTimeoutIfSet(int* id) {
+    if (*id >= 0) {
+      RemoveTimeout(*id);
+      *id = -1;
+    }
+  }
 
   // Run 'cb' once immediately after control is returned to the event loop.
   //
@@ -85,6 +94,10 @@ class EventLoop {
   // introduced in Linux 2.6.25 and glibc 2.8.  This is static so that
   // EventLoopTest can skip out early on older systems.
   static bool IsTimerFdSupported();
+
+  // Run an already-registered timeout.  This should only be used by
+  // testing code that wants to manually run a timeout's callback.
+  void RunTimeoutForTesting(int id);
 
  private:
   typedef std::vector<std::tr1::shared_ptr<Closure> > CallbackVector;

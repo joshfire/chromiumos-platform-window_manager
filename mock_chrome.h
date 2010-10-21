@@ -39,8 +39,7 @@ class ChromeWindow;
 class MockChrome;
 class Panel;
 
-// A tab is just a wrapper around an image.  Each tab is owned by a window
-// or by a FloatingTab object.
+// A tab is just a wrapper around an image.  Each tab is owned by a window.
 class Tab {
  public:
   Tab(const std::string& image_filename, const std::string& title);
@@ -59,90 +58,12 @@ class Tab {
   DISALLOW_COPY_AND_ASSIGN(Tab);
 };
 
-// Tab summaries are windows that display scaled-down images of all of the
-// tabs in a Chrome window.
-class TabSummary : public Gtk::Window {
- public:
-  explicit TabSummary(ChromeWindow* parent_win);
-
-  XWindow xid() { return xid_; }
-  int width() const { return width_; }
-  int height() const { return height_; }
-  int insert_index() const { return insert_index_; }
-
- private:
-  // Resize the window to fit its contents.
-  void Resize();
-
-  // Redraw the entire window.
-  void Draw();
-
-  // Draw a line representing where a floating tab will be inserted.  The
-  // top of the line is at the passed-in position.
-  void DrawInsertCursor(int x, int y);
-
-  // Handle a notification that a floating tab is above us.
-  // We update the position of the insert cursor.
-  void HandleFloatingTabMovement(int x, int y);
-
-  bool on_button_press_event(GdkEventButton* event);
-  bool on_expose_event(GdkEventExpose* event);
-  bool on_client_event(GdkEventClient* event);
-
-  // Dimensions of tab images and the amount of padding that should be
-  // placed between them.
-  static const int kTabImageWidth;
-  static const int kTabImageHeight;
-  static const int kPadding;
-  static const int kInsertCursorWidth;
-
-  ChromeWindow* parent_win_;
-
-  XWindow xid_;
-  int width_;
-  int height_;
-
-  // Index into 'parent_win_' where a floating tab should be inserted.
-  int insert_index_;
-
-  DISALLOW_COPY_AND_ASSIGN(TabSummary);
-};
-
-// A floating tab is a draggable window containing a tab object.
-class FloatingTab : public Gtk::Window {
- public:
-  FloatingTab(MockChrome* chrome, Tab* tab,
-              int initial_x, int initial_y,
-              int drag_start_offset_x, int drag_start_offset_y);
-
-  // Tell the window manager to move us.
-  void Move(int x, int y);
-
-  // Relinquish ownership of the tab.
-  Tab* ReleaseTab() { return tab_.release(); }
-
- private:
-  void Draw();
-
-  bool on_expose_event(GdkEventExpose* event);
-
-  static Glib::RefPtr<Gdk::Pixbuf> image_tab_;
-
-  static const int kWidth;
-  static const int kHeight;
-
-  MockChrome* chrome_;  // not owned
-  scoped_ptr<Tab> tab_;
-  XWindow xid_;
-
-  DISALLOW_COPY_AND_ASSIGN(FloatingTab);
-};
-
 // This is an actual GTK+ window that holds a collection of tabs, one of
 // which is active and rendered inside of the window.
 class ChromeWindow : public Gtk::Window {
  public:
   ChromeWindow(MockChrome* chrome, int width, int height);
+  virtual ~ChromeWindow() {}
 
   MockChrome* chrome() { return chrome_; }
   XWindow xid() { return xid_; }
@@ -151,7 +72,6 @@ class ChromeWindow : public Gtk::Window {
   size_t num_tabs() const { return tabs_.size(); }
   Tab* tab(size_t index) { return tabs_[index]->tab.get(); }
   int active_tab_index() const { return active_tab_index_; }
-  TabSummary* tab_summary() { return tab_summary_.get(); }
 
   // Insert a tab into this window.  The window takes ownership of the tab.
   // 'index' values greater than the current number of tabs will result in
@@ -199,14 +119,41 @@ class ChromeWindow : public Gtk::Window {
   // of any tabs returns an index equal to the number of tabs.
   int GetTabIndexAtXPosition(int x) const;
 
-  bool on_button_press_event(GdkEventButton* event);
-  bool on_button_release_event(GdkEventButton* event);
-  bool on_motion_notify_event(GdkEventMotion* event);
-  bool on_key_press_event(GdkEventKey* event);
-  bool on_expose_event(GdkEventExpose* event);
-  bool on_client_event(GdkEventClient* event);
-  bool on_configure_event(GdkEventConfigure* event);
-  bool on_window_state_event(GdkEventWindowState* event);
+  // Lock the screen and start the lock-to-shutdown timeout.
+  static gboolean OnLockTimeoutThunk(gpointer data) {
+    reinterpret_cast<ChromeWindow*>(data)->OnLockTimeout();
+    return FALSE;
+  }
+  void OnLockTimeout();
+
+  // Call AddShutdownTimeout().
+  static gboolean OnLockToShutdownTimeoutThunk(gpointer data) {
+    reinterpret_cast<ChromeWindow*>(data)->OnLockToShutdownTimeout();
+    return FALSE;
+  }
+  void OnLockToShutdownTimeout();
+
+  // Tell the window manager that we're shutting down.
+  static gboolean OnShutdownTimeoutThunk(gpointer data) {
+    reinterpret_cast<ChromeWindow*>(data)->OnShutdownTimeout();
+    return FALSE;
+  }
+  void OnShutdownTimeout();
+
+  // Tell the window manager to display the pre-shutdown animation and add a
+  // timeout for shutting down.
+  void AddShutdownTimeout();
+
+  // Overridden from Gtk::Window.
+  virtual bool on_button_press_event(GdkEventButton* event);
+  virtual bool on_button_release_event(GdkEventButton* event);
+  virtual bool on_motion_notify_event(GdkEventMotion* event);
+  virtual bool on_key_press_event(GdkEventKey* event);
+  virtual bool on_key_release_event(GdkEventKey* event);
+  virtual bool on_expose_event(GdkEventExpose* event);
+  virtual bool on_client_event(GdkEventClient* event);
+  virtual bool on_configure_event(GdkEventConfigure* event);
+  virtual bool on_window_state_event(GdkEventWindowState* event);
 
   MockChrome* chrome_;  // not owned
 
@@ -216,9 +163,6 @@ class ChromeWindow : public Gtk::Window {
   int height_;
 
   std::vector<std::tr1::shared_ptr<TabInfo> > tabs_;
-
-  scoped_ptr<TabSummary> tab_summary_;
-  scoped_ptr<FloatingTab> floating_tab_;
 
   int active_tab_index_;
 
@@ -232,6 +176,14 @@ class ChromeWindow : public Gtk::Window {
 
   // Is the window currently in fullscreen mode?
   bool fullscreen_;
+
+  // Is the "power button" currently pressed?
+  bool power_button_is_pressed_;
+
+  // IDs of timeouts for running On*TimeoutThunk() methods, or 0 if unset.
+  gint lock_timeout_id_;
+  gint lock_to_shutdown_timeout_id_;
+  gint shutdown_timeout_id_;
 
   // TODO: Rename these to e.g. kImageNavBg?
   static Glib::RefPtr<Gdk::Pixbuf> image_nav_bg_;
@@ -260,12 +212,24 @@ class ChromeWindow : public Gtk::Window {
   static const double kTabFontSize;
   static const int kTabFontPadding;
 
+  // How long does the power button need to be held before we start locking
+  // the screen or shutting down?
+  static const int kLockTimeoutMs;
+  static const int kShutdownTimeoutMs;
+
+  // If the user holds the power button all the way through the lock and
+  // shutdown sequences, how long of a delay should there be once the
+  // screen is locked before we start displaying the pre-shutdown
+  // animation?
+  static const int kLockToShutdownThresholdMs;
+
   DISALLOW_COPY_AND_ASSIGN(ChromeWindow);
 };
 
 class PanelTitlebar : public Gtk::Window {
  public:
   explicit PanelTitlebar(Panel* panel);
+  virtual ~PanelTitlebar() {}
 
   XWindow xid() const { return xid_; }
   void set_focused(bool focused) { focused_ = focused; }
@@ -282,10 +246,11 @@ class PanelTitlebar : public Gtk::Window {
   static const double kFontPadding;
   static const int kDragThreshold;
 
-  bool on_expose_event(GdkEventExpose* event);
-  bool on_button_press_event(GdkEventButton* event);
-  bool on_button_release_event(GdkEventButton* event);
-  bool on_motion_notify_event(GdkEventMotion* event);
+  // Overridden from Gtk::Window.
+  virtual bool on_expose_event(GdkEventExpose* event);
+  virtual bool on_button_press_event(GdkEventButton* event);
+  virtual bool on_button_release_event(GdkEventButton* event);
+  virtual bool on_motion_notify_event(GdkEventMotion* event);
 
   Panel* panel_;  // not owned
   XWindow xid_;
@@ -318,6 +283,7 @@ class Panel : public Gtk::Window {
         const std::string& image_filename,
         const std::string& title,
         bool expanded);
+  virtual ~Panel() {}
 
   XWindow xid() const { return xid_; }
   MockChrome* chrome() { return chrome_; }
@@ -325,13 +291,14 @@ class Panel : public Gtk::Window {
   const std::string& title() const { return title_; }
 
  private:
-  bool on_expose_event(GdkEventExpose* event);
-  bool on_button_press_event(GdkEventButton* event);
-  bool on_key_press_event(GdkEventKey* event);
-  bool on_client_event(GdkEventClient* event);
-  bool on_focus_in_event(GdkEventFocus* event);
-  bool on_focus_out_event(GdkEventFocus* event);
-  bool on_window_state_event(GdkEventWindowState* event);
+  // Overridden from Gtk::Window.
+  virtual bool on_expose_event(GdkEventExpose* event);
+  virtual bool on_button_press_event(GdkEventButton* event);
+  virtual bool on_key_press_event(GdkEventKey* event);
+  virtual bool on_client_event(GdkEventClient* event);
+  virtual bool on_focus_in_event(GdkEventFocus* event);
+  virtual bool on_focus_out_event(GdkEventFocus* event);
+  virtual bool on_window_state_event(GdkEventWindowState* event);
 
   MockChrome* chrome_;  // not owned
   XWindow xid_;
@@ -346,11 +313,37 @@ class Panel : public Gtk::Window {
   DISALLOW_COPY_AND_ASSIGN(Panel);
 };
 
+// This mimics the screen locker window that Chrome maps when the screen has
+// been locked.
+class ScreenLockWindow : public Gtk::Window {
+ public:
+  explicit ScreenLockWindow(MockChrome* chrome);
+  virtual ~ScreenLockWindow() {}
+
+  XWindow xid() const { return xid_; }
+
+ private:
+  void Draw();
+
+  // Overridden from Gtk::Window.
+  virtual bool on_expose_event(GdkEventExpose* event);
+  virtual bool on_configure_event(GdkEventConfigure* event);
+
+  MockChrome* chrome_;  // not owned
+  XWindow xid_;
+  Glib::RefPtr<Gdk::Pixbuf> image_;
+
+  DISALLOW_COPY_AND_ASSIGN(ScreenLockWindow);
+};
+
 class MockChrome {
  public:
   MockChrome();
 
   window_manager::WmIpc* wm_ipc() { return wm_ipc_.get(); }
+
+  bool is_locked() const { return screen_lock_window_.get() != NULL; }
+  bool is_shutting_down() const { return is_shutting_down_; }
 
   // Create a new window, ownership of which remains with the MockChrome
   // object.
@@ -368,15 +361,10 @@ class MockChrome {
   // Close a panel.
   void ClosePanel(Panel* panel);
 
-  // Handle a notification about a floating tab getting moved into or out
-  // of a window.  We track this so we'll know which window the tab is in
-  // when it gets dropped.
-  void NotifyAboutFloatingTab(
-      XWindow tab_xid, ChromeWindow* win, bool entered);
+  void LockScreen();
+  void UnlockScreen();
 
-  // Deal with a dropped floating tab.  Ownership of 'tab' is passed to
-  // this method.
-  void HandleDroppedFloatingTab(Tab* tab);
+  void ShutDown();
 
  private:
   scoped_ptr<window_manager::XConnection> xconn_;
@@ -390,8 +378,9 @@ class MockChrome {
   typedef std::map<XWindow, std::tr1::shared_ptr<Panel> > Panels;
   Panels panels_;
 
-  // The window currently under the floating tab.
-  ChromeWindow* window_under_floating_tab_;
+  scoped_ptr<ScreenLockWindow> screen_lock_window_;
+
+  bool is_shutting_down_;
 
   DISALLOW_COPY_AND_ASSIGN(MockChrome);
 };
