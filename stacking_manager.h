@@ -37,6 +37,9 @@ class StackingManager {
     // Debugging objects that should be positioned above everything else.
     LAYER_DEBUGGING = 0,
 
+    // Snapshots of the screen animated while locking or shutting down.
+    LAYER_SCREEN_LOCKER_SNAPSHOT,
+
     // Chrome screen locker window.
     LAYER_SCREEN_LOCKER,
 

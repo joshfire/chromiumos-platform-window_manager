@@ -64,9 +64,9 @@ const int ChromeWindow::kTabDragThreshold = 10;
 const char* ChromeWindow::kTabFontFace = "DejaVu Sans";
 const double ChromeWindow::kTabFontSize = 13;
 const int ChromeWindow::kTabFontPadding = 5;
-const int ChromeWindow::kLockTimeoutMs = 750;
-const int ChromeWindow::kShutdownTimeoutMs = 750;
-const int ChromeWindow::kLockToShutdownThresholdMs = 200;
+const int ChromeWindow::kLockTimeoutMs = 400;
+const int ChromeWindow::kShutdownTimeoutMs = 400;
+const int ChromeWindow::kLockToShutdownThresholdMs = 400;
 
 // Static images.
 Glib::RefPtr<Gdk::Pixbuf> ChromeWindow::image_nav_bg_;
@@ -364,7 +364,7 @@ void ChromeWindow::OnLockTimeout() {
   chrome_->LockScreen();
   lock_to_shutdown_timeout_id_ =
       g_timeout_add(kLockToShutdownThresholdMs,
-                    ChromeWindow::OnPreShutdownTimeoutThunk,
+                    ChromeWindow::OnLockToShutdownTimeoutThunk,
                     this);
 }
 

@@ -38,7 +38,7 @@ class ScreenLockerHandler : public EventConsumer {
   virtual bool HandleWindowMapRequest(Window* win);
   virtual void HandleWindowMap(Window* win);
   virtual void HandleWindowUnmap(Window* win);
-  virtual void HandleWindowInitialPixmap(Window* win) {}
+  virtual void HandleWindowInitialPixmap(Window* win);
   virtual void HandleWindowConfigureRequest(Window* win,
                                             int req_x, int req_y,
                                             int req_width, int req_height) {}
@@ -80,12 +80,15 @@ class ScreenLockerHandler : public EventConsumer {
   FRIEND_TEST(ScreenLockerHandlerTest, SuccessfulLock);
   FRIEND_TEST(ScreenLockerHandlerTest, AbortedShutdown);
   FRIEND_TEST(ScreenLockerHandlerTest, HandleShutdown);
+  FRIEND_TEST(ScreenLockerHandlerTest, DeferLockUntilWindowIsVisible);
 
   // Final size that we scale the snapshot of the screen down to in the
   // pre-lock and pre-shutdown states.
   static const float kSlowCloseSizeRatio;
 
-  bool is_locked() const { return !screen_locker_xids_.empty(); }
+  // Is there a window in 'screen_locker_xids_' whose initial pixmap has
+  // been loaded?
+  bool HasWindowWithInitialPixmap() const;
 
   // Handle the power button having just been pressed while we're in an
   // unlocked state.  We take a snapshot of the screen, display only it,
@@ -165,6 +168,11 @@ class ScreenLockerHandler : public EventConsumer {
   // Timeout for calling DestroySnapshotAndUpdateVisibilityGroup(), or -1
   // if unset.
   int destroy_snapshot_timeout_id_;
+
+  // Is the screen currently locked?  We only consider the screen to be
+  // locked if a screen locker window has been mapped and we've loaded a
+  // pixmap for it.
+  bool is_locked_;
 
   // Is the system shutting down?  Set to true in response to a
   // WM_IPC_MESSAGE_WM_NOTIFY_SHUTTING_DOWN message and never unset.

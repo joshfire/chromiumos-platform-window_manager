@@ -14,6 +14,7 @@
 #include "window_manager/mock_x_connection.h"
 #include "window_manager/screen_locker_handler.h"
 #include "window_manager/test_lib.h"
+#include "window_manager/window.h"
 #include "window_manager/window_manager.h"
 #include "window_manager/wm_ipc.h"
 
@@ -81,7 +82,7 @@ class ScreenLockerHandlerTest : public BasicWindowManagerTest {
   ScreenLockerHandler* handler_;
 };
 
-TEST_F(ScreenLockerHandlerTest, Basic) {
+TEST_F(ScreenLockerHandlerTest, BasicLock) {
   // Create a regular toplevel window.
   XWindow toplevel_xid = CreateSimpleWindow();
   SendInitialEventsForWindow(toplevel_xid);
@@ -130,10 +131,8 @@ TEST_F(ScreenLockerHandlerTest, Basic) {
             screen_locker_actor->visibility_groups().size());
   EXPECT_TRUE(screen_locker_actor->visibility_groups().count(
                 WindowManager::VISIBILITY_GROUP_SCREEN_LOCKER));
-  EXPECT_EQ(static_cast<size_t>(1),
-            compositor_->active_visibility_groups().size());
-  EXPECT_TRUE(compositor_->active_visibility_groups().count(
-                WindowManager::VISIBILITY_GROUP_SCREEN_LOCKER));
+  EXPECT_TRUE(IsOnlyActiveVisibilityGroup(
+                  WindowManager::VISIBILITY_GROUP_SCREEN_LOCKER));
 
   // We should've redrawn the screen and sent the screen locker window a
   // message letting it know that we did so.
@@ -347,6 +346,34 @@ TEST_F(ScreenLockerHandlerTest, HandleShutdown) {
   // There's no need to destroy the snapshot after we're done with the
   // animation; we're not going to be showing anything else onscreen.
   EXPECT_EQ(-1, handler_->destroy_snapshot_timeout_id_);
+}
+
+// Test that we don't consider the screen to be locked until the screen
+// locker window is actually visible.
+TEST_F(ScreenLockerHandlerTest, DeferLockUntilWindowIsVisible) {
+  // Enable the sync request protocol on a screen locker window before
+  // mapping it so that we'll hold off on fetching its pixmap until it
+  // tells us that it's ready.
+  XWindow screen_locker_xid = CreateSimpleWindow();
+  wm_->wm_ipc()->SetWindowType(
+      screen_locker_xid, chromeos::WM_IPC_WINDOW_CHROME_SCREEN_LOCKER, NULL);
+  ConfigureWindowForSyncRequestProtocol(screen_locker_xid);
+
+  // We should continue showing all actors after the locker window is mapped.
+  SendInitialEventsForWindow(screen_locker_xid);
+  Window* screen_locker_win = wm_->GetWindowOrDie(screen_locker_xid);
+  ASSERT_FALSE(screen_locker_win->has_initial_pixmap());
+  EXPECT_FALSE(handler_->is_locked_);
+  EXPECT_EQ(static_cast<size_t>(0),
+            compositor_->active_visibility_groups().size());
+
+  // When we're notified that the pixmap is painted, we should switch to
+  // showing only the screen locker actor.
+  SendSyncRequestProtocolAlarm(screen_locker_xid);
+  ASSERT_TRUE(screen_locker_win->has_initial_pixmap());
+  EXPECT_TRUE(handler_->is_locked_);
+  EXPECT_TRUE(IsOnlyActiveVisibilityGroup(
+                  WindowManager::VISIBILITY_GROUP_SCREEN_LOCKER));
 }
 
 }  // namespace window_manager

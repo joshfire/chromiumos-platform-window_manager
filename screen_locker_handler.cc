@@ -55,6 +55,7 @@ ScreenLockerHandler::ScreenLockerHandler(WindowManager* wm)
       registrar_(new EventConsumerRegistrar(wm_, this)),
       snapshot_pixmap_(0),
       destroy_snapshot_timeout_id_(-1),
+      is_locked_(false),
       shutting_down_(false) {
   registrar_->RegisterForChromeMessages(
       chromeos::WM_IPC_MESSAGE_WM_NOTIFY_POWER_BUTTON_STATE);
@@ -63,7 +64,7 @@ ScreenLockerHandler::ScreenLockerHandler(WindowManager* wm)
 }
 
 ScreenLockerHandler::~ScreenLockerHandler() {
-  if (is_locked())
+  if (is_locked_)
     wm_->compositor()->ResetActiveVisibilityGroups();
 
   wm_->event_loop()->RemoveTimeoutIfSet(&destroy_snapshot_timeout_id_);
@@ -74,8 +75,7 @@ ScreenLockerHandler::~ScreenLockerHandler() {
 void ScreenLockerHandler::HandleScreenResize() {
   for (set<XWindow>::const_iterator it = screen_locker_xids_.begin();
        it != screen_locker_xids_.end(); ++it) {
-    Window* win = wm_->GetWindow(*it);
-    DCHECK(win) << "Window " << XidStr(*it) << " is missing";
+    Window* win = wm_->GetWindowOrDie(*it);
     // TODO: The override-redirect check can be removed once Chrome is
     // using regular windows for the screen locker.
     if (!win->override_redirect())
@@ -102,14 +102,16 @@ void ScreenLockerHandler::HandleWindowMap(Window* win) {
   if (win->type() != chromeos::WM_IPC_WINDOW_CHROME_SCREEN_LOCKER)
     return;
 
+  registrar_->RegisterForWindowEvents(win->xid());
+
+  if (!is_locked_)
+    win->SetCompositedOpacity(0, 0);
   win->ShowComposited();
   win->actor()->AddToVisibilityGroup(
       WindowManager::VISIBILITY_GROUP_SCREEN_LOCKER);
 
-  const bool was_locked = is_locked();
   screen_locker_xids_.insert(win->xid());
-
-  if (!was_locked)
+  if (!is_locked_ && HasWindowWithInitialPixmap())
     HandleLocked();
 }
 
@@ -118,16 +120,22 @@ void ScreenLockerHandler::HandleWindowUnmap(Window* win) {
   if (!screen_locker_xids_.count(win->xid()))
     return;
 
+  registrar_->UnregisterForWindowEvents(win->xid());
+
   win->actor()->RemoveFromVisibilityGroup(
       WindowManager::VISIBILITY_GROUP_SCREEN_LOCKER);
   screen_locker_xids_.erase(win->xid());
 
-  if (!is_locked())
+  if (is_locked_ && !HasWindowWithInitialPixmap())
     HandleUnlocked();
 }
 
-void ScreenLockerHandler::HandleChromeMessage(const WmIpc::Message& msg) {
+void ScreenLockerHandler::HandleWindowInitialPixmap(Window* win) {
+  if (!is_locked_ && HasWindowWithInitialPixmap())
+    HandleLocked();
+}
 
+void ScreenLockerHandler::HandleChromeMessage(const WmIpc::Message& msg) {
   if (msg.type() == chromeos::WM_IPC_MESSAGE_WM_NOTIFY_POWER_BUTTON_STATE) {
     chromeos::WmIpcPowerButtonState state =
         static_cast<chromeos::WmIpcPowerButtonState>(msg.param(0));
@@ -156,6 +164,15 @@ void ScreenLockerHandler::HandleChromeMessage(const WmIpc::Message& msg) {
   }
 }
 
+bool ScreenLockerHandler::HasWindowWithInitialPixmap() const {
+  for (set<XWindow>::const_iterator it = screen_locker_xids_.begin();
+       it != screen_locker_xids_.end(); ++it) {
+    if (wm_->GetWindowOrDie(*it)->has_initial_pixmap())
+      return true;
+  }
+  return false;
+}
+
 void ScreenLockerHandler::HandlePreLock() {
   DLOG(INFO) << "Starting pre-lock animation";
   StartSlowCloseAnimation();
@@ -169,31 +186,42 @@ void ScreenLockerHandler::HandleAbortedLock() {
 }
 
 void ScreenLockerHandler::HandleLocked() {
-  // We should be called when the first screen locker window gets mapped.
-  DCHECK_EQ(screen_locker_xids_.size(), static_cast<size_t>(1));
-  Window* win = wm_->GetWindow(*(screen_locker_xids_.begin()));
-  DCHECK(win) << "Window " << *(screen_locker_xids_.begin()) << " is missing";
+  // We should be called when the first screen locker window becomes visible.
+  DCHECK(!is_locked_);
+  DCHECK(HasWindowWithInitialPixmap());
+  is_locked_ = true;
 
-  DLOG(INFO) << "First screen locker window " << win->xid_str()
-             << " mapped; hiding other windows";
-
+  DLOG(INFO) << "First screen locker window visible; hiding other windows";
   StartFastCloseAnimation(true);
   wm_->compositor()->SetActiveVisibilityGroup(
       WindowManager::VISIBILITY_GROUP_SCREEN_LOCKER);
 
-  // Make the screen locker window quickly fade in.
-  win->SetCompositedOpacity(0, 0);
-  win->SetCompositedOpacity(1, kScreenLockerFadeInMs);
+  // An arbitrary screen locker window.
+  Window* chrome_win = NULL;
+
+  // Make any screen locker windows quickly fade in.
+  for (set<XWindow>::const_iterator it = screen_locker_xids_.begin();
+       it != screen_locker_xids_.end(); ++it) {
+    Window* win = wm_->GetWindowOrDie(*it);
+    win->SetCompositedOpacity(1, kScreenLockerFadeInMs);
+    if (!chrome_win)
+      chrome_win = win;
+  }
 
   // Redraw and then let Chrome know that we're ready for the system to
   // be suspended now.
   wm_->compositor()->Draw();
+  DCHECK(chrome_win);
   WmIpc::Message msg(
       chromeos::WM_IPC_MESSAGE_CHROME_NOTIFY_SCREEN_REDRAWN_FOR_LOCK);
-  wm_->wm_ipc()->SendMessage(win->xid(), msg);
+  wm_->wm_ipc()->SendMessage(chrome_win->xid(), msg);
 }
 
 void ScreenLockerHandler::HandleUnlocked() {
+  DCHECK(is_locked_);
+  DCHECK(!HasWindowWithInitialPixmap());
+  is_locked_ = false;
+
   if (shutting_down_)
     return;
 
@@ -261,7 +289,7 @@ void ScreenLockerHandler::StartSlowCloseAnimation() {
     snapshot_actor_->SetPixmap(snapshot_pixmap_);
     wm_->stage()->AddActor(snapshot_actor_.get());
     wm_->stacking_manager()->StackActorAtTopOfLayer(
-        snapshot_actor_.get(), StackingManager::LAYER_SCREEN_LOCKER);
+        snapshot_actor_.get(), StackingManager::LAYER_SCREEN_LOCKER_SNAPSHOT);
     snapshot_actor_->AddToVisibilityGroup(
         WindowManager::VISIBILITY_GROUP_SCREEN_LOCKER);
     snapshot_actor_->AddToVisibilityGroup(
@@ -341,7 +369,7 @@ void ScreenLockerHandler::DestroySnapshotAndUpdateVisibilityGroup() {
   DestroySnapshot();
 
   // Let the real windows be visible again.
-  if (is_locked()) {
+  if (is_locked_) {
     wm_->compositor()->SetActiveVisibilityGroup(
         WindowManager::VISIBILITY_GROUP_SCREEN_LOCKER);
   } else {
