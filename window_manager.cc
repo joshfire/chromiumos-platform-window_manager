@@ -78,6 +78,7 @@ using std::vector;
 using window_manager::util::FindWithDefault;
 using window_manager::util::GetTimeAsString;
 using window_manager::util::GetCurrentTimeSec;
+using window_manager::util::GetMonotonicTimeMs;
 using window_manager::util::SetUpLogSymlink;
 using window_manager::util::XidStr;
 
@@ -225,7 +226,7 @@ WindowManager::WindowManager(EventLoop* event_loop,
       logged_in_(false),
       shutting_down_(false),
       initialize_logging_(false),
-      last_video_time_(-1),
+      video_property_update_time_(-1),
       hide_unaccelerated_graphics_actor_timeout_id_(-1),
       chrome_watchdog_timeout_id_(-1) {
   CHECK(event_loop_);
@@ -688,8 +689,12 @@ bool WindowManager::SetNamePropertiesForXid(XWindow xid, const string& name) {
 }
 
 bool WindowManager::SetVideoTimeProperty(time_t video_time) {
-  if (video_time >= last_video_time_ + kVideoTimePropertyUpdateSec) {
-    last_video_time_ = video_time;
+  // Rate-limit how often we'll update the property.
+  int64_t now = GetMonotonicTimeMs();
+  if (video_property_update_time_ < 0 ||
+      (now - video_property_update_time_) >
+        static_cast<int64_t>(kVideoTimePropertyUpdateSec) * 1000) {
+    video_property_update_time_ = now;
     XAtom atom = atom_cache_->GetXAtom(ATOM_CHROME_VIDEO_TIME);
     return xconn_->SetIntProperty(
         root_, atom, atom, static_cast<int>(video_time));

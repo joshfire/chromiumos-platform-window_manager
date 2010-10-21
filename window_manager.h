@@ -570,8 +570,9 @@ class WindowManager : public PanelManagerAreaChangeListener,
   // true.
   bool initialize_logging_;
 
-  // Last time that we saved to the _CHROME_VIDEO_TIME property.
-  time_t last_video_time_;
+  // Time at which we last updated the _CHROME_VIDEO_TIME property.  This is
+  // a monotonically-increasing time as returned from GetMonotonicTimeMs().
+  int64_t video_property_update_time_;
 
   // Image that we display onscreen to let the user know when we're not
   // fully hardware-accelerated, or NULL if we are accelerated.
