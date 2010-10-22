@@ -237,6 +237,7 @@ Panel::~Panel() {
     wm()->xconn()->UngrabPointer(false, 0);
     drag_xid_ = 0;
   }
+  transients_->CloseAllWindows();
   wm()->xconn()->DeselectInputOnWindow(titlebar_win_->xid(), EnterWindowMask);
   wm()->xconn()->DestroyWindow(top_input_xid_);
   wm()->xconn()->DestroyWindow(top_left_input_xid_);

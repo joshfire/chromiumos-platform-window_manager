@@ -229,8 +229,6 @@ WindowManager::WindowManager(EventLoop* event_loop,
 }
 
 WindowManager::~WindowManager() {
-  if (wm_xid_)
-    xconn_->DestroyWindow(wm_xid_);
   if (startup_pixmap_)
     xconn_->FreePixmap(startup_pixmap_);
   if (query_keyboard_state_timeout_id_ >= 0)
@@ -952,6 +950,7 @@ bool WindowManager::RegisterExistence() {
   CHECK(wm_xid_);
   LOG(INFO) << "Created window " << XidStr(wm_xid_)
             << " for registering ourselves as the window manager";
+  wm_xid_destroyer_.reset(new XConnection::WindowDestroyer(xconn_, wm_xid_));
 
   // Set the window's title and wait for the notify event so we can get a
   // timestamp from the server.

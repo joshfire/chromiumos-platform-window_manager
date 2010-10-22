@@ -145,7 +145,7 @@ class LayoutManager::ToplevelWindow {
   // animated by ArrangeFor*() methods.
   State state_;
 
-  // State in which we were most recently layed out.
+  // State in which we were most recently laid out.
   State last_state_;
 
   // Transient windows belonging to this toplevel window.

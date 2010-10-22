@@ -122,6 +122,26 @@ class XConnection {
     DISALLOW_COPY_AND_ASSIGN(ScopedServerGrab);
   };
 
+  // RAII-type object that destroys a window in its destructor.
+  class WindowDestroyer {
+   public:
+    WindowDestroyer(XConnection* xconn, XWindow xid)
+        : xconn_(xconn),
+          xid_(xid) {}
+    ~WindowDestroyer() {
+      if (xid_) {
+        xconn_->DestroyWindow(xid_);
+        xid_ = 0;
+      }
+    }
+
+   private:
+    XConnection* xconn_;  // not owned
+    XWindow xid_;
+
+    DISALLOW_COPY_AND_ASSIGN(WindowDestroyer);
+  };
+
   // Different ways that damage to a drawable can be reported.
   // The values for these symbols are taken from the Damage wire format
   // (e.g. see damagewire.h in the Xlib Damage implementation).

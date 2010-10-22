@@ -438,6 +438,7 @@ class WindowManager : public PanelManagerAreaChangeListener,
 
   // Offscreen window that we just use for registering as the WM.
   XWindow wm_xid_;
+  scoped_ptr<XConnection::WindowDestroyer> wm_xid_destroyer_;
 
   Compositor::StageActor* stage_;  // not owned
 

@@ -2001,6 +2001,29 @@ TEST_F(LayoutManagerTest, CycleTabs) {
   EXPECT_TRUE(info2->client_messages.empty());
 }
 
+// Test that we close transient windows when their owners are unmapped.
+TEST_F(LayoutManagerTest, CloseTransientWindowsWhenOwnerIsUnmapped) {
+  XWindow owner_xid = CreateToplevelWindow(1, 0, 0, 0, 640, 480);
+  SendInitialEventsForWindow(owner_xid);
+
+  XWindow transient_xid = CreateSimpleWindow();
+  // Say that we support the WM_DELETE_WINDOW protocol.
+  AppendAtomToProperty(transient_xid,
+                       xconn_->GetAtomOrDie("WM_PROTOCOLS"),
+                       xconn_->GetAtomOrDie("WM_DELETE_WINDOW"));
+  MockXConnection::WindowInfo* transient_info =
+      xconn_->GetWindowInfoOrDie(transient_xid);
+  transient_info->transient_for = owner_xid;
+  SendInitialEventsForWindow(transient_xid);
+
+  // After we unmap the owner, the transient should receive a delete request.
+  ASSERT_EQ(0, GetNumDeleteWindowMessagesForWindow(transient_xid));
+  XEvent event;
+  xconn_->InitUnmapEvent(&event, owner_xid);
+  wm_->HandleEvent(&event);
+  ASSERT_EQ(1, GetNumDeleteWindowMessagesForWindow(transient_xid));
+}
+
 }  // namespace window_manager
 
 int main(int argc, char** argv) {
