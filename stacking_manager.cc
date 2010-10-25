@@ -30,16 +30,19 @@ StackingManager::StackingManager(XConnection* xconn,
     Layer layer = static_cast<Layer>(i);
     string name = StringPrintf("%s layer", LayerToName(layer));
 
-    XWindow xid =
-        xconn_->CreateWindow(root, Rect(-1, -1, 1, 1), true, true, 0, 0);
-    xconn_->SetStringProperty(xid, atom_cache->GetXAtom(ATOM_WM_NAME), name);
-    xconn_->SetStringProperty(
-        xid, atom_cache->GetXAtom(ATOM_NET_WM_NAME), name);
-    layer_to_xid_[layer] = xid;
-    xid_to_layer_[xid] = layer;
+    XWindow xid = 0;
+    if (layer >= LAYER_TOP_CLIENT_WINDOW) {
+      xid = xconn_->CreateWindow(root, Rect(-1, -1, 1, 1), true, true, 0, 0);
+      xconn_->SetStringProperty(xid, atom_cache->GetXAtom(ATOM_WM_NAME), name);
+      xconn_->SetStringProperty(
+          xid, atom_cache->GetXAtom(ATOM_NET_WM_NAME), name);
+      layer_to_xid_[layer] = xid;
+      xid_to_layer_[xid] = layer;
+    }
 
     shared_ptr<Compositor::Actor> actor(compositor->CreateGroup());
-    actor->SetName(StringPrintf("%s %s", name.c_str(), XidStr(xid).c_str()));
+    actor->SetName(
+        xid ? StringPrintf("%s %s", name.c_str(), XidStr(xid).c_str()) : name);
     actor->Hide();
     compositor->GetDefaultStage()->AddActor(actor.get());
     actor->RaiseToTop();
@@ -56,6 +59,9 @@ StackingManager::~StackingManager() {
 bool StackingManager::StackWindowAtTopOfLayer(Window* win, Layer layer) {
   DCHECK(win);
 
+  DCHECK_GE(layer, LAYER_TOP_CLIENT_WINDOW)
+      << "Window " << win->xid_str() << " being stacked above "
+      << "top-client-window layer";
   Compositor::Actor* layer_actor = GetActorForLayer(layer);
 
   // Find the next-lowest layer so we can stack the window's shadow
@@ -71,6 +77,9 @@ bool StackingManager::StackWindowAtTopOfLayer(Window* win, Layer layer) {
 }
 
 bool StackingManager::StackXidAtTopOfLayer(XWindow xid, Layer layer) {
+  DCHECK_GE(layer, LAYER_TOP_CLIENT_WINDOW)
+      << "Window " << XidStr(xid) << " being stacked above "
+      << "top-client-window layer";
   XWindow layer_xid = GetXidForLayer(layer);
   return xconn_->StackWindow(xid, layer_xid, false);  // above=false
 }
@@ -120,9 +129,10 @@ Compositor::Actor* StackingManager::GetActorIfLayerXid(XWindow xid) {
 const char* StackingManager::LayerToName(Layer layer) {
   switch (layer) {
     case LAYER_DEBUGGING:                return "debugging";
-    case LAYER_SCREEN_LOCKER_SNAPSHOT:   return "screen locker snapshot";
-    case LAYER_SCREEN_LOCKER:            return "screen locker";
     case LAYER_HOTKEY_OVERLAY:           return "hotkey overlay";
+    case LAYER_SCREEN_LOCKER_SNAPSHOT:   return "screen locker snapshot";
+    case LAYER_TOP_CLIENT_WINDOW:        return "top client window";
+    case LAYER_SCREEN_LOCKER:            return "screen locker";
     case LAYER_FULLSCREEN_WINDOW:        return "fullscreen window";
     case LAYER_DRAGGED_PANEL:            return "dragged panel";
     case LAYER_ACTIVE_TRANSIENT_WINDOW:  return "active transient window";

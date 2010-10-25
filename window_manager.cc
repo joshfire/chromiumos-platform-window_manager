@@ -1089,11 +1089,11 @@ void WindowManager::RegisterKeyBindings() {
       kToggleHotkeyOverlayAction,
       NewPermanentCallback(this, &WindowManager::ToggleHotkeyOverlay),
       NULL, NULL);
-  key_bindings_->AddBinding(
+  logged_in_key_bindings_group_->AddBinding(
       KeyBindings::KeyCombo(
           XK_slash, KeyBindings::kControlMask | KeyBindings::kAltMask),
       kToggleHotkeyOverlayAction);
-  key_bindings_->AddBinding(
+  logged_in_key_bindings_group_->AddBinding(
       KeyBindings::KeyCombo(
           XK_slash,
           KeyBindings::kControlMask | KeyBindings::kAltMask |

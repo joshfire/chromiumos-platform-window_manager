@@ -473,15 +473,18 @@ TEST_F(WindowManagerTest, StackOverrideRedirectWindowsAboveLayers) {
   SendInitialEventsForWindow(xid);
   Window* win = wm_->GetWindowOrDie(xid);
 
-  // The override-redirect window's actor should initially be stacked above
-  // the actor for the top stacking layer (and the normal window's actor,
-  // of course).
-  Compositor::Actor* debugging_layer_actor =
+  // The override-redirect window's actor should initially be stacked below the
+  // layers above LAYER_TOP_CLIENT_WINDOW -- these layers are reserved for
+  // actors that should always show up above client windows.
+  Compositor::Actor* non_client_window_layer_actor =
       wm_->stacking_manager()->layer_to_actor_[
-          StackingManager::LAYER_DEBUGGING].get();
-  ASSERT_TRUE(debugging_layer_actor != NULL);
-  EXPECT_LT(stage->GetStackingIndex(win->actor()),
-            stage->GetStackingIndex(debugging_layer_actor));
+          static_cast<StackingManager::Layer>(
+              StackingManager::LAYER_TOP_CLIENT_WINDOW - 1)].get();
+  ASSERT_TRUE(non_client_window_layer_actor != NULL);
+  EXPECT_LT(stage->GetStackingIndex(non_client_window_layer_actor),
+            stage->GetStackingIndex(win->actor()));
+
+  // It should also be somewhere above the normal window.
   EXPECT_LT(stage->GetStackingIndex(win->actor()),
             stage->GetStackingIndex(normal_win->actor()));
 

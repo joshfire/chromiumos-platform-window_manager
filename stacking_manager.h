@@ -26,25 +26,35 @@ class XConnection;
 class StackingManager {
  public:
   // The layer reference points will be created at the top of the current stack
-  // of X windows and children of the default compositor stage.
+  // of X windows (for LAYER_TOP_CLIENT_WINDOW and below) and children of the
+  // default compositor stage.
   StackingManager(XConnection* xconn,
                   Compositor* compositor,
                   AtomCache* atom_cache);
   ~StackingManager();
 
   // Layers into which windows can be stacked, in top-to-bottom order.
+  // Layers above LAYER_TOP_CLIENT_WINDOW don't have X windows, since we want
+  // them to always appear above client windows.
   enum Layer {
     // Debugging objects that should be positioned above everything else.
     LAYER_DEBUGGING = 0,
 
+    // Hotkey overlay images.
+    LAYER_HOTKEY_OVERLAY,
+
     // Snapshots of the screen animated while locking or shutting down.
     LAYER_SCREEN_LOCKER_SNAPSHOT,
 
+    // Actors belonging to client windows are initially stacked at this layer.
+    // They shouldn't be raised above it (but note that an override-redirect
+    // window can stack itself above this layer's X window -- the layers above
+    // this one have no X windows, so their actors should always be stacked
+    // above client windows' actors).
+    LAYER_TOP_CLIENT_WINDOW,
+
     // Chrome screen locker window.
     LAYER_SCREEN_LOCKER,
-
-    // Hotkey overlay images.
-    LAYER_HOTKEY_OVERLAY,
 
     // A fullscreen window (maybe a regular Chrome window; maybe a panel
     // content window).
@@ -103,14 +113,15 @@ class StackingManager {
   }
 
   // Stack a window (both its X window and its compositor actor) at the top
-  // of the passed-in layer.  Its shadow will be stacked at the bottom of
-  // the layer so as to not appear above the windows' siblings.  Returns
-  // false if the X request fails.
+  // of the passed-in layer, which must be LAYER_TOP_CLIENT_WINDOW or below.
+  // Its shadow will be stacked at the bottom of the layer so as to not appear
+  // above the windows' siblings.  Returns false if the X request fails.
   bool StackWindowAtTopOfLayer(Window* win, Layer layer);
 
-  // Stack an X window at the top of the passed-in layer.  This is useful for X
-  // windows that don't have Window objects associated with them (e.g. input
-  // windows).  Returns false if the X request fails.
+  // Stack an X window at the top of the passed-in layer, which must be
+  // LAYER_TOP_CLIENT_WINDOW or below.  This is useful for X windows that don't
+  // have Window objects associated with them (e.g. input windows).  Returns
+  // false if the X request fails.
   bool StackXidAtTopOfLayer(XWindow xid, Layer layer);
 
   // Stack a compositor actor at the top of the passed-in layer.

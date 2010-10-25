@@ -15,6 +15,7 @@
 #include "window_manager/focus_manager.h"
 #include "window_manager/geometry.h"
 #include "window_manager/shadow.h"
+#include "window_manager/stacking_manager.h"
 #include "window_manager/util.h"
 #include "window_manager/window_manager.h"
 #include "window_manager/x_connection.h"
@@ -102,7 +103,10 @@ Window::Window(WindowManager* wm,
 
   actor_->Move(composited_x_, composited_y_, 0);
   actor_->Hide();
+  // TODO(derat): Move this stuff to WindowManager::TrackWindow() instead.
   wm_->stage()->AddActor(actor_.get());
+  wm_->stacking_manager()->StackWindowAtTopOfLayer(
+      this, StackingManager::LAYER_TOP_CLIENT_WINDOW);
 
   // Various properties could've been set on this window after it was
   // created but before we selected PropertyChangeMask, so we need to query
