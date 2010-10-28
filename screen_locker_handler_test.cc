@@ -201,6 +201,10 @@ TEST_F(ScreenLockerHandlerTest, AbortedLock) {
   // invoke the callback and check that the actor was destroyed and we're
   // displaying all actors again.
   ASSERT_NE(-1, handler_->destroy_snapshot_timeout_id_);
+  if (!EventLoop::IsTimerFdSupported()) {
+    LOG(ERROR) << "Aborting test because of missing timerfd support";
+    return;
+  }
   wm_->event_loop()->RunTimeoutForTesting(
       handler_->destroy_snapshot_timeout_id_);
   EXPECT_EQ(-1, handler_->destroy_snapshot_timeout_id_);
@@ -231,6 +235,10 @@ TEST_F(ScreenLockerHandlerTest, SuccessfulLock) {
   // Invoke the timeout to destroy it and check that we're showing only the
   // screen locker window.
   ASSERT_NE(-1, handler_->destroy_snapshot_timeout_id_);
+  if (!EventLoop::IsTimerFdSupported()) {
+    LOG(ERROR) << "Aborting test because of missing timerfd support";
+    return;
+  }
   wm_->event_loop()->RunTimeoutForTesting(
       handler_->destroy_snapshot_timeout_id_);
   EXPECT_EQ(-1, handler_->destroy_snapshot_timeout_id_);
@@ -272,6 +280,10 @@ TEST_F(ScreenLockerHandlerTest, AbortedShutdown) {
   // invoke the callback and check that the actor was destroyed and we're
   // displaying all actors again.
   ASSERT_NE(-1, handler_->destroy_snapshot_timeout_id_);
+  if (!EventLoop::IsTimerFdSupported()) {
+    LOG(ERROR) << "Aborting test because of missing timerfd support";
+    return;
+  }
   wm_->event_loop()->RunTimeoutForTesting(
       handler_->destroy_snapshot_timeout_id_);
   EXPECT_EQ(-1, handler_->destroy_snapshot_timeout_id_);
