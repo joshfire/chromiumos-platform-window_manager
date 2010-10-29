@@ -673,27 +673,34 @@ void LoginController::SelectWizardWindow() {
 
 void LoginController::CalculateIdealOrigins(vector<Point>* origins) {
   const LoginEntry* entry = entries_[0].get();
+  const int screen_height = wm_->height();
+  const int padding = entry->padding();
 
-  const int selected_y = (wm_->height() - entry->selected_height()) / 2;
-  const int unselected_y = (wm_->height() - entry->unselected_height()) / 2;
+  int width = 0;
+  for (size_t i = 0; i < entries_.size(); ++i) {
+    if (selected_entry_index_ == i)
+      width += entries_[i]->selected_width();
+    else
+      width += entries_[i]->unselected_width();
+  }
+  // Take padding from first entry, later we perhaps may want to take average
+  // or max padding of two adjacent entries. Now all entries have the same
+  // padding so it doesn't matter.
+  width += (entries_.size() - 1) * padding;
 
-  int width = entries_.size() * entry->unselected_width() +
-              (entries_.size() - 1) * entry->padding();
-  if (selected_entry_index_ != kNoSelection)
-    width += entry->selected_width() - entry->unselected_width();
   int x = (wm_->width() - width) / 2;
   for (size_t i = 0; i < entries_.size(); ++i) {
     int y;
     int w;
     if (selected_entry_index_ == i) {
-      y = selected_y;
-      w = entry->selected_width();
+      y = (screen_height - entries_[i]->selected_height()) / 2;
+      w = entries_[i]->selected_width();
     } else {
-      y = unselected_y;
-      w = entry->unselected_width();
+      y = (screen_height - entries_[i]->unselected_height()) / 2;
+      w = entries_[i]->unselected_width();
     }
     origins->push_back(Point(x, y));
-    x += w + entry->padding();
+    x += w + padding;
   }
 }
 

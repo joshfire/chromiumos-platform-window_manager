@@ -145,9 +145,10 @@ void LoginEntry::InitSizes() {
   padding_ = border_window_->type_params()[3];
 
   border_width_ = border_window_->client_width();
-  border_to_controls_gap_ = (border_width_ - image_window_->client_width()) / 2;
   border_height_ = border_window_->client_height();
 
+  border_to_controls_gap_ =
+      (border_width_ - controls_window_->client_width()) / 2;
   unselected_border_width_ = unselected_image_size +
       2 * border_to_controls_gap_;
   unselected_border_height_ = unselected_image_size +
@@ -178,7 +179,23 @@ void LoginEntry::ScaleCompositeWindows(bool is_selected, int anim_ms) {
 
   if (is_selected) {
     border_window_->ScaleComposited(1, 1, anim_ms);
-    image_window_->ScaleComposited(1, 1, anim_ms);
+    if (IsNewUser()) {
+      // Image window for New User pod is 256x256 as usual but control window
+      // is bigger so we need to upscale image to match controls window to
+      // make animation nicer.
+      double selected_image_scale_x =
+          static_cast<double>(border_window_->client_width()) /
+          static_cast<double>(image_window_->client_width());
+      double selected_image_scale_y =
+          static_cast<double>(border_window_->client_height()) /
+          static_cast<double>(image_window_->client_height());
+      image_window_->ScaleComposited(
+          selected_image_scale_x,
+          selected_image_scale_y,
+          anim_ms);
+    } else {
+      image_window_->ScaleComposited(1, 1, anim_ms);
+    }
     controls_window_->ScaleComposited(1, 1, anim_ms);
     label_window_->ScaleComposited(1, 1, anim_ms);
     unselected_label_window_->ScaleComposited(1 / unselected_label_scale_x_,
@@ -191,10 +208,13 @@ void LoginEntry::ScaleCompositeWindows(bool is_selected, int anim_ms) {
                                    unselected_image_scale_y_, anim_ms);
     if (IsNewUser()) {
       int unselected_image_size = border_window_->type_params()[2];
+      double unselected_guest_scale_x =
+          static_cast<double>(unselected_image_size) /
+          static_cast<double>(controls_window_->client_width());
       double unselected_guest_scale_y =
           static_cast<double>(unselected_image_size) /
           static_cast<double>(controls_window_->client_height());
-      controls_window_->ScaleComposited(unselected_image_scale_x_,
+      controls_window_->ScaleComposited(unselected_guest_scale_x,
                                         unselected_guest_scale_y, anim_ms);
     } else {
       controls_window_->ScaleComposited(unselected_image_scale_x_, 0, anim_ms);
