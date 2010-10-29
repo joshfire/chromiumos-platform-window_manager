@@ -30,7 +30,8 @@
 DEFINE_bool(logtostderr, false,
             "Print debugging messages to stderr (suppressed otherwise)");
 
-DECLARE_string(background_image);  // from layout_manager.cc
+DECLARE_bool(enable_overview_mode);  // from layout_manager.cc
+DECLARE_string(background_image);    // from layout_manager.cc
 
 using std::string;
 using std::vector;
@@ -1621,6 +1622,9 @@ TEST_F(LayoutManagerTest, ChangeBackgroundsAfterInitialWindow) {
   // The mock compositor doesn't actually load images.
   AutoReset<string> background_image_flag_resetter(
       &FLAGS_background_image, "bogus_bg.png");
+  // We avoid loading the background if overview mode is disabled.
+  AutoReset<bool> enable_overview_mode_flag_resetter(
+      &FLAGS_enable_overview_mode, true);
   CreateAndInitNewWm();
   lm_ = NULL;
 

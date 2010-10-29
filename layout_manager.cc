@@ -155,9 +155,14 @@ LayoutManager::LayoutManager(WindowManager* wm, PanelManager* panel_manager)
       background_xid_, StackingManager::LAYER_BACKGROUND);
   wm_->SetNamePropertiesForXid(background_xid_, "background input window");
 
-  if (!FLAGS_background_image.empty())
-    SetBackground(
-        wm_->compositor()->CreateImageFromFile(FLAGS_background_image));
+  if (!FLAGS_background_image.empty()) {
+    if (FLAGS_enable_overview_mode) {
+      SetBackground(
+          wm_->compositor()->CreateImageFromFile(FLAGS_background_image));
+    } else {
+      LOG(INFO) << "Overview mode is disabled; ignoring --background_image";
+    }
+  }
 
   modal_lightbox_->SetName("modal window lightbox");
   modal_lightbox_->SetOpacity(0, 0);
