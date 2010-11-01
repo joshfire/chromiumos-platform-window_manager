@@ -470,7 +470,13 @@ void PanelBar::HandlePanelResizeRequest(Panel* panel,
 
 void PanelBar::HandlePanelResizeByUser(Panel* panel) {
   DCHECK(panel);
-  ArrangePanels(true, NULL);
+  Panel* fixed_floating_panel = NULL;
+  PanelInfo* info = GetPanelInfoOrDie(panel);
+  if (info->is_floating) {
+    info->desired_right = panel->right();
+    fixed_floating_panel = panel;
+  }
+  ArrangePanels(true, fixed_floating_panel);
 }
 
 void PanelBar::HandleScreenResize() {

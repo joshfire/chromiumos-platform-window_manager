@@ -174,6 +174,7 @@ class Panel {
 
  private:
   FRIEND_TEST(PanelBarTest, PackPanelsAfterPanelResize);
+  FRIEND_TEST(PanelBarTest, FloatingPanelPositionAfterResize);
   FRIEND_TEST(PanelManagerTest, ChromeInitiatedPanelResize);
   FRIEND_TEST(PanelTest, InputWindows);
   FRIEND_TEST(PanelTest, Resize);

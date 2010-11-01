@@ -666,6 +666,45 @@ TEST_F(PanelBarTest, PackPanelsAfterPanelResize) {
             panel3->right());
 }
 
+// Test that floating panels' positions get updated correctly after the panels
+// are resized.
+TEST_F(PanelBarTest, FloatingPanelPositionAfterResize) {
+  const int kInitialWidth = 200;
+  Panel* panel = CreatePanel(kInitialWidth, 20, 400);
+
+  // Drag the panel to the left so it's floating / independently-positioned.
+  int kInitialRight = 300;
+  SendPanelDraggedMessage(panel, kInitialRight, panel->titlebar_y());
+  SendPanelDragCompleteMessage(panel);
+  EXPECT_EQ(kInitialRight, panel->right());
+
+  // Drag the right resize handle 50 pixels to the right.  After we let go, the
+  // panel should be 50 pixels wider, and its right edge should be at the same
+  // spot where we let go of the handle.
+  const int kResizeWidth = 50;
+  XWindow input_xid = panel->right_input_xid_;
+  XEvent event;
+  xconn_->InitButtonPressEvent(&event, input_xid, Point(0, 0), 1);
+  wm_->HandleEvent(&event);
+  xconn_->InitMotionNotifyEvent(&event, input_xid, Point(kResizeWidth, 0));
+  wm_->HandleEvent(&event);
+  xconn_->InitButtonReleaseEvent(&event, input_xid, Point(kResizeWidth, 0), 1);
+  wm_->HandleEvent(&event);
+  EXPECT_EQ(kInitialWidth + kResizeWidth, panel->width());
+  EXPECT_EQ(kInitialRight + kResizeWidth, panel->right());
+
+  // Now drag the handle back to the left and check that the panel's right edge
+  // is also moved back to the left.
+  xconn_->InitButtonPressEvent(&event, input_xid, Point(0, 0), 1);
+  wm_->HandleEvent(&event);
+  xconn_->InitMotionNotifyEvent(&event, input_xid, Point(-kResizeWidth, 0));
+  wm_->HandleEvent(&event);
+  xconn_->InitButtonReleaseEvent(&event, input_xid, Point(-kResizeWidth, 0), 1);
+  wm_->HandleEvent(&event);
+  EXPECT_EQ(kInitialWidth, panel->width());
+  EXPECT_EQ(kInitialRight, panel->right());
+}
+
 TEST_F(PanelBarTest, UrgentPanel) {
   // Move the pointer to the top of the screen and create a collapsed panel.
   xconn_->SetPointerPosition(Point(0, 0));
