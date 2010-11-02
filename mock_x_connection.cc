@@ -730,7 +730,7 @@ MockXConnection::WindowInfo::WindowInfo(XWindow xid, XWindow parent)
       parent(parent),
       bounds(-1, -1, 1, 1),
       border_width(0),
-      depth(32),
+      depth(24),
       mapped(false),
       override_redirect(false),
       input_only(false),

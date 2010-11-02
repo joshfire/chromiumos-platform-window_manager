@@ -1711,7 +1711,7 @@ TEST_F(LayoutManagerTest, Shadows) {
   ASSERT_TRUE(wm_->GetWindowOrDie(transient_xid)->shadow() != NULL);
   EXPECT_TRUE(wm_->GetWindowOrDie(transient_xid)->shadow()->is_shown());
 
-  // ...unless they're info bubbles.
+  // ...unless they're info bubbles...
   XWindow info_bubble_xid = CreateSimpleWindow();
   xconn_->GetWindowInfoOrDie(info_bubble_xid)->transient_for = toplevel_xid;
   ASSERT_TRUE(wm_->wm_ipc()->SetWindowType(
@@ -1720,6 +1720,14 @@ TEST_F(LayoutManagerTest, Shadows) {
       NULL));
   SendInitialEventsForWindow(info_bubble_xid);
   EXPECT_TRUE(wm_->GetWindowOrDie(info_bubble_xid)->shadow() == NULL);
+
+  // ...or RGBA.
+  XWindow rgba_xid = CreateSimpleWindow();
+  MockXConnection::WindowInfo* rgba_info = xconn_->GetWindowInfoOrDie(rgba_xid);
+  rgba_info->transient_for = toplevel_xid;
+  rgba_info->depth = 32;
+  SendInitialEventsForWindow(rgba_xid);
+  EXPECT_TRUE(wm_->GetWindowOrDie(rgba_xid)->shadow() == NULL);
 }
 
 // Check that we defer animating new windows onscreen until the client says

@@ -588,6 +588,17 @@ TEST_F(PanelManagerTest, TransientWindows) {
   EXPECT_EQ(infobubble_xid, xconn_->focused_xid());
 }
 
+// Test that we don't draw drop shadows for RGBA transient windows.
+TEST_F(PanelManagerTest, NoShadowForRgbaTransient) {
+  Panel* panel = CreatePanel(20, 200, 400);
+  XWindow rgba_xid = CreateSimpleWindow();
+  MockXConnection::WindowInfo* rgba_info = xconn_->GetWindowInfoOrDie(rgba_xid);
+  rgba_info->transient_for = panel->content_xid();
+  rgba_info->depth = 32;
+  SendInitialEventsForWindow(rgba_xid);
+  EXPECT_TRUE(wm_->GetWindowOrDie(rgba_xid)->shadow() == NULL);
+}
+
 }  // namespace window_manager
 
 int main(int argc, char** argv) {

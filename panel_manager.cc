@@ -120,7 +120,8 @@ void PanelManager::HandleWindowMap(Window* win) {
     if (owner_panel) {
       transient_xids_by_owner_[win->xid()] = owner_panel;
       owner_panel->HandleTransientWindowMap(win);
-      win->SetShadowType(Shadow::TYPE_RECTANGULAR);
+      if (!win->is_rgba())
+        win->SetShadowType(Shadow::TYPE_RECTANGULAR);
     }
     return;
   }

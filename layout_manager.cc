@@ -1116,8 +1116,10 @@ void LayoutManager::HandleTransientWindowMap(Window* win) {
   if (!toplevel_owner)
     return;
 
-  if (win->type() != chromeos::WM_IPC_WINDOW_CHROME_INFO_BUBBLE)
+  if (win->type() != chromeos::WM_IPC_WINDOW_CHROME_INFO_BUBBLE &&
+      !win->is_rgba()) {
     win->SetShadowType(Shadow::TYPE_RECTANGULAR);
+  }
 
   transient_to_toplevel_[win->xid()] = toplevel_owner;
   toplevel_owner->HandleTransientWindowMap(win, mode_ == MODE_OVERVIEW);

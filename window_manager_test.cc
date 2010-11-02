@@ -1083,6 +1083,15 @@ TEST_F(WindowManagerTest, OverrideRedirectShadows) {
   SendInitialEventsForWindow(xid4);
   ASSERT_TRUE(wm_->GetWindowOrDie(xid4)->shadow() != NULL);
   EXPECT_TRUE(wm_->GetWindowOrDie(xid4)->shadow()->is_shown());
+
+  // We should avoid showing shadows behind RGBA menus.
+  XWindow rgba_xid =
+      xconn_->CreateWindow(root, Rect(0, 0, 10, 10), true, false, 0, 0);
+  xconn_->GetWindowInfoOrDie(rgba_xid)->depth = 32;
+  xconn_->SetIntProperty(rgba_xid, win_type_xatom, atom_xatom, menu_xatom);
+  ASSERT_TRUE(xconn_->MapWindow(rgba_xid));
+  SendInitialEventsForWindow(rgba_xid);
+  EXPECT_TRUE(wm_->GetWindowOrDie(rgba_xid)->shadow() == NULL);
 }
 
 // Check that we try to guess when is a video is playing by looking at the
@@ -1430,6 +1439,19 @@ TEST_F(WindowManagerTest, HandleLateSyncRequestCounter) {
       &event, xid, xconn_->GetAtomOrDie("_NET_WM_SYNC_REQUEST_COUNTER"));
   wm_->HandleEvent(&event);
   EXPECT_NE(0, win->wm_sync_request_alarm_);
+}
+
+// Check that we load color depths for newly-created windows.
+TEST_F(WindowManagerTest, FetchDepth) {
+  XWindow rgb_xid = CreateSimpleWindow();
+  xconn_->GetWindowInfoOrDie(rgb_xid)->depth = 24;
+  SendInitialEventsForWindow(rgb_xid);
+  EXPECT_EQ(24, wm_->GetWindowOrDie(rgb_xid)->client_depth());
+
+  XWindow rgba_xid = CreateSimpleWindow();
+  xconn_->GetWindowInfoOrDie(rgba_xid)->depth = 32;
+  SendInitialEventsForWindow(rgba_xid);
+  EXPECT_EQ(32, wm_->GetWindowOrDie(rgba_xid)->client_depth());
 }
 
 }  // namespace window_manager

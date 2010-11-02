@@ -750,8 +750,9 @@ TEST_F(RealCompositorTest, LayerVisitorTopFullscreenWindow) {
       false,     // input_only=false
       0, 0);     // event_mask, visual
 
-  // Force xwin1 and xwin3 to be opaque.
+  // Make xwin1 and xwin3 opaque.
   xconn_->GetWindowInfoOrDie(xwin1)->depth = 24;
+  xconn_->GetWindowInfoOrDie(xwin2)->depth = 32;
   xconn_->GetWindowInfoOrDie(xwin3)->depth = 24;
 
   actor1->SetPixmap(xconn_->GetCompositingPixmapForWindow(xwin1));

@@ -384,6 +384,14 @@ TEST_F(LoginControllerTest, OtherWindows) {
   SendInitialEventsForWindow(info_bubble_xid);
   EXPECT_TRUE(wm_->GetWindowOrDie(info_bubble_xid)->shadow() == NULL);
 
+  // Neither should RGBA windows.
+  XWindow rgba_xid = CreateSimpleWindow();
+  MockXConnection::WindowInfo* rgba_info = xconn_->GetWindowInfoOrDie(rgba_xid);
+  rgba_info->transient_for = background_xid_;
+  rgba_info->depth = 32;
+  SendInitialEventsForWindow(rgba_xid);
+  EXPECT_TRUE(wm_->GetWindowOrDie(rgba_xid)->shadow() == NULL);
+
   // Non-transient non-login windows should be ignored by the login
   // controller.
   XWindow non_transient_xid = CreateSimpleWindow();

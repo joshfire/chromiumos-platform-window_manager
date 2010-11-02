@@ -52,7 +52,9 @@ class WindowManager;
 // the composited window.
 class Window {
  public:
-  Window(WindowManager* wm, XWindow xid, bool override_redirect,
+  Window(WindowManager* wm,
+         XWindow xid,
+         bool override_redirect,
          const XConnection::WindowGeometry& geometry);
   ~Window();
 
@@ -70,11 +72,13 @@ class Window {
   }
   bool mapped() const { return mapped_; }
   bool shaped() const { return shaped_; }
+  bool is_rgba() const { return client_depth_ == 32; }
 
   int client_x() const { return client_x_; }
   int client_y() const { return client_y_; }
   int client_width() const { return client_width_; }
   int client_height() const { return client_height_; }
+  int client_depth() const { return client_depth_; }
 
   bool composited_shown() const { return composited_shown_; }
   int composited_x() const { return composited_x_; }
@@ -455,6 +459,9 @@ class Window {
   int client_y_;
   int client_width_;
   int client_height_;
+
+  // Bit depth of the client window.
+  int client_depth_;
 
   // Client-requested opacity (via _NET_WM_WINDOW_OPACITY).
   double client_opacity_;

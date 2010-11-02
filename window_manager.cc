@@ -1255,7 +1255,7 @@ void WindowManager::HandleMappedWindow(Window* win) {
   win->HandleMapNotify();
   FOR_EACH_EVENT_CONSUMER(event_consumers_, HandleWindowMap(win));
 
-  if (win->override_redirect()) {
+  if (win->override_redirect() && !win->is_rgba()) {
     // Check if this window has a menu hint; if so, display a shadow under it.
     const static XAtom combo_xatom = GetXAtom(ATOM_NET_WM_WINDOW_TYPE_COMBO);
     const static XAtom dropdown_xatom =
@@ -1607,8 +1607,12 @@ void WindowManager::HandleCreateNotify(const XCreateWindowEvent& e) {
   scoped_ptr<XConnection::ScopedServerGrab> grab(
       xconn_->CreateScopedServerGrab());
 
-  XConnection::WindowAttributes attr;
-  if (!xconn_->GetWindowAttributes(e.window, &attr)) {
+  // We want to pass the geometry from the CreateNotify event to Window's
+  // constructor, but we also need to include the window's depth, which sadly
+  // isn't included in CreateNotify events.  Query the geometry again here to
+  // get the depth (and also to check that the window still exists).
+  XConnection::WindowGeometry new_geometry;
+  if (!xconn_->GetWindowGeometry(e.window, &new_geometry)) {
     LOG(WARNING) << "Window " << XidStr(e.window)
                  << " went away while we were handling its CreateNotify event";
     return;
@@ -1621,8 +1625,7 @@ void WindowManager::HandleCreateNotify(const XCreateWindowEvent& e) {
   XConnection::WindowGeometry geometry;
   geometry.bounds.reset(e.x, e.y, e.width, e.height);
   geometry.border_width = e.border_width;
-  // We don't get the depth in the event, but at least for now, Window's
-  // constructor doesn't need it.
+  geometry.depth = new_geometry.depth;
 
   // override-redirect means that the window manager isn't going to
   // intercept this window's structure events, but we still need to
