@@ -1255,21 +1255,23 @@ void WindowManager::HandleMappedWindow(Window* win) {
   win->HandleMapNotify();
   FOR_EACH_EVENT_CONSUMER(event_consumers_, HandleWindowMap(win));
 
-  if (win->override_redirect() && !win->is_rgba()) {
-    // Check if this window has a menu hint; if so, display a shadow under it.
-    const static XAtom combo_xatom = GetXAtom(ATOM_NET_WM_WINDOW_TYPE_COMBO);
-    const static XAtom dropdown_xatom =
-        GetXAtom(ATOM_NET_WM_WINDOW_TYPE_DROPDOWN_MENU);
-    const static XAtom menu_xatom = GetXAtom(ATOM_NET_WM_WINDOW_TYPE_MENU);
-    const static XAtom popup_xatom =
-        GetXAtom(ATOM_NET_WM_WINDOW_TYPE_POPUP_MENU);
-    for (vector<XAtom>::const_iterator it =
-           win->wm_window_type_xatoms().begin();
-         it != win->wm_window_type_xatoms().end(); ++it) {
-      if (*it == combo_xatom || *it == dropdown_xatom || *it == menu_xatom ||
-          *it == popup_xatom) {
-        win->SetShadowType(Shadow::TYPE_RECTANGULAR);
-        break;
+  if (win->override_redirect()) {
+    if (!win->is_rgba()) {
+      // Check if this window has a menu hint; if so, display a shadow under it.
+      const static XAtom combo_xatom = GetXAtom(ATOM_NET_WM_WINDOW_TYPE_COMBO);
+      const static XAtom dropdown_xatom =
+          GetXAtom(ATOM_NET_WM_WINDOW_TYPE_DROPDOWN_MENU);
+      const static XAtom menu_xatom = GetXAtom(ATOM_NET_WM_WINDOW_TYPE_MENU);
+      const static XAtom popup_xatom =
+          GetXAtom(ATOM_NET_WM_WINDOW_TYPE_POPUP_MENU);
+      for (vector<XAtom>::const_iterator it =
+             win->wm_window_type_xatoms().begin();
+           it != win->wm_window_type_xatoms().end(); ++it) {
+        if (*it == combo_xatom || *it == dropdown_xatom || *it == menu_xatom ||
+            *it == popup_xatom) {
+          win->SetShadowType(Shadow::TYPE_RECTANGULAR);
+          break;
+        }
       }
     }
 

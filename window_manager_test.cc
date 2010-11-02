@@ -1049,7 +1049,9 @@ TEST_F(WindowManagerTest, OverrideRedirectShadows) {
       xconn_->CreateWindow(root, Rect(0, 0, 10, 10), true, false, 0, 0);
   ASSERT_TRUE(xconn_->MapWindow(xid1));
   SendInitialEventsForWindow(xid1);
-  EXPECT_TRUE(wm_->GetWindowOrDie(xid1)->shadow() == NULL);
+  Window* win1 = wm_->GetWindowOrDie(xid1);
+  EXPECT_TRUE(win1->composited_shown());
+  EXPECT_TRUE(win1->shadow() == NULL);
 
   // _NET_WM_WINDOW_TYPE_MENU (or several other menu-related types) should
   // result in a shadow getting shown.
@@ -1091,7 +1093,9 @@ TEST_F(WindowManagerTest, OverrideRedirectShadows) {
   xconn_->SetIntProperty(rgba_xid, win_type_xatom, atom_xatom, menu_xatom);
   ASSERT_TRUE(xconn_->MapWindow(rgba_xid));
   SendInitialEventsForWindow(rgba_xid);
-  EXPECT_TRUE(wm_->GetWindowOrDie(rgba_xid)->shadow() == NULL);
+  Window* rgba_win = wm_->GetWindowOrDie(rgba_xid);
+  EXPECT_TRUE(rgba_win->composited_shown());
+  EXPECT_TRUE(rgba_win->shadow() == NULL);
 }
 
 // Check that we try to guess when is a video is playing by looking at the
