@@ -2,6 +2,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#include <unistd.h>
+
 #include <cmath>
 #include <cstdlib>
 #include <ctime>
@@ -73,7 +75,7 @@ static void HandleLogAssert(const string& str) {
 // generate a window manager crash dump whenever the X server crashes.
 static int HandleXIOError(Display* display) {
   LOG(ERROR) << "Got X I/O error (probably lost connection to server); exiting";
-  exit(EXIT_FAILURE);
+  _exit(EXIT_FAILURE);
 }
 
 int main(int argc, char** argv) {
@@ -132,7 +134,7 @@ int main(int argc, char** argv) {
   if (!display) {
     LOG(ERROR) << "Unable to open "
                << (display_name ? display_name : "default display");
-    exit(EXIT_FAILURE);
+    return EXIT_FAILURE;
   }
   XSetIOErrorHandler(HandleXIOError);
 
@@ -158,5 +160,5 @@ int main(int argc, char** argv) {
       NewPermanentCallback(&wm, &WindowManager::ProcessPendingEvents));
 
   event_loop.Run();
-  return 0;
+  return EXIT_SUCCESS;
 }
