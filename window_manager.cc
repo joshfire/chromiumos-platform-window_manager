@@ -989,6 +989,7 @@ bool WindowManager::SetEwmhGeneralProperties() {
   supported.push_back(GetXAtom(ATOM_NET_DESKTOP_GEOMETRY));
   supported.push_back(GetXAtom(ATOM_NET_DESKTOP_VIEWPORT));
   supported.push_back(GetXAtom(ATOM_NET_NUMBER_OF_DESKTOPS));
+  supported.push_back(GetXAtom(ATOM_NET_WM_MOVERESIZE));
   supported.push_back(GetXAtom(ATOM_NET_WM_NAME));
   supported.push_back(GetXAtom(ATOM_NET_WM_STATE));
   supported.push_back(GetXAtom(ATOM_NET_WM_STATE_FULLSCREEN));

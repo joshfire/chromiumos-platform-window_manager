@@ -47,6 +47,7 @@ static const AtomInfo kAtomInfos[] = {
   { ATOM_NET_SUPPORTED,                "_NET_SUPPORTED" },
   { ATOM_NET_SUPPORTING_WM_CHECK,      "_NET_SUPPORTING_WM_CHECK" },
   { ATOM_NET_WM_CM_S0,                 "_NET_WM_CM_S0" },
+  { ATOM_NET_WM_MOVERESIZE,            "_NET_WM_MOVERESIZE" },
   { ATOM_NET_WM_NAME,                  "_NET_WM_NAME" },
   { ATOM_NET_WM_PID,                   "_NET_WM_PID" },
   { ATOM_NET_WM_PING,                  "_NET_WM_PING" },
