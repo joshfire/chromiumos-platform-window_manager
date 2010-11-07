@@ -8,6 +8,8 @@
 #include <string>
 #include <tr1/memory>
 
+#include <gflags/gflags.h>
+
 #include "cros/chromeos_wm_ipc_enums.h"
 #include "window_manager/callback.h"
 #include "window_manager/event_loop.h"
@@ -17,6 +19,10 @@
 #include "window_manager/util.h"
 #include "window_manager/window.h"
 #include "window_manager/window_manager.h"
+
+DEFINE_string(calibrate_display_command,
+              "", "Command to run to calibrate the display while we're "
+              "transitioning to the login background");
 
 using std::map;
 using std::set;
@@ -549,6 +555,18 @@ void LoginController::InitialShow() {
 }
 
 void LoginController::ConfigureBackgroundWindow() {
+  // TODO: This is very much not the right place to be loading gamma settings;
+  // ideally session_manager_setup.sh would load them immediately after X is
+  // started.  That leads to a noticeable shift in colors, though, so we instead
+  // sneak it in here, while we're also fading from the boot splash image to the
+  // login background window.
+  if (!FLAGS_calibrate_display_command.empty()) {
+    LOG(INFO) << "Running \"" << FLAGS_calibrate_display_command
+              << "\" to calibrate display";
+    if (system(FLAGS_calibrate_display_command.c_str()) != 0)
+      LOG(ERROR) << "Display calibration failed";
+  }
+
   DCHECK(background_window_);
   wm_->stacking_manager()->StackWindowAtTopOfLayer(
       background_window_, StackingManager::LAYER_LOGIN_WINDOW);
