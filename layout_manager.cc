@@ -80,8 +80,6 @@ static const char* kCycleToplevelForwardAction = "cycle-toplevel-forward";
 static const char* kCycleToplevelBackwardAction = "cycle-toplevel-backward";
 static const char* kCycleSnapshotForwardAction = "cycle-snapshot-forward";
 static const char* kCycleSnapshotBackwardAction = "cycle-snapshot-backward";
-static const char* kCycleTabForwardAction = "cycle-tab-forward";
-static const char* kCycleTabBackwardAction = "cycle-tab-backward";
 static const char* kSwitchToActiveModeForSelectedAction =
     "switch-to-active-mode-for-selected";
 static const char* kSelectToplevelWithIndexActionFormat =
@@ -174,38 +172,6 @@ LayoutManager::LayoutManager(WindowManager* wm, PanelManager* panel_manager)
       background_xid_, 1, event_mask, false);
   event_consumer_registrar_->RegisterForWindowEvents(background_xid_);
 
-  if (FLAGS_enable_overview_mode) {
-    key_bindings_actions_->AddAction(
-        kSwitchToOverviewModeAction,
-        NewPermanentCallback(this, &LayoutManager::SetMode, MODE_OVERVIEW),
-        NULL, NULL);
-    active_mode_key_bindings_group_->AddBinding(
-        KeyBindings::KeyCombo(XK_F5, 0), kSwitchToOverviewModeAction);
-  } else {
-    key_bindings_actions_->AddAction(
-        kCycleTabForwardAction,
-        NewPermanentCallback(this, &LayoutManager::CycleSelectedTab, true),
-        NULL, NULL);
-    key_bindings_actions_->AddAction(
-        kCycleTabBackwardAction,
-        NewPermanentCallback(this, &LayoutManager::CycleSelectedTab, false),
-        NULL, NULL);
-    active_mode_key_bindings_group_->AddBinding(
-        KeyBindings::KeyCombo(XK_F5, 0),
-        kCycleTabForwardAction);
-    active_mode_key_bindings_group_->AddBinding(
-        KeyBindings::KeyCombo(XK_F5, KeyBindings::kShiftMask),
-        kCycleTabBackwardAction);
-  }
-
-  key_bindings_actions_->AddAction(
-      kSwitchToActiveModeAction,
-      NewPermanentCallback(this, &LayoutManager::SetMode,
-                           MODE_ACTIVE_CANCELLED),
-      NULL, NULL);
-  overview_mode_key_bindings_group_->AddBinding(
-      KeyBindings::KeyCombo(XK_Escape, 0), kSwitchToActiveModeAction);
-
   key_bindings_actions_->AddAction(
       kCycleToplevelForwardAction,
       NewPermanentCallback(
@@ -258,6 +224,30 @@ LayoutManager::LayoutManager(WindowManager* wm, PanelManager* panel_manager)
       kCycleSnapshotBackwardAction);
   overview_mode_key_bindings_group_->AddBinding(
       KeyBindings::KeyCombo(XK_F1, 0), kCycleSnapshotBackwardAction);
+
+  if (FLAGS_enable_overview_mode) {
+    key_bindings_actions_->AddAction(
+        kSwitchToOverviewModeAction,
+        NewPermanentCallback(this, &LayoutManager::SetMode, MODE_OVERVIEW),
+        NULL, NULL);
+    active_mode_key_bindings_group_->AddBinding(
+        KeyBindings::KeyCombo(XK_F5, 0), kSwitchToOverviewModeAction);
+  } else {
+    active_mode_key_bindings_group_->AddBinding(
+        KeyBindings::KeyCombo(XK_F5, 0),
+        kCycleToplevelForwardAction);
+    active_mode_key_bindings_group_->AddBinding(
+        KeyBindings::KeyCombo(XK_F5, KeyBindings::kShiftMask),
+        kCycleToplevelBackwardAction);
+  }
+
+  key_bindings_actions_->AddAction(
+      kSwitchToActiveModeAction,
+      NewPermanentCallback(
+          this, &LayoutManager::SetMode, MODE_ACTIVE_CANCELLED),
+      NULL, NULL);
+  overview_mode_key_bindings_group_->AddBinding(
+      KeyBindings::KeyCombo(XK_Escape, 0), kSwitchToActiveModeAction);
 
   key_bindings_actions_->AddAction(
       kSwitchToActiveModeForSelectedAction,
@@ -1407,6 +1397,7 @@ void LayoutManager::CycleCurrentToplevelWindow(bool forward) {
   } else {
     if (toplevels_.size() == 1)
       return;
+
     int old_index = GetIndexForToplevelWindow(*current_toplevel_);
     int new_index = (toplevels_.size() + old_index + (forward ? 1 : -1)) %
                     toplevels_.size();
@@ -1453,37 +1444,6 @@ void LayoutManager::CycleCurrentSnapshotWindow(bool forward) {
   }
   if (mode_ == MODE_OVERVIEW)
     LayoutWindows(true);
-}
-
-void LayoutManager::CycleSelectedTab(bool forward) {
-  if (mode_ != MODE_ACTIVE) {
-    LOG(WARNING) << "Ignoring request to cycle tab outside of "
-                 << "active mode (current mode is " << mode_ << ")";
-    return;
-  }
-  if (toplevels_.empty() || !current_toplevel_)
-    return;
-
-  // Nothing to do if there's only a single tab in a single window.
-  if (num_toplevels() == 1 && current_toplevel_->tab_count() == 1)
-    return;
-
-  int new_tab_index = current_toplevel_->selected_tab() + (forward ? 1 : -1);
-
-  // Wrap around to the previous or next window if needed.
-  if (new_tab_index < 0) {
-    if (num_toplevels() > 1)
-      CycleCurrentToplevelWindow(false);  // forward=false
-    new_tab_index = current_toplevel_->tab_count() - 1;
-  } else if (new_tab_index >= current_toplevel_->tab_count()) {
-    if (num_toplevels() > 1)
-      CycleCurrentToplevelWindow(true);  // forward=false
-    new_tab_index = 0;
-  }
-
-  if (new_tab_index != current_toplevel_->selected_tab())
-    current_toplevel_->SendTabSelectedMessage(
-        new_tab_index, wm_->key_bindings()->current_event_time());
 }
 
 void LayoutManager::SetCurrentSnapshot(SnapshotWindow* snapshot) {
