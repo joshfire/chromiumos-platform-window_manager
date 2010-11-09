@@ -143,6 +143,15 @@ TEST_F(ScreenLockerHandlerTest, BasicLock) {
           chromeos::WM_IPC_MESSAGE_CHROME_NOTIFY_SCREEN_REDRAWN_FOR_LOCK,
           &msg));
 
+  // We shouldn't animate a snapshot of the screen when we go directly from
+  // the unlocked to locked states (without seeing pre-lock) -- this
+  // probably means that the screen's getting locked because the system is
+  // about to be suspended, so we want to make sure that we're not showing
+  // the unlocked contents onscreen (http;//crosbug.com/8867).  (It could
+  // also mean that we're running on a system that doesn't report power
+  // button releases correctly.)
+  EXPECT_TRUE(handler_->snapshot_actor_.get() == NULL);
+
   // Now resize the root window and check that the screen locker window is
   // also resized.
   const XWindow root_xid = xconn_->GetRootWindow();

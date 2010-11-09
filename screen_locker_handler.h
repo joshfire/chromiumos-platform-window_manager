@@ -76,6 +76,7 @@ class ScreenLockerHandler : public EventConsumer {
 
  private:
   friend class ScreenLockerHandlerTest;
+  FRIEND_TEST(ScreenLockerHandlerTest, BasicLock);
   FRIEND_TEST(ScreenLockerHandlerTest, AbortedLock);
   FRIEND_TEST(ScreenLockerHandlerTest, SuccessfulLock);
   FRIEND_TEST(ScreenLockerHandlerTest, AbortedShutdown);

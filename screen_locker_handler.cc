@@ -191,8 +191,17 @@ void ScreenLockerHandler::HandleLocked() {
   DCHECK(HasWindowWithInitialPixmap());
   is_locked_ = true;
 
+  // Only show the fast-close animation if we were already showing the
+  // slow-close animation (in response to the power button being held).
+  // Otherwise, the screen has probably been locked in response to the lid
+  // being closed, so we want to make sure we've gotten rid of the unlocked
+  // contents of the screen before we draw and tell Chrome to go ahead with
+  // suspend.
+  const bool do_animation = (snapshot_actor_.get() != NULL);
+
   DLOG(INFO) << "First screen locker window visible; hiding other windows";
-  StartFastCloseAnimation(true);
+  if (do_animation)
+    StartFastCloseAnimation(true);
   wm_->compositor()->SetActiveVisibilityGroup(
       WindowManager::VISIBILITY_GROUP_SCREEN_LOCKER);
 
@@ -203,14 +212,15 @@ void ScreenLockerHandler::HandleLocked() {
   for (set<XWindow>::const_iterator it = screen_locker_xids_.begin();
        it != screen_locker_xids_.end(); ++it) {
     Window* win = wm_->GetWindowOrDie(*it);
-    win->SetCompositedOpacity(1, kScreenLockerFadeInMs);
+    win->SetCompositedOpacity(1, do_animation ? kScreenLockerFadeInMs : 0);
     if (!chrome_win)
       chrome_win = win;
   }
 
-  // Redraw and then let Chrome know that we're ready for the system to
-  // be suspended now.
-  wm_->compositor()->Draw();
+  // Redraw (only if we hid the screen contents immediately) and then let
+  // Chrome know that we're ready for the system to be suspended now.
+  if (!do_animation)
+    wm_->compositor()->Draw();
   DCHECK(chrome_win);
   WmIpc::Message msg(
       chromeos::WM_IPC_MESSAGE_CHROME_NOTIFY_SCREEN_REDRAWN_FOR_LOCK);

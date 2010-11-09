@@ -95,8 +95,8 @@ bool WmIpc::GetMessage(XWindow xid,
 }
 
 bool WmIpc::SendMessage(XWindow xid, const Message& msg) {
-  DLOG(INFO) << "Sending message of type " << msg.type() << " to "
-             << XidStr(xid);
+  DLOG(INFO) << "Sending " << chromeos::WmIpcMessageTypeToString(msg.type())
+             << " message to " << XidStr(xid);
 
   long data[5];
   memset(data, 0, sizeof(data));
