@@ -37,7 +37,7 @@ class OpenGlesDrawVisitor : virtual public RealCompositor::ActorVisitor {
     has_fullscreen_actor_ = has_fullscreen_actor;
   }
   void set_damaged_region(Rect damaged_region) {
-    NOTIMPLEMENTED();
+    damaged_region_ = damaged_region;
   }
 
   void BindImage(const ImageContainer* container,
@@ -63,6 +63,7 @@ class OpenGlesDrawVisitor : virtual public RealCompositor::ActorVisitor {
 
   EGLDisplay egl_display_;
   EGLSurface egl_surface_;
+  bool egl_surface_is_capable_of_partial_updates_;
   EGLContext egl_context_;
 
   // Matrix state
@@ -75,6 +76,10 @@ class OpenGlesDrawVisitor : virtual public RealCompositor::ActorVisitor {
   // This is used to indicate whether the entire screen will be covered by an
   // actor so we can optimize by not clearing the COLOR_BUFFER_BIT.
   bool has_fullscreen_actor_;
+
+  // The rectangular region of the screen that is damaged in the frame.
+  // This information allows the draw visitor to perform partial updates.
+  Rect damaged_region_;
 
   DISALLOW_COPY_AND_ASSIGN(OpenGlesDrawVisitor);
 };

@@ -14,6 +14,15 @@
 #include "base/basictypes.h"
 #include "window_manager/gl_interface_base.h"
 
+#if !defined(EGL_NV_post_sub_buffer)
+typedef EGLBoolean (*PFNEGLPOSTSUBBUFFERNVPROC)(EGLDisplay dpy,
+                                                EGLSurface surface,
+                                                EGLint x, EGLint y,
+                                                EGLint width, EGLint height);
+
+#define EGL_POST_SUB_BUFFER_SUPPORTED_NV    0x30BE
+#endif  // !defined(EGL_NV_post_sub_buffer)
+
 namespace window_manager {
 
 // This is an abstract base class representing a GLES2 interface.
@@ -22,7 +31,8 @@ class Gles2Interface : virtual public GLInterfaceBase {
   Gles2Interface() {}
   virtual ~Gles2Interface() {}
 
-  virtual bool InitExtensions() = 0;
+  virtual bool InitEGLExtensions() = 0;
+  virtual bool InitGLExtensions() = 0;
 
   virtual EGLDisplay egl_display() = 0;
 
@@ -46,6 +56,8 @@ class Gles2Interface : virtual public GLInterfaceBase {
   virtual EGLBoolean EglMakeCurrent(EGLDisplay dpy, EGLSurface draw,
                                     EGLSurface read, EGLContext ctx) = 0;
   virtual const char* EglQueryString(EGLDisplay dpy, EGLint name) = 0;
+  virtual EGLBoolean EglQuerySurface(EGLDisplay dpy, EGLSurface surface,
+                                     EGLint attribute, EGLint *value) = 0;
   virtual EGLBoolean EglSwapBuffers(EGLDisplay dpy, EGLSurface surface) = 0;
   virtual EGLBoolean EglTerminate(EGLDisplay dpy) = 0;
 
@@ -54,6 +66,11 @@ class Gles2Interface : virtual public GLInterfaceBase {
                                         EGLenum target, EGLClientBuffer buffer,
                                         const EGLint* attrib_list) = 0;
   virtual EGLBoolean EglDestroyImageKHR(EGLDisplay dpy, EGLImageKHR image) = 0;
+
+  // Functions from the EGL_NV_post_sub_buffer extension
+  virtual EGLBoolean EglPostSubBufferNV(EGLDisplay dpy, EGLSurface surface,
+                                        EGLint x, EGLint y,
+                                        EGLint width, EGLint height) = 0;
 
   // OpenGLES 2 Core
   virtual void ActiveTexture(GLenum texture) = 0;
@@ -96,6 +113,7 @@ class Gles2Interface : virtual public GLInterfaceBase {
   virtual void ReadPixels(GLint x, GLint y, GLsizei width, GLsizei height,
                           GLenum format, GLenum type, void* pixels) = 0;
   virtual void ReleaseShaderCompiler() = 0;
+  virtual void Scissor(GLint x, GLint y, GLsizei width, GLsizei height) = 0;
   virtual void ShaderSource(GLuint shader, GLsizei count, const char** string,
                             const GLint* length) = 0;
   virtual void TexImage2D(GLenum target, GLint level, GLenum internalformat,

@@ -33,6 +33,7 @@ RealGles2Interface::RealGles2Interface(RealXConnection* x)
       egl_display_(EGL_NO_DISPLAY),
       egl_create_image_khr_(NULL),
       egl_destroy_image_khr_(NULL),
+      egl_post_sub_buffer_nv_(NULL),
       gl_egl_image_target_texture_2d_oes_(NULL),
       gl_egl_image_target_renderbuffer_storage_oes_(NULL) {
   egl_display_ = eglGetDisplay(reinterpret_cast<EGLNativeDisplayType>(
@@ -47,18 +48,14 @@ RealGles2Interface::~RealGles2Interface() {
       << "eglTerminate() failed:" << eglGetError();
 }
 
-bool RealGles2Interface::InitExtensions() {
-  ParseExtensionString(&extensions_,
-      reinterpret_cast<const char*>(GetString(GL_EXTENSIONS)));
+// EGL extensions must be loaded before the drawable and context
+// are created, so load them separately from GL extensions.
+bool RealGles2Interface::InitEGLExtensions() {
   ParseExtensionString(&extensions_,
                        EglQueryString(egl_display_, EGL_EXTENSIONS));
 
   if (!HasExtension(extensions_, "EGL_KHR_image")) {
     LOG(ERROR) << "EGL extension EGL_KHR_image unavailable.";
-    return false;
-  }
-  if (!HasExtension(extensions_, "GL_OES_EGL_image")) {
-    LOG(ERROR) << "OpenGL-ES 2.0 extension GL_OES_EGL_image unavailable.";
     return false;
   }
 
@@ -71,6 +68,32 @@ bool RealGles2Interface::InitExtensions() {
       eglGetProcAddress("eglDestroyImageKHR"));
   if (!egl_destroy_image_khr_)
     return false;
+
+  if (HasExtension(extensions_, "EGL_NV_post_sub_buffer")) {
+    DLOG(INFO) << "Driver supports EGL_NV_post_sub_buffer.";
+
+    egl_post_sub_buffer_nv_ =
+        reinterpret_cast<PFNEGLPOSTSUBBUFFERNVPROC>(
+        eglGetProcAddress("eglPostSubBufferNV"));
+
+    if (!egl_post_sub_buffer_nv_) {
+      LOG_IF(WARNING, !egl_post_sub_buffer_nv_)
+          << "EGL_NV_post_sub_buffer supported but "
+          << "eglPostSubBufferNV() not found.";
+    }
+  }
+
+  return true;
+}
+
+bool RealGles2Interface::InitGLExtensions() {
+  ParseExtensionString(&extensions_,
+      reinterpret_cast<const char*>(GetString(GL_EXTENSIONS)));
+  if (!HasExtension(extensions_, "GL_OES_EGL_image")) {
+    LOG(ERROR) << "OpenGL-ES 2.0 extension GL_OES_EGL_image unavailable.";
+    return false;
+  }
+
   gl_egl_image_target_texture_2d_oes_ =
       reinterpret_cast<PFNGLEGLIMAGETARGETTEXTURE2DOESPROC>(
       eglGetProcAddress("glEGLImageTargetTexture2DOES"));
@@ -141,6 +164,13 @@ const char* RealGles2Interface::EglQueryString(EGLDisplay dpy, EGLint name) {
   return eglQueryString(dpy, name);
 }
 
+EGLBoolean RealGles2Interface::EglQuerySurface(EGLDisplay dpy,
+                                               EGLSurface surface,
+                                               EGLint attribute,
+                                               EGLint *value) {
+  return eglQuerySurface(dpy, surface, attribute, value);
+}
+
 EGLBoolean RealGles2Interface::EglSwapBuffers(EGLDisplay dpy,
                                               EGLSurface surface) {
   return eglSwapBuffers(dpy, surface);
@@ -167,6 +197,16 @@ EGLBoolean RealGles2Interface::EglDestroyImageKHR(EGLDisplay dpy,
                                                   EGLImageKHR image) {
   DCHECK(egl_destroy_image_khr_);
   return egl_destroy_image_khr_(dpy, image);
+}
+
+// EGL_NV_post_sub_buffer
+EGLBoolean RealGles2Interface::EglPostSubBufferNV(EGLDisplay dpy,
+                                                  EGLSurface surface,
+                                                  EGLint x, EGLint y,
+                                                  EGLint width, EGLint height)
+{
+  DCHECK(egl_post_sub_buffer_nv_);
+  return egl_post_sub_buffer_nv_(dpy, surface, x, y, width, height);
 }
 
 // GLES2 Functions
@@ -355,6 +395,12 @@ void RealGles2Interface::ReadPixels(GLint x, GLint y, GLsizei width,
 
 void RealGles2Interface::ReleaseShaderCompiler() {
   glReleaseShaderCompiler();
+  GLES2_DCHECK_ERROR();
+}
+
+void RealGles2Interface::Scissor(GLint x, GLint y,
+                                 GLsizei width, GLsizei height) {
+  glScissor(x, y, width, height);
   GLES2_DCHECK_ERROR();
 }
 

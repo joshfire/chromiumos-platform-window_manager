@@ -97,9 +97,12 @@ OpenGlesDrawVisitor::OpenGlesDrawVisitor(Gles2Interface* gl,
       compositor_(compositor),
       stage_(stage),
       x_connection_(compositor_->x_conn()),
+      egl_surface_is_capable_of_partial_updates_(false),
       has_fullscreen_actor_(false) {
   CHECK(gl_);
   egl_display_ = gl_->egl_display();
+
+  CHECK(gl_->InitEGLExtensions()) << "Failed to load EGL extensions.";
 
   static const EGLint egl_config_attributes[] = {
     // Use the highest supported color depth.
@@ -118,11 +121,31 @@ OpenGlesDrawVisitor::OpenGlesDrawVisitor(Gles2Interface* gl,
       << "eglChooseConfig() failed: " << eglGetError();
   CHECK(num_configs == 1) << "Couldn't find EGL config.";
 
+  static const EGLint egl_window_attributes_sub_buffer[] = {
+    EGL_POST_SUB_BUFFER_SUPPORTED_NV, EGL_TRUE,
+    EGL_NONE
+  };
   egl_surface_ = gl_->EglCreateWindowSurface(
       egl_display_, egl_config,
       static_cast<EGLNativeWindowType>(stage->GetStageXWindow()),
-      NULL);
+      gl_->IsCapableOfPartialUpdates() ?
+        egl_window_attributes_sub_buffer :
+        NULL);
   CHECK(egl_surface_ != EGL_NO_SURFACE) << "Failed to create EGL window.";
+
+  if (gl_->IsCapableOfPartialUpdates()) {
+    EGLint surfaceValue;
+    EGLBoolean retVal = gl_->EglQuerySurface(egl_display_, egl_surface_,
+                                             EGL_POST_SUB_BUFFER_SUPPORTED_NV,
+                                             &surfaceValue);
+
+    if (retVal && surfaceValue == EGL_TRUE)
+      egl_surface_is_capable_of_partial_updates_ = true;
+  }
+
+  LOG(INFO) << "EGL window is "
+            << (egl_surface_is_capable_of_partial_updates_ ? "" : "NOT ")
+            << "capable of partial updates.";
 
   static const EGLint egl_context_attributes[] = {
     EGL_CONTEXT_CLIENT_VERSION, 2,
@@ -136,7 +159,7 @@ OpenGlesDrawVisitor::OpenGlesDrawVisitor(Gles2Interface* gl,
                             egl_context_))
       << "eglMakeCurrent() failed: " << eglGetError();
 
-  CHECK(gl_->InitExtensions()) << "Failed to load EGL/GL-ES extensions.";
+  CHECK(gl_->InitGLExtensions()) << "Failed to load GL-ES extensions.";
 
   // Allocate shaders
   tex_color_shader_ = new TexColorShader();
@@ -240,6 +263,41 @@ void OpenGlesDrawVisitor::VisitStage(RealCompositor::StageActor* actor) {
     actor->unset_was_resized();
   }
 
+  const bool partial_update_possible =
+    egl_surface_is_capable_of_partial_updates_ && !damaged_region_.empty();
+
+  bool do_partial_update = false;
+
+  if (partial_update_possible) {
+    unsigned int half_stage_area = actor->width() * actor->height() / 2;
+    unsigned int damaged_area = damaged_region_.width * damaged_region_.height;
+
+    // Only use partial updates if the damaged region covers less than
+    // half the the screen.  The theory here is a full update will be
+    // faster if more than half the screen is going to be redrawn and
+    // the EGL implementation can use buffer flipping/exchange to
+    // implement eglSwapBuffers().  An improvement to this algorithm
+    // could first attempt to detect whether buffer flipping is being
+    // used by performing a series of swaps and readbacks.
+    if (damaged_area < half_stage_area) {
+      do_partial_update = true;
+
+      gl_->Enable(GL_SCISSOR_TEST);
+      gl_->Scissor(damaged_region_.x, damaged_region_.y,
+                   damaged_region_.width, damaged_region_.height);
+    }
+  }
+
+  if (do_partial_update) {
+    DLOG(INFO) << "Performing partial screen update: "
+               << damaged_region_.x << ", "
+               << damaged_region_.y << ", "
+               << damaged_region_.width << ", "
+               << damaged_region_.height << ".";
+  } else {
+    DLOG(INFO) << "Performing fullscreen update.";
+  }
+
   // No need to clear color buffer if something will cover up the screen.
   if (has_fullscreen_actor_)
     gl_->Clear(GL_DEPTH_BUFFER_BIT);
@@ -260,7 +318,18 @@ void OpenGlesDrawVisitor::VisitStage(RealCompositor::StageActor* actor) {
   gl_->DepthMask(GL_TRUE);
   gl_->Disable(GL_BLEND);
 
-  gl_->EglSwapBuffers(egl_display_, egl_surface_);
+  if (do_partial_update) {
+    DCHECK(partial_update_possible);
+
+    gl_->Disable(GL_SCISSOR_TEST);
+    gl_->EglPostSubBufferNV(egl_display_, egl_surface_,
+                            damaged_region_.x,
+                            damaged_region_.y,
+                            damaged_region_.width,
+                            damaged_region_.height);
+  } else {
+    gl_->EglSwapBuffers(egl_display_, egl_surface_);
+  }
 }
 
 void OpenGlesDrawVisitor::CreateTextureData(

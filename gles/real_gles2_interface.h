@@ -21,7 +21,12 @@ class RealGles2Interface : public Gles2Interface {
   explicit RealGles2Interface(RealXConnection* x);
   virtual ~RealGles2Interface();
 
-  bool InitExtensions();
+  virtual bool IsCapableOfPartialUpdates() {
+    return (egl_post_sub_buffer_nv_ != NULL);
+  }
+
+  bool InitEGLExtensions();
+  bool InitGLExtensions();
 
   EGLDisplay egl_display() { return egl_display_; }
 
@@ -43,6 +48,8 @@ class RealGles2Interface : public Gles2Interface {
   EGLBoolean EglMakeCurrent(EGLDisplay dpy, EGLSurface draw, EGLSurface read,
                             EGLContext ctx);
   const char* EglQueryString(EGLDisplay dpy, EGLint name);
+  EGLBoolean EglQuerySurface(EGLDisplay dpy, EGLSurface surface,
+                             EGLint attribute, EGLint *value);
   EGLBoolean EglSwapBuffers(EGLDisplay dpy, EGLSurface surface);
   EGLBoolean EglTerminate(EGLDisplay dpy);
 
@@ -51,6 +58,11 @@ class RealGles2Interface : public Gles2Interface {
                                 EGLClientBuffer buffer,
                                 const EGLint* attrib_list);
   EGLBoolean EglDestroyImageKHR(EGLDisplay dpy, EGLImageKHR image);
+
+  // Functions from the EGL_NV_post_sub_buffer extension
+  EGLBoolean EglPostSubBufferNV(EGLDisplay dpy, EGLSurface surface,
+                                EGLint x, EGLint y,
+                                EGLint width, EGLint height);
 
   // OpenGLES 2 Core
   void ActiveTexture(GLenum texture);
@@ -93,6 +105,7 @@ class RealGles2Interface : public Gles2Interface {
   void ReadPixels(GLint x, GLint y, GLsizei width, GLsizei height,
                   GLenum format, GLenum type, void* pixels);
   void ReleaseShaderCompiler();
+  void Scissor(GLint x, GLint y, GLsizei width, GLsizei height);
   void ShaderSource(GLuint shader, GLsizei count, const char** string,
                     const GLint* length);
   void TexImage2D(GLenum target, GLint level, GLenum internalformat,
@@ -141,6 +154,8 @@ class RealGles2Interface : public Gles2Interface {
 
   PFNEGLCREATEIMAGEKHRPROC egl_create_image_khr_;
   PFNEGLDESTROYIMAGEKHRPROC egl_destroy_image_khr_;
+
+  PFNEGLPOSTSUBBUFFERNVPROC egl_post_sub_buffer_nv_;
 
   PFNGLEGLIMAGETARGETTEXTURE2DOESPROC
       gl_egl_image_target_texture_2d_oes_;
