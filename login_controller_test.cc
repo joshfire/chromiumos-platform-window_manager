@@ -171,41 +171,35 @@ class LoginControllerTest : public BasicWindowManagerTest {
   }
 
   void UnmapLoginEntry(int i) {
-    EntryWindows entry = entries_[i];
-    entries_.erase(entries_.begin() + i);
-
-    // Emulate Chrome behavior, update entries count for all other entries only
-    // after that remove all windows for the deleted entry.
-    UpdateEntriesCount(entries_.size());
-
     XEvent event;
-    if (entry.border_xid) {
-      xconn_->UnmapWindow(entry.border_xid);
-      xconn_->InitUnmapEvent(&event, entry.border_xid);
+
+    if (entries_[i].border_xid) {
+      xconn_->UnmapWindow(entries_[i].border_xid);
+      xconn_->InitUnmapEvent(&event, entries_[i].border_xid);
       wm_->HandleEvent(&event);
     }
 
-    if (entry.image_xid) {
-      xconn_->UnmapWindow(entry.image_xid);
-      xconn_->InitUnmapEvent(&event, entry.image_xid);
+    if (entries_[i].image_xid) {
+      xconn_->UnmapWindow(entries_[i].image_xid);
+      xconn_->InitUnmapEvent(&event, entries_[i].image_xid);
       wm_->HandleEvent(&event);
     }
 
-    if (entry.controls_xid) {
-      xconn_->UnmapWindow(entry.controls_xid);
-      xconn_->InitUnmapEvent(&event, entry.controls_xid);
+    if (entries_[i].controls_xid) {
+      xconn_->UnmapWindow(entries_[i].controls_xid);
+      xconn_->InitUnmapEvent(&event, entries_[i].controls_xid);
       wm_->HandleEvent(&event);
     }
 
-    if (entry.label_xid) {
-      xconn_->UnmapWindow(entry.label_xid);
-      xconn_->InitUnmapEvent(&event, entry.label_xid);
+    if (entries_[i].label_xid) {
+      xconn_->UnmapWindow(entries_[i].label_xid);
+      xconn_->InitUnmapEvent(&event, entries_[i].label_xid);
       wm_->HandleEvent(&event);
     }
 
-    if (entry.unselected_label_xid) {
-      xconn_->UnmapWindow(entry.unselected_label_xid);
-      xconn_->InitUnmapEvent(&event, entry.unselected_label_xid);
+    if (entries_[i].unselected_label_xid) {
+      xconn_->UnmapWindow(entries_[i].unselected_label_xid);
+      xconn_->InitUnmapEvent(&event, entries_[i].unselected_label_xid);
       wm_->HandleEvent(&event);
     }
   }
@@ -679,18 +673,19 @@ TEST_F(LoginControllerTest, SelectGuest) {
 TEST_F(LoginControllerTest, RemoveUser) {
   // Create 3 entries for new Chrome.
   CreateLoginWindows(3, true, true, false);
-  SelectEntry(1);
-  EXPECT_EQ(entries_[1].controls_xid, xconn_->focused_xid());
-  EXPECT_EQ(entries_[1].controls_xid, GetActiveWindowProperty());
 
-  UnmapLoginEntry(1);
-  // Entry 1 was removed from the vector. Focus moved to 0 becuase 1 is Guest.
+  // The first entry should initially be focused.
   EXPECT_EQ(entries_[0].controls_xid, xconn_->focused_xid());
   EXPECT_EQ(entries_[0].controls_xid, GetActiveWindowProperty());
 
   UnmapLoginEntry(0);
-  EXPECT_EQ(entries_[0].controls_xid, xconn_->focused_xid());
-  EXPECT_EQ(entries_[0].controls_xid, GetActiveWindowProperty());
+  EXPECT_EQ(entries_[1].controls_xid, xconn_->focused_xid());
+  EXPECT_EQ(entries_[1].controls_xid, GetActiveWindowProperty());
+
+  UnmapLoginEntry(1);
+  // The guest entry should be focused.
+  EXPECT_EQ(entries_[2].controls_xid, xconn_->focused_xid());
+  EXPECT_EQ(entries_[2].controls_xid, GetActiveWindowProperty());
 
   // Create guest window.
   guest_xid_ = CreateBasicWindow(0, 0, wm_->width() / 2, wm_->height() / 2);
@@ -698,7 +693,7 @@ TEST_F(LoginControllerTest, RemoveUser) {
                                chromeos::WM_IPC_WINDOW_LOGIN_GUEST,
                                NULL);
   SendInitialEventsForWindow(guest_xid_);
-  UnmapLoginEntry(0);
+  UnmapLoginEntry(2);
 
   // The guest window should be focused.
   EXPECT_EQ(guest_xid_, xconn_->focused_xid());

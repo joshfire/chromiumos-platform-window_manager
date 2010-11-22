@@ -358,16 +358,6 @@ void LoginController::HandleWindowUnmap(Window* win) {
           selected_entry_index_ = kNoSelection;
           entries_.erase(it);
           if (!wizard_window_ && !entries_.empty()) {
-            // In case only one user pod was removed we should reset our state
-            // to ready.
-            all_windows_are_ready_ = AllWindowsAreReady();
-
-            // Need to activate next entry only if all remaining entries are
-            // ready. If Chrome crashes or destroys all windows one-by-one
-            // we don't need to switch active entries.
-            if (!all_windows_are_ready_)
-              break;
-
             // Update other entries positions on screen.
             if (deleted_index < active_index ||
                 active_index == entries_.size() ||
@@ -385,6 +375,10 @@ void LoginController::HandleWindowUnmap(Window* win) {
             }
             DCHECK_LT(active_index, entries_.size());
             SelectEntryAt(active_index);
+
+            // In case only one user pod was removed we should reset our state
+            // to ready.
+            all_windows_are_ready_ = AllWindowsAreReady();
           }
         }
         // Only one entry can possibly contain a window, no need to continue
