@@ -486,7 +486,7 @@ TEST_F(PanelManagerTest, TransientWindows) {
   ASSERT_TRUE(
       xconn_->GetWindowGeometry(xconn_->GetRootWindow(), &root_geometry));
 
-  Panel* panel = CreatePanel(20, 200, 400);
+  Panel* panel = CreatePanel(200, 400, 20);
 
   // Create a transient window owned by the panel.
   const int transient_x = 30, transient_y = 40;

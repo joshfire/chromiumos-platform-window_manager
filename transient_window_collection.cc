@@ -195,10 +195,12 @@ void TransientWindowCollection::HandleConfigureRequest(
   TransientWindow* transient = GetTransientWindow(*transient_win);
   CHECK(transient);
 
-  // Move and resize the transient window as requested.
+  // Move and resize the transient window as requested (only let info bubbles
+  // move themselves).
   bool moved = false;
-  if (req_x != transient_win->client_x() ||
-      req_y != transient_win->client_y()) {
+  if ((req_x != transient_win->client_x() ||
+       req_y != transient_win->client_y()) &&
+      transient_win->type() == chromeos::WM_IPC_WINDOW_CHROME_INFO_BUBBLE) {
     transient_win->MoveClient(req_x, req_y);
     transient->SaveOffsetsRelativeToWindow(owner_win_);
     transient->centered = false;
@@ -265,25 +267,32 @@ TransientWindowCollection::TransientWindow::UpdateOffsetsToCenterOverWindow(
   x_offset = (base_win->client_width() - win->client_width()) / 2;
   y_offset = (base_win->client_height() - win->client_height()) / 2;
 
-  if (bounding_rect.width <= 0 || bounding_rect.height <= 0)
-    return;
+  // Only honor the bounding rectangle if the base window already falls
+  // completely inside of it.
+  if (!bounding_rect.empty() &&
+      base_win->client_x() >= bounding_rect.left() &&
+      base_win->client_y() >= bounding_rect.top() &&
+      base_win->client_x() + base_win->client_width() <=
+        bounding_rect.right() &&
+      base_win->client_y() + base_win->client_height() <=
+        bounding_rect.bottom()) {
+    if (base_win->client_x() + x_offset + win->client_width() >
+        bounding_rect.x + bounding_rect.width) {
+      x_offset = bounding_rect.x + bounding_rect.width -
+          win->client_width() - base_win->client_x();
+    }
+    if (base_win->client_x() + x_offset < bounding_rect.x) {
+      x_offset = bounding_rect.x - base_win->client_x();
+    }
 
-  if (base_win->client_x() + x_offset + win->client_width() >
-      bounding_rect.x + bounding_rect.width) {
-    x_offset = bounding_rect.x + bounding_rect.width -
-        win->client_width() - base_win->client_x();
-  }
-  if (base_win->client_x() + x_offset < bounding_rect.x) {
-    x_offset = bounding_rect.x - base_win->client_x();
-  }
-
-  if (base_win->client_y() + y_offset + win->client_height() >
-      bounding_rect.y + bounding_rect.height) {
-    y_offset = bounding_rect.y + bounding_rect.height -
-        win->client_height() - base_win->client_y();
-  }
-  if (base_win->client_y() + y_offset < bounding_rect.y) {
-    y_offset = bounding_rect.y - base_win->client_y();
+    if (base_win->client_y() + y_offset + win->client_height() >
+        bounding_rect.y + bounding_rect.height) {
+      y_offset = bounding_rect.y + bounding_rect.height -
+          win->client_height() - base_win->client_y();
+    }
+    if (base_win->client_y() + y_offset < bounding_rect.y) {
+      y_offset = bounding_rect.y - base_win->client_y();
+    }
   }
 }
 

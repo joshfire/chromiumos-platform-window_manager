@@ -260,9 +260,12 @@ TEST_F(LayoutManagerTest, ConfigureTransient) {
               0.5 * (owner_info->bounds.height - transient_info->bounds.height),
             transient_info->bounds.y);
 
-  // Now resize the transient window and make sure that it gets re-centered.
+  // Now try to move and resize the transient window.  The move request
+  // should be ignored, but the window should be resized and re-centered.
   xconn_->InitConfigureRequestEvent(
-      &event, transient_xid, Rect(0, 0, 400, 300));
+      &event,
+      transient_xid,
+      Rect(owner_info->bounds.x + 20, owner_info->bounds.y + 10, 400, 300));
   event.xconfigurerequest.value_mask = CWWidth | CWHeight;
   wm_->HandleEvent(&event);
   EXPECT_EQ(400, transient_info->bounds.width);
@@ -273,32 +276,6 @@ TEST_F(LayoutManagerTest, ConfigureTransient) {
   EXPECT_EQ(owner_info->bounds.y +
               0.5 * (owner_info->bounds.height - transient_info->bounds.height),
             transient_info->bounds.y);
-  xconn_->InitConfigureNotifyEvent(&event, owner_xid);
-  wm_->HandleEvent(&event);
-
-  // Send a ConfigureRequest event to move and resize the transient window
-  // and make sure that it gets applied.
-  xconn_->InitConfigureRequestEvent(
-      &event,
-      transient_xid,
-      Rect(owner_info->bounds.x + 20, owner_info->bounds.y + 10, 200, 150));
-  wm_->HandleEvent(&event);
-  EXPECT_EQ(owner_info->bounds.x + 20, transient_info->bounds.x);
-  EXPECT_EQ(owner_info->bounds.y + 10, transient_info->bounds.y);
-  EXPECT_EQ(200, transient_info->bounds.width);
-  EXPECT_EQ(150, transient_info->bounds.height);
-  xconn_->InitConfigureNotifyEvent(&event, owner_xid);
-  wm_->HandleEvent(&event);
-
-  // If we resize the transient window again now, it shouldn't get
-  // re-centered (since we explicitly moved it previously).
-  xconn_->InitConfigureRequestEvent(&event, transient_xid, Rect(0, 0, 40, 30));
-  event.xconfigurerequest.value_mask = CWWidth | CWHeight;
-  wm_->HandleEvent(&event);
-  EXPECT_EQ(owner_info->bounds.x + 20, transient_info->bounds.x);
-  EXPECT_EQ(owner_info->bounds.y + 10, transient_info->bounds.y);
-  EXPECT_EQ(40, transient_info->bounds.width);
-  EXPECT_EQ(30, transient_info->bounds.height);
   xconn_->InitConfigureNotifyEvent(&event, owner_xid);
   wm_->HandleEvent(&event);
 
