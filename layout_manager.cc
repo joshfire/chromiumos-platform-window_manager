@@ -1395,8 +1395,10 @@ void LayoutManager::CycleCurrentToplevelWindow(bool forward) {
                toplevels_[0].get() :
                toplevels_[toplevels_.size()-1].get();
   } else {
-    if (toplevels_.size() == 1)
+    if (toplevels_.size() == 1) {
+      current_toplevel_->DoNudgeAnimation(forward);
       return;
+    }
 
     int old_index = GetIndexForToplevelWindow(*current_toplevel_);
     int new_index = (toplevels_.size() + old_index + (forward ? 1 : -1)) %

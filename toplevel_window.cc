@@ -51,6 +51,13 @@ namespace window_manager {
 // should it scale to?
 static const double kWindowFadeSizeFraction = 0.7;
 
+// Horizontal scale that we squish the window down to in the no-op
+// window-switching animation when there's only a single window.
+static const double kNudgeAnimScale = 0.95;
+
+// Amount of time used for the no-op window-switching animation.
+static const int kNudgeAnimMs = 100;
+
 LayoutManager::ToplevelWindow::ToplevelWindow(Window* win,
                                               LayoutManager* layout_manager)
     : win_(win),
@@ -247,6 +254,22 @@ void LayoutManager::ToplevelWindow::SetFullscreenState(bool fullscreen) {
   const bool stack_transient_directly_above_win =
       is_fullscreen_ || state_ == STATE_OVERVIEW_MODE;
   transients_->ApplyStackingForAllWindows(stack_transient_directly_above_win);
+}
+
+void LayoutManager::ToplevelWindow::DoNudgeAnimation(bool move_to_left) {
+  if (state_ != STATE_ACTIVE_MODE_ONSCREEN)
+    return;
+
+  const int orig_x = win_->composited_x();
+  const int size_diff = (1.0 - kNudgeAnimScale) * win_->client_width();
+
+  if (!move_to_left)
+    win_->MoveCompositedX(orig_x + size_diff, 0);
+  win_->ScaleComposited(kNudgeAnimScale, 1.0, 0);
+
+  if (!move_to_left)
+    win_->MoveCompositedX(orig_x, kNudgeAnimMs);
+  win_->ScaleComposited(1.0, 1.0, kNudgeAnimMs);
 }
 
 void LayoutManager::ToplevelWindow::ConfigureForActiveMode(bool animate) {

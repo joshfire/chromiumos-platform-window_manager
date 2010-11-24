@@ -123,6 +123,13 @@ class LayoutManager::ToplevelWindow {
   // Fullscreen or unfullscreen this toplevel window.
   void SetFullscreenState(bool fullscreen);
 
+  // Display an animation where the window tries to slide offscreen (to the
+  // left if 'move_to_left' is true or to the right otherwise) but then
+  // bounces back.  Used when the user tries to cycle toplevels while only
+  // one toplevel is present.  Only makes sense when in
+  // STATE_ACTIVE_MODE_ONSCREEN.
+  void DoNudgeAnimation(bool move_to_left);
+
  private:
   WindowManager* wm() { return layout_manager_->wm_; }
 
