@@ -121,11 +121,13 @@ class LoginEntry {
   // Size of the border window.
   int border_width_;
   int border_height_;
+  int controls_height_;
   int unselected_border_width_;
   int unselected_border_height_;
 
   // Gap between border and image.
-  int border_to_controls_gap_;
+  int border_to_image_gap_;
+  int border_to_unselected_image_gap_;
 
   // Various scales.
   float unselected_border_scale_x_;

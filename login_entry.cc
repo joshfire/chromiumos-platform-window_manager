@@ -147,17 +147,7 @@ void LoginEntry::InitSizes() {
   border_width_ = border_window_->client_width();
   border_height_ = border_window_->client_height();
 
-  border_to_controls_gap_ =
-      (border_width_ - controls_window_->client_width()) / 2;
-  unselected_border_width_ = unselected_image_size +
-      2 * border_to_controls_gap_;
-  unselected_border_height_ = unselected_image_size +
-      2 * border_to_controls_gap_;
-
-  unselected_border_scale_x_ = static_cast<double>(unselected_border_width_) /
-      static_cast<double>(border_width_);
-  unselected_border_scale_y_ = static_cast<double>(unselected_border_height_) /
-      static_cast<double>(border_height_);
+  controls_height_ = controls_window_->client_height();
 
   unselected_image_scale_x_ =
       static_cast<double>(unselected_image_size) /
@@ -165,6 +155,20 @@ void LoginEntry::InitSizes() {
   unselected_image_scale_y_ =
       static_cast<double>(unselected_image_size) /
       static_cast<double>(image_window_->client_height());
+
+  border_to_image_gap_ =
+      (border_width_ - controls_window_->client_width()) / 2;
+  border_to_unselected_image_gap_ =
+      border_to_image_gap_ * unselected_image_scale_x_ + 0.5;
+  unselected_border_width_ = unselected_image_size +
+      2 * border_to_unselected_image_gap_;
+  unselected_border_height_ = unselected_image_size +
+      2 * border_to_unselected_image_gap_;
+
+  unselected_border_scale_x_ = static_cast<double>(unselected_border_width_) /
+      static_cast<double>(border_width_);
+  unselected_border_scale_y_ = static_cast<double>(unselected_border_height_) /
+      static_cast<double>(border_height_);
 
   unselected_label_scale_x_ =
       static_cast<double>(unselected_label_window_->client_width()) /
@@ -236,7 +240,7 @@ void LoginEntry::UpdateClientWindows(const Point& origin, bool is_selected) {
   } else {
     // Move client to cover whole border plus gap between border and label.
     width = unselected_border_width_;
-    height = unselected_border_height_ + border_to_controls_gap_;
+    height = unselected_border_height_ + border_to_image_gap_;
     DCHECK(height > 0) << "Label is above the image.";
     if (width > image_window_->client_width() ||
         height > image_window_->client_height()) {
@@ -267,13 +271,16 @@ void LoginEntry::UpdatePositionAndScale(const Point& origin, bool is_selected,
   border_window_->MoveComposited(origin.x, origin.y, anim_ms);
 
   // Image window is always aligned with border, save the gap.
-  int image_x = origin.x + border_to_controls_gap_;
-  int image_y = origin.y + border_to_controls_gap_;
-
+  int border_gap = is_selected ?
+                   border_to_image_gap_ :
+                   border_to_unselected_image_gap_;
+  int image_x = origin.x + border_gap;
+  int image_y = origin.y + border_gap;
   int controls_x = image_x;
   int controls_y = image_y;
   int label_x = image_x;
   int label_y = image_y;
+
   if (IsNewUser()) {
     // For New User entry controls window is always aligned with image,
     // overlapping it if selected and hidden if not.
@@ -281,18 +288,21 @@ void LoginEntry::UpdatePositionAndScale(const Point& origin, bool is_selected,
     int actual_border_height = unselected_border_height_;
     if (is_selected)
       actual_border_height = border_height_;
-    label_y = origin.y + actual_border_height + border_to_controls_gap_;
+    label_y = origin.y + actual_border_height + border_to_image_gap_;
   } else {
     // For normal entries, label is aligned with the bottom of image,
     // Controls window is below the image, mind the gap.
     int label_height = unselected_label_window_->client_height();
     if (is_selected)
       label_height = label_window_->client_height();
-    int image_height = unselected_border_height_ - 2 * border_to_controls_gap_;
+    int image_height = unselected_border_height_ - 2 * border_gap;
     if (is_selected)
       image_height = image_window_->client_height();
     label_y = image_y + image_height - label_height;
-    controls_y = image_y + image_height + border_to_controls_gap_;
+    controls_y =
+        origin.y + border_height_ - border_gap - controls_height_;
+    if (!is_selected)
+      controls_y = image_y + image_height + border_gap;
   }
 
   image_window_->MoveComposited(image_x, image_y, anim_ms);
