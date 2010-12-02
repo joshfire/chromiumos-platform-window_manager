@@ -599,6 +599,36 @@ TEST_F(PanelManagerTest, NoShadowForRgbaTransient) {
   EXPECT_TRUE(wm_->GetWindowOrDie(rgba_xid)->shadow() == NULL);
 }
 
+// We keep a map from transient windows to the panels that own them.  Check
+// that we remove the appropriate entries if a panel is unmapped before its
+// transients.  See http://crosbug.com/6007.
+TEST_F(PanelManagerTest, UnmapPanelWithTransients) {
+  Panel* panel = CreatePanel(20, 200, 400);
+
+  const XWindow transient_xid = CreateSimpleWindow();
+  MockXConnection::WindowInfo* transient_info =
+      xconn_->GetWindowInfoOrDie(transient_xid);
+  transient_info->transient_for = panel->content_xid();
+  SendInitialEventsForWindow(transient_xid);
+
+  // First, destroy the panel's content window and send events to the WM.
+  const XWindow content_xid = panel->content_xid();
+  ASSERT_TRUE(xconn_->DestroyWindow(content_xid));
+  XEvent event;
+  xconn_->InitUnmapEvent(&event, content_xid);
+  wm_->HandleEvent(&event);
+  xconn_->InitDestroyWindowEvent(&event, content_xid);
+  wm_->HandleEvent(&event);
+
+  // Now do the same thing with the transient window and check that we
+  // don't crash.
+  ASSERT_TRUE(xconn_->DestroyWindow(transient_xid));
+  xconn_->InitUnmapEvent(&event, transient_xid);
+  wm_->HandleEvent(&event);
+  xconn_->InitDestroyWindowEvent(&event, transient_xid);
+  wm_->HandleEvent(&event);
+}
+
 }  // namespace window_manager
 
 int main(int argc, char** argv) {

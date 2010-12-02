@@ -118,7 +118,7 @@ void PanelManager::HandleWindowMap(Window* win) {
         owner_panel = GetPanelOwningTransientWindow(*owner_win);
     }
     if (owner_panel) {
-      transient_xids_by_owner_[win->xid()] = owner_panel;
+      transient_xids_to_owners_[win->xid()] = owner_panel;
       owner_panel->HandleTransientWindowMap(win);
       if (!win->is_rgba())
         win->SetShadowType(Shadow::TYPE_RECTANGULAR);
@@ -194,7 +194,7 @@ void PanelManager::HandleWindowUnmap(Window* win) {
 
   Panel* owner_panel = GetPanelOwningTransientWindow(*win);
   if (owner_panel) {
-    transient_xids_by_owner_.erase(win->xid());
+    transient_xids_to_owners_.erase(win->xid());
     owner_panel->HandleTransientWindowUnmap(win);
     return;
   }
@@ -224,6 +224,19 @@ void PanelManager::HandleWindowUnmap(Window* win) {
   for (vector<XWindow>::const_iterator it = input_windows.begin();
        it != input_windows.end(); ++it) {
     CHECK(panel_input_xids_.erase(*it) == 1);
+  }
+
+  // Clean up any references to this panel in the transient window map.
+  vector<XWindow> orphaned_transient_xids;
+  for (map<XWindow, Panel*>::const_iterator it =
+         transient_xids_to_owners_.begin();
+       it != transient_xids_to_owners_.end(); ++it) {
+    if (it->second == panel)
+      orphaned_transient_xids.push_back(it->first);
+  }
+  for (vector<XWindow>::const_iterator it = orphaned_transient_xids.begin();
+       it != orphaned_transient_xids.end(); ++it) {
+    CHECK(transient_xids_to_owners_.erase(*it) == 1);
   }
 
   CHECK(panels_by_titlebar_xid_.erase(panel->titlebar_xid()) == 1);
@@ -557,7 +570,7 @@ Panel* PanelManager::GetPanelByWindow(const Window& win) {
 }
 
 Panel* PanelManager::GetPanelOwningTransientWindow(const Window& win) {
-  return FindWithDefault(transient_xids_by_owner_,
+  return FindWithDefault(transient_xids_to_owners_,
                          win.xid(),
                          static_cast<Panel*>(NULL));
 }

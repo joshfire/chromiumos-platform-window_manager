@@ -270,7 +270,7 @@ class PanelManager : public EventConsumer, public FocusChangeListener {
   std::set<PanelManagerAreaChangeListener*> area_change_listeners_;
 
   // Map from transient windows' IDs to the panels that own them.
-  std::map<XWindow, Panel*> transient_xids_by_owner_;
+  std::map<XWindow, Panel*> transient_xids_to_owners_;
 
   DISALLOW_COPY_AND_ASSIGN(PanelManager);
 };
