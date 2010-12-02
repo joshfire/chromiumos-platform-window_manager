@@ -871,8 +871,8 @@ void Window::SetShadowType(Shadow::Type type) {
   shadow_->group()->Lower(actor_.get());
   shadow_->Move(composited_x_, composited_y_, 0);
   shadow_->SetOpacity(combined_opacity() * shadow_opacity_, 0);
-  shadow_->Resize(composited_scale_x_ * client_width_,
-                  composited_scale_y_ * client_height_, 0);
+  shadow_->Resize(composited_scale_x_ * actor_->GetWidth(),
+                  composited_scale_y_ * actor_->GetHeight(), 0);
   UpdateShadowVisibility();
 }
 

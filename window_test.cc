@@ -14,6 +14,7 @@
 #include "cros/chromeos_wm_ipc_enums.h"
 #include "window_manager/compositor.h"
 #include "window_manager/event_loop.h"
+#include "window_manager/geometry.h"
 #include "window_manager/mock_x_connection.h"
 #include "window_manager/shadow.h"
 #include "window_manager/test_lib.h"
@@ -869,6 +870,50 @@ TEST_F(WindowTest, SendPingMessage) {
   EXPECT_EQ(xid, msg.data.l[2]);
   EXPECT_EQ(0, msg.data.l[3]);
   EXPECT_EQ(0, msg.data.l[4]);
+}
+
+// Check that we avoid a race that used to result in us displaying an
+// incorrectly-sized shadow when an override-redirect window would be
+// mapped and then immediately resized around the same time that we were
+// enabling its shadow.  See http://crosbug.com/7227.
+TEST_F(WindowTest, ShadowSizeRace) {
+  // Create a 1x1 override-redirect window.
+  const Size kOrigSize(1, 1);
+  XWindow xid = xconn_->CreateWindow(xconn_->GetRootWindow(),
+                                     Rect(Point(0, 0), kOrigSize),
+                                     true,   // override_redirect
+                                     false,  // input_only
+                                     0,      // event_mask
+                                     0);     // visual
+  XConnection::WindowGeometry geometry;
+  ASSERT_TRUE(xconn_->GetWindowGeometry(xid, &geometry));
+  Window win(wm_.get(), xid, true, geometry);
+
+  // Map the window and then resize it to 200x400.
+  xconn_->MapWindow(xid);
+  const Size kNewSize(200, 400);
+  xconn_->ResizeWindow(xid, kNewSize);
+
+  // Let the Window object know about the MapNotify.  Since the window has
+  // already been resized in the X server at this point, the actor should
+  // get the 200x400 pixmap.
+  win.HandleMapNotify();
+  EXPECT_EQ(kNewSize.width, win.actor()->GetWidth());
+  EXPECT_EQ(kNewSize.height, win.actor()->GetHeight());
+
+  // Turn on the shadow while we're in this brief state where we have a
+  // 200x400 actor but have only heard about the 1x1 size from the X
+  // server.  The shadow should take the actor's size.
+  win.SetShadowType(Shadow::TYPE_RECTANGULAR);
+  EXPECT_EQ(kNewSize.width, win.shadow()->width());
+  EXPECT_EQ(kNewSize.height, win.shadow()->height());
+
+  // Now send the ConfigureNotify and check that nothing changes.
+  win.HandleConfigureNotify(kNewSize.width, kNewSize.height);
+  EXPECT_EQ(kNewSize.width, win.actor()->GetWidth());
+  EXPECT_EQ(kNewSize.height, win.actor()->GetHeight());
+  EXPECT_EQ(kNewSize.width, win.shadow()->width());
+  EXPECT_EQ(kNewSize.height, win.shadow()->height());
 }
 
 }  // namespace window_manager
