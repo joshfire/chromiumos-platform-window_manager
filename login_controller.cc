@@ -567,9 +567,9 @@ void LoginController::ConfigureBackgroundWindow() {
   // sneak it in here, while we're also fading from the boot splash image to the
   // login background window.
   if (!FLAGS_calibrate_display_command.empty()) {
-    LOG(INFO) << "Running \"" << FLAGS_calibrate_display_command
-              << "\" to calibrate display";
-    if (system(FLAGS_calibrate_display_command.c_str()) != 0)
+    string cmd = FLAGS_calibrate_display_command + " &";
+    LOG(INFO) << "Running \"" << cmd << "\" to calibrate display";
+    if (system(cmd.c_str()) != 0)
       LOG(ERROR) << "Display calibration failed";
   }
 

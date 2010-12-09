@@ -96,6 +96,10 @@ int main(int argc, char** argv) {
                        logging::LOG_ONLY_TO_SYSTEM_DEBUG_LOG,
                        logging::DONT_LOCK_LOG_FILE,
                        logging::APPEND_TO_OLD_LOG_FILE);
+  logging::SetLogItems(false,  // enable_process_id
+                       false,  // enable_thread_id
+                       true,   // enable_timestamp
+                       true);  // enable_tickcount
 
   // Chrome's logging code uses int3 to send SIGTRAP in response to failed
   // asserts, but Breakpad only installs signal handlers for SEGV, ABRT,
