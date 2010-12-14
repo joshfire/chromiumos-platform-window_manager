@@ -491,7 +491,6 @@ void OpenGlesDrawVisitor::DrawQuad(RealCompositor::QuadActor* actor,
   }
 
   // Draw
-  gl_->DrawArrays(GL_TRIANGLE_STRIP, 0, 4);
   if (using_passthrough_rendering) {
     // Draw using a single, scissored triangle to decrease the chance of the
     // actor's texture being updated by another asynchronous engine on the GPU
