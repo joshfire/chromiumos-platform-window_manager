@@ -115,6 +115,20 @@ struct Rect {
     }
   }
 
+  void intersect(const Rect& other) {
+    if (other.empty() || empty()) {
+      width = height = 0;
+      return;
+    }
+
+    int max_x = std::min(x + width, other.x + other.width);
+    x = std::max(x, other.x);
+    width = std::max(0, max_x - x);
+    int max_y = std::min(y + height, other.y + other.height);
+    y = std::max(y, other.y);
+    height = std::max(0, max_y - y);
+  }
+
   bool operator==(const Rect& o) const {
     return x == o.x && y == o.y && width == o.width && height == o.height;
   }

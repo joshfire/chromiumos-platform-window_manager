@@ -50,6 +50,14 @@ class OpenGlesDrawVisitor : virtual public RealCompositor::ActorVisitor {
                 float ancestor_opacity) const;
   void CreateTextureData(RealCompositor::TexturePixmapActor *actor) const;
 
+ protected:
+  // Manage the scissor rect stack. Pushing a rect on the stack intersects the
+  // new rect with the current rect (if any) and enables the GL scissor test
+  // if it isn't already. Popping restores the previous rect or disables
+  // scissoring if the stack is now empty.
+  void PushScissorRect(const Rect& scissor);
+  void PopScissorRect();
+
  private:
   Gles2Interface* gl_;  // Not owned.
   RealCompositor* compositor_;  // Not owned.
@@ -69,6 +77,8 @@ class OpenGlesDrawVisitor : virtual public RealCompositor::ActorVisitor {
   // Matrix state
   Matrix4 projection_;
 
+  // Scissor rect data.
+  std::vector<Rect> scissor_stack_;
 
   // global vertex buffer object
   GLuint vertex_buffer_object_;

@@ -282,9 +282,7 @@ void OpenGlesDrawVisitor::VisitStage(RealCompositor::StageActor* actor) {
     if (damaged_area < half_stage_area) {
       do_partial_update = true;
 
-      gl_->Enable(GL_SCISSOR_TEST);
-      gl_->Scissor(damaged_region_.x, damaged_region_.y,
-                   damaged_region_.width, damaged_region_.height);
+      PushScissorRect(damaged_region_);
     }
   }
 
@@ -321,7 +319,7 @@ void OpenGlesDrawVisitor::VisitStage(RealCompositor::StageActor* actor) {
   if (do_partial_update) {
     DCHECK(partial_update_possible);
 
-    gl_->Disable(GL_SCISSOR_TEST);
+    PopScissorRect();
     gl_->EglPostSubBufferNV(egl_display_, egl_surface_,
                             damaged_region_.x,
                             damaged_region_.y,
@@ -474,6 +472,34 @@ void OpenGlesDrawVisitor::DrawQuad(RealCompositor::QuadActor* actor,
 
   // Draw
   gl_->DrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+}
+
+void OpenGlesDrawVisitor::PushScissorRect(const Rect& scissor) {
+  if (scissor_stack_.empty()) {
+    scissor_stack_.push_back(scissor);
+    gl_->Enable(GL_SCISSOR_TEST);
+    gl_->Scissor(scissor.x, scissor.y,
+                 scissor.width, scissor.height);
+  } else {
+    Rect new_scissor = scissor;
+    new_scissor.intersect(scissor_stack_.back());
+    scissor_stack_.push_back(new_scissor);
+    gl_->Scissor(new_scissor.x, new_scissor.y,
+                 new_scissor.width, new_scissor.height);
+  }
+}
+
+void OpenGlesDrawVisitor::PopScissorRect() {
+  DCHECK(!scissor_stack_.empty());
+  scissor_stack_.pop_back();
+
+  if (scissor_stack_.empty()) {
+    gl_->Disable(GL_SCISSOR_TEST);
+  } else {
+    const Rect& new_scissor = scissor_stack_.back();
+    gl_->Scissor(new_scissor.x, new_scissor.y,
+                 new_scissor.width, new_scissor.height);
+  }
 }
 
 void TransparentPass::VisitContainer(
