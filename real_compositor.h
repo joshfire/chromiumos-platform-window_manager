@@ -190,6 +190,11 @@ class RealCompositor : public Compositor {
     // Updates the model view matrix associated with this actor.
     virtual void UpdateModelView();
 
+    // Returns true if the model view matrix applies any transformations
+    // beyond those needed to map the actor's origin and dimensions directly
+    // to window coordinates at depth z().
+    bool IsTransformed() const;
+
     // Regular actors have no children, but we want to be able to
     // avoid a virtual function call to determine this while
     // traversing.
@@ -596,6 +601,7 @@ class RealCompositor : public Compositor {
     // End Compositor::StageActor methods.
 
     void UpdateProjection();
+    bool using_passthrough_projection() const;
 
     const Compositor::Color& stage_color() const { return stage_color_; }
     bool stage_color_changed() const { return stage_color_changed_; }

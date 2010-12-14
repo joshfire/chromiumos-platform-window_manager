@@ -280,6 +280,31 @@ void RealCompositor::Actor::UpdateModelView() {
   }
 }
 
+bool RealCompositor::Actor::IsTransformed() const {
+  const Vector4 c0 = model_view_[0];
+  const Vector4 c1 = model_view_[1];
+  const Vector4 c2 = model_view_[2];
+  const Vector4 c3 = model_view_[3];
+
+  // Most entries must be from identity matrix
+  if (c0[1] != 0.f || c0[2] != 0.f || c0[3] != 0.f ||
+      c1[0] != 0.f || c1[2] != 0.f || c1[3] != 0.f ||
+      c2[0] != 0.f || c2[1] != 0.f || c2[2] != 1.f || c2[3] != 0.f ||
+      c3[3] != 1.f)
+    return true;
+
+  // Check for scale by actor dimensions
+  if (c0[0] != width() ||
+      c1[1] != height())
+    return true;
+
+  // Check for transform by actor origin
+  if (c3[0] != x() || c3[1] != y() || c3[2] != z())
+    return true;
+
+  return false;
+}
+
 template<class T> void RealCompositor::Actor::AnimateField(
     map<T*, shared_ptr<Animation<T> > >* animation_map,
     T* field, T value, int duration_ms) {
@@ -380,6 +405,7 @@ void RealCompositor::ContainerActor::UpdateModelView() {
   } else {
     set_model_view(Matrix4::identity());
   }
+
   // Don't translate by Z because the actors already have their
   // absolute Z values from the layer calculation.
   set_model_view(model_view() * Matrix4::translation(Vector3(x(), y(), 0.0f)));
@@ -608,10 +634,17 @@ void RealCompositor::StageActor::SetStageColor(const Compositor::Color& color) {
 }
 
 void RealCompositor::StageActor::UpdateProjection() {
+  // If this method is ever changed to use something besides an orthographic
+  // pass-through projection matrix, update using_passthrough_projection()
+  // accordingly.
   projection_ = Matrix4::orthographic(
                     0, width(), height(), 0,
                     -LayerVisitor::kMinDepth,
                     -LayerVisitor::kMaxDepth);
+}
+
+bool RealCompositor::StageActor::using_passthrough_projection() const {
+  return true;
 }
 
 

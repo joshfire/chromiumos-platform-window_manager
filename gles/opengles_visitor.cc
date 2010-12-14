@@ -36,7 +36,7 @@ namespace window_manager {
 // Base for rendering passes.
 class BasePass : virtual public RealCompositor::ActorVisitor {
  public:
-  explicit BasePass(const OpenGlesDrawVisitor* gles_visitor)
+  explicit BasePass(OpenGlesDrawVisitor* gles_visitor)
       : gles_visitor_(gles_visitor) {}
   virtual ~BasePass() {}
   virtual void VisitActor(RealCompositor::Actor* actor) {}
@@ -48,10 +48,10 @@ class BasePass : virtual public RealCompositor::ActorVisitor {
   }
 
  protected:
-  const OpenGlesDrawVisitor* gles_visitor() const { return gles_visitor_; }
+  OpenGlesDrawVisitor* gles_visitor() const { return gles_visitor_; }
 
  private:
-  const OpenGlesDrawVisitor* gles_visitor_;  // Not owned.
+  OpenGlesDrawVisitor* gles_visitor_;  // Not owned.
 
   DISALLOW_COPY_AND_ASSIGN(BasePass);
 };
@@ -59,7 +59,7 @@ class BasePass : virtual public RealCompositor::ActorVisitor {
 // Back to front pass with blending on.
 class TransparentPass : public BasePass {
  public:
-  explicit TransparentPass(const OpenGlesDrawVisitor* gles_visitor)
+  explicit TransparentPass(OpenGlesDrawVisitor* gles_visitor)
       : BasePass(gles_visitor) {}
   virtual ~TransparentPass() {}
   virtual void VisitStage(RealCompositor::StageActor* actor);
@@ -78,7 +78,7 @@ class TransparentPass : public BasePass {
 // Front to back pass with blending off.
 class OpaquePass : public BasePass {
  public:
-  explicit OpaquePass(const OpenGlesDrawVisitor* gles_visitor)
+  explicit OpaquePass(OpenGlesDrawVisitor* gles_visitor)
       : BasePass(gles_visitor) {}
   virtual ~OpaquePass() {}
   virtual void VisitContainer(RealCompositor::ContainerActor* actor);
@@ -98,7 +98,8 @@ OpenGlesDrawVisitor::OpenGlesDrawVisitor(Gles2Interface* gl,
       stage_(stage),
       x_connection_(compositor_->x_conn()),
       egl_surface_is_capable_of_partial_updates_(false),
-      has_fullscreen_actor_(false) {
+      has_fullscreen_actor_(false),
+      using_passthrough_projection_(false) {
   CHECK(gl_);
   egl_display_ = gl_->egl_display();
 
@@ -172,13 +173,23 @@ OpenGlesDrawVisitor::OpenGlesDrawVisitor(Gles2Interface* gl,
   gl_->GenBuffers(1, &vertex_buffer_object_);
   CHECK(vertex_buffer_object_ > 0) << "VBO allocation failed.";
   gl_->BindBuffer(GL_ARRAY_BUFFER, vertex_buffer_object_);
-  static float kQuad[] = {
+  static float kTriAndQuad[] = {
+    // Triangle-strip quad.
     0.f, 0.f,
     0.f, 1.f,
     1.f, 0.f,
     1.f, 1.f,
+
+    // Large Triangle
+    0.f, 0.f,
+    0.f, 2.f,
+    2.f, 0.f,
   };
-  gl_->BufferData(GL_ARRAY_BUFFER, sizeof(kQuad), kQuad, GL_STATIC_DRAW);
+  gl_->BufferData(GL_ARRAY_BUFFER,
+                  sizeof(kTriAndQuad), kTriAndQuad,
+                  GL_STATIC_DRAW);
+  quad_vertices_index_ = 0;
+  tri_vertices_index_ = 4;
 
   // Unchanging state
   gl_->BlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
@@ -303,6 +314,8 @@ void OpenGlesDrawVisitor::VisitStage(RealCompositor::StageActor* actor) {
     gl_->Clear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
   projection_ = actor->projection();
+  using_passthrough_projection_ = actor->using_passthrough_projection();
+  stage_height_ = actor->height();
 
   // Front to back opaque rendering pass
   OpaquePass opaque_pass(this);
@@ -359,15 +372,23 @@ void TransparentPass::VisitStage(RealCompositor::StageActor* actor) {
 }
 
 void OpenGlesDrawVisitor::DrawQuad(RealCompositor::QuadActor* actor,
-                                   float ancestor_opacity) const {
+                                   float ancestor_opacity) {
   if (!actor->IsVisible())
     return;
 
   // This must live until after the draw call, so it's at the top level
   GLfloat colors[4 * 4];
+  const bool using_actor_opacity = actor->dimmed_opacity_begin() != 0.f ||
+                                   actor->dimmed_opacity_end() != 0.f;
+
+  const Matrix4 model_view = actor->model_view();
+  const bool using_passthrough_rendering =
+    !actor->IsTransformed() &&
+    using_passthrough_projection_ &&
+    !using_actor_opacity;
 
   // mvp matrix
-  Matrix4 mvp = projection_ * actor->model_view();
+  Matrix4 mvp = projection_ * model_view;
 
   // texture
   TextureData* texture_data = actor->texture_data();
@@ -378,8 +399,7 @@ void OpenGlesDrawVisitor::DrawQuad(RealCompositor::QuadActor* actor,
                                    true;
 
   // shader
-  if (actor->dimmed_opacity_begin() == 0.f &&
-      actor->dimmed_opacity_end() == 0.f) {
+  if (!using_actor_opacity) {
     if (texture_has_alpha) {
       gl_->UseProgram(tex_color_shader_->program());
       gl_->UniformMatrix4fv(tex_color_shader_->MvpLocation(), 1, GL_FALSE,
@@ -472,6 +492,55 @@ void OpenGlesDrawVisitor::DrawQuad(RealCompositor::QuadActor* actor,
 
   // Draw
   gl_->DrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+  if (using_passthrough_rendering) {
+    // Draw using a single, scissored triangle to decrease the chance of the
+    // actor's texture being updated by another asynchronous engine on the GPU
+    // in between the individual triangles making up the quad.  This eliminates
+    // ugly diagonal tearing. This path isn't compatible with alpha-blended
+    // actors because a single triangle's vertices can't be set up to
+    // interpolate the alpha values like a quad does.
+    DCHECK(!using_actor_opacity);
+
+    PushScissorRect(Rect(actor->x(),
+                         stage_height_ - (actor->y() + actor->height()),
+                         actor->width(), actor->height()));
+    gl_->DrawArrays(GL_TRIANGLES, tri_vertices_index_, 3);
+    PopScissorRect();
+  } else {
+    // The quad vertices must start at index zero to line up with the non-VBO
+    // colors array indices.  If they're moved, the colors array needs to be
+    // resized and shifted accordingly.
+    DCHECK(quad_vertices_index_ == 0);
+    gl_->DrawArrays(GL_TRIANGLE_STRIP, quad_vertices_index_, 4);
+  }
+}
+
+void OpenGlesDrawVisitor::PushScissorRect(const Rect& scissor) {
+  if (scissor_stack_.empty()) {
+    scissor_stack_.push_back(scissor);
+    gl_->Enable(GL_SCISSOR_TEST);
+    gl_->Scissor(scissor.x, scissor.y,
+                 scissor.width, scissor.height);
+  } else {
+    Rect new_scissor = scissor;
+    new_scissor.intersect(scissor_stack_.back());
+    scissor_stack_.push_back(new_scissor);
+    gl_->Scissor(new_scissor.x, new_scissor.y,
+                 new_scissor.width, new_scissor.height);
+  }
+}
+
+void OpenGlesDrawVisitor::PopScissorRect() {
+  DCHECK(!scissor_stack_.empty());
+  scissor_stack_.pop_back();
+
+  if (scissor_stack_.empty()) {
+    gl_->Disable(GL_SCISSOR_TEST);
+  } else {
+    const Rect& new_scissor = scissor_stack_.back();
+    gl_->Scissor(new_scissor.x, new_scissor.y,
+                 new_scissor.width, new_scissor.height);
+  }
 }
 
 void OpenGlesDrawVisitor::PushScissorRect(const Rect& scissor) {
