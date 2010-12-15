@@ -14,15 +14,6 @@
 #include "base/basictypes.h"
 #include "window_manager/gl_interface_base.h"
 
-#if !defined(EGL_NV_post_sub_buffer)
-typedef EGLBoolean (*PFNEGLPOSTSUBBUFFERNVPROC)(EGLDisplay dpy,
-                                                EGLSurface surface,
-                                                EGLint x, EGLint y,
-                                                EGLint width, EGLint height);
-
-#define EGL_POST_SUB_BUFFER_SUPPORTED_NV    0x30BE
-#endif  // !defined(EGL_NV_post_sub_buffer)
-
 namespace window_manager {
 
 // This is an abstract base class representing a GLES2 interface.

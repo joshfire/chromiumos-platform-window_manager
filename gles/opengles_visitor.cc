@@ -23,14 +23,6 @@
 #error Need COMPOSITOR_OPENGLES defined to compile this file
 #endif
 
-// Work around broken eglext.h headers
-#ifndef EGL_NO_IMAGE_KHR
-#define EGL_NO_IMAGE_KHR (static_cast<EGLImageKHR>(0))
-#endif
-#ifndef EGL_IMAGE_PRESERVED_KHR
-#define EGL_IMAGE_PRESERVED_KHR 0x30D2
-#endif
-
 namespace window_manager {
 
 // Base for rendering passes.
