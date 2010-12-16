@@ -374,9 +374,11 @@ void OpenGlesDrawVisitor::DrawQuad(RealCompositor::QuadActor* actor,
                                    actor->dimmed_opacity_end() != 0.f;
 
   const Matrix4 model_view = actor->model_view();
-  const bool using_passthrough_rendering =
+  const bool quad_is_screen_aligned =
     !actor->IsTransformed() &&
-    using_passthrough_projection_ &&
+    using_passthrough_projection_;
+
+  const bool use_passthrough_rendering = quad_is_screen_aligned &&
     !using_actor_opacity;
 
   // mvp matrix
@@ -386,6 +388,13 @@ void OpenGlesDrawVisitor::DrawQuad(RealCompositor::QuadActor* actor,
   TextureData* texture_data = actor->texture_data();
   gl_->BindTexture(GL_TEXTURE_2D,
                    texture_data ? texture_data->texture() : 0);
+  if (quad_is_screen_aligned) {
+    gl_->TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    gl_->TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+  } else {
+    gl_->TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    gl_->TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+  }
   const bool texture_has_alpha = texture_data ?
                                    texture_data->has_alpha() :
                                    true;
@@ -483,7 +492,7 @@ void OpenGlesDrawVisitor::DrawQuad(RealCompositor::QuadActor* actor,
   }
 
   // Draw
-  if (using_passthrough_rendering) {
+  if (use_passthrough_rendering) {
     // Draw using a single, scissored triangle to decrease the chance of the
     // actor's texture being updated by another asynchronous engine on the GPU
     // in between the individual triangles making up the quad.  This eliminates
