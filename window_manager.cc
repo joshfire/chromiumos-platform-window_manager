@@ -24,6 +24,7 @@ extern "C" {
 #include "cros/chromeos_wm_ipc_enums.h"
 #include "window_manager/callback.h"
 #include "window_manager/chrome_watchdog.h"
+#include "window_manager/dbus_interface.h"
 #include "window_manager/event_consumer.h"
 #include "window_manager/event_loop.h"
 #include "window_manager/focus_manager.h"
@@ -199,10 +200,12 @@ static const char* XEventTypeToName(int type) {
 
 WindowManager::WindowManager(EventLoop* event_loop,
                              XConnection* xconn,
-                             Compositor* compositor)
+                             Compositor* compositor,
+                             DBusInterface* dbus)
     : event_loop_(event_loop),
       xconn_(xconn),
       compositor_(compositor),
+      dbus_(dbus),
       root_(0),
       width_(0),
       height_(0),

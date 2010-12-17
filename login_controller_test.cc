@@ -9,6 +9,7 @@
 
 #include "base/scoped_ptr.h"
 #include "base/logging.h"
+#include "chromeos/dbus/service_constants.h"
 #include "cros/chromeos_wm_ipc_enums.h"
 #include "window_manager/compositor.h"
 #include "window_manager/event_loop.h"
@@ -47,14 +48,14 @@ class LoginControllerTest : public BasicWindowManagerTest {
     login_controller_ = wm_->login_controller_.get();
 
     background_xid_ = 0;
-    guest_xid_ = 0;
+    wizard_xid_ = 0;
   }
 
   // Create the set of windows expected by LoginController.
   void CreateLoginWindows(int num_entries,
                           bool background_is_ready,
                           bool entry_pixmaps_are_ready,
-                          bool create_guest_window) {
+                          bool create_wizard_window) {
     CHECK(num_entries == 0 || num_entries >= 2);
 
     if (!background_xid_) {
@@ -65,14 +66,6 @@ class LoginControllerTest : public BasicWindowManagerTest {
                                    chromeos::WM_IPC_WINDOW_LOGIN_BACKGROUND,
                                    &background_params);
       SendInitialEventsForWindow(background_xid_);
-    }
-
-    if (create_guest_window) {
-      guest_xid_ = CreateBasicWindow(0, 0, wm_->width() / 2, wm_->height() / 2);
-      wm_->wm_ipc()->SetWindowType(guest_xid_,
-                                   chromeos::WM_IPC_WINDOW_LOGIN_GUEST,
-                                   NULL);
-      SendInitialEventsForWindow(guest_xid_);
     }
 
     for (int i = 0; i < num_entries; ++i) {
@@ -127,6 +120,18 @@ class LoginControllerTest : public BasicWindowManagerTest {
       SendInitialEventsForWindow(entry.unselected_label_xid);
 
       entries_.push_back(entry);
+    }
+
+    // The wizard window needs to be mapped after the entries.  Otherwise, when
+    // LoginController sees the wizard window get mapped, it won't know whether
+    // it should display it immediately or wait for entries to show up.
+    if (create_wizard_window) {
+      wizard_xid_ = CreateBasicWindow(0, 0,
+                                      wm_->width() / 2, wm_->height() / 2);
+      wm_->wm_ipc()->SetWindowType(wizard_xid_,
+                                   chromeos::WM_IPC_WINDOW_LOGIN_GUEST,
+                                   NULL);
+      SendInitialEventsForWindow(wizard_xid_);
     }
 
     if (entry_pixmaps_are_ready) {
@@ -287,7 +292,7 @@ class LoginControllerTest : public BasicWindowManagerTest {
   LoginController* login_controller_;  // owned by 'wm_'
 
   XWindow background_xid_;
-  XWindow guest_xid_;
+  XWindow wizard_xid_;
   vector<EntryWindows> entries_;
 };
 
@@ -307,7 +312,7 @@ TEST_F(LoginControllerTest, Shadow) {
   EXPECT_TRUE(wm_->GetWindowOrDie(entries_[0].unselected_label_xid)->
                   shadow() == NULL);
 
-  EXPECT_TRUE(wm_->GetWindowOrDie(guest_xid_)->shadow() == NULL);
+  EXPECT_TRUE(wm_->GetWindowOrDie(wizard_xid_)->shadow() == NULL);
   EXPECT_TRUE(wm_->GetWindowOrDie(background_xid_)->shadow() == NULL);
 }
 
@@ -483,12 +488,12 @@ TEST_F(LoginControllerTest, Focus) {
   EXPECT_TRUE(other_info->button_is_grabbed(0));
 }
 
-// Test that the login controller focuses the guest window when no entries
+// Test that the login controller focuses the wizard window when no entries
 // are created.
-TEST_F(LoginControllerTest, FocusInitialGuestWindow) {
+TEST_F(LoginControllerTest, FocusInitialWizardWindow) {
   CreateLoginWindows(0, true, true, true);
-  EXPECT_EQ(guest_xid_, xconn_->focused_xid());
-  EXPECT_EQ(guest_xid_, GetActiveWindowProperty());
+  EXPECT_EQ(wizard_xid_, xconn_->focused_xid());
+  EXPECT_EQ(wizard_xid_, GetActiveWindowProperty());
 }
 
 TEST_F(LoginControllerTest, FocusTransientParent) {
@@ -664,16 +669,16 @@ TEST_F(LoginControllerTest, SelectGuest) {
   EXPECT_EQ(entries_[1].controls_xid, xconn_->focused_xid());
   EXPECT_EQ(entries_[1].controls_xid, GetActiveWindowProperty());
 
-  // Create guest window.
-  guest_xid_ = CreateBasicWindow(0, 0, wm_->width() / 2, wm_->height() / 2);
-  wm_->wm_ipc()->SetWindowType(guest_xid_,
+  // Create wizard window.
+  wizard_xid_ = CreateBasicWindow(0, 0, wm_->width() / 2, wm_->height() / 2);
+  wm_->wm_ipc()->SetWindowType(wizard_xid_,
                                chromeos::WM_IPC_WINDOW_LOGIN_GUEST,
                                NULL);
-  SendInitialEventsForWindow(guest_xid_);
+  SendInitialEventsForWindow(wizard_xid_);
 
-  // The guest window should be focused.
-  EXPECT_EQ(guest_xid_, xconn_->focused_xid());
-  EXPECT_EQ(guest_xid_, GetActiveWindowProperty());
+  // The wizard window should be focused.
+  EXPECT_EQ(wizard_xid_, xconn_->focused_xid());
+  EXPECT_EQ(wizard_xid_, GetActiveWindowProperty());
 }
 
 TEST_F(LoginControllerTest, RemoveUser) {
@@ -692,17 +697,17 @@ TEST_F(LoginControllerTest, RemoveUser) {
   EXPECT_EQ(entries_[0].controls_xid, xconn_->focused_xid());
   EXPECT_EQ(entries_[0].controls_xid, GetActiveWindowProperty());
 
-  // Create guest window.
-  guest_xid_ = CreateBasicWindow(0, 0, wm_->width() / 2, wm_->height() / 2);
-  wm_->wm_ipc()->SetWindowType(guest_xid_,
+  // Create wizard window.
+  wizard_xid_ = CreateBasicWindow(0, 0, wm_->width() / 2, wm_->height() / 2);
+  wm_->wm_ipc()->SetWindowType(wizard_xid_,
                                chromeos::WM_IPC_WINDOW_LOGIN_GUEST,
                                NULL);
-  SendInitialEventsForWindow(guest_xid_);
+  SendInitialEventsForWindow(wizard_xid_);
   UnmapLoginEntry(0);
 
-  // The guest window should be focused.
-  EXPECT_EQ(guest_xid_, xconn_->focused_xid());
-  EXPECT_EQ(guest_xid_, GetActiveWindowProperty());
+  // The wizard window should be focused.
+  EXPECT_EQ(wizard_xid_, xconn_->focused_xid());
+  EXPECT_EQ(wizard_xid_, GetActiveWindowProperty());
 }
 
 TEST_F(LoginControllerTest, AllWindowsAreReady) {
@@ -1105,6 +1110,24 @@ TEST_F(LoginControllerTest, LoginEntryRelativePositions) {
   EXPECT_LT(bounds[1].controls.right(), bounds[1].border.right());
   EXPECT_GT(bounds[1].controls.top(), bounds[1].border.top());
   EXPECT_LT(bounds[1].controls.bottom(), bounds[1].border.bottom());
+}
+
+// Check that we send a D-Bus message to the session manager once we've started
+// the animation to show the login windows.
+TEST_F(LoginControllerTest, NotifySessionManagerWhenReady) {
+  const size_t kInitialNumDBusMessages = dbus_->sent_messages().size();
+  CreateLoginWindows(2, true, false, true);
+  EXPECT_EQ(kInitialNumDBusMessages, dbus_->sent_messages().size());
+
+  SendInitialPixmapEventForEntry(0);
+  SendInitialPixmapEventForEntry(1);
+  ASSERT_EQ(kInitialNumDBusMessages + 1, dbus_->sent_messages().size());
+  const MockDBusInterface::Message& msg = dbus_->sent_messages()[0];
+  EXPECT_EQ(login_manager::kSessionManagerServiceName, msg.target);
+  EXPECT_EQ(login_manager::kSessionManagerServicePath, msg.object);
+  EXPECT_EQ(login_manager::kSessionManagerInterface, msg.interface);
+  EXPECT_EQ(login_manager::kSessionManagerEmitLoginPromptVisible, msg.method);
+
 }
 
 }  // namespace window_manager

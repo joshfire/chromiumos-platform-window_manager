@@ -194,6 +194,10 @@ class LoginController : public EventConsumer {
   // Called when we see the pixmap for a browser window get loaded.
   void HideWindowsAndRequestDestruction();
 
+  // Send a D-Bus message to the session manager notifying it that the login
+  // windows are visible.
+  void NotifySessionManager();
+
   WindowManager* wm_;
 
   EventConsumerRegistrar registrar_;
@@ -208,7 +212,7 @@ class LoginController : public EventConsumer {
 
   Entries entries_;
 
-  // Did we get all the windows and show them?
+  // Did we get all the regular login (i.e. non-wizard) windows and show them?
   bool all_windows_are_ready_;
 
   // Index of the selected entry.

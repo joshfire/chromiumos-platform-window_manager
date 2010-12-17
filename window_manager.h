@@ -37,6 +37,7 @@ extern "C" {
 namespace window_manager {
 
 class ChromeWatchdog;
+class DBusInterface;
 class EventConsumer;
 class EventLoop;
 class FocusManager;
@@ -64,7 +65,8 @@ class WindowManager : public PanelManagerAreaChangeListener,
 
   WindowManager(EventLoop* event_loop,
                 XConnection* xconn,
-                Compositor* compositor);
+                Compositor* compositor,
+                DBusInterface* dbus);
   virtual ~WindowManager();
 
   void set_initialize_logging(bool should_init) {
@@ -74,6 +76,7 @@ class WindowManager : public PanelManagerAreaChangeListener,
   EventLoop* event_loop() { return event_loop_; }
   XConnection* xconn() { return xconn_; }
   Compositor* compositor() { return compositor_; }
+  DBusInterface* dbus() { return dbus_; }
   StackingManager* stacking_manager() { return stacking_manager_.get(); }
   FocusManager* focus_manager() { return focus_manager_.get(); }
 
@@ -428,6 +431,7 @@ class WindowManager : public PanelManagerAreaChangeListener,
   EventLoop* event_loop_;   // not owned
   XConnection* xconn_;      // not owned
   Compositor* compositor_;  // not owned
+  DBusInterface* dbus_;     // not owned
 
   XWindow root_;
 

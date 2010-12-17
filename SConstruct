@@ -37,8 +37,7 @@ base_env.Append(CPPPATH=['..'])
 
 # We need glib-2.0 ONLY to satisfy libbase.
 # TODO(derat): Weep.
-base_env.Append(LIBS=Split('base gflags glib-2.0 pthread rt'))
-
+base_env.Append(LIBS=Split('base gflags pthread rt'))
 base_env.ParseConfig('pkg-config --cflags --libs glib-2.0 x11')
 
 # Fork off a new environment, add Cairo to it, and build the screenshot
@@ -53,8 +52,8 @@ backend = ARGUMENTS.get('BACKEND', 'OPENGL').lower()
 # Start a new environment for the window manager.
 wm_env = base_env.Clone()
 
-wm_env.Append(LIBS=['protobuf'])
-wm_env.ParseConfig('pkg-config --cflags --libs libpcrecpp libpng12 ' +
+wm_env.Append(LIBS=Split('chromeos protobuf'))
+wm_env.ParseConfig('pkg-config --cflags --libs dbus-1 libpcrecpp libpng12 ' +
                    'xcb x11-xcb xcb-composite xcb-randr xcb-shape xcb-damage ' +
                    'xcb-sync xdamage xext')
 
@@ -107,6 +106,7 @@ srcs = Split('''\
   pointer_position_watcher.cc
   profiler.cc
   real_compositor.cc
+  real_dbus_interface.cc
   screen_locker_handler.cc
   separator.cc
   shadow.cc
@@ -139,6 +139,7 @@ libwm_core = wm_env.Library('wm_core', srcs)
 # Define a library to be used by tests.
 srcs = Split('''\
   mock_compositor.cc
+  mock_dbus_interface.cc
   mock_gl_interface.cc
   mock_x_connection.cc
   test_lib.cc

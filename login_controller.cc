@@ -10,8 +10,10 @@
 
 #include <gflags/gflags.h>
 
+#include "chromeos/dbus/service_constants.h"
 #include "cros/chromeos_wm_ipc_enums.h"
 #include "window_manager/callback.h"
+#include "window_manager/dbus_interface.h"
 #include "window_manager/event_loop.h"
 #include "window_manager/focus_manager.h"
 #include "window_manager/geometry.h"
@@ -208,7 +210,7 @@ void LoginController::HandleWindowMap(Window* win) {
   switch (win->type()) {
     case chromeos::WM_IPC_WINDOW_LOGIN_GUEST: {
       if (wizard_window_)
-        LOG(WARNING) << "two wizard windows encountered.";
+        LOG(WARNING) << "Two wizard windows encountered";
       wizard_window_ = win;
       wm_->focus_manager()->UseClickToFocusForWindow(wizard_window_);
       registrar_.RegisterForWindowEvents(wizard_window_->xid());
@@ -241,7 +243,7 @@ void LoginController::HandleWindowMap(Window* win) {
     }
     case chromeos::WM_IPC_WINDOW_LOGIN_BACKGROUND: {
       if (background_window_)
-        LOG(WARNING) << "two background windows encountered.";
+        LOG(WARNING) << "Two background windows encountered";
       background_window_ = win;
       wm_->focus_manager()->UseClickToFocusForWindow(background_window_);
       registrar_.RegisterForWindowEvents(background_window_->xid());
@@ -794,6 +796,7 @@ void LoginController::DoInitialSetupIfWindowsAreReady() {
     ConfigureBackgroundWindow();
     StackWindows();
     InitialShow();
+    NotifySessionManager();
   } else if (entries_.empty() && wizard_window_ && IsBackgroundWindowReady()) {
     // If we're running an older version of Chrome (param[0] is missing) or
     // this is the first time that the wizard window has been mapped
@@ -814,6 +817,7 @@ void LoginController::DoInitialSetupIfWindowsAreReady() {
     wizard_window_->ShowComposited();
     wizard_window_->SetCompositedOpacity(1, kInitialShowAnimationTimeInMs);
     FocusLoginWindow(wizard_window_);
+    NotifySessionManager();
   }
 }
 
@@ -853,6 +857,13 @@ void LoginController::HideWindowsAndRequestDestruction() {
 
   requested_destruction_ = true;
   wm_->DestroyLoginController();
+}
+
+void LoginController::NotifySessionManager() {
+  wm_->dbus()->CallMethod(login_manager::kSessionManagerServiceName,
+                          login_manager::kSessionManagerServicePath,
+                          login_manager::kSessionManagerInterface,
+                          login_manager::kSessionManagerEmitLoginPromptVisible);
 }
 
 }  // namespace window_manager

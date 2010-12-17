@@ -20,6 +20,7 @@ extern "C" {
 #include "window_manager/event_loop.h"
 #include "window_manager/key_bindings.h"
 #include "window_manager/mock_compositor.h"
+#include "window_manager/mock_dbus_interface.h"
 #include "window_manager/mock_gl_interface.h"
 #include "window_manager/mock_x_connection.h"
 #include "window_manager/real_compositor.h"
@@ -73,12 +74,15 @@ class BasicWindowManagerTest : public ::testing::Test {
   // Register keycodes corresponding to common keysyms.
   void RegisterCommonKeySyms();
 
-  // Create a new WindowManager object with a logged-in state and store it
-  // in 'wm_'.  Helper method for a bunch of tests that need to do this
-  // repeatedly.
+  // Create a new WindowManager object using the existing X connection,
+  // compositor, etc. and store it in 'wm_'.
+  void CreateNewWm();
+
+  // Call CreateNewWm() and then call its Init() method and ensure that it
+  // succeeds.
   void CreateAndInitNewWm();
 
-  // Creates a basic window with no special type.
+  // Create a basic window with no special type.
   XWindow CreateBasicWindow(int x, int y, int width, int height);
 
   // Create a toplevel client window with the passed-in position and
@@ -246,6 +250,7 @@ class BasicWindowManagerTest : public ::testing::Test {
   scoped_ptr<EventLoop> event_loop_;
   scoped_ptr<MockXConnection> xconn_;
   scoped_ptr<MockCompositor> compositor_;
+  scoped_ptr<MockDBusInterface> dbus_;
   scoped_ptr<WindowManager> wm_;
 
   // Settings used for subsequent windows created by

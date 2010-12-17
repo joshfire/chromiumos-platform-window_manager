@@ -866,19 +866,13 @@ TEST_F(WindowManagerTest, LoggedIn) {
   // should assume that we're not logged in.
   XAtom logged_in_xatom = xconn_->GetAtomOrDie("_CHROME_LOGGED_IN");
   xconn_->DeletePropertyIfExists(xconn_->GetRootWindow(), logged_in_xatom);
-  wm_.reset(new WindowManager(event_loop_.get(),
-                              xconn_.get(),
-                              compositor_.get()));
-  CHECK(wm_->Init());
+  CreateAndInitNewWm();
   EXPECT_FALSE(wm_->logged_in());
   EXPECT_FALSE(wm_->logged_in_key_bindings_group_->enabled());
 
   // Ditto for when it exists but is set to 0.
   SetLoggedInState(false);
-  wm_.reset(new WindowManager(event_loop_.get(),
-                              xconn_.get(),
-                              compositor_.get()));
-  CHECK(wm_->Init());
+  CreateAndInitNewWm();
   EXPECT_FALSE(wm_->logged_in());
   EXPECT_FALSE(wm_->logged_in_key_bindings_group_->enabled());
 
@@ -1003,9 +997,7 @@ TEST_F(WindowManagerTest, StartNewLogAfterLogin) {
   // Make sure that logging is turned on, and pretend like we just started
   // while not logged in.
   SetLoggedInState(false);
-  wm_.reset(new WindowManager(event_loop_.get(),
-                              xconn_.get(),
-                              compositor_.get()));
+  CreateNewWm();
   wm_->set_initialize_logging(true);
   CHECK(wm_->Init());
   ASSERT_FALSE(wm_->logged_in());

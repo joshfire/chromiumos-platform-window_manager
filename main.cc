@@ -25,6 +25,7 @@ extern "C" {
 #include "window_manager/event_loop.h"
 #include "window_manager/profiler.h"
 #include "window_manager/real_compositor.h"
+#include "window_manager/real_dbus_interface.h"
 #if defined(COMPOSITOR_OPENGL)
 #include "window_manager/real_gl_interface.h"
 #elif defined(COMPOSITOR_OPENGLES)
@@ -38,19 +39,19 @@ DEFINE_string(display, "",
               "X Display to connect to (overrides DISPLAY env var).");
 DEFINE_bool(logtostderr, false,
             "Log to stderr (see --logged_{in,out}_log_dir otherwise)");
+DEFINE_int32(pause_at_start, 0,
+             "Specify this to pause for N seconds at startup");
 DEFINE_string(profile_dir, "./profile",
               "Directory where profiles should be written; created if it "
               "doesn't exist.");
 DEFINE_int32(profile_max_samples, 200,
              "Maximum number of samples (buffer size) for profiler.");
-DEFINE_bool(start_profiler, false,
-            "Start profiler at window manager startup.");
-DEFINE_int32(pause_at_start, 0,
-             "Specify this to pause for N seconds at startup.");
+DEFINE_bool(start_profiler, false, "Start profiler at window manager startup.");
 
 using std::string;
 using window_manager::EventLoop;
 using window_manager::RealCompositor;
+using window_manager::RealDBusInterface;
 #if defined(COMPOSITOR_OPENGL)
 using window_manager::RealGLInterface;
 #elif defined(COMPOSITOR_OPENGLES)
@@ -150,8 +151,10 @@ int main(int argc, char** argv) {
   RealGles2Interface gl_interface(&xconn);
 #endif
   RealCompositor compositor(&event_loop, &xconn, &gl_interface);
+  RealDBusInterface dbus;
+  dbus.Init();
 
-  WindowManager wm(&event_loop, &xconn, &compositor);
+  WindowManager wm(&event_loop, &xconn, &compositor, &dbus);
   wm.set_initialize_logging(!FLAGS_logtostderr);
   wm.Init();
 

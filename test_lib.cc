@@ -75,6 +75,10 @@ int InitAndRunTests(int* argc, char** argv, bool* log_to_stderr) {
                          logging::LOG_NONE,
                        logging::DONT_LOCK_LOG_FILE,
                        logging::APPEND_TO_OLD_LOG_FILE);
+  logging::SetLogItems(false,  // enable_process_id
+                       false,  // enable_thread_id
+                       true,   // enable_timestamp
+                       true);  // enable_tickcount
   ::testing::InitGoogleTest(argc, argv);
   return RUN_ALL_TESTS();
 }
@@ -103,16 +107,15 @@ void BasicWindowManagerTest::SetUp() {
       chromeos::WM_IPC_PANEL_USER_RESIZE_HORIZONTALLY_AND_VERTICALLY;
 
   SetCurrentTimeForTest(-1, 0);
+  dbus_.reset(new MockDBusInterface);
+  CHECK(dbus_->Init());
   event_loop_.reset(new EventLoop);
   xconn_.reset(new MockXConnection);
   RegisterCommonKeySyms();
 
   SetLoggedInState(true);
   compositor_.reset(new MockCompositor(xconn_.get()));
-  wm_.reset(new WindowManager(event_loop_.get(),
-                              xconn_.get(),
-                              compositor_.get()));
-  CHECK(wm_->Init());
+  CreateAndInitNewWm();
 
   // Tell the WM that we implement a recent-enough version of the IPC
   // messages that we'll be giving it the position of the right-hand edge
@@ -151,10 +154,15 @@ void BasicWindowManagerTest::RegisterCommonKeySyms() {
   xconn_->AddKeyMapping(next_keycode++, XF86XK_AudioRaiseVolume);
 }
 
-void BasicWindowManagerTest::CreateAndInitNewWm() {
+void BasicWindowManagerTest::CreateNewWm() {
   wm_.reset(new WindowManager(event_loop_.get(),
                               xconn_.get(),
-                              compositor_.get()));
+                              compositor_.get(),
+                              dbus_.get()));
+}
+
+void BasicWindowManagerTest::CreateAndInitNewWm() {
+  CreateNewWm();
   ASSERT_TRUE(wm_->Init());
 }
 
