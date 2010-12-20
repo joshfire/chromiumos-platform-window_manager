@@ -1130,6 +1130,48 @@ TEST_F(LoginControllerTest, NotifySessionManagerWhenReady) {
 
 }
 
+// Test that we focus the first controls window as soon as we map it.
+TEST_F(LoginControllerTest, FocusFirstControlsWindowImmediately) {
+  // Create just a background window.
+  CreateLoginWindows(0, true, false, false);
+
+  // Create a border window for the first entry.
+  XWindow border_xid =
+      CreateBasicWindow(0, 0,
+      kImageSize + 2 * kGapBetweenImageAndControls,
+      kImageSize + kControlsSize + 3 * kGapBetweenImageAndControls);
+  vector<int> params;
+  params.push_back(0);  // entry index
+  params.push_back(1);  // num entries
+  params.push_back(kUnselectedImageSize);
+  params.push_back(kGapBetweenImageAndControls);
+  wm_->wm_ipc()->SetWindowType(
+      border_xid,
+      chromeos::WM_IPC_WINDOW_LOGIN_BORDER,
+      &params);
+  SendInitialEventsForWindow(border_xid);
+
+  // Now create a controls window for the entry.  Don't map it yet.
+  XWindow controls_xid = CreateBasicWindow(0, 0, kImageSize, kControlsSize);
+  ConfigureWindowForSyncRequestProtocol(controls_xid);
+  params.clear();
+  params.push_back(0);  // entry index
+  wm_->wm_ipc()->SetWindowType(
+      controls_xid,
+      chromeos::WM_IPC_WINDOW_LOGIN_CONTROLS,
+      &params);
+  XEvent event;
+  xconn_->InitCreateWindowEvent(&event, controls_xid);
+  wm_->HandleEvent(&event);
+
+  // As soon as we send a map request, the controls window should be focused.
+  EXPECT_EQ(0, xconn_->focused_xid());
+  xconn_->InitMapRequestEvent(&event, controls_xid);
+  wm_->HandleEvent(&event);
+  EXPECT_EQ(controls_xid, xconn_->focused_xid());
+  EXPECT_EQ(controls_xid, GetActiveWindowProperty());
+}
+
 }  // namespace window_manager
 
 int main(int argc, char** argv) {

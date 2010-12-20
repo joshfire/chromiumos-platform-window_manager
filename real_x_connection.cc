@@ -264,6 +264,10 @@ bool RealXConnection::DeselectInputOnWindow(XWindow xid, int event_mask) {
   return true;
 }
 
+void RealXConnection::FlushRequests() {
+  XFlush(display_);
+}
+
 bool RealXConnection::AddButtonGrabOnWindow(
     XWindow xid, int button, int event_mask, bool synchronous) {
   xcb_grab_button(xcb_conn_,

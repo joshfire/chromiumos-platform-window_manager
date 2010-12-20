@@ -47,6 +47,7 @@ class RealXConnection : public XConnection {
                                    int event_mask,
                                    bool preserve_existing);
   virtual bool DeselectInputOnWindow(XWindow xid, int event_mask);
+  virtual void FlushRequests();
   virtual bool AddButtonGrabOnWindow(XWindow xid,
                                      int button,
                                      int event_mask,

@@ -208,6 +208,10 @@ class XConnection {
   bool GrabServer();
   bool UngrabServer();
 
+  // Flush any queued requests to the X server.  Note that events are flushed
+  // automatically when GetNextEvent() is called.
+  virtual void FlushRequests() = 0;
+
   // Grab the server, returning an object (ownership of which is
   // transferred to the caller) that will ungrab the server when destroyed.
   ScopedServerGrab* CreateScopedServerGrab();
