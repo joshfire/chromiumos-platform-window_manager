@@ -121,9 +121,6 @@ static const char* kConfigureMonitorAction = "configure-monitor";
 static const char* kToggleHotkeyOverlayAction = "toggle-hotkey-overlay";
 static const char* kTakeRootScreenshotAction = "take-root-screenshot";
 static const char* kTakeWindowScreenshotAction = "take-window-screenshot";
-static const char* kIncreaseAudioVolumeAction = "increase-audio-volume";
-static const char* kDecreaseAudioVolumeAction = "decrease-audio-volume";
-static const char* kMuteAudioAction = "mute-audio";
 
 const int WindowManager::kVideoTimePropertyUpdateSec = 5;
 
@@ -1121,47 +1118,6 @@ void WindowManager::RegisterKeyBindings() {
   key_bindings_->AddBinding(
       KeyBindings::KeyCombo(XK_Print, KeyBindings::kShiftMask),
       kTakeWindowScreenshotAction);
-
-  key_bindings_actions_->AddAction(
-      kIncreaseAudioVolumeAction,
-      NewPermanentCallback(
-          this, &WindowManager::SendNotifySyskeyMessage,
-          chromeos::WM_IPC_SYSTEM_KEY_VOLUME_UP),
-      NewPermanentCallback(
-          this, &WindowManager::SendNotifySyskeyMessage,
-          chromeos::WM_IPC_SYSTEM_KEY_VOLUME_UP),
-      NULL);
-  key_bindings_->AddBinding(
-      KeyBindings::KeyCombo(XF86XK_AudioRaiseVolume, 0),
-      kIncreaseAudioVolumeAction);
-  key_bindings_->AddBinding(
-      KeyBindings::KeyCombo(XK_F10, 0), kIncreaseAudioVolumeAction);
-
-  key_bindings_actions_->AddAction(
-      kDecreaseAudioVolumeAction,
-      NewPermanentCallback(
-          this, &WindowManager::SendNotifySyskeyMessage,
-          chromeos::WM_IPC_SYSTEM_KEY_VOLUME_DOWN),
-      NewPermanentCallback(
-          this, &WindowManager::SendNotifySyskeyMessage,
-          chromeos::WM_IPC_SYSTEM_KEY_VOLUME_DOWN),
-      NULL);
-  key_bindings_->AddBinding(
-      KeyBindings::KeyCombo(XF86XK_AudioLowerVolume, 0),
-      kDecreaseAudioVolumeAction);
-  key_bindings_->AddBinding(
-      KeyBindings::KeyCombo(XK_F9, 0), kDecreaseAudioVolumeAction);
-
-  key_bindings_actions_->AddAction(
-      kMuteAudioAction,
-      NewPermanentCallback(
-          this, &WindowManager::SendNotifySyskeyMessage,
-          chromeos::WM_IPC_SYSTEM_KEY_VOLUME_MUTE),
-      NULL, NULL);
-  key_bindings_->AddBinding(
-      KeyBindings::KeyCombo(XF86XK_AudioMute, 0), kMuteAudioAction);
-  key_bindings_->AddBinding(
-      KeyBindings::KeyCombo(XK_F8, 0), kMuteAudioAction);
 }
 
 bool WindowManager::ManageExistingWindows() {
@@ -1964,19 +1920,6 @@ XWindow WindowManager::GetArbitraryChromeWindow() {
       return i->first;
   }
   return 0;
-}
-
-void WindowManager::SendNotifySyskeyMessage(chromeos::WmIpcSystemKey key) {
-  WmIpc::Message msg(chromeos::WM_IPC_MESSAGE_CHROME_NOTIFY_SYSKEY_PRESSED);
-  msg.set_param(0, key);
-  const XWindow chrome_window = GetArbitraryChromeWindow();
-  if (chrome_window) {
-    DLOG(INFO) << "Sending syskey notification with param " << key;
-    wm_ipc()->SendMessage(chrome_window, msg);
-  } else {
-    LOG(WARNING) << "Not sending syskey notification: "
-                 << "Chrome currently doesn't have any windows open.";
-  }
 }
 
 void WindowManager::ToggleHotkeyOverlay() {

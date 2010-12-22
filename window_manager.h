@@ -389,9 +389,6 @@ class WindowManager : public PanelManagerAreaChangeListener,
   // doesn't matter.  Returns 0 if there aren't any Chrome windows.
   XWindow GetArbitraryChromeWindow();
 
-  // Sends WM_IPC_MESSAGE_CHROME_NOTIFY_SYSKEY_PRESSED notification to Chrome.
-  void SendNotifySyskeyMessage(chromeos::WmIpcSystemKey key);
-
   // Callback to show or hide the hotkey overlay images.
   void ToggleHotkeyOverlay();
 

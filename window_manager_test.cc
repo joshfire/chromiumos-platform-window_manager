@@ -1286,44 +1286,6 @@ TEST_F(WindowManagerTest, HandleTopFullscreenActorChange) {
   EXPECT_TRUE(*expected_overlay.get() == *actual_overlay.get());
 }
 
-// Test that the window manager forwards F9 ("volume down") to Chrome, and
-// that it does so in response to autorepeated events in addition to the
-// initial key press.
-TEST_F(WindowManagerTest, ForwardSystemKeysToChrome) {
-  XWindow toplevel_xid = CreateToplevelWindow(2, 0, 0, 0, 200, 200);
-  SendInitialEventsForWindow(toplevel_xid);
-  MockXConnection::WindowInfo* toplevel_info =
-      xconn_->GetWindowInfoOrDie(toplevel_xid);
-  toplevel_info->client_messages.clear();
-
-  XTime timestamp = 10;
-  XEvent event;
-  xconn_->InitKeyPressEvent(&event,
-                            xconn_->GetRootWindow(),
-                            xconn_->GetKeyCodeFromKeySym(XK_F9),
-                            0,  // modifiers
-                            timestamp);
-  wm_->HandleEvent(&event);
-
-  event.xkey.time++;
-  wm_->HandleEvent(&event);
-  event.xkey.time++;
-  wm_->HandleEvent(&event);
-
-  event.type = KeyRelease;
-  event.xkey.time++;
-  wm_->HandleEvent(&event);
-
-  ASSERT_EQ(3, toplevel_info->client_messages.size());
-  for (int i = 0; i < 3; ++i) {
-    WmIpc::Message msg;
-    ASSERT_TRUE(DecodeWmIpcMessage(toplevel_info->client_messages[i], &msg));
-    EXPECT_EQ(chromeos::WM_IPC_MESSAGE_CHROME_NOTIFY_SYSKEY_PRESSED,
-              msg.type());
-    EXPECT_EQ(chromeos::WM_IPC_SYSTEM_KEY_VOLUME_DOWN, msg.param(0));
-  }
-}
-
 // Check that WindowManager passes ownership of destroyed windows to
 // EventConsumers who asked for them.
 TEST_F(WindowManagerTest, DestroyedWindows) {
