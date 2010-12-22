@@ -3,6 +3,7 @@
 // found in the LICENSE file.
 
 #include <cmath>
+#include <vector>
 
 #include <gflags/gflags.h>
 #include <gtest/gtest.h>
@@ -20,6 +21,8 @@
 
 DEFINE_bool(logtostderr, false,
             "Print debugging messages to stderr (suppressed otherwise)");
+
+using std::vector;
 
 namespace window_manager {
 
@@ -395,6 +398,32 @@ TEST_F(ScreenLockerHandlerTest, DeferLockUntilWindowIsVisible) {
   EXPECT_TRUE(handler_->is_locked_);
   EXPECT_TRUE(IsOnlyActiveVisibilityGroup(
                   WindowManager::VISIBILITY_GROUP_SCREEN_LOCKER));
+}
+
+// Check that when we see an override-redirect info bubble window that asks to
+// remain visible while the screen is locked, we add it to the screen locker
+// visibility group.
+TEST_F(ScreenLockerHandlerTest, ShowSomeOtherWindowsWhileLocked) {
+  XWindow info_bubble_xid = CreateSimpleWindow();
+  xconn_->GetWindowInfoOrDie(info_bubble_xid)->override_redirect = true;
+  vector<int> params;
+  params.push_back(1);  // show while locked
+  wm_->wm_ipc()->SetWindowType(
+      info_bubble_xid, chromeos::WM_IPC_WINDOW_CHROME_INFO_BUBBLE, &params);
+  xconn_->MapWindow(info_bubble_xid);
+  SendInitialEventsForWindow(info_bubble_xid);
+  MockCompositor::TexturePixmapActor* info_bubble_actor =
+      GetMockActorForWindow(wm_->GetWindowOrDie(info_bubble_xid));
+  EXPECT_TRUE(info_bubble_actor->visibility_groups().count(
+                WindowManager::VISIBILITY_GROUP_SCREEN_LOCKER));
+
+  // The actor should be removed from the visibility group when the window is
+  // unmapped.
+  XEvent event;
+  xconn_->InitUnmapEvent(&event, info_bubble_xid);
+  wm_->HandleEvent(&event);
+  EXPECT_FALSE(info_bubble_actor->visibility_groups().count(
+                 WindowManager::VISIBILITY_GROUP_SCREEN_LOCKER));
 }
 
 }  // namespace window_manager

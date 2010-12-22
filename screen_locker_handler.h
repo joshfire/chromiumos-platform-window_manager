@@ -160,6 +160,10 @@ class ScreenLockerHandler : public EventConsumer {
   // Mapped screen locker windows.
   std::set<XWindow> screen_locker_xids_;
 
+  // Non-screen locker windows that we should nevertheless show while the
+  // screen is locked.
+  std::set<XWindow> other_xids_to_show_while_locked_;
+
   scoped_ptr<EventConsumerRegistrar> registrar_;
 
   // Snapshot of the screen that we use for animations.

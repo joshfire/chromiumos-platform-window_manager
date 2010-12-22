@@ -99,6 +99,18 @@ bool ScreenLockerHandler::HandleWindowMapRequest(Window* win) {
 
 void ScreenLockerHandler::HandleWindowMap(Window* win) {
   DCHECK(win);
+  // If we see an override-redirect info bubble that's asking to be displayed
+  // while the screen is locked, add it to the screen locker visibility group.
+  if (win->type() == chromeos::WM_IPC_WINDOW_CHROME_INFO_BUBBLE &&
+      win->override_redirect() &&
+      !win->type_params().empty() &&
+      win->type_params()[0]) {
+    other_xids_to_show_while_locked_.insert(win->xid());
+    win->actor()->AddToVisibilityGroup(
+        WindowManager::VISIBILITY_GROUP_SCREEN_LOCKER);
+    return;
+  }
+
   if (win->type() != chromeos::WM_IPC_WINDOW_CHROME_SCREEN_LOCKER)
     return;
 
@@ -117,6 +129,13 @@ void ScreenLockerHandler::HandleWindowMap(Window* win) {
 
 void ScreenLockerHandler::HandleWindowUnmap(Window* win) {
   DCHECK(win);
+  if (other_xids_to_show_while_locked_.count(win->xid())) {
+    win->actor()->RemoveFromVisibilityGroup(
+        WindowManager::VISIBILITY_GROUP_SCREEN_LOCKER);
+    other_xids_to_show_while_locked_.erase(win->xid());
+    return;
+  }
+
   if (!screen_locker_xids_.count(win->xid()))
     return;
 
