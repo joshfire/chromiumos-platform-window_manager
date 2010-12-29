@@ -163,8 +163,9 @@ class LoginController : public EventConsumer {
 
   // Returns the entry for the specified |win| or NULL if |win| doesn't belong
   // to any entry. This returns an entry based on the index stored in the
-  // window's parameters.
-  LoginEntry* GetEntryForWindow(Window* win);
+  // window's parameters. If |possibly_insert| is true and Chrome is attempting
+  // to add a new entry, the function will create a new LoginEntry object.
+  LoginEntry* GetEntryForWindow(Window* win, bool possibly_insert);
 
   // Returns the entry in |entries_| at the specified index, creating one if
   // necessary.
@@ -210,6 +211,12 @@ class LoginController : public EventConsumer {
   // in a not-logged-in state.
   std::set<XWindow> non_login_xids_;
 
+  // Current login entries. Each entry consists of 5 windows, each window in
+  // type params has index of the entry it belongs to. Usually the index in
+  // window matches entry index in this array. But it may vary during short
+  // period of time when some entry is removed or inserted. Chrome at first
+  // updates indexes for all entries and then maps or unmaps all windows for
+  // the entry.
   Entries entries_;
 
   // Did we get all the regular login (i.e. non-wizard) windows and show them?
@@ -243,6 +250,9 @@ class LoginController : public EventConsumer {
 
   // Determines if entry selection is enabled at the moment.
   bool is_entry_selection_enabled_;
+
+  // Index of the entry that was inserted or kNoSelection if no such entry.
+  size_t last_inserted_entry_;
 
   // Login windows that have been destroyed post-login but that we're
   // holding on to, so we can continue displaying their actors onscreen

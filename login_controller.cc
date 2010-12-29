@@ -113,7 +113,8 @@ LoginController::LoginController(WindowManager* wm)
       login_window_to_focus_(NULL),
       waiting_for_browser_window_(false),
       requested_destruction_(false),
-      is_entry_selection_enabled_(true) {
+      is_entry_selection_enabled_(true),
+      last_inserted_entry_(kNoSelection) {
   registrar_.RegisterForChromeMessages(
       chromeos::WM_IPC_MESSAGE_WM_SET_LOGIN_STATE);
   registrar_.RegisterForChromeMessages(
@@ -228,27 +229,27 @@ void LoginController::HandleWindowMap(Window* win) {
     }
     case chromeos::WM_IPC_WINDOW_LOGIN_BORDER: {
       FAIL_IF_INDEX_MISSING(win, "border");
-      GetEntryForWindow(win)->SetBorderWindow(win);
+      GetEntryForWindow(win, true)->SetBorderWindow(win);
       break;
     }
     case chromeos::WM_IPC_WINDOW_LOGIN_IMAGE: {
       FAIL_IF_INDEX_MISSING(win, "image");
-      GetEntryForWindow(win)->SetImageWindow(win);
+      GetEntryForWindow(win, true)->SetImageWindow(win);
       break;
     }
     case chromeos::WM_IPC_WINDOW_LOGIN_CONTROLS: {
       FAIL_IF_INDEX_MISSING(win, "controls");
-      GetEntryForWindow(win)->SetControlsWindow(win);
+      GetEntryForWindow(win, true)->SetControlsWindow(win);
       break;
     }
     case chromeos::WM_IPC_WINDOW_LOGIN_LABEL: {
       FAIL_IF_INDEX_MISSING(win, "label");
-      GetEntryForWindow(win)->SetLabelWindow(win);
+      GetEntryForWindow(win, true)->SetLabelWindow(win);
       break;
     }
     case chromeos::WM_IPC_WINDOW_LOGIN_UNSELECTED_LABEL: {
       FAIL_IF_INDEX_MISSING(win, "unselected label");
-      GetEntryForWindow(win)->SetUnselectedLabelWindow(win);
+      GetEntryForWindow(win, true)->SetUnselectedLabelWindow(win);
       break;
     }
     case chromeos::WM_IPC_WINDOW_LOGIN_BACKGROUND: {
@@ -368,6 +369,7 @@ void LoginController::HandleWindowUnmap(Window* win) {
           size_t deleted_index = it - entries_.begin();
           size_t active_index = selected_entry_index_;
           selected_entry_index_ = kNoSelection;
+          last_inserted_entry_ = kNoSelection;
           entries_.erase(it);
           if (!wizard_window_ && !entries_.empty()) {
             // In case only one user pod was removed we should reset our state
@@ -424,7 +426,7 @@ void LoginController::HandleWindowInitialPixmap(Window* win) {
     if (win == background_window_) {
       DoInitialSetupIfWindowsAreReady();
     } else {
-      LoginEntry* entry = GetEntryForWindow(win);
+      LoginEntry* entry = GetEntryForWindow(win, false);
       if (entry && entry->HasAllPixmaps())
         DoInitialSetupIfWindowsAreReady();
     }
@@ -749,9 +751,29 @@ bool LoginController::IsGuestEntryIndex(size_t index) const {
   return index + 1 == entries_.size();
 }
 
-LoginEntry* LoginController::GetEntryForWindow(Window* win) {
+LoginEntry* LoginController::GetEntryForWindow(Window* win,
+                                               bool possibly_insert) {
   size_t entry_index = LoginEntry::GetUserIndex(win);
-  return entry_index == kNoSelection ? NULL : GetEntryAt(entry_index);
+  if (entry_index == kNoSelection)
+    return NULL;
+
+  LoginEntry* entry = GetEntryAt(entry_index);
+  if (possibly_insert && entry && entry->has_all_windows() &&
+      entry->GetUserIndex(entry->border_window()) != entry_index) {
+    if (entry->GetUserIndex(entry->border_window()) != entry_index + 1) {
+      LOG(WARNING) << "Invalid login entry index " << entry_index
+                   << " in window " << win->xid_str();
+    }
+    entry = new LoginEntry(wm_, &registrar_);
+    entries_.insert(entries_.begin() + entry_index, Entries::value_type(entry));
+    last_inserted_entry_ = entry_index;
+    all_windows_are_ready_ = false;
+    if (selected_entry_index_ != kNoSelection &&
+        entry_index <= selected_entry_index_)
+      selected_entry_index_++;
+  }
+
+  return entry;
 }
 
 LoginEntry* LoginController::GetEntryAt(size_t index) {
@@ -803,10 +825,30 @@ void LoginController::DoInitialSetupIfWindowsAreReady() {
 
   if (AllWindowsAreReady()) {
     all_windows_are_ready_ = true;
-    ConfigureBackgroundWindow();
-    StackWindows();
-    InitialShow();
-    NotifySessionManager();
+    if (last_inserted_entry_ == kNoSelection) {
+      ConfigureBackgroundWindow();
+      StackWindows();
+      InitialShow();
+      NotifySessionManager();
+    } else {
+      // Not an initial show, all windows except for last_inserted_entry_ are
+      // visible already so just show the entry and update all positions.
+      entries_[last_inserted_entry_]->StackWindows();
+
+      vector<Point> origins;
+      CalculateIdealOrigins(&origins);
+      origins[last_inserted_entry_].y = wm_->height();
+      entries_[last_inserted_entry_]->UpdatePositionAndScale(
+          origins[last_inserted_entry_], false, 0);
+      entries_[last_inserted_entry_]->FadeOut(0);
+      entries_[last_inserted_entry_]->FadeIn(origins[last_inserted_entry_],
+          false, kInitialShowAnimationTimeInMs);
+
+      size_t prev_selected_index = selected_entry_index_;
+      selected_entry_index_ = kNoSelection;
+      last_inserted_entry_ = kNoSelection;
+      SelectEntryAt(prev_selected_index);
+    }
   } else if (entries_.empty() && wizard_window_ && IsBackgroundWindowReady()) {
     // If we're running an older version of Chrome (param[0] is missing) or
     // this is the first time that the wizard window has been mapped

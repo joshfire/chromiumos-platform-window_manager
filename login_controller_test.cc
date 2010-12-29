@@ -37,6 +37,32 @@ class LoginControllerTest : public BasicWindowManagerTest {
   static const int kImageSize;
   static const int kControlsSize;
 
+  // A collection of windows for a single login entry.
+  struct EntryWindows {
+    EntryWindows()
+        : border_xid(0),
+          image_xid(0),
+          controls_xid(0),
+          label_xid(0),
+          unselected_label_xid(0) {
+    }
+
+    XWindow border_xid;
+    XWindow image_xid;
+    XWindow controls_xid;
+    XWindow label_xid;
+    XWindow unselected_label_xid;
+  };
+
+  // A collection of bounds of login entry's composited windows.
+  struct EntryBounds {
+    Rect border;
+    Rect image;
+    Rect controls;
+    Rect label;
+    Rect unselected_label;
+  };
+
   virtual void SetUp() {
     BasicWindowManagerTest::SetUp();
     wm_.reset(NULL);
@@ -69,57 +95,7 @@ class LoginControllerTest : public BasicWindowManagerTest {
     }
 
     for (int i = 0; i < num_entries; ++i) {
-      EntryWindows entry;
-      entry.border_xid = CreateBasicWindow(0, 0,
-          kImageSize + 2 * kGapBetweenImageAndControls,
-          kImageSize + kControlsSize + 3 * kGapBetweenImageAndControls);
-      entry.image_xid = CreateBasicWindow(0, 0, kImageSize, kImageSize);
-      entry.controls_xid = CreateBasicWindow(0, 0, kImageSize, kControlsSize);
-      entry.label_xid = CreateBasicWindow(0, 0, kImageSize, kControlsSize);
-      entry.unselected_label_xid = CreateBasicWindow(0, 0, kImageSize,
-                                                     kControlsSize);
-
-      vector<int> params;
-      params.push_back(i);  // entry index
-      wm_->wm_ipc()->SetWindowType(
-          entry.image_xid,
-          chromeos::WM_IPC_WINDOW_LOGIN_IMAGE,
-          &params);
-      wm_->wm_ipc()->SetWindowType(
-          entry.controls_xid,
-          chromeos::WM_IPC_WINDOW_LOGIN_CONTROLS,
-          &params);
-      wm_->wm_ipc()->SetWindowType(
-          entry.label_xid,
-          chromeos::WM_IPC_WINDOW_LOGIN_LABEL,
-          &params);
-      wm_->wm_ipc()->SetWindowType(
-          entry.unselected_label_xid,
-          chromeos::WM_IPC_WINDOW_LOGIN_UNSELECTED_LABEL,
-          &params);
-
-      // The border window stores some additional parameters.
-      params.push_back(num_entries);
-      params.push_back(kUnselectedImageSize);
-      params.push_back(kGapBetweenImageAndControls);
-      wm_->wm_ipc()->SetWindowType(
-          entry.border_xid,
-          chromeos::WM_IPC_WINDOW_LOGIN_BORDER,
-          &params);
-
-      ConfigureWindowForSyncRequestProtocol(entry.border_xid);
-      ConfigureWindowForSyncRequestProtocol(entry.image_xid);
-      ConfigureWindowForSyncRequestProtocol(entry.controls_xid);
-      ConfigureWindowForSyncRequestProtocol(entry.label_xid);
-      ConfigureWindowForSyncRequestProtocol(entry.unselected_label_xid);
-
-      SendInitialEventsForWindow(entry.border_xid);
-      SendInitialEventsForWindow(entry.image_xid);
-      SendInitialEventsForWindow(entry.controls_xid);
-      SendInitialEventsForWindow(entry.label_xid);
-      SendInitialEventsForWindow(entry.unselected_label_xid);
-
-      entries_.push_back(entry);
+      entries_.push_back(CreateLoginEntry(num_entries, i));
     }
 
     // The wizard window needs to be mapped after the entries.  Otherwise, when
@@ -144,6 +120,60 @@ class LoginControllerTest : public BasicWindowManagerTest {
       if (num_entries > 0)
         login_controller_->InitialShow();
     }
+  }
+
+  EntryWindows CreateLoginEntry(int num_entries, int i) {
+    EntryWindows entry;
+    entry.border_xid = CreateBasicWindow(0, 0,
+        kImageSize + 2 * kGapBetweenImageAndControls,
+        kImageSize + kControlsSize + 3 * kGapBetweenImageAndControls);
+    entry.image_xid = CreateBasicWindow(0, 0, kImageSize, kImageSize);
+    entry.controls_xid = CreateBasicWindow(0, 0, kImageSize, kControlsSize);
+    entry.label_xid = CreateBasicWindow(0, 0, kImageSize, kControlsSize);
+    entry.unselected_label_xid = CreateBasicWindow(0, 0, kImageSize,
+                                                   kControlsSize);
+
+    vector<int> params;
+    params.push_back(i);  // entry index
+    wm_->wm_ipc()->SetWindowType(
+        entry.image_xid,
+        chromeos::WM_IPC_WINDOW_LOGIN_IMAGE,
+        &params);
+    wm_->wm_ipc()->SetWindowType(
+        entry.controls_xid,
+        chromeos::WM_IPC_WINDOW_LOGIN_CONTROLS,
+        &params);
+    wm_->wm_ipc()->SetWindowType(
+        entry.label_xid,
+        chromeos::WM_IPC_WINDOW_LOGIN_LABEL,
+        &params);
+    wm_->wm_ipc()->SetWindowType(
+        entry.unselected_label_xid,
+        chromeos::WM_IPC_WINDOW_LOGIN_UNSELECTED_LABEL,
+        &params);
+
+    // The border window stores some additional parameters.
+    params.push_back(num_entries);
+    params.push_back(kUnselectedImageSize);
+    params.push_back(kGapBetweenImageAndControls);
+    wm_->wm_ipc()->SetWindowType(
+        entry.border_xid,
+        chromeos::WM_IPC_WINDOW_LOGIN_BORDER,
+        &params);
+
+    ConfigureWindowForSyncRequestProtocol(entry.border_xid);
+    ConfigureWindowForSyncRequestProtocol(entry.image_xid);
+    ConfigureWindowForSyncRequestProtocol(entry.controls_xid);
+    ConfigureWindowForSyncRequestProtocol(entry.label_xid);
+    ConfigureWindowForSyncRequestProtocol(entry.unselected_label_xid);
+
+    SendInitialEventsForWindow(entry.border_xid);
+    SendInitialEventsForWindow(entry.image_xid);
+    SendInitialEventsForWindow(entry.controls_xid);
+    SendInitialEventsForWindow(entry.label_xid);
+    SendInitialEventsForWindow(entry.unselected_label_xid);
+
+    return entry;
   }
 
   void SendInitialPixmapEventForEntry(size_t entry_index) {
@@ -215,8 +245,23 @@ class LoginControllerTest : public BasicWindowManagerTest {
     }
   }
 
+  // Insert new login entry at the specified position.
+  void InsertLoginEntry(int i) {
+    // Insert uninitialized entry.
+    entries_.insert(entries_.begin() + i, EntryWindows());
+    // Notify all other entries about their new positions.
+    UpdateEntriesCount(entries_.size());
+    // Initialize inserted entry.
+    entries_[i] = CreateLoginEntry(entries_.size(), i);
+    SendInitialPixmapEventForEntry(i);
+  }
+
   void UpdateEntriesCount(int num_entries) {
     for (size_t i = 0; i < entries_.size(); ++i) {
+      // Skip just inserted entry without windows.
+      if (!entries_[i].border_xid)
+        continue;
+
       vector<int> params;
       params.push_back(static_cast<int>(i));  // entry index
       params.push_back(num_entries);
@@ -249,15 +294,6 @@ class LoginControllerTest : public BasicWindowManagerTest {
     return window->composited_opacity();
   }
 
-  // A collection of bounds of login entry's composited windows.
-  struct EntryBounds {
-    Rect border;
-    Rect image;
-    Rect controls;
-    Rect label;
-    Rect unselected_label;
-  };
-
   // Returns a vector of structures with bounds for all entries.
   std::vector<EntryBounds> GetEntriesBounds() {
     std::vector<EntryBounds> bounds(entries_.size(), EntryBounds());
@@ -271,23 +307,6 @@ class LoginControllerTest : public BasicWindowManagerTest {
     }
     return bounds;
   }
-
-  // A collection of windows for a single login entry.
-  struct EntryWindows {
-    EntryWindows()
-        : border_xid(0),
-          image_xid(0),
-          controls_xid(0),
-          label_xid(0),
-          unselected_label_xid(0) {
-    }
-
-    XWindow border_xid;
-    XWindow image_xid;
-    XWindow controls_xid;
-    XWindow label_xid;
-    XWindow unselected_label_xid;
-  };
 
   LoginController* login_controller_;  // owned by 'wm_'
 
@@ -689,7 +708,7 @@ TEST_F(LoginControllerTest, RemoveUser) {
   EXPECT_EQ(entries_[1].controls_xid, GetActiveWindowProperty());
 
   UnmapLoginEntry(1);
-  // Entry 1 was removed from the vector. Focus moved to 0 becuase 1 is Guest.
+  // Entry 1 was removed from the vector. Focus moved to 0 because 1 is Guest.
   EXPECT_EQ(entries_[0].controls_xid, xconn_->focused_xid());
   EXPECT_EQ(entries_[0].controls_xid, GetActiveWindowProperty());
 
@@ -708,6 +727,70 @@ TEST_F(LoginControllerTest, RemoveUser) {
   // The wizard window should be focused.
   EXPECT_EQ(wizard_xid_, xconn_->focused_xid());
   EXPECT_EQ(wizard_xid_, GetActiveWindowProperty());
+}
+
+TEST_F(LoginControllerTest, InsertUser) {
+  // Create 3 entries for new Chrome.
+  CreateLoginWindows(3, true, true, false);
+  SelectEntry(1);
+  EXPECT_EQ(entries_[1].controls_xid, xconn_->focused_xid());
+  EXPECT_EQ(entries_[1].controls_xid, GetActiveWindowProperty());
+
+  // Insert entry after selected one.
+  InsertLoginEntry(2);
+
+  ASSERT_EQ(4, entries_.size());
+  for (size_t i = 0; i < entries_.size(); i++) {
+    Window* window = wm_->GetWindowOrDie(entries_[i].border_xid);
+    EXPECT_EQ(window->type_params()[0], i);
+    EXPECT_EQ(window->type_params()[1], entries_.size());
+  }
+
+  // The same entry still active.
+  EXPECT_EQ(entries_[1].controls_xid, xconn_->focused_xid());
+  EXPECT_EQ(entries_[1].controls_xid, GetActiveWindowProperty());
+
+  // Inserted entry is unselected.
+  EXPECT_TRUE(IsCompositedShown(entries_[2].border_xid));
+  EXPECT_TRUE(IsCompositedShown(entries_[2].image_xid));
+  EXPECT_FALSE(IsCompositedShown(entries_[2].controls_xid));
+  EXPECT_FALSE(IsCompositedShown(entries_[2].label_xid));
+  EXPECT_TRUE(IsCompositedShown(entries_[2].unselected_label_xid));
+  EXPECT_FLOAT_EQ(0.0, GetCompositedOpacity(entries_[2].controls_xid));
+
+  EXPECT_TRUE(WindowIsOffscreen(entries_[2].border_xid));
+  EXPECT_FALSE(WindowIsOffscreen(entries_[2].image_xid));
+  EXPECT_TRUE(WindowIsOffscreen(entries_[2].controls_xid));
+  EXPECT_TRUE(WindowIsOffscreen(entries_[2].label_xid));
+  EXPECT_FALSE(WindowIsOffscreen(entries_[2].unselected_label_xid));
+
+  // Insert entry just before selected one.
+  InsertLoginEntry(1);
+
+  ASSERT_EQ(5, entries_.size());
+  for (size_t i = 0; i < entries_.size(); i++) {
+    Window* window = wm_->GetWindowOrDie(entries_[i].border_xid);
+    EXPECT_EQ(window->type_params()[0], i);
+    EXPECT_EQ(window->type_params()[1], entries_.size());
+  }
+
+  // The same entry still active.
+  EXPECT_EQ(entries_[2].controls_xid, xconn_->focused_xid());
+  EXPECT_EQ(entries_[2].controls_xid, GetActiveWindowProperty());
+
+  // Inserted entry is unselected.
+  EXPECT_TRUE(IsCompositedShown(entries_[1].border_xid));
+  EXPECT_TRUE(IsCompositedShown(entries_[1].image_xid));
+  EXPECT_FALSE(IsCompositedShown(entries_[1].controls_xid));
+  EXPECT_FALSE(IsCompositedShown(entries_[1].label_xid));
+  EXPECT_TRUE(IsCompositedShown(entries_[1].unselected_label_xid));
+  EXPECT_FLOAT_EQ(0.0, GetCompositedOpacity(entries_[1].controls_xid));
+
+  EXPECT_TRUE(WindowIsOffscreen(entries_[1].border_xid));
+  EXPECT_FALSE(WindowIsOffscreen(entries_[1].image_xid));
+  EXPECT_TRUE(WindowIsOffscreen(entries_[1].controls_xid));
+  EXPECT_TRUE(WindowIsOffscreen(entries_[1].label_xid));
+  EXPECT_FALSE(WindowIsOffscreen(entries_[1].unselected_label_xid));
 }
 
 TEST_F(LoginControllerTest, AllWindowsAreReady) {
@@ -800,14 +883,14 @@ TEST_F(LoginControllerTest, SelectTwice) {
   EXPECT_TRUE(IsCompositedShown(entries_[0].controls_xid));
   EXPECT_TRUE(IsCompositedShown(entries_[0].label_xid));
   EXPECT_FALSE(IsCompositedShown(entries_[0].unselected_label_xid));
-  EXPECT_EQ(1.0, GetCompositedOpacity(entries_[0].controls_xid));
+  EXPECT_FLOAT_EQ(1.0, GetCompositedOpacity(entries_[0].controls_xid));
 
   EXPECT_TRUE(IsCompositedShown(entries_[1].border_xid));
   EXPECT_TRUE(IsCompositedShown(entries_[1].image_xid));
   EXPECT_FALSE(IsCompositedShown(entries_[1].controls_xid));
   EXPECT_FALSE(IsCompositedShown(entries_[1].label_xid));
   EXPECT_TRUE(IsCompositedShown(entries_[1].unselected_label_xid));
-  EXPECT_EQ(0.0, GetCompositedOpacity(entries_[1].controls_xid));
+  EXPECT_FLOAT_EQ(0.0, GetCompositedOpacity(entries_[1].controls_xid));
 
   // Select it again.
   SelectEntry(0);
@@ -818,14 +901,14 @@ TEST_F(LoginControllerTest, SelectTwice) {
   EXPECT_TRUE(IsCompositedShown(entries_[0].controls_xid));
   EXPECT_TRUE(IsCompositedShown(entries_[0].label_xid));
   EXPECT_FALSE(IsCompositedShown(entries_[0].unselected_label_xid));
-  EXPECT_EQ(1.0, GetCompositedOpacity(entries_[0].controls_xid));
+  EXPECT_FLOAT_EQ(1.0, GetCompositedOpacity(entries_[0].controls_xid));
 
   EXPECT_TRUE(IsCompositedShown(entries_[1].border_xid));
   EXPECT_TRUE(IsCompositedShown(entries_[1].image_xid));
   EXPECT_FALSE(IsCompositedShown(entries_[1].controls_xid));
   EXPECT_FALSE(IsCompositedShown(entries_[1].label_xid));
   EXPECT_TRUE(IsCompositedShown(entries_[1].unselected_label_xid));
-  EXPECT_EQ(0.0, GetCompositedOpacity(entries_[1].controls_xid));
+  EXPECT_FLOAT_EQ(0.0, GetCompositedOpacity(entries_[1].controls_xid));
 
   // And again.
   SelectEntry(0);
@@ -836,14 +919,14 @@ TEST_F(LoginControllerTest, SelectTwice) {
   EXPECT_TRUE(IsCompositedShown(entries_[0].controls_xid));
   EXPECT_TRUE(IsCompositedShown(entries_[0].label_xid));
   EXPECT_FALSE(IsCompositedShown(entries_[0].unselected_label_xid));
-  EXPECT_EQ(1.0, GetCompositedOpacity(entries_[0].controls_xid));
+  EXPECT_FLOAT_EQ(1.0, GetCompositedOpacity(entries_[0].controls_xid));
 
   EXPECT_TRUE(IsCompositedShown(entries_[1].border_xid));
   EXPECT_TRUE(IsCompositedShown(entries_[1].image_xid));
   EXPECT_FALSE(IsCompositedShown(entries_[1].controls_xid));
   EXPECT_FALSE(IsCompositedShown(entries_[1].label_xid));
   EXPECT_TRUE(IsCompositedShown(entries_[1].unselected_label_xid));
-  EXPECT_EQ(0.0, GetCompositedOpacity(entries_[1].controls_xid));
+  EXPECT_FLOAT_EQ(0.0, GetCompositedOpacity(entries_[1].controls_xid));
 
   // Now select the guest entry and check that selection is actually changed.
   // Check that image window is hidden for selected guest entry.
@@ -854,10 +937,10 @@ TEST_F(LoginControllerTest, SelectTwice) {
   // running the test manually, so we check for properties that change without
   // timer only.
   EXPECT_FALSE(IsCompositedShown(entries_[0].label_xid));
-  EXPECT_EQ(0.0, GetCompositedOpacity(entries_[0].label_xid));
+  EXPECT_FLOAT_EQ(0.0, GetCompositedOpacity(entries_[0].label_xid));
   EXPECT_TRUE(IsCompositedShown(entries_[0].unselected_label_xid));
   EXPECT_FALSE(IsCompositedShown(entries_[0].controls_xid));
-  EXPECT_EQ(0.0, GetCompositedOpacity(entries_[0].controls_xid));
+  EXPECT_FLOAT_EQ(0.0, GetCompositedOpacity(entries_[0].controls_xid));
 
   EXPECT_TRUE(IsCompositedShown(entries_[1].label_xid));
   EXPECT_FALSE(IsCompositedShown(entries_[1].image_xid));
