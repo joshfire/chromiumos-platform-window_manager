@@ -60,7 +60,7 @@ class WindowManager : public PanelManagerAreaChangeListener,
   // See Compositor::SetActiveVisibilityGroups().
   enum VisibilityGroups {
     VISIBILITY_GROUP_SCREEN_LOCKER = 1,
-    VISIBILITY_GROUP_SHUTDOWN = 2,
+    VISIBILITY_GROUP_SESSION_ENDING = 2,
   };
 
   WindowManager(EventLoop* event_loop,
@@ -294,8 +294,8 @@ class WindowManager : public PanelManagerAreaChangeListener,
     return (xid == stage_xid_ || xid == overlay_xid_ || xid == wm_xid_);
   }
 
-  // Are we in the process of shutting down?
-  bool IsShuttingDown() const;
+  // Are we in the process of shutting down or signing out?
+  bool IsSessionEnding() const;
 
   // Get a manager selection as described in ICCCM section 2.8.  'atom' is
   // the selection to take, 'manager_win' is the window acquiring the

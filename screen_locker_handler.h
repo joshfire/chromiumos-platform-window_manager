@@ -22,14 +22,15 @@ class Window;
 
 // ScreenLockerHandler is an event consumer that hides all other actors
 // when a screen locker window gets mapped and unhides them when the locker
-// window is unmapped.  It also handles messages sent by the power manager
-// when the power button is pressed or unpressed.
+// window is unmapped.  It also handles messages sent by the power manager when
+// the power button is pressed or unpressed or the system is shutting down, and
+// messages sent by Chrome when the user is signing out.
 class ScreenLockerHandler : public EventConsumer {
  public:
   explicit ScreenLockerHandler(WindowManager* wm);
   ~ScreenLockerHandler();
 
-  bool shutting_down() const { return shutting_down_; }
+  bool session_ending() const { return session_ending_; }
 
   // Begin EventConsumer implementation.
   virtual bool IsInputWindow(XWindow xid) { return false; }
@@ -122,14 +123,18 @@ class ScreenLockerHandler : public EventConsumer {
   // locker window (if locked) or all actors (if unlocked).
   void HandleAbortedShutdown();
 
-  // Handle notification that the system is shutting down.  We make the
-  // snapshot from the pre-shutdown state zoom quickly down to the center
-  // of the screen, set pointer to use a transparent cursor, and grab the
-  // keyboard and pointer.
-  void HandleShuttingDown();
+  // Handle notification that the current session is ending (either due to
+  // shutdown if 'shutting_down' is true or due to signout otherwise).  We set
+  // the pointer to use a transparent cursor, grab the keyboard and pointer, and
+  // display an animation.
+  void HandleSessionEnding(bool shutting_down);
 
-  // Take a snapshot of the screen if we don't already have one and animate
-  // it slowly scaling down to kSlowCloseSizeRatio.
+  // If 'snapshot_actor_' is unset, grab and display a snapshot of the current
+  // contents of the screen.
+  void SetUpSnapshot();
+
+  // Animate a snapshot of the screen slowly scaling down to
+  // kSlowCloseSizeRatio.
   void StartSlowCloseAnimation();
 
   // Start an animation undoing the scaling from StartSlowCloseAnimation()
@@ -137,11 +142,15 @@ class ScreenLockerHandler : public EventConsumer {
   // DestroySnapshotAndUpdateVisibilityGroup() when it's done.
   void StartUndoSlowCloseAnimation();
 
-  // Take a snapshot of the screen if we don't already have one and make it
-  // quickly get scaled down to the center of the screen.  If
-  // 'destroy_snapshot_when_done' is true, also register a timeout to call
-  // DestroySnapshotAndUpdateVisibilityGroup() when it's done.
+  // Animate a snapshot of the screen quickly getting scaled down to the center
+  // of the screen.  If 'destroy_snapshot_when_done' is true, also register a
+  // timeout to call DestroySnapshotAndUpdateVisibilityGroup() when it's done.
+  // If there's an existing snapshot (from an in-progress slow-close animation),
+  // we use it.
   void StartFastCloseAnimation(bool destroy_snapshot_when_done);
+
+  // Animate a snapshot of the screen quickly fading out to black.
+  void StartFadeoutAnimation();
 
   // Destroy 'snapshot_actor_' and 'snapshot_pixmap_'.
   void DestroySnapshot();
@@ -179,9 +188,10 @@ class ScreenLockerHandler : public EventConsumer {
   // pixmap for it.
   bool is_locked_;
 
-  // Is the system shutting down?  Set to true in response to a
+  // Is the current X session ending?  Set to true in response to a
+  // WM_IPC_MESSAGE_WM_NOTIFY_SIGNING_OUT or
   // WM_IPC_MESSAGE_WM_NOTIFY_SHUTTING_DOWN message and never unset.
-  bool shutting_down_;
+  bool session_ending_;
 
   DISALLOW_COPY_AND_ASSIGN(ScreenLockerHandler);
 };

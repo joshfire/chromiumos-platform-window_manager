@@ -67,10 +67,21 @@ class ScreenLockerHandlerTest : public BasicWindowManagerTest {
       MockCompositor::TexturePixmapActor* actor) {
     CHECK(actor);
     EXPECT_TRUE(actor->is_shown());
-    EXPECT_FLOAT_EQ(round(0.5 * wm_->width()), actor->x());
-    EXPECT_FLOAT_EQ(round(0.5 * wm_->height()), actor->y());
+    EXPECT_EQ(static_cast<int>(round(0.5 * wm_->width())), actor->x());
+    EXPECT_EQ(static_cast<int>(round(0.5 * wm_->height())), actor->y());
     EXPECT_FLOAT_EQ(0.0, actor->scale_x());
     EXPECT_FLOAT_EQ(0.0, actor->scale_y());
+    EXPECT_FLOAT_EQ(0.0, actor->opacity());
+  }
+
+  void TestActorConfiguredForFadeout(
+      MockCompositor::TexturePixmapActor* actor) {
+    CHECK(actor);
+    EXPECT_TRUE(actor->is_shown());
+    EXPECT_EQ(0, actor->x());
+    EXPECT_EQ(0, actor->y());
+    EXPECT_FLOAT_EQ(1.0, actor->scale_x());
+    EXPECT_FLOAT_EQ(1.0, actor->scale_y());
     EXPECT_FLOAT_EQ(0.0, actor->opacity());
   }
 
@@ -195,7 +206,7 @@ TEST_F(ScreenLockerHandlerTest, AbortedLock) {
   EXPECT_TRUE(actor->visibility_groups().count(
                   WindowManager::VISIBILITY_GROUP_SCREEN_LOCKER) != 0);
   EXPECT_TRUE(actor->visibility_groups().count(
-                  WindowManager::VISIBILITY_GROUP_SHUTDOWN) != 0);
+                  WindowManager::VISIBILITY_GROUP_SESSION_ENDING) != 0);
   EXPECT_TRUE(IsOnlyActiveVisibilityGroup(
                   WindowManager::VISIBILITY_GROUP_SCREEN_LOCKER));
 
@@ -274,9 +285,9 @@ TEST_F(ScreenLockerHandlerTest, AbortedShutdown) {
 
   // The snapshot should be the only actor currently visible.
   EXPECT_TRUE(actor->visibility_groups().count(
-                  WindowManager::VISIBILITY_GROUP_SHUTDOWN) != 0);
+                  WindowManager::VISIBILITY_GROUP_SESSION_ENDING) != 0);
   EXPECT_TRUE(IsOnlyActiveVisibilityGroup(
-                  WindowManager::VISIBILITY_GROUP_SHUTDOWN));
+                  WindowManager::VISIBILITY_GROUP_SESSION_ENDING));
 
   // Now tell the WM that the button was released before being held long
   // enough to shut down.
@@ -318,7 +329,7 @@ TEST_F(ScreenLockerHandlerTest, AbortedShutdown) {
   ASSERT_TRUE(actor != NULL);
   TestActorConfiguredForSlowClose(actor);
   EXPECT_TRUE(IsOnlyActiveVisibilityGroup(
-                  WindowManager::VISIBILITY_GROUP_SHUTDOWN));
+                  WindowManager::VISIBILITY_GROUP_SESSION_ENDING));
 
   // After aborting, we should be showing just the screen locker window.
   msg.set_param(0, chromeos::WM_IPC_POWER_BUTTON_ABORTED_SHUTDOWN);
@@ -345,7 +356,7 @@ TEST_F(ScreenLockerHandlerTest, HandleShutdown) {
   TestActorConfiguredForSlowClose(actor);
   EXPECT_NE(-1, handler_->destroy_snapshot_timeout_id_);
   EXPECT_TRUE(IsOnlyActiveVisibilityGroup(
-                  WindowManager::VISIBILITY_GROUP_SHUTDOWN));
+                  WindowManager::VISIBILITY_GROUP_SESSION_ENDING));
 
   // Notify the window manager that the system is being shut down.
   msg.set_type(chromeos::WM_IPC_MESSAGE_WM_NOTIFY_SHUTTING_DOWN);
@@ -365,7 +376,7 @@ TEST_F(ScreenLockerHandlerTest, HandleShutdown) {
   ASSERT_EQ(actor, GetSnapshotActor());
   TestActorConfiguredForFastClose(actor);
   EXPECT_TRUE(IsOnlyActiveVisibilityGroup(
-                  WindowManager::VISIBILITY_GROUP_SHUTDOWN));
+                  WindowManager::VISIBILITY_GROUP_SESSION_ENDING));
 
   // There's no need to destroy the snapshot after we're done with the
   // animation; we're not going to be showing anything else onscreen.
@@ -424,6 +435,24 @@ TEST_F(ScreenLockerHandlerTest, ShowSomeOtherWindowsWhileLocked) {
   wm_->HandleEvent(&event);
   EXPECT_FALSE(info_bubble_actor->visibility_groups().count(
                  WindowManager::VISIBILITY_GROUP_SCREEN_LOCKER));
+}
+
+// Test that we handle messages from Chrome notifying us that the user is
+// signing out.
+TEST_F(ScreenLockerHandlerTest, SigningOut) {
+  WmIpc::Message msg(chromeos::WM_IPC_MESSAGE_WM_NOTIFY_SIGNING_OUT);
+  SendWmIpcMessage(msg);
+
+  // We should grab the pointer and keyboard, assign a transparent cursor to the
+  // root window, and fade out a snapshot of the screen.
+  XWindow root = xconn_->GetRootWindow();
+  EXPECT_EQ(root, xconn_->pointer_grab_xid());
+  EXPECT_EQ(root, xconn_->keyboard_grab_xid());
+  EXPECT_EQ(MockXConnection::kTransparentCursor,
+            xconn_->GetWindowInfoOrDie(root)->cursor);
+  TestActorConfiguredForFadeout(GetSnapshotActor());
+  EXPECT_TRUE(IsOnlyActiveVisibilityGroup(
+                  WindowManager::VISIBILITY_GROUP_SESSION_ENDING));
 }
 
 }  // namespace window_manager

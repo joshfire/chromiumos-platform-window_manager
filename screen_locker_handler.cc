@@ -48,6 +48,9 @@ static const int kScreenLockerFadeInMs = 50;
 // snapshot onscreen forever if the power manager dies or something.
 static const int kAbortAnimationMs = 2000;
 
+// How long should we take to fade the screen to black when the user signs out?
+static const int kSignoutAnimMs = 100;
+
 const float ScreenLockerHandler::kSlowCloseSizeRatio = 0.95;
 
 ScreenLockerHandler::ScreenLockerHandler(WindowManager* wm)
@@ -56,11 +59,13 @@ ScreenLockerHandler::ScreenLockerHandler(WindowManager* wm)
       snapshot_pixmap_(0),
       destroy_snapshot_timeout_id_(-1),
       is_locked_(false),
-      shutting_down_(false) {
+      session_ending_(false) {
   registrar_->RegisterForChromeMessages(
       chromeos::WM_IPC_MESSAGE_WM_NOTIFY_POWER_BUTTON_STATE);
   registrar_->RegisterForChromeMessages(
       chromeos::WM_IPC_MESSAGE_WM_NOTIFY_SHUTTING_DOWN);
+  registrar_->RegisterForChromeMessages(
+      chromeos::WM_IPC_MESSAGE_WM_NOTIFY_SIGNING_OUT);
 }
 
 ScreenLockerHandler::~ScreenLockerHandler() {
@@ -176,7 +181,9 @@ void ScreenLockerHandler::HandleChromeMessage(const WmIpc::Message& msg) {
                    << state;
     }
   } else if (msg.type() == chromeos::WM_IPC_MESSAGE_WM_NOTIFY_SHUTTING_DOWN) {
-    HandleShuttingDown();
+    HandleSessionEnding(true);   // shutting_down=true
+  } else if (msg.type() == chromeos::WM_IPC_MESSAGE_WM_NOTIFY_SIGNING_OUT) {
+    HandleSessionEnding(false);  // shutting_down=false
   } else {
     NOTREACHED() << "Received unwanted Chrome message "
                  << chromeos::WmIpcMessageTypeToString(msg.type());
@@ -251,7 +258,7 @@ void ScreenLockerHandler::HandleUnlocked() {
   DCHECK(!HasWindowWithInitialPixmap());
   is_locked_ = false;
 
-  if (shutting_down_)
+  if (session_ending_)
     return;
 
   DLOG(INFO) << "Last screen locker window unmapped; unhiding other windows";
@@ -278,7 +285,7 @@ void ScreenLockerHandler::HandlePreShutdown() {
   }
   StartSlowCloseAnimation();
   wm_->compositor()->SetActiveVisibilityGroup(
-      WindowManager::VISIBILITY_GROUP_SHUTDOWN);
+      WindowManager::VISIBILITY_GROUP_SESSION_ENDING);
 }
 
 void ScreenLockerHandler::HandleAbortedShutdown() {
@@ -286,11 +293,15 @@ void ScreenLockerHandler::HandleAbortedShutdown() {
   StartUndoSlowCloseAnimation();
 }
 
-void ScreenLockerHandler::HandleShuttingDown() {
-  LOG(INFO) << "System is shutting down";
-  if (shutting_down_)
+void ScreenLockerHandler::HandleSessionEnding(bool shutting_down) {
+  if (shutting_down)
+    LOG(INFO) << "System is shutting down";
+  else
+    LOG(INFO) << "User is signing out";
+
+  if (session_ending_)
     return;
-  shutting_down_ = true;
+  session_ending_ = true;
 
   XID cursor = wm_->xconn()->CreateTransparentCursor();
   wm_->xconn()->SetWindowCursor(wm_->root(), cursor);
@@ -299,34 +310,46 @@ void ScreenLockerHandler::HandleShuttingDown() {
     wm_->xconn()->FreeCursor(cursor);
   wm_->xconn()->GrabKeyboard(wm_->root(), 0);
 
-  StartFastCloseAnimation(false);
+  if (shutting_down)
+    StartFastCloseAnimation(false);
+  else
+    StartFadeoutAnimation();
   wm_->compositor()->SetActiveVisibilityGroup(
-      WindowManager::VISIBILITY_GROUP_SHUTDOWN);
+      WindowManager::VISIBILITY_GROUP_SESSION_ENDING);
+}
+
+void ScreenLockerHandler::SetUpSnapshot() {
+  if (snapshot_actor_.get())
+    return;
+
+  DCHECK_EQ(snapshot_pixmap_, static_cast<XPixmap>(0));
+  snapshot_pixmap_ = wm_->xconn()->CreatePixmap(
+      wm_->root(), Size(wm_->width(), wm_->height()), wm_->root_depth());
+  wm_->xconn()->CopyArea(wm_->root(),       // src
+                         snapshot_pixmap_,  // dest
+                         Point(0, 0),       // src_pos
+                         Point(0, 0),       // dest_pos
+                         Size(wm_->width(), wm_->height()));
+  snapshot_actor_.reset(wm_->compositor()->CreateTexturePixmap());
+  snapshot_actor_->SetPixmap(snapshot_pixmap_);
+  wm_->stage()->AddActor(snapshot_actor_.get());
+  wm_->stacking_manager()->StackActorAtTopOfLayer(
+      snapshot_actor_.get(), StackingManager::LAYER_SCREEN_LOCKER_SNAPSHOT);
+  snapshot_actor_->AddToVisibilityGroup(
+      WindowManager::VISIBILITY_GROUP_SCREEN_LOCKER);
+  snapshot_actor_->AddToVisibilityGroup(
+      WindowManager::VISIBILITY_GROUP_SESSION_ENDING);
+  snapshot_actor_->Move(0, 0, 0);
+  snapshot_actor_->Scale(1.0, 1.0, 0);
 }
 
 void ScreenLockerHandler::StartSlowCloseAnimation() {
   if (!snapshot_actor_.get()) {
-    DCHECK_EQ(snapshot_pixmap_, static_cast<XPixmap>(0));
-    snapshot_pixmap_ = wm_->xconn()->CreatePixmap(
-        wm_->root(), Size(wm_->width(), wm_->height()), wm_->root_depth());
-    wm_->xconn()->CopyArea(wm_->root(),       // src
-                           snapshot_pixmap_,  // dest
-                           Point(0, 0),       // src_pos
-                           Point(0, 0),       // dest_pos
-                           Size(wm_->width(), wm_->height()));
-    snapshot_actor_.reset(wm_->compositor()->CreateTexturePixmap());
-    snapshot_actor_->SetPixmap(snapshot_pixmap_);
-    wm_->stage()->AddActor(snapshot_actor_.get());
-    wm_->stacking_manager()->StackActorAtTopOfLayer(
-        snapshot_actor_.get(), StackingManager::LAYER_SCREEN_LOCKER_SNAPSHOT);
-    snapshot_actor_->AddToVisibilityGroup(
-        WindowManager::VISIBILITY_GROUP_SCREEN_LOCKER);
-    snapshot_actor_->AddToVisibilityGroup(
-        WindowManager::VISIBILITY_GROUP_SHUTDOWN);
+    SetUpSnapshot();
+  } else {
+    snapshot_actor_->Move(0, 0, 0);
+    snapshot_actor_->Scale(1.0, 1.0, 0);
   }
-
-  snapshot_actor_->Move(0, 0, 0);
-  snapshot_actor_->Scale(1.0, 1.0, 0);
 
   snapshot_actor_->Move(
       round(0.5 * (1.0 - kSlowCloseSizeRatio) * wm_->width()),
@@ -368,9 +391,8 @@ void ScreenLockerHandler::StartUndoSlowCloseAnimation() {
 void ScreenLockerHandler::StartFastCloseAnimation(
     bool destroy_snapshot_when_done) {
   if (!snapshot_actor_.get())
-    StartSlowCloseAnimation();
+    SetUpSnapshot();
 
-  DCHECK(snapshot_actor_.get());
   snapshot_actor_->Move(
       round(0.5 * wm_->width()), round(0.5 * wm_->height()), kFastCloseAnimMs);
   snapshot_actor_->Scale(0, 0, kFastCloseAnimMs);
@@ -386,6 +408,16 @@ void ScreenLockerHandler::StartFastCloseAnimation(
             kFastCloseAnimMs,
             0);  // recurring timeout
   }
+}
+
+void ScreenLockerHandler::StartFadeoutAnimation() {
+  if (!snapshot_actor_.get()) {
+    SetUpSnapshot();
+  } else {
+    snapshot_actor_->Move(0, 0, 0);
+    snapshot_actor_->Scale(1.0, 1.0, 0);
+  }
+  snapshot_actor_->SetOpacity(0, kSignoutAnimMs);
 }
 
 void ScreenLockerHandler::DestroySnapshot() {

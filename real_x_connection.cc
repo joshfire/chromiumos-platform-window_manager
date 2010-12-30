@@ -315,7 +315,7 @@ bool RealXConnection::GrabPointer(XWindow xid,
 
   if (reply->status != XCB_GRAB_STATUS_SUCCESS) {
     LOG(WARNING) << "Pointer grab for window " << XidStr(xid)
-                 << " returned status " << reply->status;
+                 << " returned status " << static_cast<int>(reply->status);
     return false;
   }
   return true;
@@ -348,7 +348,7 @@ bool RealXConnection::GrabKeyboard(XWindow xid, XTime timestamp) {
 
   if (reply->status != XCB_GRAB_STATUS_SUCCESS) {
     LOG(WARNING) << "Keyboard grab for window " << XidStr(xid)
-                 << " returned status " << reply->status;
+                 << " returned status " << static_cast<int>(reply->status);
     return false;
   }
   return true;

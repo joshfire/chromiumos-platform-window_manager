@@ -900,10 +900,10 @@ void WindowManager::DestroyLoginController() {
           this, &WindowManager::DestroyLoginControllerInternal));
 }
 
-bool WindowManager::IsShuttingDown() const {
+bool WindowManager::IsSessionEnding() const {
   if (!screen_locker_handler_.get())
     return false;
-  return screen_locker_handler_->shutting_down();
+  return screen_locker_handler_->session_ending();
 }
 
 bool WindowManager::GetManagerSelection(
@@ -1647,14 +1647,15 @@ void WindowManager::HandleEnterNotify(const XEnterWindowEvent& e) {
 }
 
 void WindowManager::HandleKeyPress(const XKeyEvent& e) {
-  // We grab the keyboard while shutting down; ignore any events that we get.
-  if (IsShuttingDown())
+  // We grab the keyboard while shutting down or signing out; ignore any events
+  // that we get.
+  if (IsSessionEnding())
     return;
   key_bindings_->HandleKeyPress(e.keycode, e.state, e.time);
 }
 
 void WindowManager::HandleKeyRelease(const XKeyEvent& e) {
-  if (IsShuttingDown())
+  if (IsSessionEnding())
     return;
   key_bindings_->HandleKeyRelease(e.keycode, e.state, e.time);
 }
