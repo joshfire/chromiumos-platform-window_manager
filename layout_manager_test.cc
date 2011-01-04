@@ -422,32 +422,14 @@ TEST_F(LayoutManagerTest, FocusTransient) {
   EXPECT_FALSE(wm_->GetWindowOrDie(xid)->IsFocused());
   EXPECT_TRUE(wm_->GetWindowOrDie(transient_xid)->IsFocused());
 
-  // Now create another toplevel window, which we'll switch to
-  // automatically.
+  // Now create another toplevel window.  We shouldn't switch to it since
+  // there's a modal dialog open.
   XWindow xid2 = CreateSimpleWindow();
   SendInitialEventsForWindow(xid2);
-  EXPECT_EQ(xid2, xconn_->focused_xid());
-  EXPECT_EQ(xid2, GetActiveWindowProperty());
-  EXPECT_FALSE(wm_->GetWindowOrDie(xid)->IsFocused());
-  EXPECT_FALSE(wm_->GetWindowOrDie(transient_xid)->IsFocused());
-  EXPECT_TRUE(wm_->GetWindowOrDie(xid2)->IsFocused());
-
-  // When we cycle to the first toplevel window, its modal transient
-  // window, rather than the toplevel itself, should get the focus.
-  lm_->CycleCurrentToplevelWindow(false);
   EXPECT_EQ(transient_xid, xconn_->focused_xid());
   EXPECT_EQ(transient_xid, GetActiveWindowProperty());
-  EXPECT_FALSE(wm_->GetWindowOrDie(xid)->IsFocused());
-  EXPECT_TRUE(wm_->GetWindowOrDie(transient_xid)->IsFocused());
-  EXPECT_FALSE(wm_->GetWindowOrDie(xid2)->IsFocused());
-
-  // Switch back to the second toplevel window.
-  lm_->CycleCurrentToplevelWindow(false);
-  EXPECT_EQ(xid2, xconn_->focused_xid());
-  EXPECT_EQ(xid2, GetActiveWindowProperty());
-  EXPECT_FALSE(wm_->GetWindowOrDie(xid)->IsFocused());
-  EXPECT_FALSE(wm_->GetWindowOrDie(transient_xid)->IsFocused());
-  EXPECT_TRUE(wm_->GetWindowOrDie(xid2)->IsFocused());
+  EXPECT_FALSE(WindowIsOffscreen(xid));
+  EXPECT_TRUE(WindowIsOffscreen(xid2));
 
   // Make the transient window non-modal.
   xconn_->InitClientMessageEvent(
@@ -455,12 +437,24 @@ TEST_F(LayoutManagerTest, FocusTransient) {
       0, xconn_->GetAtomOrDie("_NET_WM_STATE_MODAL"), None, None, None);
   wm_->HandleEvent(&event);
 
+  // Send a _NET_ACTIVE_WINDOW message asking to focus the second window.
+  // We should switch to it.
+  xconn_->InitClientMessageEvent(
+      &event, xid2, xconn_->GetAtomOrDie("_NET_ACTIVE_WINDOW"),
+      1, 21320, 0, None, None);  // arbitrary timestamp
+  wm_->HandleEvent(&event);
+  EXPECT_EQ(xid2, xconn_->focused_xid());
+  EXPECT_EQ(xid2, GetActiveWindowProperty());
+  EXPECT_TRUE(WindowIsOffscreen(xid));
+  EXPECT_TRUE(WindowIsOffscreen(transient_xid));
+  EXPECT_FALSE(WindowIsOffscreen(xid2));
+
   // Now send a _NET_ACTIVE_WINDOW message asking to focus the transient.
-  // We should switch back to the first toplevel, and the transient should
+  // We should switch back to the first toplevel and the transient should
   // get the focus.
   xconn_->InitClientMessageEvent(
       &event, transient_xid, xconn_->GetAtomOrDie("_NET_ACTIVE_WINDOW"),
-      1, 21321, 0, None, None);
+      1, 21321, 0, None, None);  // arbitrary timestamp
   wm_->HandleEvent(&event);
   EXPECT_EQ(transient_xid, xconn_->focused_xid());
   EXPECT_EQ(transient_xid, GetActiveWindowProperty());

@@ -490,11 +490,17 @@ void LayoutManager::HandleWindowMap(Window* win) {
           NOTREACHED() << "Unhandled mode " << mode_;
       }
 
+      // Only switch to the new toplevel window if there aren't any modal
+      // dialogs open; the user wouldn't be able to switch back otherwise.
+      if (modal_transients_.empty())
+        SetCurrentToplevel(toplevel.get());
+      else
+        toplevel->SetState(ToplevelWindow::STATE_ACTIVE_MODE_OFFSCREEN);
+      AddOrRemoveSeparatorsAsNeeded();
+
       // Tell the newly mapped window what the mode is so it'll map
       // the snapshot windows it has if we're in overview mode.
       SendModeMessage(toplevel.get(), false);  // cancelled=false
-      SetCurrentToplevel(toplevel.get());
-      AddOrRemoveSeparatorsAsNeeded();
 
       // Clients can set the fullscreen hint on a window before mapping it.
       if (win->wm_state_fullscreen())
