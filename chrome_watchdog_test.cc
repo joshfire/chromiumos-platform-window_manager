@@ -35,9 +35,13 @@ TEST_F(ChromeWatchdogTest, Basic) {
   const XAtom kClientMachineAtom = xconn_->GetAtomOrDie("WM_CLIENT_MACHINE");
   const XAtom kCardinalAtom = xconn_->GetAtomOrDie("CARDINAL");
 
-  int kPid = 456;
-  int kTimestamp = 123;
-  int kTimeoutMs = 5000;
+  const int kPid = 456;
+  const int kTimestamp = 123;
+  const int kTimeoutMs = 5000;
+
+  // Make sure that we don't leak any timeouts, either when we get a response
+  // from Chrome or when a timeout fires (http://crosbug.com/10583).
+  const int kInitialNumTimeouts = event_loop_->num_timeouts();
 
   // We should fail if no windows have been mapped.
   EXPECT_FALSE(watchdog->SendPingToChrome(kTimestamp, kTimeoutMs));
@@ -120,6 +124,7 @@ TEST_F(ChromeWatchdogTest, Basic) {
   EXPECT_FALSE(watchdog->has_outstanding_ping());
   EXPECT_EQ(-1, watchdog->timeout_id_);
   EXPECT_EQ(-1, watchdog->last_killed_pid_);
+  EXPECT_EQ(kInitialNumTimeouts, event_loop_->num_timeouts());
 
   // If the timeout is invoked after we send the ping, we should kill
   // Chrome (well, not really, since this is a test, but 'last_killed_pid_'
@@ -129,6 +134,7 @@ TEST_F(ChromeWatchdogTest, Basic) {
   EXPECT_FALSE(watchdog->has_outstanding_ping());
   EXPECT_EQ(-1, watchdog->timeout_id_);
   EXPECT_EQ(kPid, watchdog->last_killed_pid_);
+  EXPECT_EQ(kInitialNumTimeouts, event_loop_->num_timeouts());
 }
 
 }  // namespace window_manager

@@ -112,13 +112,11 @@ void ChromeWatchdog::AbortTimeout() {
 
 void ChromeWatchdog::HandleTimeout() {
   DCHECK(has_outstanding_ping());
-  registrar_->UnregisterForWindowEvents(wm_->root());
-  ping_timestamp_ = 0;
-  timeout_id_ = -1;
-
+  DCHECK(pinged_chrome_xid_);
   Window* win = wm_->GetWindowOrDie(pinged_chrome_xid_);
-  pid_t chrome_pid = static_cast<pid_t>(win->client_pid());
+  AbortTimeout();
 
+  pid_t chrome_pid = static_cast<pid_t>(win->client_pid());
   LOG(INFO) << "Chrome window " << win->xid_str() << " didn't respond to ping; "
             << (!FLAGS_kill_chrome_if_hanging ? "(not really) " : "")
             << "sending signal " << kSignalToSend << " to PID " << chrome_pid;
@@ -128,7 +126,6 @@ void ChromeWatchdog::HandleTimeout() {
   }
 
   last_killed_pid_ = chrome_pid;
-  pinged_chrome_xid_ = 0;
 }
 
 }  // namespace window_manager

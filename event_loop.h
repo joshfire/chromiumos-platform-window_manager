@@ -23,6 +23,9 @@ class EventLoop {
   EventLoop();
   ~EventLoop();
 
+  // Get the number of current-registered timeouts.  Used for testing.
+  int num_timeouts() const { return timeout_fds_.size(); }
+
   // Loop until Exit() is called, waiting for FDs to become readable or
   // timeouts to fire.
   void Run();
