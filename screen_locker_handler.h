@@ -82,6 +82,7 @@ class ScreenLockerHandler : public EventConsumer {
   FRIEND_TEST(ScreenLockerHandlerTest, SuccessfulLock);
   FRIEND_TEST(ScreenLockerHandlerTest, AbortedShutdown);
   FRIEND_TEST(ScreenLockerHandlerTest, HandleShutdown);
+  FRIEND_TEST(ScreenLockerHandlerTest, InputsAlreadyGrabbed);
   FRIEND_TEST(ScreenLockerHandlerTest, DeferLockUntilWindowIsVisible);
 
   // Final size that we scale the snapshot of the screen down to in the
@@ -128,6 +129,10 @@ class ScreenLockerHandler : public EventConsumer {
   // the pointer to use a transparent cursor, grab the keyboard and pointer, and
   // display an animation.
   void HandleSessionEnding(bool shutting_down);
+
+  // Try to grab the pointer and keyboard if they aren't grabbed already.
+  // Once they're both grabbed, unregisters 'grab_inputs_timeout_id_'.
+  void TryToGrabInputs();
 
   // If 'snapshot_actor_' is unset, grab and display a snapshot of the current
   // contents of the screen.
@@ -192,6 +197,18 @@ class ScreenLockerHandler : public EventConsumer {
   // WM_IPC_MESSAGE_WM_NOTIFY_SIGNING_OUT or
   // WM_IPC_MESSAGE_WM_NOTIFY_SHUTTING_DOWN message and never unset.
   bool session_ending_;
+
+  // Recurring timeout that we use to try to grab the pointer and the keyboard
+  // when the session is ending.
+  int grab_inputs_timeout_id_;
+
+  // Are the pointer and keyboard grabbed?
+  bool pointer_grabbed_;
+  bool keyboard_grabbed_;
+
+  // Transparent cursor that we use to hide the pointer while the session is
+  // ending.
+  XID transparent_cursor_;
 
   DISALLOW_COPY_AND_ASSIGN(ScreenLockerHandler);
 };

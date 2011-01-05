@@ -228,8 +228,7 @@ TEST_F(ScreenLockerHandlerTest, AbortedLock) {
     LOG(ERROR) << "Aborting test because of missing timerfd support";
     return;
   }
-  wm_->event_loop()->RunTimeoutForTesting(
-      handler_->destroy_snapshot_timeout_id_);
+  event_loop_->RunTimeoutForTesting(handler_->destroy_snapshot_timeout_id_);
   EXPECT_EQ(-1, handler_->destroy_snapshot_timeout_id_);
   EXPECT_EQ(static_cast<size_t>(0),
             compositor_->active_visibility_groups().size());
@@ -262,8 +261,7 @@ TEST_F(ScreenLockerHandlerTest, SuccessfulLock) {
     LOG(ERROR) << "Aborting test because of missing timerfd support";
     return;
   }
-  wm_->event_loop()->RunTimeoutForTesting(
-      handler_->destroy_snapshot_timeout_id_);
+  event_loop_->RunTimeoutForTesting(handler_->destroy_snapshot_timeout_id_);
   EXPECT_EQ(-1, handler_->destroy_snapshot_timeout_id_);
   EXPECT_TRUE(GetSnapshotActor() == NULL);
   EXPECT_TRUE(IsOnlyActiveVisibilityGroup(
@@ -307,8 +305,7 @@ TEST_F(ScreenLockerHandlerTest, AbortedShutdown) {
     LOG(ERROR) << "Aborting test because of missing timerfd support";
     return;
   }
-  wm_->event_loop()->RunTimeoutForTesting(
-      handler_->destroy_snapshot_timeout_id_);
+  event_loop_->RunTimeoutForTesting(handler_->destroy_snapshot_timeout_id_);
   EXPECT_EQ(-1, handler_->destroy_snapshot_timeout_id_);
   EXPECT_EQ(static_cast<size_t>(0),
             compositor_->active_visibility_groups().size());
@@ -335,8 +332,7 @@ TEST_F(ScreenLockerHandlerTest, AbortedShutdown) {
   msg.set_param(0, chromeos::WM_IPC_POWER_BUTTON_ABORTED_SHUTDOWN);
   SendWmIpcMessage(msg);
   ASSERT_NE(-1, handler_->destroy_snapshot_timeout_id_);
-  wm_->event_loop()->RunTimeoutForTesting(
-      handler_->destroy_snapshot_timeout_id_);
+  event_loop_->RunTimeoutForTesting(handler_->destroy_snapshot_timeout_id_);
   EXPECT_EQ(-1, handler_->destroy_snapshot_timeout_id_);
   EXPECT_TRUE(IsOnlyActiveVisibilityGroup(
                   WindowManager::VISIBILITY_GROUP_SCREEN_LOCKER));
@@ -381,6 +377,39 @@ TEST_F(ScreenLockerHandlerTest, HandleShutdown) {
   // There's no need to destroy the snapshot after we're done with the
   // animation; we're not going to be showing anything else onscreen.
   EXPECT_EQ(-1, handler_->destroy_snapshot_timeout_id_);
+}
+
+// Test that we repeatedly try to grab the pointer and keyboard when the
+// session is ending.
+TEST_F(ScreenLockerHandlerTest, InputsAlreadyGrabbed) {
+  // Create a window and pretend that it's grabbed both inputs.
+  XWindow other_xid = CreateSimpleWindow();
+  xconn_->set_pointer_grab_xid(other_xid);
+  xconn_->set_keyboard_grab_xid(other_xid);
+
+  // Tell the window manager that the system is shutting down.
+  WmIpc::Message msg(chromeos::WM_IPC_MESSAGE_WM_NOTIFY_SHUTTING_DOWN);
+  SendWmIpcMessage(msg);
+  EXPECT_EQ(other_xid, xconn_->pointer_grab_xid());
+  EXPECT_EQ(other_xid, xconn_->keyboard_grab_xid());
+
+  // Now pretend that the pointer grab was released and check that after the
+  // timeout fires, the WM installs a pointer grab.
+  xconn_->set_pointer_grab_xid(0);
+  EXPECT_NE(-1, handler_->grab_inputs_timeout_id_);
+  event_loop_->RunTimeoutForTesting(handler_->grab_inputs_timeout_id_);
+  EXPECT_EQ(xconn_->GetRootWindow(), xconn_->pointer_grab_xid());
+  EXPECT_EQ(other_xid, xconn_->keyboard_grab_xid());
+
+  // Do the same thing with the keyboard.
+  xconn_->set_keyboard_grab_xid(0);
+  EXPECT_NE(-1, handler_->grab_inputs_timeout_id_);
+  event_loop_->RunTimeoutForTesting(handler_->grab_inputs_timeout_id_);
+  EXPECT_EQ(xconn_->GetRootWindow(), xconn_->pointer_grab_xid());
+  EXPECT_EQ(xconn_->GetRootWindow(), xconn_->keyboard_grab_xid());
+
+  // Both inputs are grabbed, so the timeout should be unregistered now.
+  EXPECT_EQ(-1, handler_->grab_inputs_timeout_id_);
 }
 
 // Test that we don't consider the screen to be locked until the screen

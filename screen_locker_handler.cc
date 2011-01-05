@@ -51,6 +51,10 @@ static const int kAbortAnimationMs = 2000;
 // How long should we take to fade the screen to black when the user signs out?
 static const int kSignoutAnimMs = 100;
 
+// How long should we wait between repeated attempts to grab the pointer and
+// keyboard while the session is ending?
+static const int kGrabInputsTimeoutMs = 100;
+
 const float ScreenLockerHandler::kSlowCloseSizeRatio = 0.95;
 
 ScreenLockerHandler::ScreenLockerHandler(WindowManager* wm)
@@ -59,7 +63,11 @@ ScreenLockerHandler::ScreenLockerHandler(WindowManager* wm)
       snapshot_pixmap_(0),
       destroy_snapshot_timeout_id_(-1),
       is_locked_(false),
-      session_ending_(false) {
+      session_ending_(false),
+      grab_inputs_timeout_id_(-1),
+      pointer_grabbed_(false),
+      keyboard_grabbed_(false),
+      transparent_cursor_(0) {
   registrar_->RegisterForChromeMessages(
       chromeos::WM_IPC_MESSAGE_WM_NOTIFY_POWER_BUTTON_STATE);
   registrar_->RegisterForChromeMessages(
@@ -75,6 +83,12 @@ ScreenLockerHandler::~ScreenLockerHandler() {
   wm_->event_loop()->RemoveTimeoutIfSet(&destroy_snapshot_timeout_id_);
   if (snapshot_pixmap_)
     wm_->xconn()->FreePixmap(snapshot_pixmap_);
+
+  wm_->event_loop()->RemoveTimeoutIfSet(&grab_inputs_timeout_id_);
+  if (transparent_cursor_) {
+    wm_->xconn()->FreeCursor(transparent_cursor_);
+    transparent_cursor_ = 0;
+  }
 }
 
 void ScreenLockerHandler::HandleScreenResize() {
@@ -303,12 +317,17 @@ void ScreenLockerHandler::HandleSessionEnding(bool shutting_down) {
     return;
   session_ending_ = true;
 
-  XID cursor = wm_->xconn()->CreateTransparentCursor();
-  wm_->xconn()->SetWindowCursor(wm_->root(), cursor);
-  wm_->xconn()->GrabPointer(wm_->root(), 0, 0, cursor);
-  if (cursor)
-    wm_->xconn()->FreeCursor(cursor);
-  wm_->xconn()->GrabKeyboard(wm_->root(), 0);
+  transparent_cursor_ = wm_->xconn()->CreateTransparentCursor();
+  wm_->xconn()->SetWindowCursor(wm_->root(), transparent_cursor_);
+
+  TryToGrabInputs();
+  if (!pointer_grabbed_ || !keyboard_grabbed_) {
+    grab_inputs_timeout_id_ =
+        wm_->event_loop()->AddTimeout(
+            NewPermanentCallback(this, &ScreenLockerHandler::TryToGrabInputs),
+            kGrabInputsTimeoutMs,   // initial timeout
+            kGrabInputsTimeoutMs);  // recurring timeout
+  }
 
   if (shutting_down)
     StartFastCloseAnimation(false);
@@ -316,6 +335,26 @@ void ScreenLockerHandler::HandleSessionEnding(bool shutting_down) {
     StartFadeoutAnimation();
   wm_->compositor()->SetActiveVisibilityGroup(
       WindowManager::VISIBILITY_GROUP_SESSION_ENDING);
+}
+
+void ScreenLockerHandler::TryToGrabInputs() {
+  DCHECK_NE(transparent_cursor_, 0);
+
+  if (!pointer_grabbed_ || !keyboard_grabbed_) {
+    XTime now = wm_->GetCurrentTimeFromServer();
+    if (!pointer_grabbed_) {
+      if (wm_->xconn()->GrabPointer(wm_->root(), 0, now, transparent_cursor_))
+        pointer_grabbed_ = true;
+    }
+    if (!keyboard_grabbed_) {
+      if (wm_->xconn()->GrabKeyboard(wm_->root(), now))
+        keyboard_grabbed_ = true;
+    }
+  }
+
+  // If both are grabbed, we don't need to be called again.
+  if (pointer_grabbed_ && keyboard_grabbed_)
+    wm_->event_loop()->RemoveTimeoutIfSet(&grab_inputs_timeout_id_);
 }
 
 void ScreenLockerHandler::SetUpSnapshot() {
