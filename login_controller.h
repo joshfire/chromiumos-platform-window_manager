@@ -64,7 +64,7 @@ class LoginController : public EventConsumer {
   virtual void HandlePointerMotion(XWindow xid,
                                    int x, int y,
                                    int x_root, int y_root,
-                                   XTime timestamp) {}
+                                   XTime timestamp);
   virtual void HandleChromeMessage(const WmIpc::Message& msg);
   virtual void HandleClientMessage(XWindow xid,
                                    XAtom message_type,
@@ -191,6 +191,16 @@ class LoginController : public EventConsumer {
   // Focus a window and save it to login_window_to_focus_.
   void FocusLoginWindow(Window* win);
 
+  // Ungrab the pointer if we've grabbed it and destroy ourselves.
+  // Don't access |this| after calling this method!  Invoked when the first
+  // browser window becomes visible.
+  void HandleInitialBrowserWindowVisible();
+
+  // Ungrab the pointer and tell WindowManager that we're no longer interested
+  // in events on the root window.  Called when the user moves the pointer or
+  // the first browser window becomes visible.
+  void UngrabPointer(XTime timestamp);
+
   // Hide all login-related windows and ask the window manager to destroy us.
   // Called when we see the pixmap for a browser window get loaded.
   void HideWindowsAndRequestDestruction();
@@ -253,6 +263,9 @@ class LoginController : public EventConsumer {
 
   // Index of the entry that was inserted or kNoSelection if no such entry.
   size_t last_inserted_entry_;
+
+  // Have we grabbed the pointer to hide it?
+  bool pointer_grabbed_for_startup_;
 
   // Login windows that have been destroyed post-login but that we're
   // holding on to, so we can continue displaying their actors onscreen

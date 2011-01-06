@@ -1255,6 +1255,53 @@ TEST_F(LoginControllerTest, FocusFirstControlsWindowImmediately) {
   EXPECT_EQ(controls_xid, GetActiveWindowProperty());
 }
 
+// Check that we grab the pointer at startup to hide the cursor and ungrab it
+// when the user moves the mouse.
+TEST_F(LoginControllerTest, UngrabPointerOnMotion) {
+  XWindow root = xconn_->GetRootWindow();
+  // Check that we start out with the pointer grabbed.
+  EXPECT_EQ(root, xconn_->pointer_grab_xid());
+
+  // It should be ungrabbed as soon as the user moves it.
+  XEvent event;
+  xconn_->InitMotionNotifyEvent(&event, root, Point(200, 200));
+  wm_->HandleEvent(&event);
+  EXPECT_EQ(0, xconn_->pointer_grab_xid());
+}
+
+// Check that we also ungrab the pointer when the first browser window is
+// visible.
+TEST_F(LoginControllerTest, UngrabPointerOnBrowserWindowVisible) {
+  XWindow root = xconn_->GetRootWindow();
+  EXPECT_EQ(root, xconn_->pointer_grab_xid());
+
+  // It should still be grabbed after the login windows are created...
+  CreateLoginWindows(2, true, true, true);
+  EXPECT_EQ(root, xconn_->pointer_grab_xid());
+
+  // ... and after the user logs in...
+  SetLoggedInState(true);
+  EXPECT_EQ(root, xconn_->pointer_grab_xid());
+
+  // ... and after the first browser window is mapped.
+  XWindow browser_xid =
+      CreateToplevelWindow(1, 0,  // tab_count, selected_tab
+                           0, 0, 200, 200);  // position and size
+  ConfigureWindowForSyncRequestProtocol(browser_xid);
+  SendInitialEventsForWindow(browser_xid);
+  EXPECT_EQ(root, xconn_->pointer_grab_xid());
+
+  // Once the browser window is visible, it should be ungrabbed.
+  SendSyncRequestProtocolAlarm(browser_xid);
+  EXPECT_EQ(0, xconn_->pointer_grab_xid());
+
+  // If the login controller is created while the user is already logged in
+  // (like what happens if we crash and are restarted), we shouldn't grab the
+  // pointer at all.
+  CreateAndInitNewWm();
+  EXPECT_EQ(0, xconn_->pointer_grab_xid());
+}
+
 }  // namespace window_manager
 
 int main(int argc, char** argv) {

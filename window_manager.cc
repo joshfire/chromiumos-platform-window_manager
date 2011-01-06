@@ -336,9 +336,6 @@ bool WindowManager::Init() {
       root_, GetXAtom(ATOM_CHROME_LOGGED_IN), &logged_in_value);
   logged_in_ = logged_in_value;
 
-  // Set root window's cursor to left pointer.
-  xconn_->SetWindowCursor(root_, XC_left_ptr);
-
   stage_ = compositor_->GetDefaultStage();
   stage_xid_ = stage_->GetStageXWindow();
   stage_->SetName("stage");

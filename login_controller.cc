@@ -114,14 +114,30 @@ LoginController::LoginController(WindowManager* wm)
       waiting_for_browser_window_(false),
       requested_destruction_(false),
       is_entry_selection_enabled_(true),
-      last_inserted_entry_(kNoSelection) {
+      last_inserted_entry_(kNoSelection),
+      pointer_grabbed_for_startup_(false) {
   registrar_.RegisterForChromeMessages(
       chromeos::WM_IPC_MESSAGE_WM_SET_LOGIN_STATE);
   registrar_.RegisterForChromeMessages(
       chromeos::WM_IPC_MESSAGE_WM_SELECT_LOGIN_USER);
+
+  // Hide the pointer's cursor until the user moves it.
+  DCHECK(!wm_->logged_in());
+  XID cursor = wm_->xconn()->CreateTransparentCursor();
+  if (wm_->xconn()->GrabPointer(wm_->root(),
+                                PointerMotionMask,
+                                wm_->GetCurrentTimeFromServer(),
+                                cursor)) {
+    pointer_grabbed_for_startup_ = true;
+    registrar_.RegisterForWindowEvents(wm_->root());
+  }
+  if (cursor)
+    wm_->xconn()->FreeCursor(cursor);
 }
 
 LoginController::~LoginController() {
+  if (pointer_grabbed_for_startup_)
+    UngrabPointer(wm_->GetCurrentTimeFromServer());
 }
 
 bool LoginController::IsInputWindow(XWindow xid) {
@@ -206,10 +222,9 @@ void LoginController::HandleWindowMap(Window* win) {
   if (waiting_for_browser_window_ &&
       win->type() == chromeos::WM_IPC_WINDOW_CHROME_TOPLEVEL) {
     if (win->has_initial_pixmap()) {
-      // If we see an already-drawn browser window come up, we can destroy
-      // ourselves.
-      waiting_for_browser_window_ = false;
-      HideWindowsAndRequestDestruction();
+      HandleInitialBrowserWindowVisible();
+      // Return immediately since the previous call will destroy us.
+      return;
     } else {
       // Otherwise, we'll just wait for the window to get drawn.
       browser_xids_.insert(win->xid());
@@ -415,10 +430,8 @@ void LoginController::HandleWindowUnmap(Window* win) {
 }
 
 void LoginController::HandleWindowInitialPixmap(Window* win) {
-  // Destroy ourselves when we see a browser window get drawn.
   if (waiting_for_browser_window_ && browser_xids_.count(win->xid())) {
-    waiting_for_browser_window_ = false;
-    HideWindowsAndRequestDestruction();
+    HandleInitialBrowserWindowVisible();
     return;
   }
 
@@ -483,6 +496,16 @@ void LoginController::HandleButtonPress(XWindow xid,
   // as a result of us calling FocusManager::UseClickToFocusForWindow().
   if (login_window_to_focus_)
     wm_->FocusWindow(login_window_to_focus_, wm_->GetCurrentTimeFromServer());
+}
+
+void LoginController::HandlePointerMotion(XWindow xid,
+                                          int x, int y,
+                                          int x_root, int y_root,
+                                          XTime timestamp) {
+  if (pointer_grabbed_for_startup_) {
+    UngrabPointer(timestamp);
+    return;
+  }
 }
 
 void LoginController::HandleChromeMessage(const WmIpc::Message& msg) {
@@ -881,6 +904,21 @@ void LoginController::FocusLoginWindow(Window* win) {
   DCHECK(win);
   wm_->FocusWindow(win, wm_->GetCurrentTimeFromServer());
   login_window_to_focus_ = win;
+}
+
+void LoginController::HandleInitialBrowserWindowVisible() {
+  DCHECK(waiting_for_browser_window_);
+  waiting_for_browser_window_ = false;
+  if (pointer_grabbed_for_startup_)
+    UngrabPointer(wm_->GetCurrentTimeFromServer());
+  HideWindowsAndRequestDestruction();
+}
+
+void LoginController::UngrabPointer(XTime timestamp) {
+  DCHECK(pointer_grabbed_for_startup_);
+  wm_->xconn()->UngrabPointer(false, timestamp);
+  registrar_.UnregisterForWindowEvents(wm_->root());
+  pointer_grabbed_for_startup_ = false;
 }
 
 void LoginController::HideWindowsAndRequestDestruction() {
