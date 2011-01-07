@@ -574,6 +574,8 @@ void Panel::HandleContentWindowSizeHintsChange() {
 void Panel::HandleTransientWindowMap(Window* win) {
   DCHECK(win);
   transients_->AddWindow(win, true);  // stack directly above panel
+  if (content_win_->IsFocused())
+    transients_->TakeFocus(wm()->GetCurrentTimeFromServer());
 }
 
 void Panel::HandleTransientWindowUnmap(Window* win) {

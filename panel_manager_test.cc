@@ -487,6 +487,8 @@ TEST_F(PanelManagerTest, TransientWindows) {
       xconn_->GetWindowGeometry(xconn_->GetRootWindow(), &root_geometry));
 
   Panel* panel = CreatePanel(200, 400, 20);
+  ASSERT_EQ(panel->content_xid(), xconn_->focused_xid());
+  ASSERT_EQ(panel->content_xid(), GetActiveWindowProperty());
 
   // Create a transient window owned by the panel.
   const int transient_x = 30, transient_y = 40;
@@ -507,6 +509,10 @@ TEST_F(PanelManagerTest, TransientWindows) {
   // The transient window should have a shadow.
   ASSERT_TRUE(transient_win->shadow() != NULL);
   EXPECT_TRUE(transient_win->shadow()->is_shown());
+
+  // It should grab the focus from the panel that owns it.
+  EXPECT_EQ(transient_xid, xconn_->focused_xid());
+  EXPECT_EQ(transient_xid, GetActiveWindowProperty());
 
   // We should try to center the transient window over the panel (at least
   // to the degree that we can while still keeping the transient onscreen).
@@ -551,6 +557,12 @@ TEST_F(PanelManagerTest, TransientWindows) {
   xconn_->InitUnmapEvent(&event, transient_xid);
   wm_->HandleEvent(&event);
 
+  // Now create a toplevel window, which should get focused.
+  XWindow toplevel_xid = CreateToplevelWindow(1, 0, 0, 0, 1024, 768);
+  SendInitialEventsForWindow(toplevel_xid);
+  ASSERT_EQ(toplevel_xid, xconn_->focused_xid());
+  ASSERT_EQ(toplevel_xid, GetActiveWindowProperty());
+
   // Create another transient with the CHROME_INFO_BUBBLE type, which
   // should allow us to place it wherever we want.
   const int infobubble_x = 40, infobubble_y = 50;
@@ -569,23 +581,25 @@ TEST_F(PanelManagerTest, TransientWindows) {
   EXPECT_EQ(infobubble_width, infobubble_info->bounds.width);
   EXPECT_EQ(infobubble_height, infobubble_info->bounds.height);
 
-  // Check that we'll honor a request to make the infobubble modal.
-  xconn_->InitClientMessageEvent(
-      &event, infobubble_xid, xconn_->GetAtomOrDie("_NET_WM_STATE"),
-      1, xconn_->GetAtomOrDie("_NET_WM_STATE_MODAL"), None, None, None);
-  wm_->HandleEvent(&event);
-  EXPECT_TRUE(wm_->GetWindowOrDie(infobubble_xid)->wm_state_modal());
+  // The infobubble shouldn't have gotten the focus, since its panel is
+  // unfocused.
+  EXPECT_EQ(toplevel_xid, xconn_->focused_xid());
+  EXPECT_EQ(toplevel_xid, GetActiveWindowProperty());
 
-  // Now create a toplevel window and check that it gets focused, and then
-  // send a _NET_ACTIVE_WINDOW message asking the WM to focus the infobubble.
-  XWindow toplevel_xid = CreateToplevelWindow(1, 0, 0, 0, 1024, 768);
-  SendInitialEventsForWindow(toplevel_xid);
-  ASSERT_EQ(toplevel_xid, xconn_->focused_xid());
+  // The window manager should focus the bubble if we ask it to.
   xconn_->InitClientMessageEvent(
       &event, infobubble_xid, xconn_->GetAtomOrDie("_NET_ACTIVE_WINDOW"),
       1, wm_->GetCurrentTimeFromServer() + 1, 0, None, None);
   wm_->HandleEvent(&event);
   EXPECT_EQ(infobubble_xid, xconn_->focused_xid());
+  EXPECT_EQ(infobubble_xid, GetActiveWindowProperty());
+
+  // Check that we honor a request to make the infobubble modal.
+  xconn_->InitClientMessageEvent(
+      &event, infobubble_xid, xconn_->GetAtomOrDie("_NET_WM_STATE"),
+      1, xconn_->GetAtomOrDie("_NET_WM_STATE_MODAL"), None, None, None);
+  wm_->HandleEvent(&event);
+  EXPECT_TRUE(wm_->GetWindowOrDie(infobubble_xid)->wm_state_modal());
 }
 
 // Test that we don't draw drop shadows for RGBA transient windows.
