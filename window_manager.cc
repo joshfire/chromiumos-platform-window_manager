@@ -22,6 +22,7 @@ extern "C" {
 #include "base/logging.h"
 #include "base/string_util.h"
 #include "cros/chromeos_wm_ipc_enums.h"
+#include "metrics/metrics_library.h"
 #include "window_manager/callback.h"
 #include "window_manager/chrome_watchdog.h"
 #include "window_manager/dbus_interface.h"
@@ -66,6 +67,7 @@ DEFINE_bool(unredirect_fullscreen_window,
             false,
             "Enable/disable compositing optimization that automatically turns"
             "off compositing if a topmost fullscreen window is present");
+DEFINE_bool(report_metrics, false, "Report user action metrics via Chrome");
 
 using base::hash_map;
 using chromeos::WmIpcMessageType;
@@ -348,6 +350,11 @@ bool WindowManager::Init() {
   stacking_manager_.reset(
       new StackingManager(xconn_, compositor_, atom_cache_.get()));
   focus_manager_.reset(new FocusManager(this));
+
+  if (FLAGS_report_metrics) {
+    metrics_library_.reset(new MetricsLibrary);
+    metrics_library_->Init();
+  }
 
   if (!logged_in_)
     CreateStartupBackground();
@@ -895,6 +902,11 @@ void WindowManager::DestroyLoginController() {
   event_loop_->PostTask(
       NewPermanentCallback(
           this, &WindowManager::DestroyLoginControllerInternal));
+}
+
+void WindowManager::ReportUserAction(const string& action) {
+  if (metrics_library_.get())
+    metrics_library_->SendUserActionToUMA(action);
 }
 
 bool WindowManager::IsSessionEnding() const {

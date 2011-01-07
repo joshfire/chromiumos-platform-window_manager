@@ -82,7 +82,8 @@ struct Action {
 
 KeyBindings::KeyBindings(XConnection* xconn)
   : xconn_(xconn),
-    current_event_time_(0) {
+    current_event_time_(0),
+    current_key_combo_(0, 0) {
   CHECK(xconn_);
   if (!xconn_->SetDetectableKeyboardAutoRepeat(true)) {
     LOG(WARNING) << "Unable to enable detectable keyboard autorepeat";
@@ -257,12 +258,13 @@ bool KeyBindings::HandleKeyPress(KeyCode keycode,
                                  uint32_t modifiers,
                                  XTime event_time) {
   const KeySym keysym = xconn_->GetKeySymFromKeyCode(keycode);
-  AutoReset<XTime> reset(&current_event_time_, event_time);
+  AutoReset<XTime> time_reset(&current_event_time_, event_time);
   KeyCombo combo(keysym, modifiers);
   BindingsMap::const_iterator bindings_iter = bindings_.find(combo);
   if (bindings_iter == bindings_.end())
     return false;
 
+  AutoReset<KeyCombo> combo_reset(&current_key_combo_, combo);
   ActionMap::iterator action_iter = actions_.find(bindings_iter->second);
   CHECK(action_iter != actions_.end());
   Action* const action = action_iter->second;
@@ -285,7 +287,7 @@ bool KeyBindings::HandleKeyRelease(KeyCode keycode,
                                    uint32_t modifiers,
                                    XTime event_time) {
   const KeySym keysym = xconn_->GetKeySymFromKeyCode(keycode);
-  AutoReset<XTime> reset(&current_event_time_, event_time);
+  AutoReset<XTime> time_reset(&current_event_time_, event_time);
   KeyCombo combo(keysym, modifiers);
 
   // It's possible that a combo's modifier key(s) will get released before
@@ -300,6 +302,7 @@ bool KeyBindings::HandleKeyRelease(KeyCode keycode,
   if (keysym_iter == action_names_by_keysym_.end())
     return false;
 
+  AutoReset<KeyCombo> combo_reset(&current_key_combo_, combo);
   bool ran_end_closure = false;
   for (map<string, int>::const_iterator action_name_iter =
          keysym_iter->second.begin();

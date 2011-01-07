@@ -34,6 +34,8 @@ extern "C" {
 #include "window_manager/x_connection.h"
 #include "window_manager/x_types.h"
 
+class MetricsLibrary;  // from metrics/metrics_library.h
+
 namespace window_manager {
 
 class ChromeWatchdog;
@@ -254,6 +256,10 @@ class WindowManager : public PanelManagerAreaChangeListener,
   // messing around with the list of event consumers.
   void DestroyLoginController();
 
+  // Send a user action to Chrome so it can send it to UMA.
+  // Does nothing if metrics reporting is disabled.
+  void ReportUserAction(const std::string& action);
+
  private:
   friend class BasicWindowManagerTest;
   friend class LayoutManagerTest;         // uses 'layout_manager_'
@@ -460,6 +466,10 @@ class WindowManager : public PanelManagerAreaChangeListener,
   scoped_ptr<AtomCache> atom_cache_;
   scoped_ptr<StackingManager> stacking_manager_;
   scoped_ptr<FocusManager> focus_manager_;
+
+  // Library used to report user action metrics to Chrome.
+  // NULL if --report_metrics is false.
+  scoped_ptr<MetricsLibrary> metrics_library_;
 
   // Map from a Sync extension alarm ID to the Window object that's using
   // the alarm to support the _NET_WM_SYNC_REQUEST protocol.

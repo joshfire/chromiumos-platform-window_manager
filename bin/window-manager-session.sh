@@ -44,6 +44,7 @@ exec "${WM}"                                                            \
   --panel_titlebar_shadow_image_dir="${IMAGES}/panel_titlebar_shadow"   \
   --profile_dir="${PROFILE_DIR}"                                        \
   --rectangular_shadow_image_dir="${IMAGES}/rectangular_shadow"         \
+  --report_metrics                                                      \
   --separator_image="${IMAGES}/separator.png"                           \
   --unaccelerated_graphics_image="${IMAGES}/unaccelerated_graphics.png" \
   --unredirect_fullscreen_window=false                                  \

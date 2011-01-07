@@ -68,6 +68,7 @@ class KeyBindings {
   ~KeyBindings();
 
   XTime current_event_time() const { return current_event_time_; }
+  const KeyCombo& current_key_combo() const { return current_key_combo_; }
 
   // Add a new action. This will fail if the action already exists.
   // NOTE: The KeyBindings class will take ownership of passed-in
@@ -111,6 +112,11 @@ class KeyBindings {
   // HandleKeyRelease.  This allows the action closures to access the event
   // time if they need it.
   XTime current_event_time_;
+
+  // The latest key combo associated with an action that we received.
+  // When |current_event_time_| is non-zero, this contains the combo
+  // corresponding to the action that is currently being executed.
+  KeyCombo current_key_combo_;
 
   typedef std::map<std::string, Action*> ActionMap;
   ActionMap actions_;

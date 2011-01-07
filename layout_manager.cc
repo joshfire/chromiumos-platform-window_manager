@@ -1395,6 +1395,22 @@ void LayoutManager::CycleCurrentToplevelWindow(bool forward) {
   if (toplevels_.empty())
     return;
 
+  if (wm_->key_bindings()->current_event_time()) {
+    const KeyBindings::KeyCombo& combo =
+        wm_->key_bindings()->current_key_combo();
+    if (forward) {
+      if (combo.keysym == XK_Tab)
+        wm_->ReportUserAction("Accel_NextWindow_Tab");
+      else if (combo.keysym == XK_F5)
+        wm_->ReportUserAction("Accel_NextWindow_F5");
+    } else {
+      if (combo.keysym == XK_Tab)
+        wm_->ReportUserAction("Accel_PrevWindow_Tab");
+      else if (combo.keysym == XK_F5)
+        wm_->ReportUserAction("Accel_PrevWindow_F5");
+    }
+  }
+
   ToplevelWindow* toplevel = NULL;
   if (!current_toplevel_) {
     toplevel = forward ?
