@@ -30,7 +30,7 @@ class XConnection;
 // enter/leave the target region soon.
 class PointerPositionWatcher {
  public:
-  // The constructor takes ownership of 'cb'.
+  // The constructor takes ownership of |cb|.
   PointerPositionWatcher(
       EventLoop* event_loop,
       XConnection* xconn,
@@ -47,7 +47,7 @@ class PointerPositionWatcher {
   void TriggerTimeout();
 
  private:
-  // If 'timeout_id_' is set, clear it and remove the timeout.
+  // If |timeout_id_| is set, clear it and remove the timeout.
   void CancelTimeoutIfActive();
 
   // Check the pointer's position, running the callback and removing the

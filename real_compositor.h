@@ -206,7 +206,7 @@ class RealCompositor : public Compositor {
     void CloneImpl(Actor* clone);
 
     // Helper method that can be invoked by derived classes.  Returns a
-    // string defining this actor, saying that its type is 'type_name'
+    // string defining this actor, saying that its type is |type_name|
     // (e.g. "ColoredBoxActor", "TexturePixmapActor", etc.).
     std::string GetDebugStringInternal(const std::string& type_name,
                                        int indent_level);
@@ -215,13 +215,13 @@ class RealCompositor : public Compositor {
 
    private:
     // Animate one of this actor's fields moving to a new value.
-    // 'animation_map' is '&int_animations_' or '&float_animations_'.
+    // |animation_map| is |&int_animations_| or |&float_animations_|.
     template<class T> void AnimateField(
         std::map<T*, std::tr1::shared_ptr<Animation> >* animation_map,
         T* field, T value, int duration_ms);
 
-    // Helper method called by Update() for 'int_animations_' and
-    // 'float_animations_'.  Goes through the passed-in map, calling each
+    // Helper method called by Update() for |int_animations_| and
+    // |float_animations_|.  Goes through the passed-in map, calling each
     // animation's IsDone() and GetValue() methods and deleting it if it's done.
     template<class T> void UpdateInternal(
         std::map<T*, std::tr1::shared_ptr<Animation> >* animation_map,
@@ -380,7 +380,7 @@ class RealCompositor : public Compositor {
 
     void CloneImpl(QuadActor* clone);
 
-    // Used by derived classes to change 'color_'.
+    // Used by derived classes to change |color_|.
     void SetColorInternal(const Compositor::Color& color);
 
    private:
@@ -498,7 +498,7 @@ class RealCompositor : public Compositor {
     // Offscreen X pixmap whose contents we're displaying.
     XID pixmap_;
 
-    // Is 'pixmap_' opaque (i.e. it has a non-32-bit depth)?
+    // Is |pixmap_| opaque (i.e. it has a non-32-bit depth)?
     bool pixmap_is_opaque_;
 
     // Rectangle bounding all not-yet-composited regions reported by Damage

@@ -87,7 +87,7 @@ class Compositor {
 
     // Get a string that briefly describes this actor and everything under
     // it in the tree.  The string will be indented two spaces for each
-    // successive value of 'indent_level'.
+    // successive value of |indent_level|.
     virtual std::string GetDebugString(int indent_level) = 0;
 
     // Shows a horizontal gradient (transparent on left to black on
@@ -165,7 +165,7 @@ class Compositor {
     virtual void UpdateTexture() = 0;
 
     // Add an additional texture to mask out parts of the actor.
-    // 'bytes' must be of size 'width' * 'height'.
+    // |bytes| must be of size |width| * |height|.
     virtual void SetAlphaMask(const uint8_t* bytes, int width, int height) = 0;
 
     // Clear the previously-applied alpha mask.
@@ -223,7 +223,7 @@ class Compositor {
   virtual StageActor* GetDefaultStage() = 0;
 
   // Limit which actors will be drawn.  Actors that aren't members of a
-  // visibility group included in 'groups' (see
+  // visibility group included in |groups| (see
   // Actor::AddToVisibilityGroup()) will be hidden.  Passing an empty set
   // reverts to the standard behavior of drawing all actors that are
   // visible and at least partially opaque.

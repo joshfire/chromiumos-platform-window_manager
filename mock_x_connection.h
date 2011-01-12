@@ -335,7 +335,7 @@ class MockXConnection : public XConnection {
   // Set the pointer position for QueryPointerPosition().
   void SetPointerPosition(const Point& pos) { pointer_pos_ = pos; }
 
-  // Get the window beneath 'xid', or 0 if 'xid' is at the bottom.
+  // Get the window beneath |xid|, or 0 if |xid| is at the bottom.
   XWindow GetWindowBelowWindow(XWindow xid) const;
 
   // Set a window as having an active pointer grab.  This is handy when
@@ -347,18 +347,18 @@ class MockXConnection : public XConnection {
 
   // Append an event to the queue used by IsEventPending() and
   // GetNextEvent() and optionally write a single byte to
-  // 'connection_pipe_fds_' (not writing allows us to simulate the case
+  // |connection_pipe_fds_| (not writing allows us to simulate the case
   // where Xlib has read the FD itself before we had a chance to see it
   // become ready).
   void AppendEventToQueue(const XEvent& event, bool write_to_fd);
 
   // Register a callback to be invoked whenever a given property on a given
-  // window is changed.  Takes ownership of 'cb'.
+  // window is changed.  Takes ownership of |cb|.
   void RegisterPropertyCallback(
       XWindow xid, XAtom xatom, Closure* cb);
 
   // Helper methods tests can use to initialize events.
-  // 'x' and 'y' are relative to the window.
+  // |x| and |y| are relative to the window.
   void InitButtonEvent(XEvent* event,
                        XWindow xid,
                        const Point& pos,
@@ -412,7 +412,7 @@ class MockXConnection : public XConnection {
                              XWindow drawable,
                              const Rect& bounds) const;
   void InitDestroyWindowEvent(XEvent* event, XWindow xid) const;
-  // 'x' and 'y' are relative to the window.
+  // |x| and |y| are relative to the window.
   void InitEnterOrLeaveWindowEvent(XEvent* event,
                                    XWindow xid,
                                    const Point& pos,
@@ -442,10 +442,10 @@ class MockXConnection : public XConnection {
   bool UngrabServerImpl() { return true; }
 
   // Helper method used by GetNextEvent() and PeekNextEvent().
-  // Copies the first event in 'queued_events_' to 'event', reads from
-  // 'connection_pipe_fds_' if possible to simulate draining the connection
-  // to the X server, and removes the event from 'queued_events_' if
-  // 'remove_from_queue' is true.
+  // Copies the first event in |queued_events_| to |event|, reads from
+  // |connection_pipe_fds_| if possible to simulate draining the connection
+  // to the X server, and removes the event from |queued_events_| if
+  // |remove_from_queue| is true.
   void GetEventInternal(XEvent* event, bool remove_from_queue);
 
   // Map from IDs to info about the corresponding windows or pixmaps.
@@ -507,14 +507,14 @@ class MockXConnection : public XConnection {
   // that EventLoop can epoll() on it.
   int connection_pipe_fds_[2];
 
-  // Is there currently a byte written to 'connection_pipe_fds_'?
+  // Is there currently a byte written to |connection_pipe_fds_|?
   bool connection_pipe_has_data_;
 
   // Event queue used by IsEventPending() and GetNextEvent().
   std::queue<XEvent> queued_events_;
 
   // The number of times that UngrabPointer() has been invoked with
-  // 'replay_events' set to true.
+  // |replay_events| set to true.
   int num_pointer_ungrabs_with_replayed_events_;
 
   // IDs and values of Sync extension counters.

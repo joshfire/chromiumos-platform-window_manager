@@ -34,11 +34,11 @@ using window_manager::util::XidStr;
 namespace window_manager {
 
 // Used by RealXConnection's constructor to negotiate the version of an X
-// extension that we'll be using with the X server.  'name' is the
+// extension that we'll be using with the X server.  |name| is the
 // extension's name as it appears in XCB, e.g. "damage" for
-// xcb_damage_query_version(); 'request' is the request name as it appears
+// xcb_damage_query_version(); |request| is the request name as it appears
 // in XCB, i.e. "initialize" for some extensions and "query_version" for
-// others; and 'major' and 'minor' specify the minimum version of the
+// others; and |major| and |minor| specify the minimum version of the
 // extension to be accepted.
 #define INIT_XCB_EXTENSION(name, request, major, minor)                        \
   do {                                                                         \
@@ -852,7 +852,7 @@ bool RealXConnection::SetIntArrayProperty(
       xid,
       xatom,
       type,
-      kLongFormat,  // size in bits of items in 'values'
+      kLongFormat,  // size in bits of items in |values|
       values.size(),
       values.data());
   return true;
@@ -891,7 +891,7 @@ bool RealXConnection::SetStringProperty(
       xid,
       xatom,
       utf8_string_atom_,
-      kByteFormat,  // size in bits of items in 'value'
+      kByteFormat,  // size in bits of items in |value|
       value.size(),
       value.data());
   return true;
@@ -1163,7 +1163,7 @@ void RealXConnection::RefreshKeyboardMap(int request,
                                          KeyCode first_keycode,
                                          int count) {
   // Fill an event with enough data for XRefreshKeyboardMapping() to use it
-  // (technically, the 'display' and 'request' fields look like they're all
+  // (technically, the |display| and |request| fields look like they're all
   // it actually uses).
   XMappingEvent event;
   memset(&event, 0, sizeof(event));

@@ -97,8 +97,8 @@ class AtomCache {
 
   // Maps from our Atom enum to the X server's atom IDs and from the
   // server's IDs to atoms' string names.  These maps aren't necessarily in
-  // sync; 'atom_to_xatom_' is constant after the constructor finishes but
-  // GetName() caches additional string mappings in 'xatom_to_string_'.
+  // sync; |atom_to_xatom_| is constant after the constructor finishes but
+  // GetName() caches additional string mappings in |xatom_to_string_|.
   base::hash_map<int, XAtom> atom_to_xatom_;
   base::hash_map<XAtom, std::string> xatom_to_string_;
 

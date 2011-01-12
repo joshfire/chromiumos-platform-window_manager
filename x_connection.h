@@ -165,7 +165,7 @@ class XConnection {
   virtual bool MapWindow(XWindow xid) = 0;
   virtual bool UnmapWindow(XWindow xid) = 0;
 
-  // Move or resize a window.  'width' and 'height' must be positive.
+  // Move or resize a window.  |width| and |height| must be positive.
   virtual bool MoveWindow(XWindow xid, const Point& pos) = 0;
   virtual bool ResizeWindow(XWindow xid, const Size& size) = 0;
   virtual bool ConfigureWindow(XWindow xid, const Rect& bounds) = 0;
@@ -181,7 +181,7 @@ class XConnection {
   // Stack a window directly above or below another window.
   virtual bool StackWindow(XWindow xid, XWindow other, bool above) = 0;
 
-  // Give keyboard focus to a window.  'event_time' should be the
+  // Give keyboard focus to a window.  |event_time| should be the
   // server-supplied time of the event that caused the window to be
   // focused.
   virtual bool FocusWindow(XWindow xid, XTime event_time) = 0;
@@ -194,7 +194,7 @@ class XConnection {
   // Set the width of a window's border.
   virtual bool SetWindowBorderWidth(XWindow xid, int width) = 0;
 
-  // Select input events on a window.  If 'preserve_existing' is true, the
+  // Select input events on a window.  If |preserve_existing| is true, the
   // existing input selection for the window will be preserved.
   virtual bool SelectInputOnWindow(XWindow xid,
                                    int event_mask,
@@ -218,12 +218,12 @@ class XConnection {
 
   // Install a passive button grab on a window.  When the specified button
   // is pressed, an active pointer grab will be installed.  Only events
-  // matched by 'event_mask' will be reported.  If 'synchronous' is false,
+  // matched by |event_mask| will be reported.  If |synchronous| is false,
   // when all of the buttons are released, the pointer grab will be
-  // automatically removed.  If 'synchronous' is true, no further pointer
+  // automatically removed.  If |synchronous| is true, no further pointer
   // events will be reported until the the pointer grab is manually removed
   // using UngrabPointer() -- this is useful in conjunction with
-  // UngrabPointer()'s 'replay_events' parameter to send initial clicks to
+  // UngrabPointer()'s |replay_events| parameter to send initial clicks to
   // client apps when implementing click-to-focus behavior.
   virtual bool AddButtonGrabOnWindow(XWindow xid,
                                      int button,
@@ -234,7 +234,7 @@ class XConnection {
   virtual bool RemoveButtonGrabOnWindow(XWindow xid, int button) = 0;
 
   // Grab the pointer asynchronously, such that all subsequent events matching
-  // 'event_mask' will be reported to the calling client.  If 'cursor' is
+  // |event_mask| will be reported to the calling client.  If |cursor| is
   // non-zero, it will be displayed for the duration of the grab.  Returns false
   // if an error occurs or if the grab fails (e.g. because it's already grabbed
   // by another client).
@@ -244,7 +244,7 @@ class XConnection {
                            XID cursor) = 0;
 
   // Remove a pointer grab, possibly also replaying the pointer events that
-  // occurred during it if it was synchronous and 'replay_events' is true
+  // occurred during it if it was synchronous and |replay_events| is true
   // (sending them to the original window instead of just to the grabbing
   // client).
   virtual bool UngrabPointer(bool replay_events, XTime timestamp) = 0;
@@ -285,7 +285,7 @@ class XConnection {
   // below the screensaver window but above all other windows).
   virtual XWindow GetCompositingOverlayWindow(XWindow root) = 0;
 
-  // Create a pixmap on the same screen as 'drawable'.
+  // Create a pixmap on the same screen as |drawable|.
   virtual XPixmap CreatePixmap(XDrawable drawable,
                                const Size& size,
                                int depth) = 0;
@@ -307,9 +307,9 @@ class XConnection {
   virtual XWindow GetRootWindow() = 0;
 
   // Create a new window.  The width and height must be positive.
-  // 'event_mask' determines which events the window receives; it takes
+  // |event_mask| determines which events the window receives; it takes
   // values from the "Input Event Masks" section of X.h.  The window is a
-  // child of 'parent'.  'visual' can be either the ID of the desired
+  // child of |parent|.  |visual| can be either the ID of the desired
   // visual, or 0 to mean copy-from-parent.
   virtual XWindow CreateWindow(XWindow parent,
                                const Rect& bounds,
@@ -344,12 +344,12 @@ class XConnection {
   // Wrapper around GetAtom() that dies if the lookup fails.
   XAtom GetAtomOrDie(const std::string& name);
 
-  // Look up all of the atoms in 'names' in the X server, creating them if
+  // Look up all of the atoms in |names| in the X server, creating them if
   // necessary, and return the corresponding atom X IDs.
   virtual bool GetAtoms(const std::vector<std::string>& names,
                         std::vector<XAtom>* atoms_out) = 0;
 
-  // Get the name of the passed-in atom, saving it to 'name'.  Returns
+  // Get the name of the passed-in atom, saving it to |name|.  Returns
   // false if the atom isn't present in the server.
   virtual bool GetAtomName(XAtom atom, std::string* name) = 0;
 
@@ -386,17 +386,17 @@ class XConnection {
   virtual bool IsEventPending() = 0;
 
   // Get the next event and remove it from the queue, blocking if one isn't
-  // available.  'event' is actually a pointer to an XEvent; we just don't
+  // available.  |event| is actually a pointer to an XEvent; we just don't
   // want to include Xlib.h here. :-(
   virtual void GetNextEvent(void* event) = 0;
 
   // Gets the next event without removing it from the queue, blocking if
-  // one isn't available.  'event' is a pointer to an XEvent.
+  // one isn't available.  |event| is a pointer to an XEvent.
   virtual void PeekNextEvent(void* event) = 0;
 
   // Send a ClientMessage event with 32-bit data to a window.  If
-  // 'event_mask' is 0, the event is sent to the client that created
-  // 'dest_xid'; otherwise the event is sent to all clients selecting any
+  // |event_mask| is 0, the event is sent to the client that created
+  // |dest_xid|; otherwise the event is sent to all clients selecting any
   // of the event types included in the mask.
   virtual bool SendClientMessageEvent(XWindow dest_xid,
                                       XWindow xid,
@@ -415,12 +415,12 @@ class XConnection {
                                         XWindow above_xid,
                                         bool override_redirect) = 0;
 
-  // Block until 'xid' is gone.  (You must select StructureNotify on the
+  // Block until |xid| is gone.  (You must select StructureNotify on the
   // window first.)
   virtual bool WaitForWindowToBeDestroyed(XWindow xid) = 0;
 
   // Wait for the next PropertyNotify event on the passed-in window.  If
-  // 'timestamp_out' is non-NULL, the timestamp from the event is copied
+  // |timestamp_out| is non-NULL, the timestamp from the event is copied
   // there.
   virtual bool WaitForPropertyChange(XWindow xid, XTime* timestamp_out) = 0;
 
@@ -437,11 +437,11 @@ class XConnection {
                         scoped_ptr_malloc<uint8_t>* data_out,
                         ImageFormat* format_out) = 0;
 
-  // Change the cursor for a window.  'shape' is a definition from
+  // Change the cursor for a window.  |shape| is a definition from
   // Xlib's cursorfont.h header.
   virtual bool SetWindowCursor(XWindow xid, XID cursor) = 0;
 
-  // Create a cursor based in a given standard style.  'shape' is a definition
+  // Create a cursor based in a given standard style.  |shape| is a definition
   // from Xlib's cursorfont.h header.
   virtual XID CreateShapedCursor(uint32 shape) = 0;
 
@@ -452,7 +452,7 @@ class XConnection {
   // CreateTransparentCursor().
   virtual void FreeCursor(XID cursor) = 0;
 
-  // Get the parent window of 'xid'.  Sets 'parent_out' to 0 if passed the
+  // Get the parent window of |xid|.  Sets |parent_out| to 0 if passed the
   // root window.
   virtual bool GetParentWindow(XWindow xid, XWindow* parent_out) = 0;
 
@@ -488,7 +488,7 @@ class XConnection {
   virtual void SetSyncCounter(XID counter_id, int64_t value) = 0;
 
   // Create an alarm for a Sync extension counter, such that we'll be
-  // notified when the counter reaches 'initial_trigger_value'.  Returns
+  // notified when the counter reaches |initial_trigger_value|.  Returns
   // the ID of the alarm.
   virtual XID CreateSyncCounterAlarm(XID counter_id,
                                      int64_t initial_trigger_value) = 0;
@@ -514,7 +514,7 @@ class XConnection {
   // http://bugs.freedesktop.org/show_bug.cgi?id=22515).
   virtual bool SetDetectableKeyboardAutoRepeat(bool detectable) = 0;
 
-  // Get the pressed-vs.-not-pressed state of all keys.  'keycodes_out' is
+  // Get the pressed-vs.-not-pressed state of all keys.  |keycodes_out| is
   // a 256-bit vector representing the logical state of the keyboard (read:
   // keycodes, not keysyms), with bits set to 1 for depressed keys.
   virtual bool QueryKeyboardState(std::vector<uint8_t>* keycodes_out) = 0;
@@ -529,7 +529,7 @@ class XConnection {
   // Query the pointer's current position relative to the root window.
   virtual bool QueryPointerPosition(Point* absolute_pos_out) = 0;
 
-  // Value that should be used in event and property 'format' fields for
+  // Value that should be used in event and property |format| fields for
   // byte and long arguments.
   static const int kByteFormat;
   static const int kLongFormat;

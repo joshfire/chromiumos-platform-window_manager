@@ -115,26 +115,26 @@ class PanelBar : public PanelContainer {
 
     // X position of the right edge of where the panel wants to be.
     //
-    // For panels in 'packed_panels_', this is the panel's snapped
+    // For panels in |packed_panels_|, this is the panel's snapped
     // position.  While the panel is being dragged, this may be different
     // from its actual composited position -- we only snap the panels to
     // this position when the drag is complete.
     //
-    // For panels in 'floating_panels_', this is the position where the
+    // For panels in |floating_panels_|, this is the position where the
     // user last dropped the panel.  The panel may be displaced to either
     // side if another panel is dropped on top of it, or may be pushed to
     // the left by the main group of packed panels.
     int desired_right;
 
-    // Is this panel in 'floating_panels_' (as opposed to
-    // 'packed_panels_')?
+    // Is this panel in |floating_panels_| (as opposed to
+    // |packed_panels_|)?
     bool is_floating;
   };
 
   typedef std::set<Panel*> PanelSet;
   typedef std::vector<Panel*> PanelVector;
 
-  // Is 'collapsed_panel_state_' such that collapsed panels are currently
+  // Is |collapsed_panel_state_| such that collapsed panels are currently
   // hidden offscreen?
   bool CollapsedPanelsAreHidden() const {
     return collapsed_panel_state_ == COLLAPSED_PANEL_STATE_HIDDEN ||
@@ -153,15 +153,15 @@ class PanelBar : public PanelContainer {
   // urgent flag is set, etc.).
   int ComputePanelY(const Panel& panel);
 
-  // Ensure that a panel is in either 'packed_panels_' or
-  // 'floating_panels_', removing it from the other array if we need to
-  // move it.  Also updates 'info->is_floating' and makes sure that the
+  // Ensure that a panel is in either |packed_panels_| or
+  // |floating_panels_|, removing it from the other array if we need to
+  // move it.  Also updates |info->is_floating| and makes sure that the
   // panel is inserted at the correct position in the vector.  Returns true
   // if the panel was moved and false otherwise.
   bool MovePanelToPackedVector(Panel* panel, PanelInfo* info);
   bool MovePanelToFloatingVector(Panel* panel, PanelInfo* info);
 
-  // Expand a panel.  If 'create_anchor' is true, we additionally create an
+  // Expand a panel.  If |create_anchor| is true, we additionally create an
   // anchor for it.
   void ExpandPanel(Panel* panel, bool create_anchor, int anim_ms);
 
@@ -169,14 +169,14 @@ class PanelBar : public PanelContainer {
   void CollapsePanel(Panel* panel, int anim_ms);
 
   // Focus the passed-in panel's content window.
-  // Also updates 'desired_panel_to_focus_'.
+  // Also updates |desired_panel_to_focus_|.
   void FocusPanel(Panel* panel, XTime timestamp);
 
   // Get the panel with the passed-in content or titlebar window.
   // Returns NULL for unknown windows.
   Panel* GetPanelByWindow(const Window& win);
 
-  // Get an iterator to the panel containing 'win' (either a content or
+  // Get an iterator to the panel containing |win| (either a content or
   // titlebar window) from the passed-in vector.  Returns panels.end() if
   // the panel isn't present.
   static PanelVector::iterator FindPanelInVectorByWindow(
@@ -185,7 +185,7 @@ class PanelBar : public PanelContainer {
   // Handle the end of a panel drag.
   void HandlePanelDragComplete(Panel* panel);
 
-  // Update the position of 'panel_to_reorder' within 'panels' based on its
+  // Update the position of |panel_to_reorder| within |panels| based on its
   // current position.  Note that the panel doesn't actually get moved to a
   // new position onscreen; we just rotate it to the spot where it should
   // be in the vector -- ArrangePanels() must be called afterwards to pack
@@ -194,25 +194,25 @@ class PanelBar : public PanelContainer {
   static bool ReorderPanelInVector(Panel* panel_to_reorder,
                                    PanelVector* panels);
 
-  // Pack all panels in 'packed_panels_' with the exception of
-  // 'dragged_panel_' (if non-NULL) towards the right.  We reserve space
-  // for 'dragged_panel_' and update its desired/snapped position, but we
+  // Pack all panels in |packed_panels_| with the exception of
+  // |dragged_panel_| (if non-NULL) towards the right.  We reserve space
+  // for |dragged_panel_| and update its desired/snapped position, but we
   // don't update its actual position.
   //
-  // If 'arrange_floating' is true, floating ("independently positioned")
+  // If |arrange_floating| is true, floating ("independently positioned")
   // panels are also arranged.  All floating panels are shifted to the left
   // as needed so as to not overlap the main group of packed panels, and
   // they're also arranged so as to not overlap each other.  If
-  // 'fixed_floating_panel' is non-NULL, its current position takes
+  // |fixed_floating_panel| is non-NULL, its current position takes
   // precedence over that of other panels -- see
   // UpdateFloatingPanelDesiredPositions() for details.
   void ArrangePanels(bool arrange_floating, Panel* fixed_floating_panel);
 
-  // When a floating panel was just dropped (let's call it 'fixed_panel'
+  // When a floating panel was just dropped (let's call it |fixed_panel|
   // here), we sometimes need to move some of the floating panels that are
   // to its right to make room for it.  If there's not enough room for
   // them, we may need to move some of them to the fixed panel's left.
-  // This method is used by ArrangePanels() to do that.  'right_boundary'
+  // This method is used by ArrangePanels() to do that.  |right_boundary|
   // is the rightmost position that a floating panel's right edge can take
   // (typically the left edge of the main group of packed panels plus some
   // padding).
@@ -226,14 +226,14 @@ class PanelBar : public PanelContainer {
   // Destroy the anchor.
   void DestroyAnchor();
 
-  // Get the expanded panel closest to 'panel', or NULL if there are no
-  // other expanded panels (or if 'panel' isn't expanded).
+  // Get the expanded panel closest to |panel|, or NULL if there are no
+  // other expanded panels (or if |panel| isn't expanded).
   Panel* GetNearestExpandedPanel(Panel* panel);
 
-  // Move 'show_collapsed_panels_input_xid_' onscreen or offscreen.
+  // Move |show_collapsed_panels_input_xid_| onscreen or offscreen.
   void ConfigureShowCollapsedPanelsInputWindow(bool move_onscreen);
 
-  // Initialize 'hide_collapsed_panels_pointer_watcher_' to call
+  // Initialize |hide_collapsed_panels_pointer_watcher_| to call
   // HideCollapsedPanels() as soon as it sees the pointer move too far away
   // from the bottom of the screen.
   void StartHideCollapsedPanelsWatcher();
@@ -243,16 +243,16 @@ class PanelBar : public PanelContainer {
 
   // Hide everything but the very top of collapsed panels' titlebars.  If a
   // collapsed panel is being dragged, defers hiding them and sets
-  // 'collapsed_panel_state_' to COLLAPSED_PANEL_STATE_WAITING_TO_HIDE
+  // |collapsed_panel_state_| to COLLAPSED_PANEL_STATE_WAITING_TO_HIDE
   // instead.
   void HideCollapsedPanels();
 
-  // If 'show_collapsed_panels_timeout_id_' is set, disable the timeout and
+  // If |show_collapsed_panels_timeout_id_| is set, disable the timeout and
   // clear the variable.
   void DisableShowCollapsedPanelsTimeout();
 
   // Invoke ShowCollapsedPanels() and clear
-  // 'show_collapsed_panels_timeout_id_'.
+  // |show_collapsed_panels_timeout_id_|.
   void HandleShowCollapsedPanelsTimeout();
 
   PanelManager* panel_manager_;  // not owned
@@ -278,7 +278,7 @@ class PanelBar : public PanelContainer {
   // The panel that's currently being dragged, or NULL if none is.
   Panel* dragged_panel_;
 
-  // Is 'dragged_panel_' being dragged horizontally (as opposed to
+  // Is |dragged_panel_| being dragged horizontally (as opposed to
   // vertically)?
   bool dragging_panel_horizontally_;
 
@@ -308,7 +308,7 @@ class PanelBar : public PanelContainer {
     COLLAPSED_PANEL_STATE_HIDDEN,
 
     // Hiding the titlebars, but we'll show them after
-    // 'show_collapsed_panels_timeout_id_' fires.
+    // |show_collapsed_panels_timeout_id_| fires.
     COLLAPSED_PANEL_STATE_WAITING_TO_SHOW,
 
     // Showing the titlebars, but the pointer has moved up from the bottom
@@ -323,7 +323,7 @@ class PanelBar : public PanelContainer {
   XWindow show_collapsed_panels_input_xid_;
 
   // ID of a timeout that we use to delay calling ShowCollapsedPanels()
-  // after the pointer enters 'show_collapsed_panels_input_xid_', or -1 if
+  // after the pointer enters |show_collapsed_panels_input_xid_|, or -1 if
   // unset.
   int show_collapsed_panels_timeout_id_;
 

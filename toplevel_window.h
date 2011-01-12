@@ -60,8 +60,8 @@ class LayoutManager::ToplevelWindow {
   void SetState(State state);
 
   // Updates the layout of this window based on its current state.  If
-  // animate is true, then animate the window from 'last_state_' to
-  // 'state_'; otherwise just jump to the new state.
+  // animate is true, then animate the window from |last_state_| to
+  // |state_|; otherwise just jump to the new state.
   void UpdateLayout(bool animate);
 
   // Focus this window (or maybe one of its transients).
@@ -124,7 +124,7 @@ class LayoutManager::ToplevelWindow {
   void SetFullscreenState(bool fullscreen);
 
   // Display an animation where the window tries to slide offscreen (to the
-  // left if 'move_to_left' is true or to the right otherwise) but then
+  // left if |move_to_left| is true or to the right otherwise) but then
   // bounces back.  Used when the user tries to cycle toplevels while only
   // one toplevel is present.  Only makes sense when in
   // STATE_ACTIVE_MODE_ONSCREEN.
@@ -135,8 +135,8 @@ class LayoutManager::ToplevelWindow {
 
   // Configure the window for active mode.  This involves either
   // moving the client window on- or offscreen (depending on
-  // 'window_is_active') and animating the composited window according
-  // to 'state_'.
+  // |window_is_active|) and animating the composited window according
+  // to |state_|.
   void ConfigureForActiveMode(bool animate);
 
   // Configure the window for overview mode.  This involves moving its

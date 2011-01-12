@@ -48,7 +48,7 @@ class OpenGlPixmapData : public TextureData {
   bool Init(RealCompositor::TexturePixmapActor* actor);
 
  private:
-  // Fetch the contents of 'pixmap_' from the X server and copy them to our
+  // Fetch the contents of |pixmap_| from the X server and copy them to our
   // texture.  This is the slower implementation used when the
   // texture-from-pixmap extension is unavailable.  Returns true on success.
   bool CopyPixmapImageToTexture();
@@ -63,8 +63,8 @@ class OpenGlPixmapData : public TextureData {
   // texture-from-pixmap extension is available.
   GLXPixmap glx_pixmap_;
 
-  // Dimensions and depth of 'pixmap_'.  This is only initialized if
-  // 'glx_pixmap_' isn't being used.
+  // Dimensions and depth of |pixmap_|.  This is only initialized if
+  // |glx_pixmap_| isn't being used.
   XConnection::WindowGeometry pixmap_geometry_;
 };
 

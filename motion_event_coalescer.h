@@ -17,7 +17,7 @@ class EventLoop;
 // new motion events have been received).
 class MotionEventCoalescer {
  public:
-  // The constructor takes ownership of 'cb'.
+  // The constructor takes ownership of |cb|.
   MotionEventCoalescer(EventLoop* event_loop, Closure* cb, int timeout_ms);
   ~MotionEventCoalescer();
 
@@ -43,7 +43,7 @@ class MotionEventCoalescer {
 
  private:
   // Invoked by Stop() and by the destructor to remove the timer.  If
-  // 'maybe_run_callback' is true, the callback will be invoked one last
+  // |maybe_run_callback| is true, the callback will be invoked one last
   // time if a new position has been received but not yet handled (the
   // destructor passes false here; running the callback may be dangerous if
   // parts of the owning class have already been destroyed).

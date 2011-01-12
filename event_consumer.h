@@ -130,7 +130,7 @@ class EventConsumer {
 
   // Handle a regular X ClientMessage event from a client app.
   // These events are sent to consumers that have expressed interest in
-  // events on the window referenced in the event's 'window' field.
+  // events on the window referenced in the event's |window| field.
   virtual void HandleClientMessage(XWindow xid,
                                    XAtom message_type,
                                    const long data[5]) = 0;
@@ -146,7 +146,7 @@ class EventConsumer {
   // interest in owning a not-yet-destroyed window (but see also
   // EventConsumerRegistrar::RegisterForDestroyedWindow()).
   //
-  // 'xid' shouldn't be used for anything other than passing to
+  // |xid| shouldn't be used for anything other than passing to
   // EventConsumerRegistrar::HandleDestroyedWindow(), since it refers to a
   // window that no longer exists (and the ID may soon be recycled for a
   // new window).

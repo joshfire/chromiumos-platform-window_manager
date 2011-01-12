@@ -118,14 +118,14 @@ class LayoutManager::SnapshotWindow {
     return layout_manager_->y() + layout_manager_->height();
   }
 
-  // Set 'overview_x_' and 'overview_y_' to the passed-in values.
+  // Set |overview_x_| and |overview_y_| to the passed-in values.
   void SetPosition(int x, int y) {
     overview_x_ = x;
     overview_y_ = y;
   }
 
   // Update the stored size of the composited window such that it fits
-  // in the dimensions 'max_width' and 'max_height'.
+  // in the dimensions |max_width| and |max_height|.
   void SetSize(int max_width, int max_height);
 
   // Handle this snapshot window's input window getting a button
@@ -142,14 +142,14 @@ class LayoutManager::SnapshotWindow {
   int CalculateOverallIndex() const;
 
   // Configure the window for active mode.  This animating the
-  // composited window according to 'state_', and fading out to reveal
+  // composited window according to |state_|, and fading out to reveal
   // the active toplevel window (which should be in place after
   // animating its own configuration to active mode).
   void ConfigureForActiveMode(bool animate);
 
   // Configure the window for overview mode.  This involves animating its
-  // composited position and scale as specified by 'overview_*' and
-  // 'state_', and moving its input window onscreen.
+  // composited position and scale as specified by |overview_*| and
+  // |state_|, and moving its input window onscreen.
   void ConfigureForOverviewMode(bool animate);
 
   // Window object for the snapshot client window.

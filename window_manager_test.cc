@@ -514,7 +514,7 @@ TEST_F(WindowManagerTest, StackOverrideRedirectWindowsAboveLayers) {
 
 // Test that we honor ConfigureRequest events that change an unmapped
 // window's size, and that we ignore fields that are unset in its
-// 'value_mask' field.
+// |value_mask| field.
 TEST_F(WindowManagerTest, ConfigureRequestResize) {
   XWindow xid = CreateSimpleWindow();
   MockXConnection::WindowInfo* info = xconn_->GetWindowInfoOrDie(xid);

@@ -121,11 +121,11 @@ class WindowManager : public PanelManagerAreaChangeListener,
   bool Init();
 
   // Handle notification from Chrome that the logged-in state has changed.
-  // 'initial' is true when this method is invoked by Init() and false when
+  // |initial| is true when this method is invoked by Init() and false when
   // it is invoked later in response to a property change.
   void SetLoggedInState(bool logged_in, bool initial);
 
-  // Process all pending events from 'x_conn_', invoking HandleEvent() for each.
+  // Process all pending events from |x_conn_|, invoking HandleEvent() for each.
   void ProcessPendingEvents();
 
   // Handle an event from the X server.
@@ -151,7 +151,7 @@ class WindowManager : public PanelManagerAreaChangeListener,
   // event that doesn't contain a timestamp.
   XTime GetCurrentTimeFromServer();
 
-  // Look up a window in 'client_windows_'.  The first version returns NULL
+  // Look up a window in |client_windows_|.  The first version returns NULL
   // if the window doesn't exist, while the second crashes.
   Window* GetWindow(XWindow xid);
   Window* GetWindowOrDie(XWindow xid);
@@ -223,7 +223,7 @@ class WindowManager : public PanelManagerAreaChangeListener,
   void UnregisterEventConsumerForDestroyedWindow(
       XWindow xid, EventConsumer* event_consumer);
 
-  // Register or unregister a mapping in 'sync_alarms_to_windows_' between
+  // Register or unregister a mapping in |sync_alarms_to_windows_| between
   // a Sync extension alarm and the window that created it.
   void RegisterSyncAlarm(XID alarm_id, Window* win);
   void UnregisterSyncAlarm(XID alarm_id);
@@ -249,7 +249,7 @@ class WindowManager : public PanelManagerAreaChangeListener,
   // number of toplevel windows plus the number of panels.
   int GetNumWindows() const;
 
-  // Reset 'login_controller_' to NULL.  The login controller itself calls
+  // Reset |login_controller_| to NULL.  The login controller itself calls
   // this once the user has logged in and we've seen the first Chrome
   // window come up.  Note that this actually posts
   // DestroyLoginControllerInternal() to the event loop; we're probably
@@ -263,13 +263,13 @@ class WindowManager : public PanelManagerAreaChangeListener,
 
  private:
   friend class BasicWindowManagerTest;
-  friend class LayoutManagerTest;         // uses 'layout_manager_'
-  friend class LoginControllerTest;       // uses 'login_controller_'
-  friend class PanelTest;                 // uses 'panel_manager_'
-  friend class PanelBarTest;              // uses 'panel_manager_'
-  friend class PanelDockTest;             // uses 'panel_manager_'
-  friend class PanelManagerTest;          // uses 'panel_manager_'
-  friend class ScreenLockerHandlerTest;   // uses 'screen_locker_handler_'
+  friend class LayoutManagerTest;         // uses |layout_manager_|
+  friend class LoginControllerTest;       // uses |login_controller_|
+  friend class PanelTest;                 // uses |panel_manager_|
+  friend class PanelBarTest;              // uses |panel_manager_|
+  friend class PanelDockTest;             // uses |panel_manager_|
+  friend class PanelManagerTest;          // uses |panel_manager_|
+  friend class ScreenLockerHandlerTest;   // uses |screen_locker_handler_|
   FRIEND_TEST(ChromeWatchdogTest, Basic);
   FRIEND_TEST(LayoutManagerTest, Basic);  // uses TrackWindow()
   FRIEND_TEST(LayoutManagerTest, OverviewSpacing);
@@ -304,9 +304,9 @@ class WindowManager : public PanelManagerAreaChangeListener,
   // Are we in the process of shutting down or signing out?
   bool IsSessionEnding() const;
 
-  // Get a manager selection as described in ICCCM section 2.8.  'atom' is
-  // the selection to take, 'manager_win' is the window acquiring the
-  // selection, and 'timestamp' is the current time.
+  // Get a manager selection as described in ICCCM section 2.8.  |atom| is
+  // the selection to take, |manager_win| is the window acquiring the
+  // selection, and |timestamp| is the current time.
   bool GetManagerSelection(
       XAtom atom, XWindow manager_win, XTime timestamp);
 
@@ -319,7 +319,7 @@ class WindowManager : public PanelManagerAreaChangeListener,
   bool SetEwmhGeneralProperties();
 
   // Set EWMH properties on the root window relating to the current screen
-  // size (as stored in 'width_' and 'height_'): _NET_DESKTOP_GEOMETRY,
+  // size (as stored in |width_| and |height_|): _NET_DESKTOP_GEOMETRY,
   // _NET_DESKTOP_VIEWPORT, and _NET_WORKAREA (by way of calling
   // SetEwmhWorkareaProperty()).
   bool SetEwmhSizeProperties();
@@ -336,7 +336,7 @@ class WindowManager : public PanelManagerAreaChangeListener,
   bool ManageExistingWindows();
 
   // Start tracking this window (more specifically, create a Window object
-  // for it and register it in 'client_windows_').  Returns NULL for
+  // for it and register it in |client_windows_|).  Returns NULL for
   // windows that we specifically shouldn't track (e.g. the compositor's
   // stage or the compositing overlay window).
   Window* TrackWindow(XWindow xid, bool override_redirect,
@@ -351,7 +351,7 @@ class WindowManager : public PanelManagerAreaChangeListener,
   // Handle the screen being resized.
   void HandleScreenResize(int new_width, int new_height);
 
-  // Set the WM_STATE property on a window.  Per ICCCM 4.1.3.1, 'state' can
+  // Set the WM_STATE property on a window.  Per ICCCM 4.1.3.1, |state| can
   // be 0 (WithdrawnState), 1 (NormalState), or 3 (IconicState).  Per
   // 4.1.4, IconicState means that the toplevel window isn't viewable, so
   // we should use NormalState even when drawing a scaled-down version of
@@ -399,7 +399,7 @@ class WindowManager : public PanelManagerAreaChangeListener,
   // Callback to show or hide the hotkey overlay images.
   void ToggleHotkeyOverlay();
 
-  // Write a screenshot to disk.  If 'use_active_window' is true, the
+  // Write a screenshot to disk.  If |use_active_window| is true, the
   // screenshot will contain the currently-active client window's offscreen
   // pixmap.  Otherwise, the composited image from the root window will be
   // captured.
@@ -410,15 +410,15 @@ class WindowManager : public PanelManagerAreaChangeListener,
   // server and pass it to the overlay.
   void QueryKeyboardState();
 
-  // Initialize 'startup_background_' to hold a new actor that displays the
+  // Initialize |startup_background_| to hold a new actor that displays the
   // initial contents of the root window.  Called by Init().
   void CreateStartupBackground();
 
-  // Callback that fades out 'unaccelerated_graphics_actor_'.
+  // Callback that fades out |unaccelerated_graphics_actor_|.
   void HideUnacceleratedGraphicsActor();
 
-  // Reshape 'overlay_xid_' to be transparent, redirect
-  // 'unredirected_fullscreen_xid_', and tell the compositor to stop drawing.
+  // Reshape |overlay_xid_| to be transparent, redirect
+  // |unredirected_fullscreen_xid_|, and tell the compositor to stop drawing.
   // We want Compositor::Draw() to finish drawing the current frame before we
   // disable compositing, so that the content on screen is refreshed.  We post
   // this method to the event loop from HandleTopFullscreenActorChange().
@@ -428,7 +428,7 @@ class WindowManager : public PanelManagerAreaChangeListener,
   // DestroyLoginController().  This actually does the deleting.
   void DestroyLoginControllerInternal();
 
-  // Callback invoked by 'chrome_watchdog_timeout_id_' to call
+  // Callback invoked by |chrome_watchdog_timeout_id_| to call
   // chrome_watchdog_->SendPingToChrome().
   void PingChrome();
 
@@ -460,7 +460,7 @@ class WindowManager : public PanelManagerAreaChangeListener,
   // initial contents of the root window.  We use this as a background.
   scoped_ptr<Compositor::TexturePixmapActor> startup_background_;
 
-  // This is the pixmap that gets displayed by 'startup_background_'.
+  // This is the pixmap that gets displayed by |startup_background_|.
   // We copy the root window here.
   XPixmap startup_pixmap_;
 
@@ -487,7 +487,7 @@ class WindowManager : public PanelManagerAreaChangeListener,
 
   // All immediate children of the root window (even ones that we don't
   // "track", in the sense of having Window objects for them in
-  // 'client_windows_') in top-to-bottom stacking order.  EWMH's
+  // |client_windows_|) in top-to-bottom stacking order.  EWMH's
   // _NET_CLIENT_LIST_STACKING property contains the managed (i.e. not
   // override-redirect) windows from this list.
   scoped_ptr<Stacker<XWindow> > stacked_xids_;

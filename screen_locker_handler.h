@@ -89,7 +89,7 @@ class ScreenLockerHandler : public EventConsumer {
   // pre-lock and pre-shutdown states.
   static const float kSlowCloseSizeRatio;
 
-  // Is there a window in 'screen_locker_xids_' whose initial pixmap has
+  // Is there a window in |screen_locker_xids_| whose initial pixmap has
   // been loaded?
   bool HasWindowWithInitialPixmap() const;
 
@@ -125,16 +125,16 @@ class ScreenLockerHandler : public EventConsumer {
   void HandleAbortedShutdown();
 
   // Handle notification that the current session is ending (either due to
-  // shutdown if 'shutting_down' is true or due to signout otherwise).  We set
+  // shutdown if |shutting_down| is true or due to signout otherwise).  We set
   // the pointer to use a transparent cursor, grab the keyboard and pointer, and
   // display an animation.
   void HandleSessionEnding(bool shutting_down);
 
   // Try to grab the pointer and keyboard if they aren't grabbed already.
-  // Once they're both grabbed, unregisters 'grab_inputs_timeout_id_'.
+  // Once they're both grabbed, unregisters |grab_inputs_timeout_id_|.
   void TryToGrabInputs();
 
-  // If 'snapshot_actor_' is unset, grab and display a snapshot of the current
+  // If |snapshot_actor_| is unset, grab and display a snapshot of the current
   // contents of the screen.
   void SetUpSnapshot();
 
@@ -148,7 +148,7 @@ class ScreenLockerHandler : public EventConsumer {
   void StartUndoSlowCloseAnimation();
 
   // Animate a snapshot of the screen quickly getting scaled down to the center
-  // of the screen.  If 'destroy_snapshot_when_done' is true, also register a
+  // of the screen.  If |destroy_snapshot_when_done| is true, also register a
   // timeout to call DestroySnapshotAndUpdateVisibilityGroup() when it's done.
   // If there's an existing snapshot (from an in-progress slow-close animation),
   // we use it.
@@ -157,7 +157,7 @@ class ScreenLockerHandler : public EventConsumer {
   // Animate a snapshot of the screen quickly fading out to black.
   void StartFadeoutAnimation();
 
-  // Destroy 'snapshot_actor_' and 'snapshot_pixmap_'.
+  // Destroy |snapshot_actor_| and |snapshot_pixmap_|.
   void DestroySnapshot();
 
   // Call DestroySnapshot() and also reset the active visibility groups to
@@ -165,7 +165,7 @@ class ScreenLockerHandler : public EventConsumer {
   // window (if the screen is locked).
   void DestroySnapshotAndUpdateVisibilityGroup();
 
-  // Reset 'destroy_snapshot_timeout_id_' to -1 and call
+  // Reset |destroy_snapshot_timeout_id_| to -1 and call
   // DestroySnapshotAndUpdateVisibilityGroup().
   void HandleDestroySnapshotTimeout();
 

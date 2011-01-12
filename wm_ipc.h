@@ -42,14 +42,14 @@ class WmIpc {
                      chromeos::WmIpcWindowType type,
                      const std::vector<int>* params);
 
-  // Messages are sent via ClientMessageEvents that have 'message_type' set
-  // to _CHROME_WM_MESSAGE, 'format' set to 32 (that is, 32-bit values),
+  // Messages are sent via ClientMessageEvents that have |message_type| set
+  // to _CHROME_WM_MESSAGE, |format| set to 32 (that is, 32-bit values),
   // and l[0] set to a value from the MessageType enum.  The remaining four
-  // values in the 'l' array contain data specific to the type of message
+  // values in the |l| array contain data specific to the type of message
   // being sent.
   // TODO: It'll require a protocol change, but it'd be good to change the
   // implementation so that messages that need to pass a window ID (that
-  // is, most of them) do so in the 'window' field of the ClientMessage
+  // is, most of them) do so in the |window| field of the ClientMessage
   // event.  This will free up another data field for the payload and is
   // more consistent with many ICCCM and EWMH messages.
   struct Message {
@@ -93,7 +93,7 @@ class WmIpc {
     // Type of message that was sent.
     chromeos::WmIpcMessageType type_;
 
-    // Window associated with the event (more specifically, the 'window'
+    // Window associated with the event (more specifically, the |window|
     // field of the ClientMessage event).
     XWindow xid_;
 
@@ -104,9 +104,9 @@ class WmIpc {
   };
 
   // Check whether the contents of a ClientMessage event from the X server
-  // belong to us.  If they do, the message is copied to 'msg' and true is
+  // belong to us.  If they do, the message is copied to |msg| and true is
   // returned; otherwise, false is returned and the caller should continue
-  // processing the event.  'xid' should be the 'window' field of the
+  // processing the event.  |xid| should be the |window| field of the
   // ClientMessage event.
   bool GetMessage(XWindow xid,
                   XAtom message_type,
@@ -116,7 +116,7 @@ class WmIpc {
 
   // Send a message to a window.  false is returned if an error occurs.
   // Note that msg.xid() is ignored; the recipient's copy of the message
-  // will contain the destination window specified in this method's 'xid'
+  // will contain the destination window specified in this method's |xid|
   // parameter.
   bool SendMessage(XWindow xid, const Message& msg);
 

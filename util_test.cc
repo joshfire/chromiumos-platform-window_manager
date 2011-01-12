@@ -24,8 +24,8 @@ namespace window_manager {
 class UtilTest : public ::testing::Test {
  protected:
   // Helper function for the Stacker test.
-  // 'expected' is a space-separated list of strings in the order in which
-  // they should appear in 'actual'.
+  // |expected| is a space-separated list of strings in the order in which
+  // they should appear in |actual|.
   void CheckStackerOutput(const list<string>& actual,
                           const string& expected) {
     vector<string> expected_parts;

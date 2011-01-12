@@ -42,11 +42,11 @@ class PanelManagerTest : public BasicWindowManagerTest {
     layout_manager_ = wm_->layout_manager_.get();
   }
 
-  PanelManager* panel_manager_;    // instance belonging to 'wm_'
-  PanelBar* panel_bar_;            // instance belonging to 'panel_manager_'
-  PanelDock* left_panel_dock_;     // instance belonging to 'panel_manager_'
-  PanelDock* right_panel_dock_;    // instance belonging to 'panel_manager_'
-  LayoutManager* layout_manager_;  // instance belonging to 'wm_'
+  PanelManager* panel_manager_;    // instance belonging to |wm_|
+  PanelBar* panel_bar_;            // instance belonging to |panel_manager_|
+  PanelDock* left_panel_dock_;     // instance belonging to |panel_manager_|
+  PanelDock* right_panel_dock_;    // instance belonging to |panel_manager_|
+  LayoutManager* layout_manager_;  // instance belonging to |wm_|
 };
 
 // Test dragging a panel around to detach it and reattach it to the panel

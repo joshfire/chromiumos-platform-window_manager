@@ -1236,7 +1236,7 @@ void LayoutManager::HandleSnapshotChangeRequest(int index) {
 void LayoutManager::CenterCurrentSnapshot(int x, int y) {
   int center_x = (x >= 0 && y >= 0) ? x : width_ / 2;
   if (current_snapshot_) {
-    // If part of the window will be under 'center_x' when centered
+    // If part of the window will be under |center_x| when centered
     // (and not tilted), just center it.  Otherwise, leave it where it
     // is so we can select it on a double click.
     if ((width_ - current_snapshot_->overview_width()) / 2 < center_x &&

@@ -45,7 +45,7 @@ class Stacker {
     return -1;
   }
 
-  // Get the item under 'item' on the stack, or NULL if 'item' is on the
+  // Get the item under |item| on the stack, or NULL if |item| is on the
   // bottom of the stack.
   const T* GetUnder(T item) const {
     typename IteratorMap::const_iterator map_it = index_.find(item);
@@ -83,7 +83,7 @@ class Stacker {
     index_.insert(make_pair(item, --(items_.end())));
   }
 
-  // Add 'item' above 'other_item'.  'other_item' must already exist on the
+  // Add |item| above |other_item|.  |other_item| must already exist on the
   // stack.
   void AddAbove(T item, T other_item) {
     if (Contains(item)) {
@@ -102,7 +102,7 @@ class Stacker {
     index_.insert(make_pair(item, new_it));
   }
 
-  // Add 'item' below 'other_item'.  'other_item' must already exist on the
+  // Add |item| below |other_item|.  |other_item| must already exist on the
   // stack.
   void AddBelow(T item, T other_item) {
     if (Contains(item)) {
@@ -141,7 +141,7 @@ class Stacker {
 
   typedef std::map<T, typename std::list<T>::iterator> IteratorMap;
 
-  // Index into 'items_'.
+  // Index into |items_|.
   IteratorMap index_;
 
   DISALLOW_COPY_AND_ASSIGN(Stacker);
@@ -158,11 +158,11 @@ class ByteMap {
   int height() const { return height_; }
   const unsigned char* bytes() const { return bytes_; }
 
-  // Copy the bytes from 'other', which must have the same dimensions as
+  // Copy the bytes from |other|, which must have the same dimensions as
   // this map.
   void Copy(const ByteMap& other);
 
-  // Set every byte to 'value'.
+  // Set every byte to |value|.
   void Clear(unsigned char value);
 
   // Set the bytes covered by the passed-in rectangle.
@@ -170,7 +170,7 @@ class ByteMap {
                     int rect_width, int rect_height,
                     unsigned char value);
 
-  // Check if the bytes from 'other' match the bytes from this.
+  // Check if the bytes from |other| match the bytes from this.
   bool operator==(const ByteMap& other);
 
  private:
@@ -268,7 +268,7 @@ time_t GetCurrentTimeSec();
 int64_t GetCurrentTimeMs();
 
 // Set the time returned by GetCurrentTimeSecs() and GetCurrentTimeMs().
-// A negative 'sec' value makes us revert to the real time.  Used by tests.
+// A negative |sec| value makes us revert to the real time.  Used by tests.
 void SetCurrentTimeForTest(time_t sec, int ms);
 
 // Get a monotonically-increasing time.
@@ -282,9 +282,9 @@ void SetMonotonicTimeForTest(const base::TimeTicks& now);
 // can be used to get around it.  Used by tests.
 base::TimeTicks CreateTimeTicksFromMs(int64_t time_ms);
 
-// Helper function to create a symlink pointing from 'symlink_path' (a full
-// path) to 'log_basename' (the name of a file that should be in the same
-// directory as the symlink).  Removes 'symlink_path' if it already exists.
+// Helper function to create a symlink pointing from |symlink_path| (a full
+// path) to |log_basename| (the name of a file that should be in the same
+// directory as the symlink).  Removes |symlink_path| if it already exists.
 // Returns true on success.
 bool SetUpLogSymlink(const std::string& symlink_path,
                      const std::string& log_basename);

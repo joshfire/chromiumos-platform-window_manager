@@ -43,7 +43,7 @@ class HotkeyOverlay {
   // state.
   void UpdateImage();
 
-  // Show the image located at 'filename'.
+  // Show the image located at |filename|.
   void ShowImage(const std::string& filename);
 
   // Hide the current image.
@@ -59,7 +59,7 @@ class HotkeyOverlay {
   std::map<std::string, std::tr1::shared_ptr<Compositor::Actor> > images_;
 
   // The currently-shown image, or NULL if no image is currently shown.
-  // Points at a value in 'images_'.
+  // Points at a value in |images_|.
   Compositor::Actor* current_image_;
 
   // X11 keycodes corresponding to various keysyms.

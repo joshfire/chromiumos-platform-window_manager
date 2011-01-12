@@ -200,12 +200,12 @@ TEST_F(PanelBarTest, FocusNewPanel) {
   EXPECT_EQ(panel->content_xid(), xconn_->focused_xid());
   EXPECT_EQ(panel->content_xid(), GetActiveWindowProperty());
 
-  // The panel's address should be contained in 'desired_panel_to_focus_'.
+  // The panel's address should be contained in |desired_panel_to_focus_|.
   ASSERT_EQ(1, panel_bar_->packed_panels_.size());
   EXPECT_EQ(panel_bar_->packed_panels_[0], panel_bar_->desired_panel_to_focus_);
 
   // Now send an unmap event for the content window.  The panel object
-  // should be destroyed, and 'desired_panel_to_focus_' shouldn't refer to
+  // should be destroyed, and |desired_panel_to_focus_| shouldn't refer to
   // it anymore.
   XEvent event;
   xconn_->InitUnmapEvent(&event, panel->content_xid());
@@ -861,7 +861,7 @@ TEST_F(PanelBarTest, OpenPanelNextToCreator) {
   Panel* panel2 = CreatePanel(kPanelWidth, kTitlebarHeight, kContentHeight);
   Panel* panel3 = CreatePanel(kPanelWidth, kTitlebarHeight, kContentHeight);
 
-  // Now create a panel that asks to be to the immediate left of 'panel1'
+  // Now create a panel that asks to be to the immediate left of |panel1|
   // and check that it ends up there: 3 2 4 1.
   creator_content_xid_for_new_panels_ = panel1->content_xid();
   Panel* panel4 = CreatePanel(kPanelWidth, kTitlebarHeight, kContentHeight);

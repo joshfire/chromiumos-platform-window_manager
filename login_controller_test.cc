@@ -308,7 +308,7 @@ class LoginControllerTest : public BasicWindowManagerTest {
     return bounds;
   }
 
-  LoginController* login_controller_;  // owned by 'wm_'
+  LoginController* login_controller_;  // owned by |wm_|
 
   XWindow background_xid_;
   XWindow wizard_xid_;

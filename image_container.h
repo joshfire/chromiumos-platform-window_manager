@@ -68,7 +68,7 @@ class ImageContainer {
   // the array.  We own this data.
   uint8_t* data_;
 
-  // Was 'data_' allocated using malloc() (rather than new[])?
+  // Was |data_| allocated using malloc() (rather than new[])?
   bool data_was_allocated_with_malloc_;
 
   // Image width in pixels.
@@ -110,7 +110,7 @@ class PngImageContainer : public virtual ImageContainer {
 // directly from raw, already-loaded data.
 class InMemoryImageContainer : public virtual ImageContainer {
  public:
-  // Takes ownership of 'new_data', which must be 32-bit image data.
+  // Takes ownership of |new_data|, which must be 32-bit image data.
   InMemoryImageContainer(uint8_t* new_data, size_t new_width, size_t new_height,
                          ImageFormat new_format,
                          bool was_allocated_using_malloc);

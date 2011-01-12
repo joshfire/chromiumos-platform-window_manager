@@ -97,11 +97,11 @@ class Shadow {
 
   // Initialize just the image actors and related variables, by loading
   // images from disk, to create a prototype object that can be used by
-  // Factory.  'group_' isn't initialized, for instance.
+  // Factory.  |group_| isn't initialized, for instance.
   void InitAsPrototypeFromDisk(const std::string& images_dir);
 
   // Clone image actors and copy related variables from an existing shadow.
-  // Also initializes 'group_' and adds actors to it.
+  // Also initializes |group_| and adds actors to it.
   void InitFromPrototype(Shadow* prototype);
 
   // Helper method for InitFromImages().  Given an image directory and the
@@ -132,8 +132,8 @@ class Shadow {
   //   |   ...xxx|  For example, in the top-left corner image depicted
   //   | .xxXXXXX|  to the left, the inset would be the size of the
   //   | .xXX    |  transparent area in the lower right that should be
-  //   | .xXX    |  overlayed over the client window.  'left_inset_' is
-  //   +---------+  its width and 'top_inset_' is its height.
+  //   | .xXX    |  overlayed over the client window.  |left_inset_| is
+  //   +---------+  its width and |top_inset_| is its height.
   int top_inset_;
   int bottom_inset_;
   int left_inset_;

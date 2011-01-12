@@ -34,7 +34,7 @@ class PanelTest : public BasicWindowManagerTest {
     panel_manager_ = wm_->panel_manager_.get();
   }
 
-  PanelManager* panel_manager_;  // instance belonging to 'wm_'
+  PanelManager* panel_manager_;  // instance belonging to |wm_|
 };
 
 TEST_F(PanelTest, InputWindows) {

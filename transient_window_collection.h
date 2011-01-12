@@ -25,8 +25,8 @@ class WindowManager;
 // "owner" window.
 class TransientWindowCollection {
  public:
-  // 'owner_win' is the window owning the transients in this collection,
-  // and 'event_consumer' is used to register interest in events concerning
+  // |owner_win| is the window owning the transients in this collection,
+  // and |event_consumer| is used to register interest in events concerning
   // the windows.
   TransientWindowCollection(Window* owner_win, EventConsumer* event_consumer);
   ~TransientWindowCollection();
@@ -52,7 +52,7 @@ class TransientWindowCollection {
   // window being mapped.  The transient will typically be stacked above
   // any other existing transients (unless an existing transient is modal),
   // but if this is the only transient, it will be stacked above the owner
-  // if 'stack_directly_above_owner' is true and in
+  // if |stack_directly_above_owner| is true and in
   // StackingManager::LAYER_ACTIVE_TRANSIENT_WINDOW otherwise.
   void AddWindow(Window* transient_win,
                  bool stack_directly_above_owner);
@@ -66,10 +66,10 @@ class TransientWindowCollection {
   void ConfigureAllWindowsRelativeToOwner(int anim_ms);
 
   // Stack all transient windows' composited and client windows in the
-  // order dictated by 'stacked_transients_'.  If
-  // 'stack_directly_above_owner' is false, then we stack the transients at
+  // order dictated by |stacked_transients_|.  If
+  // |stack_directly_above_owner| is false, then we stack the transients at
   // StackingManager::LAYER_ACTIVE_TRANSIENT_WINDOW instead of directly
-  // above 'owner_win_'.
+  // above |owner_win_|.
   void ApplyStackingForAllWindows(bool stack_directly_above_owner);
 
   // Handle a ConfigureRequest event about one of our transient windows.
@@ -115,7 +115,7 @@ class TransientWindowCollection {
     }
 
     // Update offsets so the transient will be centered over the passed-in
-    // window.  If 'bounding_rect' has a positive width and height, the
+    // window.  If |bounding_rect| has a positive width and height, the
     // transient window's position will be constrained within it if possible.
     void UpdateOffsetsToCenterOverWindow(Window* base_win,
                                          const Rect& bounding_rect);
@@ -148,8 +148,8 @@ class TransientWindowCollection {
   void ConfigureTransientWindow(TransientWindow* transient, int anim_ms);
 
   // Stack a transient window's composited and client windows.  If
-  // 'other_win' is non-NULL, we stack 'transient' above it; otherwise,
-  // we stack 'transient' at the top of
+  // |other_win| is non-NULL, we stack |transient| above it; otherwise,
+  // we stack |transient| at the top of
   // StackingManager::LAYER_ACTIVE_TRANSIENT_WINDOW.
   void ApplyStackingForTransientWindow(
       TransientWindow* transient, Window* other_win);
@@ -161,7 +161,7 @@ class TransientWindowCollection {
 
   // Move a transient window to the top of the collection's stacking order,
   // if it's not already there.  Updates the transient's position in
-  // 'stacked_transients_' and also restacks its composited and client
+  // |stacked_transients_| and also restacks its composited and client
   // windows.
   void RestackTransientWindowOnTop(TransientWindow* transient);
 

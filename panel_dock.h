@@ -111,11 +111,11 @@ class PanelDock : public PanelContainer {
   // Get the PanelInfo object for a panel, crashing if it's not present.
   PanelInfo* GetPanelInfoOrDie(Panel* panel);
 
-  // Update the position of 'fixed_panel' within 'panels_' based on its
+  // Update the position of |fixed_panel| within |panels_| based on its
   // current position.
   void ReorderPanel(Panel* fixed_panel);
 
-  // Pack all panels except 'fixed_panel' to their snapped positions in the
+  // Pack all panels except |fixed_panel| to their snapped positions in the
   // dock, starting from the top.
   void PackPanels(Panel* fixed_panel);
 

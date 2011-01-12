@@ -48,9 +48,9 @@ testing::AssertionResult BytesAreEqual(
 
 // Called from tests' main() functions to handle a bunch of boilerplate.
 // Its return value should be returned from main().  We initialize the
-// flag-parsing code, so if the caller wants to set 'log_to_stderr' based
+// flag-parsing code, so if the caller wants to set |log_to_stderr| based
 // on a flag, a pointer to the flag's variable should be passed here (e.g.
-// '&FLAGS_logtostderr').
+// |&FLAGS_logtostderr|).
 int InitAndRunTests(int* argc, char** argv, bool* log_to_stderr);
 
 // A basic test that sets up fake X and compositor interfaces and creates a
@@ -75,7 +75,7 @@ class BasicWindowManagerTest : public ::testing::Test {
   void RegisterCommonKeySyms();
 
   // Create a new WindowManager object using the existing X connection,
-  // compositor, etc. and store it in 'wm_'.
+  // compositor, etc. and store it in |wm_|.
   void CreateNewWm();
 
   // Call CreateNewWm() and then call its Init() method and ensure that it
@@ -120,7 +120,7 @@ class BasicWindowManagerTest : public ::testing::Test {
   XWindow CreateSimpleSnapshotWindow(XWindow toplevel_xid, int index);
 
   // Create a panel titlebar or content window.  Muck around with the
-  // '*new_panel*' members below to change content window parameters.
+  // |*new_panel*| members below to change content window parameters.
   XWindow CreatePanelTitlebarWindow(int width, int height);
   XWindow CreatePanelContentWindow(int width, int height, XWindow titlebar_xid);
 
@@ -225,7 +225,7 @@ class BasicWindowManagerTest : public ::testing::Test {
   bool WindowIsOffscreen(XWindow xid);
 
   // Fetch an int array property on a window and check that it contains the
-  // expected values.  'num_values' is the number of expected values passed
+  // expected values.  |num_values| is the number of expected values passed
   // as varargs.
   void TestIntArrayProperty(XWindow xid, XAtom atom, int num_values, ...);
 
@@ -236,7 +236,7 @@ class BasicWindowManagerTest : public ::testing::Test {
   // Are a panel's client and composited windows at the same spot?
   bool PanelClientAndCompositedWindowsHaveSamePositions(Panel* panel);
 
-  // Decode the message from 'event' into 'msg'.  Returns false on failure.
+  // Decode the message from |event| into |msg|.  Returns false on failure.
   bool DecodeWmIpcMessage(const XClientMessageEvent& event,
                           WmIpc::Message* msg_out);
 

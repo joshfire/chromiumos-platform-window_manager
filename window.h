@@ -115,7 +115,7 @@ class Window {
   // this; we just check with the FocusManager.
   bool IsFocused() const;
 
-  // Update 'title_' based on _NET_WM_NAME.
+  // Update |title_| based on _NET_WM_NAME.
   void FetchAndApplyTitle();
 
   // Get and apply hints that have been set for the client window.
@@ -134,7 +134,7 @@ class Window {
   void FetchAndApplyWmHints();
 
   // Fetch the window's WM_PROTOCOLS property (ICCCM 4.1.2.7) if it exists
-  // and update the various 'supports_wm_*' members.  Also calls
+  // and update the various |supports_wm_*| members.  Also calls
   // FetchAndApplyWmSyncRequestCounter(), if the window claims to support
   // _NET_WM_SYNC_REQUEST.
   void FetchAndApplyWmProtocols();
@@ -158,10 +158,10 @@ class Window {
   void FetchAndApplyChromeState();
 
   // Fetch the window's WM_CLIENT_MACHINE property and update
-  // 'client_hostname_'.
+  // |client_hostname_|.
   void FetchAndApplyWmClientMachine();
 
-  // Fetch the window's _NET_WM_PID property and update 'client_pid_'.
+  // Fetch the window's _NET_WM_PID property and update |client_pid_|.
   void FetchAndApplyWmPid();
 
   // Check if the window has been shaped using the Shape extension and
@@ -175,7 +175,7 @@ class Window {
   bool FetchMapState();
 
   // Parse a _NET_WM_STATE message about this window, storing the requested
-  // state changes in 'states_out'.  The passed-in data is from the
+  // state changes in |states_out|.  The passed-in data is from the
   // ClientMessage event.
   void ParseWmStateMessage(
       const long data[5], std::map<XAtom, bool>* states_out) const;
@@ -331,19 +331,19 @@ class Window {
   // multiplied by that of the window itself.
   void SetShadowOpacity(double opacity, int anim_ms);
 
-  // Stack the window directly above 'actor' and its shadow directly above
-  // or below 'shadow_actor' if supplied or below the window otherwise.  If
-  // 'actor' is NULL, the window's stacking isn't changed (but its shadow's
-  // still is).  If 'shadow_actor' is supplied, 'stack_above_shadow_actor'
+  // Stack the window directly above |actor| and its shadow directly above
+  // or below |shadow_actor| if supplied or below the window otherwise.  If
+  // |actor| is NULL, the window's stacking isn't changed (but its shadow's
+  // still is).  If |shadow_actor| is supplied, |stack_above_shadow_actor|
   // determines whether the shadow will be stacked above or below it.
   void StackCompositedAbove(Compositor::Actor* actor,
                             Compositor::Actor* shadow_actor,
                             bool stack_above_shadow_actor);
 
-  // Stack the window directly below 'actor' and its shadow directly above
-  // or below 'shadow_actor' if supplied or below the window otherwise.  If
-  // 'actor' is NULL, the window's stacking isn't changed (but its shadow's
-  // still is).  If 'shadow_actor' is supplied, 'stack_above_shadow_actor'
+  // Stack the window directly below |actor| and its shadow directly above
+  // or below |shadow_actor| if supplied or below the window otherwise.  If
+  // |actor| is NULL, the window's stacking isn't changed (but its shadow's
+  // still is).  If |shadow_actor| is supplied, |stack_above_shadow_actor|
   // determines whether the shadow will be stacked above or below it.
   void StackCompositedBelow(Compositor::Actor* actor,
                             Compositor::Actor* shadow_actor,
@@ -354,11 +354,11 @@ class Window {
   // stacking another actor underneath this window.
   Compositor::Actor* GetBottomActor();
 
-  // Store the client window's position and size in 'rect'.
+  // Store the client window's position and size in |rect|.
   void CopyClientBoundsToRect(Rect* rect) const;
 
   // Handle notification that a Sync extension alarm (presumably
-  // 'wm_sync_request_alarm_') has triggered.  'value' contains the
+  // |wm_sync_request_alarm_|) has triggered.  |value| contains the
   // triggering value of the counter being watched.
   void HandleSyncAlarmNotify(XID alarm_id, int64_t value);
 
@@ -369,7 +369,7 @@ class Window {
  private:
   friend class BasicWindowManagerTest;
 
-  FRIEND_TEST(FocusManagerTest, Modality);  // sets 'wm_state_modal_'
+  FRIEND_TEST(FocusManagerTest, Modality);  // sets |wm_state_modal_|
   FRIEND_TEST(WindowTest, SyncRequest);
   FRIEND_TEST(WindowTest, DeferFetchingPixmapUntilPainted);
   FRIEND_TEST(WindowManagerTest, VideoTimeProperty);
@@ -386,27 +386,27 @@ class Window {
 
   // Helper method for ParseWmStateMessage() and ChangeWmState().  Given an
   // action from a _NET_WM_STATE message (i.e. the XClientMessageEvent's
-  // data.l[0] field), updates 'value' accordingly.
+  // data.l[0] field), updates |value| accordingly.
   void SetWmStateInternal(int action, bool* value) const;
 
   // Update the window's _NET_WM_STATE property based on the current values
-  // of the 'wm_state_*' members.
+  // of the |wm_state_*| members.
   bool UpdateWmStateProperty();
 
   // Update the window's _CHROME_STATE property based on the current
-  // contents of 'chrome_state_atoms_'.
+  // contents of |chrome_state_atoms_|.
   bool UpdateChromeStateProperty();
 
-  // Destroys 'wm_sync_request_alarm_' if non-NULL, unregisters our
+  // Destroys |wm_sync_request_alarm_| if non-NULL, unregisters our
   // interest in it in the WindowManager, and resets
-  // 'client_has_redrawn_after_last_resize_' to true.
+  // |client_has_redrawn_after_last_resize_| to true.
   void DestroyWmSyncRequestAlarm();
 
-  // Free 'pixmap_', store a new offscreen pixmap containing the window's
-  // contents in it, and notify 'actor_' that the pixmap has changed.
+  // Free |pixmap_|, store a new offscreen pixmap containing the window's
+  // contents in it, and notify |actor_| that the pixmap has changed.
   void ResetPixmap();
 
-  // Update the visibility of 'shadow_' if it's non-NULL.  This window's
+  // Update the visibility of |shadow_| if it's non-NULL.  This window's
   // shadow can be enabled or disabled via SetShouldUseShadow(), but there
   // are still other reasons that we may not draw the shadow (e.g. the
   // window is shaped or not yet mapped).  This method is called when
@@ -414,7 +414,7 @@ class Window {
   void UpdateShadowVisibility();
 
   // If the client supports _NET_WM_SYNC_REQUEST, increment
-  // 'current_wm_sync_num_' and send the client a message telling it to
+  // |current_wm_sync_num_| and send the client a message telling it to
   // update the counter after it's seen the ConfigureNotify and redrawn its
   // contents.
   void SendWmSyncRequestMessage();
@@ -450,7 +450,7 @@ class Window {
   // Client-supplied window type.
   chromeos::WmIpcWindowType type_;
 
-  // Parameters associated with 'type_'.  See chromeos::WmIpcWindowType for
+  // Parameters associated with |type_|.  See chromeos::WmIpcWindowType for
   // details.
   std::vector<int> type_params_;
 
@@ -508,14 +508,14 @@ class Window {
   // property.
   std::set<XAtom> chrome_state_xatoms_;
 
-  // Damage object used to track changes to 'xid_'.
+  // Damage object used to track changes to |xid_|.
   XID damage_;
 
   // Offscreen pixmap containing the window's redirected contents.
   XID pixmap_;
 
   // Number of "video-sized" or larger damage events that we've seen for
-  // this window during the second beginning at 'video_damage_start_time_'.
+  // this window during the second beginning at |video_damage_start_time_|.
   // We use this as a rough heuristic to try to detect when the user is
   // watching a video.
   int num_video_damage_events_;
@@ -531,8 +531,8 @@ class Window {
 
   // Has the client indicated that it's redrawn the window after the last
   // time that we resized it?  (If not, we're currently waiting for the
-  // window to update 'wm_sync_request_counter_' to match
-  // 'current_wm_sync_num_'.)  We also leave this at true if the client
+  // window to update |wm_sync_request_counter_| to match
+  // |current_wm_sync_num_|.)  We also leave this at true if the client
   // doesn't support _NET_WM_SYNC_REQUEST.
   bool client_has_redrawn_after_last_resize_;
 
@@ -568,17 +568,17 @@ class DestroyedWindow {
  private:
   WindowManager* wm_;  // not owned
 
-  // Compositing actor being used to display 'pixmap_'.  This object
+  // Compositing actor being used to display |pixmap_|.  This object
   // initially uses the same position, scaling, stacking, opacity, etc.
   // that it had when owned by the Window.
   scoped_ptr<Compositor::TexturePixmapActor> actor_;
 
   // Drop shadow that was set for the window, or NULL if no shadow was set.
-  // Note that changes made to 'actor_' will need to be manually applied to
-  // 'shadow_' as well.
+  // Note that changes made to |actor_| will need to be manually applied to
+  // |shadow_| as well.
   scoped_ptr<Shadow> shadow_;
 
-  // X pixmap displayed by 'actor_'; freed in our destructor.
+  // X pixmap displayed by |actor_|; freed in our destructor.
   // TODO: Can this be freed when the Window object is destroyed, or even
   // earlier?  The actor is displaying a GL texture bound to a GLX pixmap
   // that was created from this X pixmap.

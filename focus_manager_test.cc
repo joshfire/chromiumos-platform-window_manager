@@ -29,7 +29,7 @@ class FocusManagerTest : public BasicWindowManagerTest {
     focus_manager_ = wm_->focus_manager();
   }
 
-  FocusManager* focus_manager_;  // instance belonging to 'wm_'
+  FocusManager* focus_manager_;  // instance belonging to |wm_|
 };
 
 // Helper class used by the FocusChangeListener test.

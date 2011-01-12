@@ -96,14 +96,14 @@ static const int kHotkeyOverlayAnimMs = 100;
 // update the hotkey overlay (when it's being shown).
 static const int kHotkeyOverlayPollMs = 100;
 
-// How many pixels should 'unaccelerated_graphics_actor_' be offset from
+// How many pixels should |unaccelerated_graphics_actor_| be offset from
 // the upper-left corner of the screen?
 static const int kUnacceleratedGraphicsActorOffsetPixels = 5;
 
-// How long should we wait before hiding 'unaccelerated_graphics_actor_'?
+// How long should we wait before hiding |unaccelerated_graphics_actor_|?
 static const int kUnacceleratedGraphicsActorHideTimeoutMs = 15000;
 
-// How quickly should we fade out 'unaccelerated_graphics_actor_' when
+// How quickly should we fade out |unaccelerated_graphics_actor_| when
 // hiding it?
 static const int kUnacceleratedGraphicsActorHideAnimMs = 500;
 
@@ -128,7 +128,7 @@ static const char* kTakeWindowScreenshotAction = "take-window-screenshot";
 
 const int WindowManager::kVideoTimePropertyUpdateSec = 5;
 
-// Invoke 'function_call' for each event consumer in 'consumers' (a set).
+// Invoke |function_call| for each event consumer in |consumers| (a set).
 #define FOR_EACH_EVENT_CONSUMER(consumers, function_call)                      \
   do {                                                                         \
     for (set<EventConsumer*>::iterator it =                                    \
@@ -137,9 +137,9 @@ const int WindowManager::kVideoTimePropertyUpdateSec = 5;
     }                                                                          \
   } while (0)
 
-// Look up the event consumers that have registered interest in 'key' in
-// 'consumer_map' (one of the WindowManager::*_event_consumers_ member
-// variables), and invoke 'function_call' (e.g.
+// Look up the event consumers that have registered interest in |key| in
+// |consumer_map| (one of the WindowManager::*_event_consumers_ member
+// variables), and invoke |function_call| (e.g.
 // "HandleWindowPropertyChange(e.window, e.atom)") on each.  Helper macro
 // used by WindowManager's event-handling methods.
 #define FOR_EACH_INTERESTED_EVENT_CONSUMER(consumer_map, key, function_call)   \
@@ -153,7 +153,7 @@ const int WindowManager::kVideoTimePropertyUpdateSec = 5;
     }                                                                          \
   } while (0)
 
-// Used by helper functions to generate 'case' statements.
+// Used by helper functions to generate |case| statements.
 #define CASE_RETURN_LABEL(label) \
     case label: return #label
 
@@ -1251,7 +1251,7 @@ void WindowManager::HandleMappedWindow(Window* win) {
 
   if (mapped_xids_->Contains(win->xid())) {
     LOG(WARNING) << "Handling mapped window " << win->xid_str()
-                 << ", which is already listed in 'mapped_xids_'";
+                 << ", which is already listed in |mapped_xids_|";
   } else {
     mapped_xids_->AddOnTop(win->xid());
     UpdateClientListProperty();
@@ -1420,7 +1420,7 @@ void WindowManager::HandleConfigureNotify(const XConfigureEvent& e) {
     return;
 
   // Did the window get restacked from its previous position in
-  // 'stacked_xids_'?
+  // |stacked_xids_|?
   bool restacked = false;
 
   // Check whether the stacking order changed.
@@ -1436,7 +1436,7 @@ void WindowManager::HandleConfigureNotify(const XConfigureEvent& e) {
     if (e.above && stacked_xids_->Contains(e.above)) {
       stacked_xids_->AddAbove(e.window, e.above);
     } else {
-      // 'above' being unset means that the window is stacked beneath its
+      // |above| being unset means that the window is stacked beneath its
       // siblings.
       if (e.above) {
         LOG(WARNING) << "ConfigureNotify for " << XidStr(e.window)

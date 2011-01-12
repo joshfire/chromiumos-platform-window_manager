@@ -441,7 +441,7 @@ void RealCompositor::ContainerActor::RaiseChild(
     return;
   }
   if (above) {
-    // Check and make sure 'above' is an existing child.
+    // Check and make sure |above| is an existing child.
     ActorVector::iterator iterator_above =
         find(children_.begin(), children_.end(), above);
     if (iterator_above == children_.end()) {
@@ -483,7 +483,7 @@ void RealCompositor::ContainerActor::LowerChild(
     return;
   }
   if (below) {
-    // Check and make sure 'below' is an existing child.
+    // Check and make sure |below| is an existing child.
     ActorVector::iterator iterator_below =
         find(children_.begin(), children_.end(), below);
     if (iterator_below == children_.end()) {

@@ -74,7 +74,7 @@ class ChromeWindow : public Gtk::Window {
   int active_tab_index() const { return active_tab_index_; }
 
   // Insert a tab into this window.  The window takes ownership of the tab.
-  // 'index' values greater than the current number of tabs will result in
+  // |index| values greater than the current number of tabs will result in
   // the tab being appended at the end.
   // TODO: Clean up which methods do redraws and which don't.
   void InsertTab(Tab* tab, size_t index);
@@ -103,13 +103,13 @@ class ChromeWindow : public Gtk::Window {
   // Initialize static image data.
   static void InitImages();
 
-  // Draw the tab strip.  Also updates tab position info inside of 'tabs_'.
+  // Draw the tab strip.  Also updates tab position info inside of |tabs_|.
   void DrawTabs();
 
   // Draw the navigation bar underneath the tab strip.
   void DrawNavBar();
 
-  // Draw the page contents.  If 'active_tab_index_' >= 0, this will be the
+  // Draw the page contents.  If |active_tab_index_| >= 0, this will be the
   // image from the currently-selected tab; otherwise it will just be a
   // gray box.
   void DrawView();

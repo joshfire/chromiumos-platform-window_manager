@@ -136,10 +136,10 @@ class PanelManager : public EventConsumer, public FocusChangeListener {
   void HandlePanelResizeByUser(Panel* panel);
 
   // Handle notification from a dock that it has become visible or
-  // invisible.  We notify the objects in 'area_change_listeners_'.
+  // invisible.  We notify the objects in |area_change_listeners_|.
   void HandleDockVisibilityChange(PanelDock* dock);
 
-  // Take the input focus if possible.  Returns 'false' if it doesn't make
+  // Take the input focus if possible.  Returns false if it doesn't make
   // sense to take the focus (currently, we only take the focus if there's
   // at least one expanded panel).
   bool TakeFocus(XTime timestamp);
@@ -154,15 +154,15 @@ class PanelManager : public EventConsumer, public FocusChangeListener {
   void GetArea(int* left_width, int* right_width) const;
 
  private:
-  friend class BasicWindowManagerTest;  // uses 'dragged_panel_event_coalescer_'
-  friend class PanelBarTest;            // uses 'panel_bar_'
-  friend class PanelDockTest;           // uses '*_panel_dock_'
+  friend class BasicWindowManagerTest;  // uses |dragged_panel_event_coalescer_|
+  friend class PanelBarTest;            // uses |panel_bar_|
+  friend class PanelDockTest;           // uses |*_panel_dock_|
   friend class PanelManagerTest;
   FRIEND_TEST(PanelManagerTest, AttachAndDetach);
   FRIEND_TEST(PanelManagerTest, DragFocusedPanel);
   FRIEND_TEST(PanelManagerTest, Fullscreen);
-  FRIEND_TEST(WindowManagerTest, RandR);  // uses 'panel_bar_'
-  FRIEND_TEST(WindowManagerTest, KeepPanelsAfterRestart);  // uses 'panel_bar_'
+  FRIEND_TEST(WindowManagerTest, RandR);  // uses |panel_bar_|
+  FRIEND_TEST(WindowManagerTest, KeepPanelsAfterRestart);  // uses |panel_bar_|
 
   typedef std::map<XWindow, std::tr1::shared_ptr<Panel> > PanelMap;
 
@@ -188,8 +188,8 @@ class PanelManager : public EventConsumer, public FocusChangeListener {
   Panel* GetPanelOwningInputWindow(XWindow xid);
   PanelContainer* GetContainerOwningInputWindow(XWindow xid);
 
-  // Register a container's input windows in 'container_input_xids_' and
-  // append a pointer to the container to 'containers_'.
+  // Register a container's input windows in |container_input_xids_| and
+  // append a pointer to the container to |containers_|.
   void RegisterContainer(PanelContainer* container);
 
   // Do some initial setup for windows that we're going to manage.
@@ -197,34 +197,34 @@ class PanelManager : public EventConsumer, public FocusChangeListener {
   void DoInitialSetupForWindow(Window* win);
 
   // Handle coalesced motion events while a panel is being dragged.
-  // Invoked by 'dragged_panel_event_coalescer_'.
+  // Invoked by |dragged_panel_event_coalescer_|.
   void HandlePeriodicPanelDragMotion();
 
-  // Handle a panel drag being completed.  If 'removed' is true, then the
+  // Handle a panel drag being completed.  If |removed| is true, then the
   // panel is in the process of being destroyed, so we don't bother doing
   // things like notifying its container, adding it to a container if it
   // isn't already in one, etc.
   void HandlePanelDragComplete(Panel* panel, bool removed);
 
   // Helper method.  Calls the container's AddPanel() method with the
-  // passed-in 'panel' and 'source' parameters and updates
-  // 'containers_by_panel_'.
+  // passed-in |panel| and |source| parameters and updates
+  // |containers_by_panel_|.
   void AddPanelToContainer(Panel* panel,
                            PanelContainer* container,
                            PanelContainer::PanelSource source);
 
   // Helper method.  Calls the container's RemovePanel() method, updates
-  // 'containers_by_panel_', and removes the panel's button grab (in case
+  // |containers_by_panel_|, and removes the panel's button grab (in case
   // the container had installed one).
   void RemovePanelFromContainer(Panel* panel, PanelContainer* container);
 
   // Make the passed-in panel be displayed fullscreen.  If another panel is
   // already fullscreened, restores it to its original position and size
-  // first.  Updates 'fullscreen_panel_' to point at this panel.
+  // first.  Updates |fullscreen_panel_| to point at this panel.
   void MakePanelFullscreen(Panel* panel);
 
   // Unfullscreen the passed-in panel, restoring its original position and
-  // size.  Sets 'fullscreen_panel_' to NULL if it was previously pointing
+  // size.  Sets |fullscreen_panel_| to NULL if it was previously pointing
   // at this panel.
   void RestoreFullscreenPanel(Panel* panel);
 

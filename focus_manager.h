@@ -35,8 +35,8 @@ class FocusManager {
   Window* focused_win() { return focused_win_; }
 
   // Assign the input focus to a window and update the _NET_ACTIVE_WINDOW
-  // property.  If 'win' is NULL, the focus will be assigned to the root
-  // window instead.  'timestamp' should be the time from the event that
+  // property.  If |win| is NULL, the focus will be assigned to the root
+  // window instead.  |timestamp| should be the time from the event that
   // triggered the focus change.  If no such time is available, a timestamp
   // can be obtained from WindowManager::GetCurrentTimeFromServer().
   void FocusWindow(Window* win, XTime timestamp);
@@ -56,7 +56,7 @@ class FocusManager {
   // If this was a window that was using click-to-focus, then its button
   // grab has been upgraded to a pointer grab.  We ungrab the pointer and
   // (if the currently-focused window isn't modal) replay the click so that
-  // 'win' will receive it.
+  // |win| will receive it.
   void HandleButtonPressInWindow(Window* win, XTime timestamp);
 
   // Register or unregister a listener that will be notified after a focus

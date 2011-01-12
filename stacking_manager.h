@@ -129,8 +129,8 @@ class StackingManager {
 
   // Stack a window's client and composited windows directly above or below
   // another window.  As in StackWindowAtTopOfLayer(), the window's shadow
-  // will be stacked at the bottom of 'layer'.  Make sure that 'sibling' is
-  // in 'layer' -- things will get confusing otherwise.
+  // will be stacked at the bottom of |layer|.  Make sure that |sibling| is
+  // in |layer| -- things will get confusing otherwise.
   bool StackWindowRelativeToOtherWindow(
       Window* win, Window* sibling, bool above, Layer layer);
 
@@ -138,13 +138,13 @@ class StackingManager {
   void StackActorRelativeToOtherActor(
       Compositor::Actor* actor, Compositor::Actor* sibling, bool above);
 
-  // If 'xid' is being used as a layer's stacking reference point, return
+  // If |xid| is being used as a layer's stacking reference point, return
   // the actor corresponding to the layer.  Returns NULL otherwise.
   Compositor::Actor* GetActorIfLayerXid(XWindow xid);
 
  private:
   friend class BasicWindowManagerTest;  // uses Get*ForLayer()
-  FRIEND_TEST(LayoutManagerTest, InitialWindowStacking);  // uses 'layer_to_*'
+  FRIEND_TEST(LayoutManagerTest, InitialWindowStacking);  // uses |layer_to_*|
   FRIEND_TEST(WindowManagerTest, StackOverrideRedirectWindowsAboveLayers);
 
   // Get a layer's name.

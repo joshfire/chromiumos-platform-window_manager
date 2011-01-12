@@ -102,11 +102,11 @@ class Panel {
       XWindow xid, int x, int y, int button, XTime timestamp);
   void HandleInputWindowPointerMotion(XWindow xid, int x, int y);
 
-  // Move the panel.  'right' is given in terms of one pixel beyond
+  // Move the panel.  |right| is given in terms of one pixel beyond
   // the panel's right edge (since content and titlebar windows share a
-  // common right edge), while 'y' is the top of the titlebar window.
+  // common right edge), while |y| is the top of the titlebar window.
   // For example, to place the left column of a 10-pixel-wide panel at
-  // X-coordinate 0 and the right column at 9, pass 10 for 'right'.
+  // X-coordinate 0 and the right column at 9, pass 10 for |right|.
   //
   // Note: Move() must be called initially to configure the windows (see
   // the constructor's comment).
@@ -128,7 +128,7 @@ class Panel {
   // passed-in layer.  Input windows are included.
   void StackAtTopOfLayer(StackingManager::Layer layer);
 
-  // Update 'is_expanded_'.  If it has changed, also notify Chrome about the
+  // Update |is_expanded_|.  If it has changed, also notify Chrome about the
   // panel's current visibility state and update the content window's
   // _CHROME_STATE property.  Returns false if notifying Chrome fails (but
   // still updates the local variable).
@@ -146,8 +146,8 @@ class Panel {
   // Make the panel be fullscreen or not fullscreen.  When entering
   // fullscreen mode, we restack the content window and configure it to
   // cover the whole screen.  Any changes to the panel's position or
-  // stacking while it's fullscreened are saved to 'content_bounds_',
-  // 'titlebar_bounds_', and 'stacking_layer_', but are otherwise deferred
+  // stacking while it's fullscreened are saved to |content_bounds_|,
+  // |titlebar_bounds_|, and |stacking_layer_|, but are otherwise deferred
   // until the panel gets unfullscreened.
   void SetFullscreenState(bool fullscreen);
 
@@ -184,9 +184,9 @@ class Panel {
 
   WindowManager* wm();
 
-  // Can we configure 'client_win_' and 'titlebar_win_' right now?  If not,
+  // Can we configure |client_win_| and |titlebar_win_| right now?  If not,
   // we only store changes to their size, position, and stacking in
-  // 'client_bounds_', 'titlebar_bounds_', and 'stacking_layer_'.
+  // |client_bounds_|, |titlebar_bounds_|, and |stacking_layer_|.
   bool CanConfigureWindows() const {
     return !is_fullscreen_;
   }
@@ -198,7 +198,7 @@ class Panel {
   // Stack the input windows directly below the content window.
   void StackInputWindows();
 
-  // Called periodically by 'resize_event_coalescer_'.
+  // Called periodically by |resize_event_coalescer_|.
   void ApplyResize();
 
   // Send a CHROME_NOTIFY_PANEL_STATE message to the content window
@@ -206,7 +206,7 @@ class Panel {
   bool SendStateMessageToChrome();
 
   // Update the content window's _CHROME_STATE property according to the
-  // current value of 'is_expanded_'.
+  // current value of |is_expanded_|.
   bool UpdateChromeStateProperty();
 
   // Update {min,max}_content_{width,height}_ based on the content window's
@@ -227,7 +227,7 @@ class Panel {
 
   // Is the content window's urgency hint set?
   // (We track this in a separate variable instead of just reaching into
-  // 'content_win_' to make it easier to tell when the hint changes.)
+  // |content_win_| to make it easier to tell when the hint changes.)
   bool is_urgent_;
 
   // Saved position and size of the content and titlebar windows.  Note
@@ -282,10 +282,10 @@ class Panel {
   bool resizable_;
 
   // Does Chrome want the user to be able to resize the panel horizontally
-  // or vertically?  These are harder limits than 'resizable_'; Chrome can
+  // or vertically?  These are harder limits than |resizable_|; Chrome can
   // use these to entirely disallow user-initiated resizing for a panel
-  // even if 'resizable_' is true (but note that these have no effect when
-  // 'resizable_' is false).
+  // even if |resizable_| is true (but note that these have no effect when
+  // |resizable_| is false).
   bool horizontal_resize_allowed_;
   bool vertical_resize_allowed_;
 
@@ -298,7 +298,7 @@ class Panel {
   XWindow drag_xid_;
 
   // Gravity holding a corner in place as the panel is being resized (e.g.
-  // GRAVITY_SOUTHEAST if 'top_left_input_xid_' is being dragged).
+  // GRAVITY_SOUTHEAST if |top_left_input_xid_| is being dragged).
   Gravity drag_gravity_;
 
   // Pointer coordinates where the resize drag started.

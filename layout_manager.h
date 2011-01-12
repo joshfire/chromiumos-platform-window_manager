@@ -113,7 +113,7 @@ class LayoutManager : public EventConsumer,
   // exists.  Returns NULL if there is no such window.
   Window* GetChromeWindow();
 
-  // Take the input focus if possible.  Returns 'false' if it doesn't make
+  // Take the input focus if possible.  Returns false if it doesn't make
   // sense to take the focus (currently, we take the focus if we're in
   // active mode but refuse to in overview mode).
   bool TakeFocus(XTime timestamp);
@@ -250,11 +250,11 @@ class LayoutManager : public EventConsumer,
   // NULL if the input window doesn't belong to us.
   ToplevelWindow* GetToplevelWindowByInputXid(XWindow xid);
 
-  // Get the 0-based index of the passed-in toplevel within 'toplevels_'.
+  // Get the 0-based index of the passed-in toplevel within |toplevels_|.
   // Returns -1 if it isn't present.
   int GetIndexForToplevelWindow(const ToplevelWindow& toplevel) const;
 
-  // Get the 0-based index of the passed-in snapshot within 'snapshots_'.
+  // Get the 0-based index of the passed-in snapshot within |snapshots_|.
   // Returns -1 if it isn't present.
   int GetIndexForSnapshotWindow(const SnapshotWindow& snapshot) const;
 
@@ -326,7 +326,7 @@ class LayoutManager : public EventConsumer,
   void CenterCurrentSnapshot(int x, int y);
 
   // Calculate the position and scaling of all snapshots for overview
-  // mode and record it in 'snapshots_'.  If |enforce_bounds| is true,
+  // mode and record it in |snapshots_|.  If |enforce_bounds| is true,
   // then the bounds of dragging are enforced.
   void CalculatePositionsForOverviewMode(bool enforce_bounds);
 
@@ -336,19 +336,19 @@ class LayoutManager : public EventConsumer,
   // Cycle the current snapshot window.  Only makes sense in overview mode.
   void CycleCurrentSnapshotWindow(bool forward);
 
-  // Send a message to a window describing the current state of 'mode_'.
-  // Does nothing if 'win' isn't a toplevel Chrome window.
+  // Send a message to a window describing the current state of |mode_|.
+  // Does nothing if |win| isn't a toplevel Chrome window.
   void SendModeMessage(ToplevelWindow* toplevel, bool cancelled);
 
   // Ask the current window to delete itself.
   void SendDeleteRequestToCurrentToplevel();
 
   // Pan across the windows horizontally in overview mode.
-  // 'offset' is applied relative to the current panning offset.
+  // |offset| is applied relative to the current panning offset.
   void PanOverviewMode(int offset);
 
   // Update the panning in overview mode based on mouse motion stored in
-  // 'overview_background_event_coalescer_'.  Invoked by a timer.
+  // |overview_background_event_coalescer_|.  Invoked by a timer.
   void UpdateOverviewPanningForMotion();
 
   // Ensure that a toplevel is displayed onscreen in active mode (switching
@@ -386,13 +386,13 @@ class LayoutManager : public EventConsumer,
   // |toplevel| in the list, but not including |toplevel|'s tabs.
   int GetPreceedingTabCount(const ToplevelWindow& toplevel) const;
 
-  // Make 'toplevel' be fullscreen (this currently just means that it'll be
+  // Make |toplevel| be fullscreen (this currently just means that it'll be
   // stacked above other windows, panels, etc.).  If another toplevel is
-  // fullscreen already it will be restored first, and 'toplevel' will be
+  // fullscreen already it will be restored first, and |toplevel| will be
   // made current if it isn't already.
   void MakeToplevelFullscreen(ToplevelWindow* toplevel);
 
-  // Make 'toplevel', which should already be fullscreen, just be a regular
+  // Make |toplevel|, which should already be fullscreen, just be a regular
   // non-fullscreen window again.
   void RestoreFullscreenToplevel(ToplevelWindow* toplevel);
 
@@ -529,7 +529,7 @@ class LayoutManager : public EventConsumer,
   bool should_layout_windows_after_initial_pixmap_;
 
   // Should we use animation when calling LayoutWindows() as described in
-  // 'should_layout_windows_after_initial_pixmap_'?  We avoid animating if
+  // |should_layout_windows_after_initial_pixmap_|?  We avoid animating if
   // this is the first browser window, but leave this set to true after that.
   bool should_animate_after_initial_pixmap_;
 

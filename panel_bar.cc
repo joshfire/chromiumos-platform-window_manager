@@ -146,7 +146,7 @@ void PanelBar::AddPanel(Panel* panel, PanelSource source) {
 
   // Decide where we want to insert the panel.  If Chrome requested that
   // the panel be opened to the left of its creator, we insert it in the
-  // correct spot in 'packed_panels_' and place it to the left of its
+  // correct spot in |packed_panels_| and place it to the left of its
   // creator's fixed position.
   PanelVector::iterator insert_it = packed_panels_.begin();
   if (source == PANEL_SOURCE_NEW &&
@@ -173,7 +173,7 @@ void PanelBar::AddPanel(Panel* panel, PanelSource source) {
   packed_panel_width_ += panel->width() + padding;
 
   // If the panel is being dragged, move it to the correct position within
-  // 'packed_panels_'.
+  // |packed_panels_|.
   if (source == PANEL_SOURCE_DRAGGED) {
     DCHECK(!dragged_panel_);
     dragged_panel_ = panel;
@@ -211,7 +211,7 @@ void PanelBar::AddPanel(Panel* panel, PanelSource source) {
   // focused (e.g. it was focused when it got detached, and now it's being
   // reattached), or there's just no other focused window, call
   // FocusPanel() to focus it if needed and update
-  // 'desired_panel_to_focus_'.
+  // |desired_panel_to_focus_|.
   const bool focus_requested =
       source == PANEL_SOURCE_NEW &&
       (panel->content_win()->type_params().size() < 3 ||

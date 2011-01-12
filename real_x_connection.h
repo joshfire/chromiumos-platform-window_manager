@@ -188,10 +188,10 @@ class RealXConnection : public XConnection {
  private:
   FRIEND_TEST(RealXConnectionTest, GetImageFormat);
 
-  // Get an image format using information from an X image.  'lsb_first'
+  // Get an image format using information from an X image.  |lsb_first|
   // should be true if the image data is least-significant-byte first or
-  // false if it's MSB-first, 'image_depth' is the bits-per-pixel from the
-  // image data (only 32 is supported currently), and 'drawable_depth' is
+  // false if it's MSB-first, |image_depth| is the bits-per-pixel from the
+  // image data (only 32 is supported currently), and |drawable_depth| is
   // the drawable's depth (either 32 or 24).  False is returned for
   // unsupported formats.
   static bool GetImageFormat(bool lsb_first,
@@ -209,7 +209,7 @@ class RealXConnection : public XConnection {
                       int* first_error_out);
 
   // Read a property set on a window.  Returns false on error or if the
-  // property isn't set.  'format_out' and 'type_out' may be NULL.
+  // property isn't set.  |format_out| and |type_out| may be NULL.
   bool GetPropertyInternal(XWindow xid,
                            XAtom xatom,
                            std::string* value_out,
@@ -218,7 +218,7 @@ class RealXConnection : public XConnection {
 
   // Check for an error caused by the XCB request using the passed-in
   // cookie.  If found, logs a warning of the form "Got XCB error while
-  // [format]", with additional arguments printf-ed into 'format', and
+  // [format]", with additional arguments printf-ed into |format|, and
   // returns false.
   bool CheckForXcbError(xcb_void_cookie_t cookie, const char* format, ...);
 

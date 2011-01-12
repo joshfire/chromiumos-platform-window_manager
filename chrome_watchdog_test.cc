@@ -127,7 +127,7 @@ TEST_F(ChromeWatchdogTest, Basic) {
   EXPECT_EQ(kInitialNumTimeouts, event_loop_->num_timeouts());
 
   // If the timeout is invoked after we send the ping, we should kill
-  // Chrome (well, not really, since this is a test, but 'last_killed_pid_'
+  // Chrome (well, not really, since this is a test, but |last_killed_pid_|
   // should be set, at least).
   EXPECT_TRUE(watchdog->SendPingToChrome(kTimestamp, kTimeoutMs));
   watchdog->HandleTimeout();

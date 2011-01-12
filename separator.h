@@ -77,7 +77,7 @@ class LayoutManager::Separator {
   LayoutManager* layout_manager_;  // not owned
   Compositor* compositor_;  // not owned
 
-  // Per-instance clone of 'texture_' actor.
+  // Per-instance clone of |texture_| actor.
   scoped_ptr<Compositor::Actor> actor_;
 
   // The current display state.

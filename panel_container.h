@@ -117,7 +117,7 @@ class PanelContainer {
   // Handle a change to a panel's urgency hint.
   virtual void HandlePanelUrgencyChange(Panel* panel) = 0;
 
-  // Take the input focus if possible.  Returns 'false' if it doesn't make
+  // Take the input focus if possible.  Returns false if it doesn't make
   // sense to take the focus (suppose there are no panels, or only
   // collapsed panels).
   virtual bool TakeFocus(XTime timestamp) = 0;
