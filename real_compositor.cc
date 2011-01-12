@@ -29,6 +29,8 @@ DEFINE_bool(compositor_display_debug_needle, false,
             "Specify this to turn on a debugging aid for seeing when "
             "frames are being drawn.");
 
+using base::TimeDelta;
+using base::TimeTicks;
 using std::find;
 using std::make_pair;
 using std::map;
@@ -39,7 +41,7 @@ using std::string;
 using std::tr1::shared_ptr;
 using std::tr1::unordered_set;
 using window_manager::util::FindWithDefault;
-using window_manager::util::GetMonotonicTimeMs;
+using window_manager::util::GetMonotonicTime;
 using window_manager::util::XidStr;
 
 // Turn this on if you want to debug the visitor traversal.
@@ -52,6 +54,19 @@ const float kDimmedOpacityEnd = 0.6f;
 
 // Minimum amount of time in milliseconds between scene redraws.
 static const int64_t kDrawTimeoutMs = 16;
+
+
+// Template used to round float values returned by animations to integers when
+// applied to integer properties (read: position).
+template<class T>
+static T MaybeRoundFloat(float value) {
+  return static_cast<T>(value);
+}
+
+template<>
+int MaybeRoundFloat(float value) {
+  return static_cast<int>(roundf(value));
+}
 
 void RealCompositor::ActorVisitor::VisitContainer(ContainerActor* actor) {
   CHECK(actor);
@@ -241,7 +256,7 @@ bool RealCompositor::Actor::IsInActiveVisibilityGroup() const {
   return false;
 }
 
-void RealCompositor::Actor::Update(int* count, AnimationTime now) {
+void RealCompositor::Actor::Update(int* count, const TimeTicks& now) {
   (*count)++;
   if (int_animations_.empty() && float_animations_.empty())
     return;
@@ -306,7 +321,7 @@ bool RealCompositor::Actor::IsTransformed() const {
 }
 
 template<class T> void RealCompositor::Actor::AnimateField(
-    map<T*, shared_ptr<Animation<T> > >* animation_map,
+    map<T*, shared_ptr<Animation> >* animation_map,
     T* field, T value, int duration_ms) {
   typeof(animation_map->begin()) iterator = animation_map->find(field);
   // If we're not currently animating the field and it's already at the
@@ -315,13 +330,11 @@ template<class T> void RealCompositor::Actor::AnimateField(
     return;
 
   if (duration_ms > 0) {
-    AnimationTime now = GetMonotonicTimeMs();
+    shared_ptr<Animation> animation(new Animation(*field, GetMonotonicTime()));
+    animation->AppendKeyframe(value, TimeDelta::FromMilliseconds(duration_ms));
     if (iterator != animation_map->end()) {
-      Animation<T>* animation = iterator->second.get();
-      animation->Reset(value, now, now + duration_ms);
+      iterator->second = animation;
     } else {
-      shared_ptr<Animation<T> > animation(
-          new Animation<T>(field, value, now, now + duration_ms));
       animation_map->insert(make_pair(field, animation));
       compositor_->IncrementNumAnimations();
     }
@@ -336,12 +349,11 @@ template<class T> void RealCompositor::Actor::AnimateField(
 }
 
 template<class T> void RealCompositor::Actor::UpdateInternal(
-    map<T*, shared_ptr<Animation<T> > >* animation_map,
-    AnimationTime now) {
+    map<T*, shared_ptr<Animation> >* animation_map, const TimeTicks& now) {
   typeof(animation_map->begin()) iterator = animation_map->begin();
   while (iterator != animation_map->end()) {
-    bool done = iterator->second->Eval(now);
-    if (done) {
+    *(iterator->first) = MaybeRoundFloat<T>(iterator->second->GetValue(now));
+    if (iterator->second->IsDone(now)) {
       typeof(iterator) old_iterator = iterator;
       ++iterator;
       animation_map->erase(old_iterator);
@@ -391,7 +403,7 @@ void RealCompositor::ContainerActor::RemoveActor(Compositor::Actor* actor) {
   }
 }
 
-void RealCompositor::ContainerActor::Update(int* count, AnimationTime now) {
+void RealCompositor::ContainerActor::Update(int* count, const TimeTicks& now) {
   for (ActorVector::iterator iterator = children_.begin();
        iterator != children_.end(); ++iterator) {
     (*iterator)->Update(count, now);
@@ -662,7 +674,6 @@ RealCompositor::RealCompositor(EventLoop* event_loop,
       partially_dirty_(false),
       num_animations_(0),
       actor_count_(0),
-      last_draw_time_ms_(-1),
       draw_timeout_id_(-1),
       draw_timeout_enabled_(false),
       texture_pixmap_actor_uses_fast_path_(true),
@@ -814,7 +825,7 @@ void RealCompositor::DecrementNumAnimations() {
 
 void RealCompositor::Draw() {
   PROFILER_MARKER_BEGIN(RealCompositor_Draw);
-  int64_t now = GetMonotonicTimeMs();
+  TimeTicks now = GetMonotonicTime();
   if (num_animations_ > 0 || dirty_) {
     actor_count_ = 0;
     PROFILER_MARKER_BEGIN(RealCompositor_Draw_Update);
@@ -822,7 +833,7 @@ void RealCompositor::Draw() {
     PROFILER_MARKER_END(RealCompositor_Draw_Update);
   }
   if (dirty_ || partially_dirty_) {
-    last_draw_time_ms_ = now;
+    last_draw_time_ = now;
 
     const bool use_partial_updates = !dirty_ && partially_dirty_;
     LayerVisitor layer_visitor(actor_count(), use_partial_updates);
@@ -854,9 +865,12 @@ void RealCompositor::Draw() {
 
 void RealCompositor::EnableDrawTimeout() {
   if (!draw_timeout_enabled_) {
-    int64_t ms_since_draw = max(GetMonotonicTimeMs() - last_draw_time_ms_,
-                                static_cast<int64_t>(0));
-    int ms_until_draw = kDrawTimeoutMs - min(ms_since_draw, kDrawTimeoutMs);
+    TimeDelta time_since_draw =
+        !last_draw_time_.is_null() ?
+            GetMonotonicTime() - last_draw_time_ :
+            TimeDelta();
+    int ms_until_draw =
+        max(kDrawTimeoutMs - time_since_draw.InMilliseconds(), 0LL);
     event_loop_->ResetTimeout(draw_timeout_id_, ms_until_draw, kDrawTimeoutMs);
     draw_timeout_enabled_ = true;
   }

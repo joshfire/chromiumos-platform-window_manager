@@ -12,6 +12,7 @@
 #include "base/basictypes.h"
 #include "base/logging.h"
 #include "base/scoped_ptr.h"
+#include "base/time.h"
 #include "window_manager/geometry.h"
 #include "window_manager/image_enums.h"
 #include "window_manager/x_types.h"
@@ -31,8 +32,7 @@ class XConnection {
         shape_event_base_(0),
         randr_event_base_(0),
         sync_event_base_(0),
-        server_grabbed_(false),
-        server_grab_time_ms_(-1) {
+        server_grabbed_(false) {
   }
   virtual ~XConnection() {}
 
@@ -549,9 +549,8 @@ class XConnection {
   // Is the server currently grabbed?
   bool server_grabbed_;
 
-  // Time at which the server grab started, as milliseconds from the
-  // monotonically-increasing system clock (read: not since the epoch).
-  int64_t server_grab_time_ms_;
+  // Time at which the server grab started.
+  base::TimeTicks server_grab_time_;
 
   DISALLOW_COPY_AND_ASSIGN(XConnection);
 };

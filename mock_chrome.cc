@@ -47,7 +47,6 @@ using std::vector;
 using window_manager::AtomCache;
 using window_manager::RealXConnection;
 using window_manager::WmIpc;
-using window_manager::util::GetMonotonicTimeMs;
 
 namespace mock_chrome {
 

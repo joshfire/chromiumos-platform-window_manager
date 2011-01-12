@@ -6,9 +6,10 @@
 
 #include "window_manager/util.h"
 
+using base::TimeDelta;
 using std::string;
 using std::vector;
-using window_manager::util::GetMonotonicTimeMs;
+using window_manager::util::GetMonotonicTime;
 
 namespace window_manager {
 
@@ -42,7 +43,7 @@ bool XConnection::GrabServer() {
   DCHECK(!server_grabbed_) << "Attempting to grab already-grabbed server";
   if (GrabServerImpl()) {
     server_grabbed_ = true;
-    server_grab_time_ms_ = GetMonotonicTimeMs();
+    server_grab_time_ = GetMonotonicTime();
     return true;
   }
   return false;
@@ -52,8 +53,9 @@ bool XConnection::UngrabServer() {
   DCHECK(server_grabbed_) << "Attempting to ungrab not-grabbed server";
   if (UngrabServerImpl()) {
     server_grabbed_ = false;
-    int64_t elapsed_ms = GetMonotonicTimeMs() - server_grab_time_ms_;
-    DLOG(INFO) << "Server ungrabbed; duration was " << elapsed_ms << " ms";
+    TimeDelta delta = GetMonotonicTime() - server_grab_time_;
+    DLOG(INFO) << "Server ungrabbed; duration was "
+               << delta.InMilliseconds() << " ms";
     return true;
   }
   return false;

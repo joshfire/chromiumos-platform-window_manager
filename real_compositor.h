@@ -5,7 +5,6 @@
 #ifndef WINDOW_MANAGER_REAL_COMPOSITOR_H_
 #define WINDOW_MANAGER_REAL_COMPOSITOR_H_
 
-#include <cmath>
 #include <list>
 #include <map>
 #include <set>
@@ -19,6 +18,8 @@
 #include "base/hash_tables.h"
 #include "base/logging.h"
 #include "base/scoped_ptr.h"
+#include "base/time.h"
+#include "window_manager/animation.h"
 #include "window_manager/compositor.h"
 #include "window_manager/math_types.h"
 #include "window_manager/x_types.h"
@@ -48,63 +49,6 @@ class RealCompositor : public Compositor {
   class TexturePixmapActor;
 
   typedef std::vector<Actor*> ActorVector;
-
-  // This is in milliseconds from the monotonically-increasing system clock
-  // (read: not since the epoch).
-  typedef int64_t AnimationTime;
-
-  template<class T>
-  class Animation {
-   public:
-    Animation(T* field, T end_value,
-              AnimationTime start_time, AnimationTime end_time)
-        : field_(field) {
-      Reset(end_value, start_time, end_time);
-    }
-    ~Animation() {}
-
-    // Reset the animation to use a new end value and duration.  The
-    // field's current value is used as the start value.
-    void Reset(T end_value, AnimationTime start_time, AnimationTime end_time) {
-      start_value_ = *field_;
-      end_value_ = end_value;
-      start_time_ = start_time;
-      end_time_ = end_time;
-      ease_factor_ = M_PI / (end_time_ - start_time_);
-    }
-
-    // Evaluate the animation at the passed-in time and update the
-    // field associated with it.  It returns true when the animation
-    // is finished.
-    bool Eval(AnimationTime current_time) {
-      if (current_time >= end_time_) {
-        *field_ = end_value_;
-        return true;
-      }
-      float x = (1.0f - cosf(ease_factor_ * (current_time - start_time_))) /
-          2.0f;
-      *field_ = InterpolateValue(start_value_, end_value_, x);
-      return false;
-    }
-
-   private:
-    // Helper method for Eval() that interpolates between two points.
-    // Integral types can specialize this to do rounding.
-    static T InterpolateValue(T start_value, T end_value, float fraction) {
-      return start_value + fraction * (end_value - start_value);
-    }
-
-    T* field_;
-    T start_value_;
-    T end_value_;
-
-    AnimationTime start_time_;
-    AnimationTime end_time_;
-
-    float ease_factor_;
-
-    DISALLOW_COPY_AND_ASSIGN(Animation);
-  };
 
   class ActorVisitor {
    public:
@@ -185,7 +129,7 @@ class RealCompositor : public Compositor {
 
     // Updates the actor in response to time passing, and counts the
     // number of actors as it goes.
-    virtual void Update(int32* count, AnimationTime now);
+    virtual void Update(int32* count, const base::TimeTicks& now);
 
     // Updates the model view matrix associated with this actor.
     virtual void UpdateModelView();
@@ -273,15 +217,15 @@ class RealCompositor : public Compositor {
     // Animate one of this actor's fields moving to a new value.
     // 'animation_map' is '&int_animations_' or '&float_animations_'.
     template<class T> void AnimateField(
-        std::map<T*, std::tr1::shared_ptr<Animation<T> > >* animation_map,
+        std::map<T*, std::tr1::shared_ptr<Animation> >* animation_map,
         T* field, T value, int duration_ms);
 
     // Helper method called by Update() for 'int_animations_' and
     // 'float_animations_'.  Goes through the passed-in map, calling each
-    // animation's Eval() method and deleting it if it's done.
+    // animation's IsDone() and GetValue() methods and deleting it if it's done.
     template<class T> void UpdateInternal(
-        std::map<T*, std::tr1::shared_ptr<Animation<T> > >* animation_map,
-        AnimationTime now);
+        std::map<T*, std::tr1::shared_ptr<Animation> >* animation_map,
+        const base::TimeTicks& now);
 
     // Is this actor in a visibility group that's currently being drawn (or
     // are visibility groups disabled in the compositor)?
@@ -342,9 +286,8 @@ class RealCompositor : public Compositor {
     std::string name_;
 
     // Map from the address of a field to the animation that is modifying it.
-    std::map<int*, std::tr1::shared_ptr<Animation<int> > > int_animations_;
-    std::map<float*, std::tr1::shared_ptr<Animation<float> > >
-        float_animations_;
+    std::map<int*, std::tr1::shared_ptr<Animation> > int_animations_;
+    std::map<float*, std::tr1::shared_ptr<Animation> > float_animations_;
 
     // IDs of visibility groups this actor is a member of.
     std::set<int> visibility_groups_;
@@ -390,7 +333,7 @@ class RealCompositor : public Compositor {
     // End Compositor::ContainerActor methods.
 
     void RemoveActor(Compositor::Actor* actor);
-    virtual void Update(int32* count, AnimationTime now);
+    virtual void Update(int32* count, const base::TimeTicks& now);
 
     // Raise one child over another.  Raise to top if "above" is NULL.
     void RaiseChild(RealCompositor::Actor* child,
@@ -746,9 +689,8 @@ class RealCompositor : public Compositor {
   scoped_ptr<OpenGlesDrawVisitor> draw_visitor_;
 #endif
 
-  // Time that we last drew the scene, as milliseconds from the
-  // monotonically-increasing system clock (read: not since the epoch).
-  int64_t last_draw_time_ms_;
+  // Time that we last drew the scene.
+  base::TimeTicks last_draw_time_;
 
   // ID of the event loop timeout used to invoke Draw().
   int draw_timeout_id_;
@@ -776,13 +718,6 @@ class RealCompositor : public Compositor {
 
   DISALLOW_COPY_AND_ASSIGN(RealCompositor);
 };
-
-// Specialization for integer animations that rounds to the nearest position.
-template<>
-inline int RealCompositor::Animation<int>::InterpolateValue(
-    int start_value, int end_value, float fraction) {
-  return roundf(start_value + fraction * (end_value - start_value));
-}
 
 }  // namespace window_manager
 

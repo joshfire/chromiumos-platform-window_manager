@@ -14,6 +14,7 @@
 #include "base/string_util.h"
 #include "base/time.h"
 
+using base::TimeDelta;
 using base::TimeTicks;
 using std::max;
 using std::min;
@@ -25,9 +26,9 @@ namespace window_manager {
 // GetCurrentTimeSecs() and GetCurrentTimeMs().
 static int64_t current_time_ms_for_test = -1;
 
-// If non-negative, contains a hardcoded time to be returned by
+// If non-zero, contains a hardcoded time to be returned by
 // GetMonotonicTimeMs().
-static int64_t monotonic_time_ms_for_test = -1;
+static TimeTicks monotonic_time_for_test;
 
 ByteMap::ByteMap(int width, int height)
     : width_(width),
@@ -108,15 +109,21 @@ void SetCurrentTimeForTest(time_t sec, int ms) {
       (sec < 0) ? -1 : static_cast<int64_t>(sec) * 1000 + ms;
 }
 
-int64_t GetMonotonicTimeMs() {
-  if (monotonic_time_ms_for_test >= 0)
-    return monotonic_time_ms_for_test;
-  // Chrome's TimeTicks class stores times as milliseconds internally.
-  return TimeTicks::Now().ToInternalValue() / 1000;
+TimeTicks GetMonotonicTime() {
+  if (!monotonic_time_for_test.is_null())
+    return monotonic_time_for_test;
+  return TimeTicks::Now();
 }
 
-void SetMonotonicTimeMsForTest(int64_t ms) {
-  monotonic_time_ms_for_test = (ms < 0) ? -1 : ms;
+void SetMonotonicTimeForTest(const TimeTicks& now) {
+  monotonic_time_for_test = now;
+}
+
+TimeTicks CreateTimeTicksFromMs(int64_t time_ms) {
+  TimeTicks t;
+  int64_t diff_usec = time_ms * 1000 - t.ToInternalValue();
+  t += TimeDelta::FromMicroseconds(diff_usec);
+  return t;
 }
 
 bool SetUpLogSymlink(const std::string& symlink_path,

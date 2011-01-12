@@ -26,6 +26,7 @@ extern "C" {
 
 #include "base/hash_tables.h"
 #include "base/scoped_ptr.h"
+#include "base/time.h"
 #include "cros/chromeos_wm_ipc_enums.h"
 #include "window_manager/atom_cache.h"  // for Atom enum
 #include "window_manager/compositor.h"
@@ -573,8 +574,8 @@ class WindowManager : public PanelManagerAreaChangeListener,
   bool initialize_logging_;
 
   // Time at which we last updated the _CHROME_VIDEO_TIME property.  This is
-  // a monotonically-increasing time as returned from GetMonotonicTimeMs().
-  int64_t video_property_update_time_;
+  // a monotonically-increasing time as returned from GetMonotonicTime().
+  base::TimeTicks video_property_update_time_;
 
   // Image that we display onscreen to let the user know when we're not
   // fully hardware-accelerated, or NULL if we are accelerated.

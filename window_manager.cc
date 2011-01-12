@@ -70,6 +70,8 @@ DEFINE_bool(unredirect_fullscreen_window,
 DEFINE_bool(report_metrics, false, "Report user action metrics via Chrome");
 
 using base::hash_map;
+using base::TimeDelta;
+using base::TimeTicks;
 using chromeos::WmIpcMessageType;
 using std::list;
 using std::make_pair;
@@ -81,7 +83,7 @@ using std::vector;
 using window_manager::util::FindWithDefault;
 using window_manager::util::GetTimeAsString;
 using window_manager::util::GetCurrentTimeSec;
-using window_manager::util::GetMonotonicTimeMs;
+using window_manager::util::GetMonotonicTime;
 using window_manager::util::SetUpLogSymlink;
 using window_manager::util::XidStr;
 
@@ -222,7 +224,6 @@ WindowManager::WindowManager(EventLoop* event_loop,
       wm_ipc_version_(1),
       logged_in_(false),
       initialize_logging_(false),
-      video_property_update_time_(-1),
       hide_unaccelerated_graphics_actor_timeout_id_(-1),
       chrome_watchdog_timeout_id_(-1) {
   CHECK(event_loop_);
@@ -684,10 +685,10 @@ bool WindowManager::SetNamePropertiesForXid(XWindow xid, const string& name) {
 
 bool WindowManager::SetVideoTimeProperty(time_t video_time) {
   // Rate-limit how often we'll update the property.
-  int64_t now = GetMonotonicTimeMs();
-  if (video_property_update_time_ < 0 ||
+  TimeTicks now = GetMonotonicTime();
+  if (video_property_update_time_.is_null() ||
       (now - video_property_update_time_) >
-        static_cast<int64_t>(kVideoTimePropertyUpdateSec) * 1000) {
+          TimeDelta::FromSeconds(kVideoTimePropertyUpdateSec)) {
     video_property_update_time_ = now;
     XAtom atom = atom_cache_->GetXAtom(ATOM_CHROME_VIDEO_TIME);
     return xconn_->SetIntProperty(

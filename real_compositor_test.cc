@@ -31,8 +31,10 @@ using std::set;
 using std::string;
 using std::tr1::unordered_set;
 using std::vector;
+using window_manager::util::CreateTimeTicksFromMs;
+using window_manager::util::GetMonotonicTime;
 using window_manager::util::NextPowerOfTwo;
-using window_manager::util::SetMonotonicTimeMsForTest;
+using window_manager::util::SetMonotonicTimeForTest;
 
 namespace window_manager {
 
@@ -55,7 +57,7 @@ class RealCompositorTreeTest : public BasicCompositingTreeTest {};
 TEST_F(RealCompositorTreeTest, LayerDepth) {
   // Test lower-level layer-setting routines
   int32 count = 0;
-  stage_->Update(&count, 0LL);
+  stage_->Update(&count, GetMonotonicTime());
   EXPECT_EQ(8, count);
   RealCompositor::ActorVector actors;
 
@@ -108,7 +110,7 @@ TEST_F(RealCompositorTreeTest, LayerDepthWithOpacity) {
 
   // Test lower-level layer-setting routines
   int32 count = 0;
-  stage_->Update(&count, 0LL);
+  stage_->Update(&count, GetMonotonicTime());
   EXPECT_EQ(8, count);
   RealCompositor::ActorVector actors;
 
@@ -305,42 +307,6 @@ TEST_F(RealCompositorTreeTest, ContainerActorAttributes) {
   EXPECT_FALSE(group1_->IsVisible());
 }
 
-TEST_F(RealCompositorTest, FloatAnimation) {
-  float value = -10.0f;
-  RealCompositor::Animation<float> anim(&value, 10.0f, 0, 20);
-  EXPECT_FALSE(anim.Eval(0));
-  EXPECT_FLOAT_EQ(-10.0f, value);
-  EXPECT_FALSE(anim.Eval(5));
-  EXPECT_FLOAT_EQ(-sqrt(50.0f), value);
-  EXPECT_FALSE(anim.Eval(10));
-
-  // The standard epsilon is just a little too small here..
-  EXPECT_NEAR(0.0f, value, 1.0e-6);
-
-  EXPECT_FALSE(anim.Eval(15));
-  EXPECT_FLOAT_EQ(sqrt(50.0f), value);
-  EXPECT_TRUE(anim.Eval(20));
-  EXPECT_FLOAT_EQ(10.0f, value);
-}
-
-TEST_F(RealCompositorTest, IntAnimation) {
-  int value = -10;
-  RealCompositor::Animation<int> anim(&value, 10, 0, 200);
-  EXPECT_FALSE(anim.Eval(0));
-  EXPECT_EQ(-10, value);
-  EXPECT_FALSE(anim.Eval(50));
-  EXPECT_EQ(-7, value);
-  EXPECT_FALSE(anim.Eval(100));
-  EXPECT_EQ(0, value);
-  EXPECT_FALSE(anim.Eval(150));
-  EXPECT_EQ(7, value);
-  // Test that we round to the nearest value instead of truncating.
-  EXPECT_FALSE(anim.Eval(199));
-  EXPECT_EQ(10, value);
-  EXPECT_TRUE(anim.Eval(200));
-  EXPECT_EQ(10, value);
-}
-
 TEST_F(RealCompositorTreeTest, CloneTest) {
   rect1_->Move(10, 20, 0);
   rect1_->SetSize(100, 200);
@@ -435,7 +401,7 @@ TEST_F(RealCompositorTest, DeleteGroup) {
 // Test that we enable and disable the draw timeout as needed.
 TEST_F(RealCompositorTest, DrawTimeout) {
   int64_t now = 1000;  // arbitrary
-  SetMonotonicTimeMsForTest(now);
+  SetMonotonicTimeForTest(CreateTimeTicksFromMs(now));
 
   // The compositor should create a draw timeout and draw just once
   // initially.
@@ -461,21 +427,21 @@ TEST_F(RealCompositorTest, DrawTimeout) {
   // If we draw 50 ms later, both animations should still be active, as
   // well as the timeout.
   now += 50;
-  SetMonotonicTimeMsForTest(now);
+  SetMonotonicTimeForTest(CreateTimeTicksFromMs(now));
   compositor_->Draw();
   EXPECT_TRUE(compositor_->draw_timeout_enabled());
 
   // After drawing 51 ms later, the first animation will be gone, but we
   // still keep the timeout alive for the second animation.
   now += 51;
-  SetMonotonicTimeMsForTest(now);
+  SetMonotonicTimeForTest(CreateTimeTicksFromMs(now));
   compositor_->Draw();
   EXPECT_TRUE(compositor_->draw_timeout_enabled());
 
   // 100 ms later, the second animation has ended, so we should remove the
   // timeout after drawing.
   now += 100;
-  SetMonotonicTimeMsForTest(now);
+  SetMonotonicTimeForTest(CreateTimeTicksFromMs(now));
   compositor_->Draw();
   EXPECT_FALSE(compositor_->draw_timeout_enabled());
 
@@ -498,7 +464,7 @@ TEST_F(RealCompositorTest, DrawTimeout) {
 // overlapping animations for the same field.
 TEST_F(RealCompositorTest, ReplaceAnimations) {
   int64_t now = 1000;  // arbitrary
-  SetMonotonicTimeMsForTest(now);
+  SetMonotonicTimeForTest(CreateTimeTicksFromMs(now));
 
   scoped_ptr<RealCompositor::Actor> actor(
       compositor_->CreateColoredBox(1, 1, Compositor::Color()));
@@ -514,7 +480,7 @@ TEST_F(RealCompositorTest, ReplaceAnimations) {
   // 101 ms later, the actor should be at the final Y position but not yet
   // at the final X position.
   now += 101;
-  SetMonotonicTimeMsForTest(now);
+  SetMonotonicTimeForTest(CreateTimeTicksFromMs(now));
   compositor_->Draw();
   EXPECT_EQ(800, actor->GetY());
   EXPECT_LT(actor->GetX(), 200);
@@ -524,7 +490,7 @@ TEST_F(RealCompositorTest, ReplaceAnimations) {
   // (i.e. the longer-running animation to 300 was replaced by the one to
   // 800).
   now += 400;
-  SetMonotonicTimeMsForTest(now);
+  SetMonotonicTimeForTest(CreateTimeTicksFromMs(now));
   compositor_->Draw();
   EXPECT_EQ(200, actor->GetX());
   EXPECT_EQ(800, actor->GetY());
@@ -533,7 +499,7 @@ TEST_F(RealCompositorTest, ReplaceAnimations) {
   // After 100 ms, we should be halfway to the final scale (at 3/4 scale).
   actor->Scale(0.5, 0.5, 200);
   now += 100;
-  SetMonotonicTimeMsForTest(now);
+  SetMonotonicTimeForTest(CreateTimeTicksFromMs(now));
   compositor_->Draw();
   EXPECT_FLOAT_EQ(0.75, actor->GetXScale());
   EXPECT_FLOAT_EQ(0.75, actor->GetYScale());
@@ -544,14 +510,14 @@ TEST_F(RealCompositorTest, ReplaceAnimations) {
   // scale.
   actor->Scale(1.0, 1.0, 200);
   now += 100;
-  SetMonotonicTimeMsForTest(now);
+  SetMonotonicTimeForTest(CreateTimeTicksFromMs(now));
   compositor_->Draw();
   EXPECT_FLOAT_EQ(0.875, actor->GetXScale());
   EXPECT_FLOAT_EQ(0.875, actor->GetYScale());
 
   // After another 100 ms, we should be back at the original scale.
   now += 100;
-  SetMonotonicTimeMsForTest(now);
+  SetMonotonicTimeForTest(CreateTimeTicksFromMs(now));
   compositor_->Draw();
   EXPECT_FLOAT_EQ(1, actor->GetXScale());
   EXPECT_FLOAT_EQ(1, actor->GetYScale());
@@ -559,7 +525,7 @@ TEST_F(RealCompositorTest, ReplaceAnimations) {
 
 TEST_F(RealCompositorTest, SkipUnneededAnimations) {
   int64_t now = 1000;  // arbitrary
-  SetMonotonicTimeMsForTest(now);
+  SetMonotonicTimeForTest(CreateTimeTicksFromMs(now));
 
   // After we add an actor, we should draw a frame.
   scoped_ptr<RealCompositor::Actor> actor(
@@ -793,7 +759,7 @@ TEST_F(RealCompositorTest, LayerVisitorTopFullscreenWindow) {
   EXPECT_TRUE(layer_visitor.top_fullscreen_actor() == NULL);
 }
 
-}  // end namespace window_manager
+}  // namespace window_manager
 
 int main(int argc, char** argv) {
   return window_manager::InitAndRunTests(&argc, argv, &FLAGS_logtostderr);

@@ -12,8 +12,9 @@
 #include <string>
 
 #include "base/basictypes.h"
-#include "base/logging.h"
 #include "base/hash_tables.h"
+#include "base/logging.h"
+#include "base/time.h"
 
 namespace window_manager {
 
@@ -270,12 +271,16 @@ int64_t GetCurrentTimeMs();
 // A negative 'sec' value makes us revert to the real time.  Used by tests.
 void SetCurrentTimeForTest(time_t sec, int ms);
 
-// Get a monotonically-increasing time, in milliseconds.
+// Get a monotonically-increasing time.
 // The values returned are not affected by changes to the system clock.
-int64_t GetMonotonicTimeMs();
+base::TimeTicks GetMonotonicTime();
 
-// Set the time returned by GetMonototonicTimeMs().  Used by tests.
-void SetMonotonicTimeMsForTest(int64_t ms);
+// Set the time to be returned by GetMonototonicTime().  Used by tests.
+void SetMonotonicTimeForTest(const base::TimeTicks& now);
+
+// TimeTicks has a protected constructor for passing in your own time, but this
+// can be used to get around it.  Used by tests.
+base::TimeTicks CreateTimeTicksFromMs(int64_t time_ms);
 
 // Helper function to create a symlink pointing from 'symlink_path' (a full
 // path) to 'log_basename' (the name of a file that should be in the same

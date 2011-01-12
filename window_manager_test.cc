@@ -43,16 +43,18 @@ DECLARE_bool(unredirect_fullscreen_window);
 DECLARE_string(logged_in_log_dir);
 DECLARE_string(logged_out_log_dir);
 
+using base::TimeDelta;
 using file_util::FileEnumerator;
 using std::find;
 using std::set;
 using std::string;
 using std::tr1::shared_ptr;
 using std::vector;
+using window_manager::util::CreateTimeTicksFromMs;
 using window_manager::util::GetCurrentTimeSec;
-using window_manager::util::GetMonotonicTimeMs;
+using window_manager::util::GetMonotonicTime;
 using window_manager::util::SetCurrentTimeForTest;
-using window_manager::util::SetMonotonicTimeMsForTest;
+using window_manager::util::SetMonotonicTimeForTest;
 
 namespace window_manager {
 
@@ -1094,7 +1096,7 @@ TEST_F(WindowManagerTest, OverrideRedirectShadows) {
 // rate and size of damage events, and that we set the _CHROME_VIDEO_TIME
 // property on the root window accordingly.
 TEST_F(WindowManagerTest, VideoTimeProperty) {
-  SetMonotonicTimeMsForTest(2000000);
+  SetMonotonicTimeForTest(CreateTimeTicksFromMs(2000000));
   const time_t start_time = 1000;
   SetCurrentTimeForTest(start_time, 0);
 
@@ -1136,7 +1138,8 @@ TEST_F(WindowManagerTest, VideoTimeProperty) {
   // Send a bunch more frames the next second.  We should leave the
   // property alone, since not enough time has passed for us to update it.
   ASSERT_GT(WindowManager::kVideoTimePropertyUpdateSec, 1);
-  SetMonotonicTimeMsForTest(GetMonotonicTimeMs() + 1000);
+  SetMonotonicTimeForTest(
+      GetMonotonicTime() + TimeDelta::FromMilliseconds(1000));
   SetCurrentTimeForTest(start_time + 1, 0);
   for (int i = 0; i < Window::kVideoMinFramerate + 10; ++i)
     wm_->HandleEvent(&event);
@@ -1147,14 +1150,16 @@ TEST_F(WindowManagerTest, VideoTimeProperty) {
   // Wait the minimum required time to update the property and send more
   // frames, but spread them out across two seconds so that the per-second
   // rate isn't high enough.  We should still leave the property alone.
-  SetMonotonicTimeMsForTest(
-      GetMonotonicTimeMs() + 1000 * WindowManager::kVideoTimePropertyUpdateSec);
+  SetMonotonicTimeForTest(
+      GetMonotonicTime() +
+      TimeDelta::FromSeconds(WindowManager::kVideoTimePropertyUpdateSec));
   SetCurrentTimeForTest(
       start_time + WindowManager::kVideoTimePropertyUpdateSec, 0);
   for (int i = 0; i < Window::kVideoMinFramerate - 5; ++i)
     wm_->HandleEvent(&event);
-  SetMonotonicTimeMsForTest(
-      GetMonotonicTimeMs() + 1000 * WindowManager::kVideoTimePropertyUpdateSec);
+  SetMonotonicTimeForTest(
+      GetMonotonicTime() +
+      TimeDelta::FromSeconds(WindowManager::kVideoTimePropertyUpdateSec));
   SetCurrentTimeForTest(
       start_time + WindowManager::kVideoTimePropertyUpdateSec + 1, 0);
   for (int i = 0; i < Window::kVideoMinFramerate - 5; ++i)
@@ -1174,9 +1179,9 @@ TEST_F(WindowManagerTest, VideoTimeProperty) {
   // Move the monotonic clock forward but the system clock backward, send some
   // more frames, and check that the property is updated (see
   // http://crosbug.com/4940).
-  SetMonotonicTimeMsForTest(
-      GetMonotonicTimeMs() +
-      2 * 1000 * WindowManager::kVideoTimePropertyUpdateSec);
+  SetMonotonicTimeForTest(
+      GetMonotonicTime() +
+      TimeDelta::FromSeconds(2 * WindowManager::kVideoTimePropertyUpdateSec));
   SetCurrentTimeForTest(start_time - 5, 0);
   for (int i = 0; i < Window::kVideoMinFramerate + 10; ++i)
     wm_->HandleEvent(&event);
@@ -1190,9 +1195,9 @@ TEST_F(WindowManagerTest, VideoTimeProperty) {
   XWindow xid2 = CreateSimpleWindow();
   SendInitialEventsForWindow(xid2);
   ASSERT_TRUE(WindowIsOffscreen(xid));
-  SetMonotonicTimeMsForTest(
-      GetMonotonicTimeMs() +
-      2 * 1000 * WindowManager::kVideoTimePropertyUpdateSec);
+  SetMonotonicTimeForTest(
+      GetMonotonicTime() +
+      TimeDelta::FromSeconds(2 * WindowManager::kVideoTimePropertyUpdateSec));
   SetCurrentTimeForTest(start_time + 5, 0);
   for (int i = 0; i < 30; ++i)
     wm_->HandleEvent(&event);
