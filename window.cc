@@ -11,6 +11,7 @@
 #include "base/logging.h"
 #include "base/string_util.h"
 #include "cros/chromeos_wm_ipc_enums.h"
+#include "window_manager/animation.h"
 #include "window_manager/atom_cache.h"
 #include "window_manager/focus_manager.h"
 #include "window_manager/geometry.h"
@@ -763,6 +764,23 @@ void Window::ScaleComposited(double scale_x, double scale_y, int anim_ms) {
   actor_->Scale(scale_x, scale_y, anim_ms);
   if (shadow_.get())
     shadow_->Resize(scale_x * client_width_, scale_y * client_height_, anim_ms);
+}
+
+AnimationPair* Window::CreateMoveCompositedAnimation() {
+  DCHECK(actor_.get());
+  DCHECK(!shadow_.get());
+  return actor_->CreateMoveAnimation();
+}
+
+void Window::SetMoveCompositedAnimation(AnimationPair* animations) {
+  DCHECK(animations);
+  DCHECK(actor_.get());
+  composited_x_ = animations->first_animation().GetEndValue();
+  composited_y_ = animations->second_animation().GetEndValue();
+  DLOG(INFO) << "Setting custom animation to eventually move " << xid_str()
+             << "'s composited window to (" << composited_x_ << "x"
+             << composited_y_ << ")";
+  actor_->SetMoveAnimation(animations);
 }
 
 void Window::HandleMapRequested() {

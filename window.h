@@ -27,8 +27,9 @@
 
 namespace window_manager {
 
-struct Rect;
+class AnimationPair;
 class DestroyedWindow;
+struct Rect;
 template<class T> class Stacker;  // from util.h
 class WindowManager;
 
@@ -273,6 +274,19 @@ class Window {
   void HideComposited();
   void SetCompositedOpacity(double opacity, int anim_ms);
   void ScaleComposited(double scale_x, double scale_y, int anim_ms);
+
+  // Create and return a pair of Animation objects that can be used to animate
+  // the window's X and Y positions.  Ownership of the object is passed to the
+  // caller, who should pass it back via SetMoveCompositedAnimation() after
+  // adding additional keyframes.
+  //
+  // Windows with shadows cannot currently be animated (this is DCHECK()-ed).
+  AnimationPair* CreateMoveCompositedAnimation();
+
+  // Use a pair of animations previously allocated with
+  // CreateMoveCompositedAnimation() to animate this window's position.
+  // Takes ownership of |animations|.
+  void SetMoveCompositedAnimation(AnimationPair* animations);
 
   // Handle us having sent a request to the X server to map this
   // (non-override-redirect) window.  We send a _NET_WM_SYNC_REQUEST

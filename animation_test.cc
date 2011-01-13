@@ -12,11 +12,11 @@
 DEFINE_bool(logtostderr, false,
             "Print debugging messages to stderr (suppressed otherwise)");
 
-namespace window_manager {
-
 using base::TimeDelta;
 using base::TimeTicks;
-using util::CreateTimeTicksFromMs;
+using window_manager::util::CreateTimeTicksFromMs;
+
+namespace window_manager {
 
 typedef BasicWindowManagerTest AnimationTest;
 
@@ -48,6 +48,8 @@ TEST_F(AnimationTest, Basic) {
   now = CreateTimeTicksFromMs(25);
   EXPECT_TRUE(anim.IsDone(now));
   EXPECT_FLOAT_EQ(10.0f, anim.GetValue(now));
+
+  EXPECT_FLOAT_EQ(10.0f, anim.GetEndValue());
 }
 
 TEST_F(AnimationTest, MultipleKeyframes) {

@@ -140,30 +140,48 @@ void RealCompositor::Actor::Move(int x, int y, int duration_ms) {
 }
 
 void RealCompositor::Actor::MoveX(int x, int duration_ms) {
-  AnimateField(&int_animations_, &x_, x, duration_ms);
+  AnimateField(&int_animations_, &x_, x,
+               TimeDelta::FromMilliseconds(duration_ms));
 }
 
 void RealCompositor::Actor::MoveY(int y, int duration_ms) {
-  AnimateField(&int_animations_, &y_, y, duration_ms);
+  AnimateField(&int_animations_, &y_, y,
+               TimeDelta::FromMilliseconds(duration_ms));
+}
+
+AnimationPair* RealCompositor::Actor::CreateMoveAnimation() {
+  Animation* x_anim = CreateAnimationForField(&x_);
+  Animation* y_anim = CreateAnimationForField(&y_);
+  return new AnimationPair(x_anim, y_anim);
+}
+
+void RealCompositor::Actor::SetMoveAnimation(AnimationPair* animations) {
+  DCHECK(animations);
+  SetAnimationForField(
+      &int_animations_, &x_, animations->release_first_animation());
+  SetAnimationForField(
+      &int_animations_, &y_, animations->release_second_animation());
+  delete animations;
 }
 
 void RealCompositor::Actor::Scale(double scale_x, double scale_y,
-                                 int duration_ms) {
+                                  int duration_ms) {
+  TimeDelta duration = TimeDelta::FromMilliseconds(duration_ms);
   AnimateField(&float_animations_, &scale_x_, static_cast<float>(scale_x),
-               duration_ms);
+               duration);
   AnimateField(&float_animations_, &scale_y_, static_cast<float>(scale_y),
-               duration_ms);
+               duration);
 }
 
 void RealCompositor::Actor::SetOpacity(double opacity, int duration_ms) {
   AnimateField(&float_animations_, &opacity_, static_cast<float>(opacity),
-               duration_ms);
+               TimeDelta::FromMilliseconds(duration_ms));
 }
 
 void RealCompositor::Actor::SetTilt(double tilt, int duration_ms) {
   AnimateField(&float_animations_, &tilt_,
                static_cast<float>(tilt),
-               duration_ms);
+               TimeDelta::FromMilliseconds(duration_ms));
 }
 
 void RealCompositor::Actor::Raise(Compositor::Actor* other) {
@@ -206,10 +224,11 @@ void RealCompositor::Actor::LowerToBottom() {
 }
 
 void RealCompositor::Actor::ShowDimmed(bool dimmed, int anim_ms) {
+  TimeDelta duration = TimeDelta::FromMilliseconds(anim_ms);
   AnimateField(&float_animations_, &dimmed_opacity_begin_,
-               dimmed ? kDimmedOpacityBegin : 0.f, anim_ms);
+               dimmed ? kDimmedOpacityBegin : 0.f, duration);
   AnimateField(&float_animations_, &dimmed_opacity_end_,
-               dimmed ? kDimmedOpacityEnd : 0.f, anim_ms);
+               dimmed ? kDimmedOpacityEnd : 0.f, duration);
 }
 
 void RealCompositor::Actor::AddToVisibilityGroup(int group_id) {
@@ -322,16 +341,16 @@ bool RealCompositor::Actor::IsTransformed() const {
 
 template<class T> void RealCompositor::Actor::AnimateField(
     map<T*, shared_ptr<Animation> >* animation_map,
-    T* field, T value, int duration_ms) {
+    T* field, T value, const TimeDelta& duration) {
   typeof(animation_map->begin()) iterator = animation_map->find(field);
   // If we're not currently animating the field and it's already at the
   // right value, there's no reason to do anything.
   if (iterator == animation_map->end() && value == *field)
     return;
 
-  if (duration_ms > 0) {
+  if (duration.InMilliseconds() > 0) {
     shared_ptr<Animation> animation(new Animation(*field, GetMonotonicTime()));
-    animation->AppendKeyframe(value, TimeDelta::FromMilliseconds(duration_ms));
+    animation->AppendKeyframe(value, duration);
     if (iterator != animation_map->end()) {
       iterator->second = animation;
     } else {
@@ -345,6 +364,29 @@ template<class T> void RealCompositor::Actor::AnimateField(
     }
     *field = value;
     SetDirty();
+  }
+}
+
+template<class T> Animation* RealCompositor::Actor::CreateAnimationForField(
+    T* field) {
+  DCHECK(field);
+  return new Animation(*field, GetMonotonicTime());
+}
+
+template<class T> void RealCompositor::Actor::SetAnimationForField(
+    std::map<T*, std::tr1::shared_ptr<Animation> >* animation_map,
+    T* field,
+    Animation* new_animation) {
+  DCHECK(field);
+  DCHECK(new_animation);
+
+  shared_ptr<Animation> animation(new_animation);
+  typeof(animation_map->begin()) iterator = animation_map->find(field);
+  if (iterator != animation_map->end()) {
+    iterator->second = animation;
+  } else {
+    animation_map->insert(make_pair(field, animation));
+    compositor_->IncrementNumAnimations();
   }
 }
 

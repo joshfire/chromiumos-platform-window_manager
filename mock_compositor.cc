@@ -11,6 +11,7 @@
 
 using std::list;
 using std::string;
+using window_manager::util::GetMonotonicTime;
 
 namespace window_manager {
 
@@ -19,6 +20,24 @@ MockCompositor::Actor::~Actor() {
     parent_->stacked_children()->Remove(this);
     parent_ = NULL;
   }
+}
+
+void MockCompositor::Actor::Move(int x, int y, int anim_ms) {
+  x_ = x;
+  y_ = y;
+  num_moves_++;
+  position_was_animated_ = (anim_ms > 0);
+}
+
+AnimationPair* MockCompositor::Actor::CreateMoveAnimation() {
+  return new AnimationPair(
+      new Animation(x_, GetMonotonicTime()),
+      new Animation(y_, GetMonotonicTime()));
+}
+
+void MockCompositor::Actor::SetMoveAnimation(AnimationPair* animations) {
+  CHECK(animations);
+  delete animations;
 }
 
 void MockCompositor::Actor::Raise(Compositor::Actor* other) {

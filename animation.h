@@ -28,6 +28,9 @@ class Animation {
   // Gets the value of the animation at a particular time.
   float GetValue(const base::TimeTicks& now) const;
 
+  // Return the value at the end of the animation.
+  float GetEndValue() const;
+
   // Record a new value for the animation to reach at a specified amount of time
   // from the last frame (or the initial frame if none have been added yet).
   void AppendKeyframe(float value,
@@ -56,6 +59,31 @@ class Animation {
   scoped_ptr<std::vector<Keyframe> > keyframes_;
 
   DISALLOW_COPY_AND_ASSIGN(Animation);
+};
+
+class AnimationPair {
+ public:
+  // Takes ownership of the animations.
+  AnimationPair(Animation* first_animation,
+                Animation* second_animation);
+  ~AnimationPair();
+
+  const Animation& first_animation() { return *(first_animation_.get()); }
+  const Animation& second_animation() { return *(second_animation_.get()); }
+
+  Animation* release_first_animation() { return first_animation_.release(); }
+  Animation* release_second_animation() { return second_animation_.release(); }
+
+  // Add new keyframes to both animations, scheduled to appear at the same time.
+  void AppendKeyframe(float first_value,
+                      float second_value,
+                      const base::TimeDelta& delay_from_last_keyframe);
+
+ private:
+  scoped_ptr<Animation> first_animation_;
+  scoped_ptr<Animation> second_animation_;
+
+  DISALLOW_COPY_AND_ASSIGN(AnimationPair);
 };
 
 }  // namespace window_manager

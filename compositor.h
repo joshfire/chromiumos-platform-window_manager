@@ -9,6 +9,7 @@
 #include <tr1/unordered_set>
 
 #include "base/basictypes.h"
+#include "window_manager/animation.h"
 #include "window_manager/geometry.h"
 #include "window_manager/image_enums.h"
 #include "window_manager/x_types.h"
@@ -62,6 +63,18 @@ class Compositor {
     virtual void Move(int x, int y, int anim_ms) = 0;
     virtual void MoveX(int x, int anim_ms) = 0;
     virtual void MoveY(int y, int anim_ms) = 0;
+
+    // Create and return a pair of animations for controlling the X and Y
+    // components of the actor's position.  Ownership of the returned
+    // AnimationPair is transferred to the caller, who is expected to add
+    // additional keyframes to the animation and then pass ownership of the pair
+    // back to the compositor via SetMoveAnimation().
+    virtual AnimationPair* CreateMoveAnimation() = 0;
+
+    // Assign a pair of animations previously allocated via this actor's
+    // CreateMoveAnimation() method.  Takes ownership of |animations|.
+    virtual void SetMoveAnimation(AnimationPair* animations) = 0;
+
     virtual void Scale(double scale_x, double scale_y, int anim_ms) = 0;
     virtual void SetOpacity(double opacity, int anim_ms) = 0;
     virtual void Show() = 0;

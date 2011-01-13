@@ -64,14 +64,11 @@ class MockCompositor : public Compositor {
     virtual int GetY() { return y_; }
     virtual double GetXScale() { return scale_x_; }
     virtual double GetYScale() { return scale_y_; }
-    virtual void Move(int x, int y, int anim_ms) {
-      x_ = x;
-      y_ = y;
-      num_moves_++;
-      position_was_animated_ = (anim_ms > 0);
-    }
+    virtual void Move(int x, int y, int anim_ms);
     virtual void MoveX(int x, int anim_ms) { Move(x, y_, anim_ms); }
     virtual void MoveY(int y, int anim_ms) { Move(x_, y, anim_ms); }
+    virtual AnimationPair* CreateMoveAnimation();
+    virtual void SetMoveAnimation(AnimationPair* animations);
     virtual void Scale(double scale_x, double scale_y, int anim_ms) {
       scale_x_ = scale_x;
       scale_y_ = scale_y;

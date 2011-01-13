@@ -65,6 +65,10 @@ float Animation::GetValue(const TimeTicks& now) const {
       fraction * (next_keyframe->value - prev_keyframe->value);
 }
 
+float Animation::GetEndValue() const {
+  return end_keyframe_.value;
+}
+
 void Animation::AppendKeyframe(float value,
                                const TimeDelta& delay_from_last_keyframe) {
   DCHECK_GT(delay_from_last_keyframe.InMilliseconds(), 0LL);
@@ -81,6 +85,22 @@ void Animation::AppendKeyframe(float value,
   // End at the new value.
   end_keyframe_.value = value;
   end_keyframe_.timestamp += delay_from_last_keyframe;
+}
+
+AnimationPair::AnimationPair(Animation* first_animation,
+                             Animation* second_animation)
+    : first_animation_(first_animation),
+      second_animation_(second_animation) {
+}
+
+AnimationPair::~AnimationPair() {
+}
+
+void AnimationPair::AppendKeyframe(float first_value,
+                                   float second_value,
+                                   const TimeDelta& delay_from_last_keyframe) {
+  first_animation_->AppendKeyframe(first_value, delay_from_last_keyframe);
+  second_animation_->AppendKeyframe(second_value, delay_from_last_keyframe);
 }
 
 }  // namespace window_manager

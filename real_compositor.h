@@ -87,6 +87,8 @@ class RealCompositor : public Compositor {
     explicit Actor(RealCompositor* compositor);
     virtual ~Actor();
 
+    const std::string& name() const { return name_; }
+
     // Begin Compositor::VisitorDestination methods.
     virtual void Accept(ActorVisitor* visitor) {
       DCHECK(visitor);
@@ -95,30 +97,28 @@ class RealCompositor : public Compositor {
     // End Compositor::VisitorDestination methods.
 
     // Begin Compositor::Actor methods.
-    virtual Actor* Clone();
-    int GetWidth() { return width_; }
-    int GetHeight() { return height_; }
-    int GetX() { return x_; }
-    int GetY() { return y_; }
-    double GetXScale() { return scale_x_; }
-    double GetYScale() { return scale_y_; }
+    virtual void SetName(const std::string& name) { name_ = name; }
+    virtual int GetWidth() { return width_; }
+    virtual int GetHeight() { return height_; }
+    virtual int GetX() { return x_; }
+    virtual int GetY() { return y_; }
+    virtual double GetXScale() { return scale_x_; }
+    virtual double GetYScale() { return scale_y_; }
+    virtual void Move(int x, int y, int duration_ms);
+    virtual void MoveX(int x, int duration_ms);
+    virtual void MoveY(int y, int duration_ms);
+    virtual AnimationPair* CreateMoveAnimation();
+    virtual void SetMoveAnimation(AnimationPair* animations);
+    virtual void Scale(double scale_x, double scale_y, int duration_ms);
+    virtual void SetOpacity(double opacity, int duration_ms);
     virtual void Show() { SetIsShown(true); }
     virtual void Hide() { SetIsShown(false); }
-    void SetName(const std::string& name) { name_ = name; }
-    const std::string& name() const { return name_; }
-
-    void Move(int x, int y, int duration_ms);
-    void MoveX(int x, int duration_ms);
-    void MoveY(int y, int duration_ms);
-    void Scale(double scale_x, double scale_y, int duration_ms);
-    void SetOpacity(double opacity, int duration_ms);
-    void SetTilt(double tilt, int duration_ms);
-    double GetTilt() const { return tilt_; }
-
-    void Raise(Compositor::Actor* other);
-    void Lower(Compositor::Actor* other);
-    void RaiseToTop();
-    void LowerToBottom();
+    virtual void SetTilt(double tilt, int duration_ms);
+    virtual double GetTilt() const { return tilt_; }
+    virtual void Raise(Compositor::Actor* other);
+    virtual void Lower(Compositor::Actor* other);
+    virtual void RaiseToTop();
+    virtual void LowerToBottom();
     virtual std::string GetDebugString(int indent_level) {
       return GetDebugStringInternal("Actor", indent_level);
     }
@@ -126,6 +126,8 @@ class RealCompositor : public Compositor {
     virtual void AddToVisibilityGroup(int group_id);
     virtual void RemoveFromVisibilityGroup(int group_id);
     // End Compositor::Actor methods.
+
+    virtual Actor* Clone();
 
     // Updates the actor in response to time passing, and counts the
     // number of actors as it goes.
@@ -218,7 +220,20 @@ class RealCompositor : public Compositor {
     // |animation_map| is |&int_animations_| or |&float_animations_|.
     template<class T> void AnimateField(
         std::map<T*, std::tr1::shared_ptr<Animation> >* animation_map,
-        T* field, T value, int duration_ms);
+        T* field, T value, const base::TimeDelta& duration);
+
+    // Create a new animation for a field and return it.
+    // The animation starts at the current time with the field's current value.
+    // Ownership of the animation is passed to the caller.
+    template<class T> Animation* CreateAnimationForField(T* field);
+
+    // Use an already-constructed animation for |field|.  Takes ownership of
+    // |animation|.  |animation_map| is |&int_animations_| or
+    // |&float_animations_|.
+    template<class T> void SetAnimationForField(
+        std::map<T*, std::tr1::shared_ptr<Animation> >* animation_map,
+        T* field,
+        Animation* new_animation);
 
     // Helper method called by Update() for |int_animations_| and
     // |float_animations_|.  Goes through the passed-in map, calling each
