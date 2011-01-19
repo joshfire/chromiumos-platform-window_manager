@@ -1093,12 +1093,13 @@ XID RealXConnection::CreateShapedCursor(uint32 shape) {
 XID RealXConnection::CreateTransparentCursor() {
   TrapErrors();
 
-  static const char kEmptyData[] = { 0x01 };
+  static const char kEmptyData[] = { 0x0 };
   XID bitmap = XCreateBitmapFromData(display_, root_, kEmptyData, 1, 1);
   XColor black;
   memset(&black, 0, sizeof(black));
   XID cursor = XCreatePixmapCursor(
       display_, bitmap, bitmap, &black, &black, 0, 0);
+  FreePixmap(bitmap);
 
   if (int error = UntrapErrors()) {
     LOG(WARNING) << "Got X error while creating empty cursor: "
