@@ -127,7 +127,6 @@ bool OpenGlPixmapData::Init(RealCompositor::TexturePixmapActor* actor) {
   GLuint new_texture = 0;
   gl_->GenTextures(1, &new_texture);
   gl_->BindTexture(GL_TEXTURE_2D, new_texture);
-  gl_->EnableAnisotropicFiltering();
   gl_->TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
   gl_->TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
   gl_->TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
