@@ -29,6 +29,9 @@ DEFINE_bool(compositor_display_debug_needle, false,
             "Specify this to turn on a debugging aid for seeing when "
             "frames are being drawn.");
 
+DEFINE_int64(draw_timeout_ms, 16,
+             "Minimum time in milliseconds between scene redraws.");
+
 using base::TimeDelta;
 using base::TimeTicks;
 using std::find;
@@ -51,9 +54,6 @@ namespace window_manager {
 
 const float kDimmedOpacityBegin = 0.2f;
 const float kDimmedOpacityEnd = 0.6f;
-
-// Minimum amount of time in milliseconds between scene redraws.
-static const int64_t kDrawTimeoutMs = 16;
 
 
 // Template used to round float values returned by animations to integers when
@@ -751,7 +751,8 @@ RealCompositor::RealCompositor(EventLoop* event_loop,
 #endif
 
   draw_timeout_id_ = event_loop_->AddTimeout(
-      NewPermanentCallback(this, &RealCompositor::Draw), 0, kDrawTimeoutMs);
+      NewPermanentCallback(this, &RealCompositor::Draw), 0,
+      FLAGS_draw_timeout_ms);
   draw_timeout_enabled_ = true;
 }
 
@@ -912,8 +913,9 @@ void RealCompositor::EnableDrawTimeout() {
             GetMonotonicTime() - last_draw_time_ :
             TimeDelta();
     int ms_until_draw =
-        max(kDrawTimeoutMs - time_since_draw.InMilliseconds(), 0LL);
-    event_loop_->ResetTimeout(draw_timeout_id_, ms_until_draw, kDrawTimeoutMs);
+        max(FLAGS_draw_timeout_ms - time_since_draw.InMilliseconds(), 0LL);
+    event_loop_->ResetTimeout(draw_timeout_id_, ms_until_draw,
+                              FLAGS_draw_timeout_ms);
     draw_timeout_enabled_ = true;
   }
 }
