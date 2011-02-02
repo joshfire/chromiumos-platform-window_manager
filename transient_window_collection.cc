@@ -18,13 +18,15 @@ namespace window_manager {
 TransientWindowCollection::TransientWindowCollection(
     Window* owner_win,
     Window* win_to_stack_above,
+    bool constrain_onscreen,
     EventConsumer* event_consumer)
     : owner_win_(owner_win),
       win_to_stack_above_(win_to_stack_above ? win_to_stack_above : owner_win),
       event_consumer_(event_consumer),
       stacked_transients_(new Stacker<TransientWindow*>),
       transient_to_focus_(NULL),
-      is_hidden_(false) {
+      is_hidden_(false),
+      constrain_onscreen_(constrain_onscreen) {
   DCHECK(owner_win_);
   DCHECK(event_consumer);
 }
@@ -101,7 +103,9 @@ void TransientWindowCollection::AddWindow(
     transient->centered = false;
   } else {
     transient->UpdateOffsetsToCenterOverWindow(
-        owner_win_, Rect(0, 0, wm()->width(), wm()->height()));
+        owner_win_,
+        Rect(0, 0, wm()->width(), wm()->height()),
+        constrain_onscreen_);
     transient->centered = true;
   }
 
@@ -215,7 +219,9 @@ void TransientWindowCollection::HandleConfigureRequest(
     transient_win->ResizeClient(req_width, req_height, GRAVITY_NORTHWEST);
     if (transient->centered) {
       transient->UpdateOffsetsToCenterOverWindow(
-          owner_win_, Rect(0, 0, wm()->width(), wm()->height()));
+          owner_win_,
+          Rect(0, 0, wm()->width(), wm()->height()),
+          constrain_onscreen_);
       moved = true;
     }
   }
@@ -266,19 +272,22 @@ void TransientWindowCollection::HandleScreenResize() {
 
 void
 TransientWindowCollection::TransientWindow::UpdateOffsetsToCenterOverWindow(
-    Window* base_win, const Rect& bounding_rect) {
+    Window* base_win, const Rect& bounding_rect, bool force_constrain) {
   x_offset = (base_win->client_width() - win->client_width()) / 2;
   y_offset = (base_win->client_height() - win->client_height()) / 2;
 
-  // Only honor the bounding rectangle if the base window already falls
-  // completely inside of it.
-  if (!bounding_rect.empty() &&
+  const bool base_within_bounding_rect =
+      !bounding_rect.empty() &&
       base_win->client_x() >= bounding_rect.left() &&
       base_win->client_y() >= bounding_rect.top() &&
       base_win->client_x() + base_win->client_width() <=
         bounding_rect.right() &&
       base_win->client_y() + base_win->client_height() <=
-        bounding_rect.bottom()) {
+        bounding_rect.bottom();
+
+  // Only honor the bounding rectangle if the base window already falls
+  // completely inside of it or if we've been told to do so.
+  if (base_within_bounding_rect || force_constrain) {
     if (base_win->client_x() + x_offset + win->client_width() >
         bounding_rect.x + bounding_rect.width) {
       x_offset = bounding_rect.x + bounding_rect.width -

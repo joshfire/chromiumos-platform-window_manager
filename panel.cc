@@ -110,9 +110,9 @@ Panel::Panel(PanelManager* panel_manager,
       client_windows_have_correct_position_(false),
       event_consumer_registrar_(
           new EventConsumerRegistrar(wm(), panel_manager)),
-      transients_(new TransientWindowCollection(content_win_,
-                                                titlebar_win_,
-                                                panel_manager)),
+      transients_(
+          new TransientWindowCollection(
+              content_win_, titlebar_win_, true, panel_manager)),
       separator_shadow_(
           Shadow::Create(wm()->compositor(), Shadow::TYPE_PANEL_SEPARATOR)) {
   CHECK(content_win_);

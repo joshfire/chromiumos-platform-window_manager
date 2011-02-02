@@ -585,6 +585,29 @@ TEST_F(PanelTest, ReloadSizeLimits) {
             content_info->bounds.height);
 }
 
+TEST_F(PanelTest, TransientWindowsAreConstrainedOnscreen) {
+  // Create a panel and move it off the left edge of the screen.
+  static const int kPanelWidth = 200;
+  static const int kTitlebarHeight = 20;
+  static const int kContentHeight = 600;
+  Panel* panel = CreatePanel(kPanelWidth, kTitlebarHeight, kContentHeight);
+  panel->MoveX(-300 - kPanelWidth, true, 0);
+
+  static const int kTransientWidth = 400;
+  static const int kTransientHeight = 300;
+  XWindow transient_xid =
+      CreateBasicWindow(0, 0, kTransientWidth, kTransientHeight);
+  xconn_->GetWindowInfoOrDie(transient_xid)->transient_for =
+      panel->content_xid();
+  SendInitialEventsForWindow(transient_xid);
+
+  MockXConnection::WindowInfo* transient_info =
+      xconn_->GetWindowInfoOrDie(transient_xid);
+  EXPECT_EQ(0, transient_info->bounds.x);
+  EXPECT_EQ(wm_->height() - (kContentHeight + kTransientHeight) / 2,
+            transient_info->bounds.y);
+}
+
 }  // namespace window_manager
 
 int main(int argc, char** argv) {
