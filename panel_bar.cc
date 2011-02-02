@@ -470,7 +470,7 @@ void PanelBar::HandleFocusPanelMessage(Panel* panel, XTime timestamp) {
 void PanelBar::HandlePanelResizeRequest(Panel* panel,
                                         int req_width, int req_height) {
   DCHECK(panel);
-  panel->ResizeContent(req_width, req_height, GRAVITY_SOUTHEAST);
+  panel->ResizeContent(req_width, req_height, GRAVITY_SOUTHEAST, true);
   ArrangePanels(true, NULL);
 }
 

@@ -139,9 +139,11 @@ class Panel {
 
   // Resize the content window to the passed-in dimensions.  The titlebar
   // window is moved above the content window if necessary and resized to
-  // match the content window's width.  Additionally, the input windows are
+  // match the content window's width.  The input windows are optionally
   // configured.
-  void ResizeContent(int width, int height, Gravity gravity);
+  void ResizeContent(int width, int height,
+                     Gravity gravity,
+                     bool configure_input_windows);
 
   // Make the panel be fullscreen or not fullscreen.  When entering
   // fullscreen mode, we restack the content window and configure it to

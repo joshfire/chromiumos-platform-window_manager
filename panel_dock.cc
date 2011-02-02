@@ -214,7 +214,8 @@ void PanelDock::HandleNotifyPanelDragCompleteMessage(Panel* panel) {
   if (panel->width() != width_) {
     panel->ResizeContent(
         width_, panel->content_height(),
-        type_ == DOCK_TYPE_RIGHT ?  GRAVITY_NORTHEAST : GRAVITY_NORTHWEST);
+        type_ == DOCK_TYPE_RIGHT ?  GRAVITY_NORTHEAST : GRAVITY_NORTHWEST,
+        true);
   }
   panel->SetShadowOpacity(0, kPanelShadowAnimMs);
   panel->StackAtTopOfLayer(StackingManager::LAYER_PACKED_PANEL_IN_DOCK);
@@ -240,7 +241,7 @@ void PanelDock::HandlePanelResizeRequest(Panel* panel,
                  << "x" << req_height << ")";
     req_width = panel->content_width();
   }
-  panel->ResizeContent(req_width, req_height, GRAVITY_NORTHWEST);
+  panel->ResizeContent(req_width, req_height, GRAVITY_NORTHWEST, true);
   PackPanels(dragged_panel_);
 }
 

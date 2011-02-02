@@ -321,10 +321,12 @@ void Panel::HandleInputWindowButtonRelease(
   resize_event_coalescer_.Stop();
   drag_xid_ = 0;
 
-  if (!FLAGS_panel_opaque_resize) {
+  if (FLAGS_panel_opaque_resize) {
+    ConfigureInputWindows();
+  } else {
     DCHECK(resize_actor_.get());
     resize_actor_.reset(NULL);
-    ResizeContent(drag_last_width_, drag_last_height_, drag_gravity_);
+    ResizeContent(drag_last_width_, drag_last_height_, drag_gravity_, true);
   }
 
   // Let the container know about the resize.
@@ -471,7 +473,9 @@ void Panel::TakeFocus(XTime timestamp) {
   wm()->FocusWindow(content_win_, timestamp);
 }
 
-void Panel::ResizeContent(int width, int height, Gravity gravity) {
+void Panel::ResizeContent(int width, int height,
+                          Gravity gravity,
+                          bool configure_input_windows) {
   DCHECK_GT(width, 0);
   DCHECK_GT(height, 0);
 
@@ -513,7 +517,8 @@ void Panel::ResizeContent(int width, int height, Gravity gravity) {
     }
   }
 
-  ConfigureInputWindows();
+  if (configure_input_windows)
+    ConfigureInputWindows();
 }
 
 void Panel::SetFullscreenState(bool fullscreen) {
@@ -733,11 +738,10 @@ void Panel::ApplyResize() {
                           max_content_height_);
 
   if (FLAGS_panel_opaque_resize) {
-    // TODO: We don't use opaque resizing currently, but if we ever start,
-    // we're doing extra configuration of the input windows during each
-    // step of the resize here that we don't really need to do until it's
-    // done.
-    ResizeContent(drag_last_width_, drag_last_height_, drag_gravity_);
+    // Avoid reconfiguring the input windows until the end of the resize; moving
+    // them now would affect the positions of subsequent motion events from the
+    // drag.
+    ResizeContent(drag_last_width_, drag_last_height_, drag_gravity_, false);
   } else {
     if (resize_actor_.get()) {
       int actor_x = titlebar_x();

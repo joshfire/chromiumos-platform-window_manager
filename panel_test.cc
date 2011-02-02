@@ -401,12 +401,12 @@ TEST_F(PanelTest, SizeLimits) {
   // Now tell the panel to make the content window bigger or smaller (this
   // is the path that gets taken when we get a ConfigureRequest).  These
   // requests should be capped as well.
-  panel.ResizeContent(500, 500, GRAVITY_SOUTHEAST);
+  panel.ResizeContent(500, 500, GRAVITY_SOUTHEAST, true);
   EXPECT_EQ(content_info->size_hints.max_size.width,
             content_win.client_width());
   EXPECT_EQ(content_info->size_hints.max_size.height,
             content_win.client_height());
-  panel.ResizeContent(50, 50, GRAVITY_SOUTHEAST);
+  panel.ResizeContent(50, 50, GRAVITY_SOUTHEAST, true);
   EXPECT_EQ(content_info->size_hints.min_size.width,
             content_win.client_width());
   EXPECT_EQ(content_info->size_hints.min_size.height,
@@ -517,7 +517,7 @@ TEST_F(PanelTest, SeparatorShadow) {
   // Check that the shadow is moved correctly in response to resizes where
   // a corner other than the top left one is fixed.
   int new_width = 100;
-  panel->ResizeContent(new_width, 200, GRAVITY_SOUTHEAST);
+  panel->ResizeContent(new_width, 200, GRAVITY_SOUTHEAST, true);
   EXPECT_EQ(panel->content_win_->composited_x(),
             panel->separator_shadow_->x());
   EXPECT_EQ(panel->content_win_->composited_y(),
