@@ -10,6 +10,7 @@
 #include "window_manager/compositor.h"
 #include "window_manager/event_loop.h"
 #include "window_manager/mock_x_connection.h"
+#include "window_manager/modality_handler.h"
 #include "window_manager/panel.h"
 #include "window_manager/panel_bar.h"
 #include "window_manager/panel_manager.h"
@@ -1047,6 +1048,61 @@ TEST_F(PanelBarTest, DisallowPanelDetaching) {
 
   SendPanelDragCompleteMessage(panel);
   EXPECT_EQ(kPanelTop, panel->titlebar_y());
+}
+
+// Check that the semi-transparent black box that we use to emphasize modal
+// dialogs gets stacked above panels correctly.
+TEST_F(PanelBarTest, ModalDimming) {
+  Panel* panel = CreatePanel(200, 20, 400);
+
+  // Create a modal dialog.
+  XWindow transient_xid = CreateSimpleWindow();
+  xconn_->GetWindowInfoOrDie(transient_xid)->transient_for =
+      panel->content_xid();
+  AppendAtomToProperty(transient_xid,
+                       xconn_->GetAtomOrDie("_NET_WM_STATE"),
+                       xconn_->GetAtomOrDie("_NET_WM_STATE_MODAL"));
+  SendInitialEventsForWindow(transient_xid);
+
+  MockCompositor::StageActor* stage = compositor_->GetDefaultStage();
+  MockCompositor::ColoredBoxActor* dimming_actor =
+      dynamic_cast<MockCompositor::ColoredBoxActor*>(
+          wm_->modality_handler_->dimming_actor_.get());
+  CHECK(dimming_actor);
+  EXPECT_GT(dimming_actor->opacity(), 0);
+
+  // Check that the dimming actor is stacked below the transient window and
+  // above both the titlebar and content windows.
+  EXPECT_GT(stage->GetStackingIndex(dimming_actor),
+            stage->GetStackingIndex(
+                wm_->GetWindowOrDie(transient_xid)->GetBottomActor()));
+  EXPECT_LT(stage->GetStackingIndex(dimming_actor),
+            stage->GetStackingIndex(panel->titlebar_win()->GetBottomActor()));
+  EXPECT_LT(stage->GetStackingIndex(dimming_actor),
+            stage->GetStackingIndex(panel->content_win()->GetBottomActor()));
+}
+
+TEST_F(PanelBarTest, DontStealFocusFromModalWindow) {
+  // Create a toplevel window and give it a modal dialog.
+  XWindow toplevel_xid = CreateSimpleWindow();
+  SendInitialEventsForWindow(toplevel_xid);
+  XWindow transient_xid = CreateSimpleWindow();
+  xconn_->GetWindowInfoOrDie(transient_xid)->transient_for = toplevel_xid;
+  AppendAtomToProperty(transient_xid,
+                       xconn_->GetAtomOrDie("_NET_WM_STATE"),
+                       xconn_->GetAtomOrDie("_NET_WM_STATE_MODAL"));
+  SendInitialEventsForWindow(transient_xid);
+
+  // Create a panel and check that the modal dialog retains the focus.
+  Panel* panel = CreatePanel(200, 20, 400);
+  EXPECT_EQ(transient_xid, xconn_->focused_xid());
+
+  // The modal dialog should also keep the focus if we click on the panel's
+  // content window.
+  XEvent event;
+  xconn_->InitButtonPressEvent(&event, panel->content_xid(), Point(0, 0), 1);
+  wm_->HandleEvent(&event);
+  EXPECT_EQ(transient_xid, xconn_->focused_xid());
 }
 
 }  // namespace window_manager

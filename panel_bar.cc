@@ -216,7 +216,8 @@ void PanelBar::AddPanel(Panel* panel, PanelSource source) {
       source == PANEL_SOURCE_NEW &&
       (panel->content_win()->type_params().size() < 3 ||
        panel->content_win()->type_params()[2]);
-  if (panel->is_expanded() &&
+  if (!wm()->IsModalWindowFocused() &&
+      panel->is_expanded() &&
       (focus_requested ||
        panel->IsFocused() ||
        !wm()->focus_manager()->focused_win())) {
@@ -284,6 +285,9 @@ void PanelBar::HandleInputWindowButtonPress(XWindow xid,
                                             int x_root, int y_root,
                                             int button,
                                             XTime timestamp) {
+  if (wm()->IsModalWindowFocused())
+    return;
+
   CHECK(xid == anchor_input_xid_);
   if (button != 1)
     return;
@@ -342,6 +346,8 @@ void PanelBar::HandleInputWindowPointerLeave(XWindow xid,
 
 void PanelBar::HandlePanelButtonPress(
     Panel* panel, int button, XTime timestamp) {
+  if (wm()->IsModalWindowFocused())
+    return;
   DCHECK(panel);
   DLOG(INFO) << "Got button press in panel " << panel->xid_str()
              << "; giving it the focus";

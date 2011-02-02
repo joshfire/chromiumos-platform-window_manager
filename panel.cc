@@ -110,7 +110,9 @@ Panel::Panel(PanelManager* panel_manager,
       client_windows_have_correct_position_(false),
       event_consumer_registrar_(
           new EventConsumerRegistrar(wm(), panel_manager)),
-      transients_(new TransientWindowCollection(content_win_, panel_manager)),
+      transients_(new TransientWindowCollection(content_win_,
+                                                titlebar_win_,
+                                                panel_manager)),
       separator_shadow_(
           Shadow::Create(wm()->compositor(), Shadow::TYPE_PANEL_SEPARATOR)) {
   CHECK(content_win_);
@@ -269,6 +271,8 @@ void Panel::GetInputWindows(vector<XWindow>* windows_out) {
 
 void Panel::HandleInputWindowButtonPress(
     XWindow xid, int x, int y, int button, XTime timestamp) {
+  if (wm()->IsModalWindowFocused())
+    return;
   if (button != 1)
     return;
   DCHECK(drag_xid_ == 0)
@@ -585,6 +589,8 @@ void Panel::HandleTransientWindowUnmap(Window* win) {
 
 void Panel::HandleTransientWindowButtonPress(
     Window* win, int button, XTime timestamp) {
+  if (wm()->IsModalWindowFocused())
+    return;
   DCHECK(win);
   DCHECK(transients_->ContainsWindow(*win));
   transients_->SetPreferredWindowToFocus(win);

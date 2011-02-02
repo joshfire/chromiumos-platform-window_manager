@@ -66,7 +66,7 @@ LayoutManager::ToplevelWindow::ToplevelWindow(Window* win,
       layout_manager_(layout_manager),
       state_(STATE_NEW),
       last_state_(STATE_NEW),
-      transients_(new TransientWindowCollection(win, layout_manager)),
+      transients_(new TransientWindowCollection(win, NULL, layout_manager)),
       selected_tab_(-1),
       tab_count_(0),
       last_tab_selected_time_(0),
@@ -504,6 +504,10 @@ void LayoutManager::ToplevelWindow::HandleTransientWindowConfigureRequest(
 
 void LayoutManager::ToplevelWindow::HandleButtonPress(
     Window* button_win, XTime timestamp) {
+  // Don't reassign the focus if it's already held by a modal window.
+  if (wm()->IsModalWindowFocused())
+    return;
+
   transients_->SetPreferredWindowToFocus(
       transients_->ContainsWindow(*button_win) ? button_win : NULL);
   TakeFocus(timestamp);

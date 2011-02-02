@@ -50,6 +50,7 @@ class KeyBindingsActionRegistrar;
 class KeyBindingsGroup;
 class LayoutManager;
 class LoginController;
+class ModalityHandler;
 class ScreenLockerHandler;
 class StackingManager;
 class Window;
@@ -162,6 +163,9 @@ class WindowManager : public PanelManagerAreaChangeListener,
   // focus_manager_->FocusWindow().
   void FocusWindow(Window* win, XTime timestamp);
 
+  // Does a modal window currently have the focus?
+  bool IsModalWindowFocused() const;
+
   // Do something reasonable with the input focus.
   // This is intended to be called by EventConsumers when they give up the
   // focus and aren't sure what to do with it.
@@ -265,6 +269,7 @@ class WindowManager : public PanelManagerAreaChangeListener,
   friend class BasicWindowManagerTest;
   friend class LayoutManagerTest;         // uses |layout_manager_|
   friend class LoginControllerTest;       // uses |login_controller_|
+  friend class ModalityHandlerTest;       // uses |modality_handler_|
   friend class PanelTest;                 // uses |panel_manager_|
   friend class PanelBarTest;              // uses |panel_manager_|
   friend class PanelDockTest;             // uses |panel_manager_|
@@ -276,6 +281,7 @@ class WindowManager : public PanelManagerAreaChangeListener,
   FRIEND_TEST(LayoutManagerTest, InitialWindowStacking);
   FRIEND_TEST(LayoutManagerTest, KeyBindings);
   FRIEND_TEST(LayoutManagerTest, ChangeBackgroundsAfterInitialWindow);
+  FRIEND_TEST(PanelBarTest, ModalDimming);
   FRIEND_TEST(WindowTest, TransientFor);  // uses TrackWindow()
   FRIEND_TEST(WindowManagerTest, RegisterExistence);
   FRIEND_TEST(WindowManagerTest, EventConsumer);
@@ -531,6 +537,7 @@ class WindowManager : public PanelManagerAreaChangeListener,
   scoped_ptr<LoginController> login_controller_;
 
   scoped_ptr<ScreenLockerHandler> screen_locker_handler_;
+  scoped_ptr<ModalityHandler> modality_handler_;
   scoped_ptr<ChromeWatchdog> chrome_watchdog_;
 
   // ID for the timeout that calls QueryKeyboardState().

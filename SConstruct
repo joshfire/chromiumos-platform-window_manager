@@ -99,6 +99,7 @@ srcs = Split('''\
   layout_manager.cc
   login_controller.cc
   login_entry.cc
+  modality_handler.cc
   motion_event_coalescer.cc
   panel.cc
   panel_bar.cc

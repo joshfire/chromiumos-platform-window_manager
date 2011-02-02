@@ -36,6 +36,7 @@ extern "C" {
 #include "window_manager/key_bindings.h"
 #include "window_manager/layout_manager.h"
 #include "window_manager/login_controller.h"
+#include "window_manager/modality_handler.h"
 #include "window_manager/panel_manager.h"
 #include "window_manager/profiler.h"
 #include "window_manager/screen_locker_handler.h"
@@ -409,6 +410,9 @@ bool WindowManager::Init() {
   screen_locker_handler_.reset(new ScreenLockerHandler(this));
   event_consumers_.insert(screen_locker_handler_.get());
 
+  modality_handler_.reset(new ModalityHandler(this));
+  event_consumers_.insert(modality_handler_.get());
+
   chrome_watchdog_.reset(new ChromeWatchdog(this));
   event_consumers_.insert(chrome_watchdog_.get());
 
@@ -652,6 +656,10 @@ Window* WindowManager::GetWindowOwningActor(
 
 void WindowManager::FocusWindow(Window* win, XTime timestamp) {
   focus_manager_->FocusWindow(win, timestamp);
+}
+
+bool WindowManager::IsModalWindowFocused() const {
+  return modality_handler_->modal_window_is_focused();
 }
 
 void WindowManager::TakeFocus(XTime timestamp) {
@@ -1890,7 +1898,7 @@ void WindowManager::HandleSyncAlarmNotify(const XSyncAlarmNotifyEvent& e) {
 void WindowManager::HandleUnmapNotify(const XUnmapEvent& e) {
   DLOG(INFO) << "Handling unmap notify for " << XidStr(e.window);
   Window* win = GetWindow(e.window);
-  if (!win)
+  if (!win || !win->mapped())
     return;
 
   win->HandleUnmapNotify();

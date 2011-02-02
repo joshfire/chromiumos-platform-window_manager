@@ -16,8 +16,11 @@ using std::tr1::shared_ptr;
 namespace window_manager {
 
 TransientWindowCollection::TransientWindowCollection(
-    Window* owner_win, EventConsumer* event_consumer)
+    Window* owner_win,
+    Window* win_to_stack_above,
+    EventConsumer* event_consumer)
     : owner_win_(owner_win),
+      win_to_stack_above_(win_to_stack_above ? win_to_stack_above : owner_win),
       event_consumer_(event_consumer),
       stacked_transients_(new Stacker<TransientWindow*>),
       transient_to_focus_(NULL),
@@ -126,7 +129,7 @@ void TransientWindowCollection::AddWindow(
       transient.get(),
       transient_to_stack_above ?
       transient_to_stack_above->win :
-      (stack_directly_above_owner ? owner_win_ : NULL));
+      (stack_directly_above_owner ? win_to_stack_above_ : NULL));
 
   if (is_hidden_)
     transient_win->HideComposited();
@@ -169,7 +172,7 @@ void TransientWindowCollection::ConfigureAllWindowsRelativeToOwner(
 
 void TransientWindowCollection::ApplyStackingForAllWindows(
     bool stack_directly_above_owner) {
-  Window* prev_win = stack_directly_above_owner ? owner_win_ : NULL;
+  Window* prev_win = stack_directly_above_owner ? win_to_stack_above_ : NULL;
   for (list<TransientWindow*>::const_reverse_iterator it =
            stacked_transients_->items().rbegin();
        it != stacked_transients_->items().rend();

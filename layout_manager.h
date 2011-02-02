@@ -536,10 +536,6 @@ class LayoutManager : public EventConsumer,
   // Transient windows that have the _NET_WM_STATE_MODAL hint set.
   std::tr1::unordered_set<Window*> modal_transients_;
 
-  // Partially-transparent black rectangle that we display beneath a modal
-  // transient window to emphasize the window.
-  scoped_ptr<Compositor::ColoredBoxActor> modal_lightbox_;
-
   DISALLOW_COPY_AND_ASSIGN(LayoutManager);
 };
 

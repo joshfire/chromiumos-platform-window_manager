@@ -25,10 +25,16 @@ class WindowManager;
 // "owner" window.
 class TransientWindowCollection {
  public:
-  // |owner_win| is the window owning the transients in this collection,
-  // and |event_consumer| is used to register interest in events concerning
-  // the windows.
-  TransientWindowCollection(Window* owner_win, EventConsumer* event_consumer);
+  // |owner_win| is the window owning the transients in this collection.
+  // If |win_to_stack_above| is non-NULL, transients are stacked above it
+  // instead of above |owner_win| (this is used for panels, which have titlebar
+  // windows that are stacked above their content windows -- we want the
+  // transient to be above the titlebar in addition to the content).
+  // |event_consumer| is used to register interest in events concerning the
+  // windows.
+  TransientWindowCollection(Window* owner_win,
+                            Window* win_to_stack_above,
+                            EventConsumer* event_consumer);
   ~TransientWindowCollection();
 
   bool is_hidden() const { return is_hidden_; }
@@ -167,6 +173,10 @@ class TransientWindowCollection {
 
   // Window owning this collection.  Not owned by us.
   Window* owner_win_;
+
+  // Window above which all transients should be stacked.  Typically
+  // |owner_win_|, but see the comment in the constructor.
+  Window* win_to_stack_above_;
 
   // Event consumer that we register as being interested in events about
   // our transient windows.  The consumer should pass ConfigureRequest

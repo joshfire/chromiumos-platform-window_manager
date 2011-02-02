@@ -64,14 +64,6 @@ static const double kSeparatorHeightRatio = 0.8;
 // The width of the separator in pixels.
 static const int kSeparatorWidth = 2;
 
-// Opacity of the black rectangle that we use to dim everything in the
-// background when a modal dialog is being displayed.
-static const double kModalLightboxOpacity = 0.5;
-
-// Duration in milliseconds over which we dim and undim the background when
-// a modal dialog is mapped and unmapped.
-static const int kModalLightboxFadeMs = 100;
-
 // Various keybinding action names (finally made into static globals since
 // they keep getting typoed).
 static const char* kSwitchToOverviewModeAction = "switch-to-overview-mode";
@@ -135,10 +127,7 @@ LayoutManager::LayoutManager(WindowManager* wm, PanelManager* panel_manager)
       background_xid_(
           wm_->CreateInputWindow(0, 0, wm_->width(), wm_->height(), 0)),
       should_layout_windows_after_initial_pixmap_(false),
-      should_animate_after_initial_pixmap_(false),
-      modal_lightbox_(
-          wm_->compositor()->CreateColoredBox(
-              wm_->width(), wm_->height(), Compositor::Color(0, 0, 0))) {
+      should_animate_after_initial_pixmap_(false) {
   wm_->focus_manager()->RegisterFocusChangeListener(this);
   panel_manager_->RegisterAreaChangeListener(this);
   panel_manager_->GetArea(&panel_manager_left_width_,
@@ -161,11 +150,6 @@ LayoutManager::LayoutManager(WindowManager* wm, PanelManager* panel_manager)
       LOG(INFO) << "Overview mode is disabled; ignoring --background_image";
     }
   }
-
-  modal_lightbox_->SetName("modal window lightbox");
-  modal_lightbox_->SetOpacity(0, 0);
-  modal_lightbox_->Show();
-  wm_->stage()->AddActor(modal_lightbox_.get());
 
   int event_mask = ButtonPressMask | ButtonReleaseMask | PointerMotionMask;
   wm_->xconn()->AddButtonGrabOnWindow(
@@ -342,7 +326,6 @@ void LayoutManager::HandleScreenResize() {
   if (background_xid_)
     wm_->xconn()->ResizeWindow(background_xid_,
                                Size(wm_->width(), wm_->height()));
-  modal_lightbox_->SetSize(wm_->width(), wm_->height());
 
   // Make sure the snapshot windows and hidden transient client windows are
   // still offscreen.
@@ -1926,8 +1909,6 @@ void LayoutManager::HandleTransientWindowModalityChange(
 
   const bool previously_had_modal_transients = !modal_transients_.empty();
 
-  Window* win_to_stack_lightbox_under = NULL;
-
   if (is_modal) {
     modal_transients_.insert(transient_win);
     ToplevelWindow* owner =
@@ -1935,7 +1916,6 @@ void LayoutManager::HandleTransientWindowModalityChange(
     DCHECK(owner);
     if (owner)
       DisplayAndFocusToplevel(owner);
-    win_to_stack_lightbox_under = transient_win;
   } else {
     modal_transients_.erase(transient_win);
 
@@ -1947,24 +1927,13 @@ void LayoutManager::HandleTransientWindowModalityChange(
       DCHECK(owner);
       if (owner)
         DisplayAndFocusToplevel(owner);
-      win_to_stack_lightbox_under = new_win_to_focus;
     }
   }
 
-  if (win_to_stack_lightbox_under) {
-    wm_->stacking_manager()->StackActorRelativeToOtherActor(
-        modal_lightbox_.get(),
-        win_to_stack_lightbox_under->GetBottomActor(),
-        false);  // above=false
-  }
-
-  if (previously_had_modal_transients && modal_transients_.empty()) {
-    modal_lightbox_->SetOpacity(0, kModalLightboxFadeMs);
+  if (previously_had_modal_transients && modal_transients_.empty())
     EnableKeyBindingsForMode(mode_);
-  } else if (!previously_had_modal_transients && !modal_transients_.empty()) {
-    modal_lightbox_->SetOpacity(kModalLightboxOpacity, kModalLightboxFadeMs);
+  else if (!previously_had_modal_transients && !modal_transients_.empty())
     DisableKeyBindingsForMode(mode_);
-  }
 }
 
 }  // namespace window_manager
