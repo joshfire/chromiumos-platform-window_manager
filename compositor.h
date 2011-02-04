@@ -53,6 +53,7 @@ class Compositor {
     virtual ~Actor() {}
 
     virtual void SetName(const std::string& name) = 0;
+    virtual Rect GetBounds() = 0;
     virtual int GetWidth() = 0;
     virtual int GetHeight() = 0;
     virtual int GetX() = 0;

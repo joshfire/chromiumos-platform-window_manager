@@ -67,6 +67,7 @@ Window::Window(WindowManager* wm,
       composited_scale_x_(1.0),
       composited_scale_y_(1.0),
       composited_opacity_(1.0),
+      actor_gravity_(GRAVITY_NORTHWEST),
       shadow_opacity_(1.0),
       supports_wm_take_focus_(false),
       supports_wm_delete_window_(false),
@@ -664,15 +665,14 @@ bool Window::ResizeClient(int width, int height, Gravity gravity) {
       return false;
     }
     SaveClientPosition(client_x_ - dx, client_y_ - dy);
-    // TODO: Test whether this works for scaled windows.
-    MoveComposited(composited_x_ - composited_scale_x_ * dx,
-                   composited_y_ - composited_scale_y_ * dy,
-                   0);
+    composited_x_ -= dx * composited_scale_x_;
+    composited_y_ -= dy * composited_scale_y_;
   } else  {
     if (!wm_->xconn()->ResizeWindow(xid_, Size(width, height)))
       return false;
   }
 
+  actor_gravity_ = gravity;
   SaveClientSize(width, height);
   return true;
 }
@@ -697,9 +697,7 @@ void Window::MoveComposited(int x, int y, int anim_ms) {
   DCHECK(actor_.get());
   composited_x_ = x;
   composited_y_ = y;
-  actor_->Move(x, y, anim_ms);
-  if (shadow_.get())
-    shadow_->Move(x, y, anim_ms);
+  MoveActorToAdjustedPosition(MOVE_DIMENSIONS_X_AND_Y, anim_ms);
 }
 
 void Window::MoveCompositedX(int x, int anim_ms) {
@@ -707,9 +705,7 @@ void Window::MoveCompositedX(int x, int anim_ms) {
              << "position to " << x << " over " << anim_ms << " ms";
   DCHECK(actor_.get());
   composited_x_ = x;
-  actor_->MoveX(x, anim_ms);
-  if (shadow_.get())
-    shadow_->MoveX(x, anim_ms);
+  MoveActorToAdjustedPosition(MOVE_DIMENSIONS_X_ONLY, anim_ms);
 }
 
 void Window::MoveCompositedY(int y, int anim_ms) {
@@ -717,9 +713,7 @@ void Window::MoveCompositedY(int y, int anim_ms) {
              << "position to " << y << " over " << anim_ms << " ms";
   DCHECK(actor_.get());
   composited_y_ = y;
-  actor_->MoveY(y, anim_ms);
-  if (shadow_.get())
-    shadow_->MoveY(y, anim_ms);
+  MoveActorToAdjustedPosition(MOVE_DIMENSIONS_Y_ONLY, anim_ms);
 }
 
 void Window::MoveCompositedToClient() {
@@ -1063,6 +1057,43 @@ void Window::DestroyWmSyncRequestAlarm() {
   client_has_redrawn_after_last_resize_ = true;
 }
 
+void Window::MoveActorToAdjustedPosition(MoveDimensions dimensions,
+                                         int anim_ms) {
+  DCHECK(actor_.get());
+
+  // Get the region that would be occupied by the actor if it were the same
+  // size as the client window.
+  Rect scaled_rect(composited_x_, composited_y_,
+                   client_width_ * composited_scale_x_,
+                   client_height_ * composited_scale_y_);
+
+  // Now resize that region accordingly for the actor's actual size and its
+  // gravity.
+  scaled_rect.resize(actor_->GetWidth() * composited_scale_x_,
+                     actor_->GetHeight() * composited_scale_y_,
+                     actor_gravity_);
+
+  switch (dimensions) {
+    case MOVE_DIMENSIONS_X_AND_Y:
+      actor_->Move(scaled_rect.x, scaled_rect.y, anim_ms);
+      if (shadow_.get())
+        shadow_->Move(scaled_rect.x, scaled_rect.y, anim_ms);
+      break;
+    case MOVE_DIMENSIONS_X_ONLY:
+      actor_->MoveX(scaled_rect.x, anim_ms);
+      if (shadow_.get())
+        shadow_->MoveX(scaled_rect.x, anim_ms);
+      break;
+    case MOVE_DIMENSIONS_Y_ONLY:
+      actor_->MoveY(scaled_rect.y, anim_ms);
+      if (shadow_.get())
+        shadow_->MoveY(scaled_rect.y, anim_ms);
+      break;
+    default:
+      NOTREACHED() << "Unknown move dimensions " << dimensions;
+  }
+}
+
 void Window::ResetPixmap() {
   DCHECK(xid_);
   DCHECK(actor_.get());
@@ -1071,12 +1102,19 @@ void Window::ResetPixmap() {
 
   XID old_pixmap = pixmap_;
   pixmap_ = wm_->xconn()->GetCompositingPixmapForWindow(xid_);
+
+  Size old_size(actor_->GetWidth(), actor_->GetHeight());
   actor_->SetPixmap(pixmap_);
   if (shadow_.get()) {
     shadow_->Resize(composited_scale_x_ * actor_->GetWidth(),
                     composited_scale_y_ * actor_->GetHeight(),
                     0);  // anim_ms
   }
+
+  if (actor_gravity_ != GRAVITY_NORTHWEST &&
+      Size(actor_->GetWidth(), actor_->GetHeight()) != old_size)
+    MoveActorToAdjustedPosition(MOVE_DIMENSIONS_X_AND_Y, 0);
+
   if (old_pixmap)
     wm_->xconn()->FreePixmap(old_pixmap);
 }

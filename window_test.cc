@@ -898,22 +898,111 @@ TEST_F(WindowTest, ShadowSizeRace) {
   // already been resized in the X server at this point, the actor should
   // get the 200x400 pixmap.
   win.HandleMapNotify();
-  EXPECT_EQ(kNewSize.width, win.actor()->GetWidth());
-  EXPECT_EQ(kNewSize.height, win.actor()->GetHeight());
+  EXPECT_EQ(kNewSize, win.actor()->GetBounds().size());
 
   // Turn on the shadow while we're in this brief state where we have a
   // 200x400 actor but have only heard about the 1x1 size from the X
   // server.  The shadow should take the actor's size.
   win.SetShadowType(Shadow::TYPE_RECTANGULAR);
-  EXPECT_EQ(kNewSize.width, win.shadow()->width());
-  EXPECT_EQ(kNewSize.height, win.shadow()->height());
+  EXPECT_EQ(kNewSize, win.shadow()->bounds().size());
 
   // Now send the ConfigureNotify and check that nothing changes.
   win.HandleConfigureNotify(kNewSize.width, kNewSize.height);
-  EXPECT_EQ(kNewSize.width, win.actor()->GetWidth());
-  EXPECT_EQ(kNewSize.height, win.actor()->GetHeight());
-  EXPECT_EQ(kNewSize.width, win.shadow()->width());
-  EXPECT_EQ(kNewSize.height, win.shadow()->height());
+  EXPECT_EQ(kNewSize, win.actor()->GetBounds().size());
+}
+
+// Test that when we ask a window to simultaneously move and resize itself (that
+// is, we request a resize with non-northwest gravity), the actor's position and
+// size are updated atomically, rather than its position getting changed
+// immediately and the resize only happening after we fetch the new pixmap.
+TEST_F(WindowTest, SimultaneousMoveAndResize) {
+  // Create and map a window.
+  const Rect kOrigBounds(100, 150, 300, 250);
+  XWindow xid = xconn_->CreateWindow(xconn_->GetRootWindow(),
+                                     kOrigBounds,
+                                     false,  // override_redirect
+                                     false,  // input_only
+                                     0,      // event_mask
+                                     0);     // visual
+  XConnection::WindowGeometry geometry;
+  ASSERT_TRUE(xconn_->GetWindowGeometry(xid, &geometry));
+  Window win(wm_.get(), xid, false, geometry);
+  ASSERT_TRUE(xconn_->MapWindow(xid));
+  win.HandleMapNotify();
+  win.ShowComposited();
+
+  // The client window and the actor should both have the requested bounds.
+  MockXConnection::WindowInfo* info = xconn_->GetWindowInfoOrDie(xid);
+  EXPECT_EQ(kOrigBounds, info->bounds);
+  MockCompositor::TexturePixmapActor* actor = GetMockActorForWindow(&win);
+  EXPECT_EQ(kOrigBounds, actor->GetBounds());
+  EXPECT_EQ(kOrigBounds.x, win.composited_x());
+  EXPECT_EQ(kOrigBounds.y, win.composited_y());
+
+  // Now make the window 50 pixels wider and taller with southeast gravity.
+  // In other words, its origin should also move 50 pixels up and to the left.
+  const Rect kNewBounds(50, 100, 350, 300);
+  win.ResizeClient(kNewBounds.width, kNewBounds.height, GRAVITY_SOUTHEAST);
+
+  // A request should've been sent to the X server asking for the new bounds, so
+  // the client window should be resized.  The actor should still be at the old
+  // size (since we can't fetch its bitmap yet) and also at the old position (so
+  // we can make the move and resize happen atomically onscreen later).
+  EXPECT_EQ(kNewBounds, info->bounds);
+  EXPECT_EQ(kOrigBounds, actor->GetBounds());
+  EXPECT_EQ(kNewBounds.x, win.composited_x());
+  EXPECT_EQ(kNewBounds.y, win.composited_y());
+
+  // After we've received notification that the new pixmap is available, the
+  // actor should be both resized and moved to the requested position.
+  win.HandleConfigureNotify(kNewBounds.width, kNewBounds.height);
+  EXPECT_EQ(kNewBounds, actor->GetBounds());
+  EXPECT_EQ(kNewBounds.x, win.composited_x());
+  EXPECT_EQ(kNewBounds.y, win.composited_y());
+
+  // Move the actor to a completely different position.
+  const Point kCompositedPosition(500, 600);
+  win.MoveComposited(kCompositedPosition.x, kCompositedPosition.y, 0);
+  EXPECT_EQ(Rect(kCompositedPosition, kNewBounds.size()), actor->GetBounds());
+  EXPECT_EQ(kCompositedPosition.x, win.composited_x());
+  EXPECT_EQ(kCompositedPosition.y, win.composited_y());
+
+  // Now resize the window back to its old size, again with southeast gravity.
+  // The actor shouldn't move, but we should update the |composited_x| and
+  // |composited_y| fields.
+  win.ResizeClient(kOrigBounds.width, kOrigBounds.height, GRAVITY_SOUTHEAST);
+  EXPECT_EQ(kOrigBounds, info->bounds);
+  EXPECT_EQ(Rect(kCompositedPosition, kNewBounds.size()), actor->GetBounds());
+  const Point kOffsetCompositedPosition(
+      kCompositedPosition.x + (kNewBounds.width - kOrigBounds.width),
+      kCompositedPosition.y + (kNewBounds.height - kOrigBounds.height));
+  EXPECT_EQ(kOffsetCompositedPosition.x, win.composited_x());
+  EXPECT_EQ(kOffsetCompositedPosition.y, win.composited_y());
+
+  // After getting notification about the pixmap, the actor should be resized
+  // and moved to the new position.
+  win.HandleConfigureNotify(kOrigBounds.width, kOrigBounds.height);
+  EXPECT_EQ(Rect(kOffsetCompositedPosition, kOrigBounds.size()),
+            actor->GetBounds());
+
+  // Move the composited window back to the client window's position and scale
+  // it to 50% of its original size.
+  win.MoveComposited(kOrigBounds.x, kOrigBounds.y, 0);
+  const double kCompositedScale = 0.5;
+  win.ScaleComposited(kCompositedScale, kCompositedScale, 0);
+
+  // Resize the client again.  The amount that the composited window is moved
+  // should be scaled by its scaling factor.
+  win.ResizeClient(kNewBounds.width, kNewBounds.height, GRAVITY_SOUTHEAST);
+  const Point kScaledCompositedPosition(
+      kOrigBounds.x + kCompositedScale * (kNewBounds.x - kOrigBounds.x),
+      kOrigBounds.y + kCompositedScale * (kNewBounds.y - kOrigBounds.y));
+  EXPECT_EQ(kScaledCompositedPosition.x, win.composited_x());
+  EXPECT_EQ(kScaledCompositedPosition.y, win.composited_y());
+
+  win.HandleConfigureNotify(kNewBounds.width, kNewBounds.height);
+  EXPECT_EQ(Rect(kScaledCompositedPosition, kNewBounds.size()),
+            actor->GetBounds());
 }
 
 }  // namespace window_manager

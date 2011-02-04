@@ -58,6 +58,7 @@ class MockCompositor : public Compositor {
 
     // Begin Compositor::Actor methods.
     virtual void SetName(const std::string& name) { name_ = name; }
+    virtual Rect GetBounds() { return Rect(x_, y_, width_, height_); }
     virtual int GetWidth() { return width_; }
     virtual int GetHeight() { return height_; }
     virtual int GetX() { return x_; }

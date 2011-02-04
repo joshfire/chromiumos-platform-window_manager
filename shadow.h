@@ -14,6 +14,7 @@
 #include "base/basictypes.h"
 #include "base/scoped_ptr.h"
 #include "window_manager/compositor.h"
+#include "window_manager/geometry.h"
 #include "window_manager/util.h"
 
 namespace window_manager {
@@ -56,6 +57,7 @@ class Shadow {
   int y() const { return y_; }
   int width() const { return width_; }
   int height() const { return height_; }
+  Rect bounds() const { return Rect(x_, y_, width_, height_); }
 
   // Minimum size that the shadow can take without having overlapping images.
   int min_width() const { return left_inset_ + right_inset_; }

@@ -39,6 +39,9 @@ struct Point {
   bool operator==(const Point& o) const {
     return x == o.x && y == o.y;
   }
+  bool operator!=(const Point& o) const {
+    return x != o.x || y != o.y;
+  }
 
   int x;
   int y;
@@ -55,6 +58,9 @@ struct Size {
 
   bool operator==(const Size& o) const {
     return width == o.width && height == o.height;
+  }
+  bool operator!=(const Size& o) const {
+    return width != o.width || height != o.height;
   }
 
   int width;
@@ -131,6 +137,9 @@ struct Rect {
 
   bool operator==(const Rect& o) const {
     return x == o.x && y == o.y && width == o.width && height == o.height;
+  }
+  bool operator!=(const Rect& o) const {
+    return x != o.x || y != o.y || width != o.width || height != o.height;
   }
 
   int left() const { return x; }
