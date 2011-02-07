@@ -265,6 +265,12 @@ void ScreenLockerHandler::HandleLocked() {
   WmIpc::Message msg(
       chromeos::WM_IPC_MESSAGE_CHROME_NOTIFY_SCREEN_REDRAWN_FOR_LOCK);
   wm_->wm_ipc()->SendMessage(chrome_win->xid(), msg);
+
+  // This shouldn't be necessary since Chrome grabs the pointer and keyboard on
+  // behalf of the screen locker window, but some GTK+ widgets won't accept
+  // input if they think that their toplevel window is inactive due to
+  // _NET_WM_ACTIVE_WINDOW not being updated.
+  wm_->FocusWindow(chrome_win, wm_->GetCurrentTimeFromServer());
 }
 
 void ScreenLockerHandler::HandleUnlocked() {

@@ -149,13 +149,16 @@ TEST_F(ScreenLockerHandlerTest, BasicLock) {
                   WindowManager::VISIBILITY_GROUP_SCREEN_LOCKER));
 
   // We should've redrawn the screen and sent the screen locker window a
-  // message letting it know that we did so.
+  // message letting it know that we did so.  We should also update the
+  // _NET_WM_ACTIVE_WINDOW property so that the window's widgets know that it's
+  // active.
   EXPECT_GT(compositor_->num_draws(), initial_num_draws);
   EXPECT_TRUE(
       GetFirstWmIpcMessageOfType(
           screen_locker_xid,
           chromeos::WM_IPC_MESSAGE_CHROME_NOTIFY_SCREEN_REDRAWN_FOR_LOCK,
           &msg));
+  EXPECT_EQ(screen_locker_xid, GetActiveWindowProperty());
 
   // We shouldn't animate a snapshot of the screen when we go directly from
   // the unlocked to locked states (without seeing pre-lock) -- this
