@@ -140,7 +140,9 @@ bool RealXConnection::GetWindowGeometry(XDrawable xid,
   scoped_ptr_malloc<xcb_get_geometry_reply_t> reply(
       xcb_get_geometry_reply(xcb_conn_, cookie, &error));
   scoped_ptr_malloc<xcb_generic_error_t> scoped_error(error);
-  if (error) {
+  if (error || !reply.get()) {
+    // XCB sometimes returns a NULL reply without reporting an error;
+    // no idea why.
     LOG(WARNING) << "Got X error while getting geometry for drawable "
                  << XidStr(xid);
     return false;
@@ -308,7 +310,7 @@ bool RealXConnection::GrabPointer(XWindow xid,
   scoped_ptr_malloc<xcb_grab_pointer_reply_t> reply(
       xcb_grab_pointer_reply(xcb_conn_, cookie, &error));
   scoped_ptr_malloc<xcb_generic_error_t> scoped_error(error);
-  if (error) {
+  if (error || !reply.get()) {
     LOG(WARNING) << "Pointer grab for window " << XidStr(xid) << " failed";
     return false;
   }
@@ -341,7 +343,7 @@ bool RealXConnection::GrabKeyboard(XWindow xid, XTime timestamp) {
   scoped_ptr_malloc<xcb_grab_keyboard_reply_t> reply(
       xcb_grab_keyboard_reply(xcb_conn_, cookie, &error));
   scoped_ptr_malloc<xcb_generic_error_t> scoped_error(error);
-  if (error) {
+  if (error || !reply.get()) {
     LOG(WARNING) << "Keyboard grab for window " << XidStr(xid) << " failed";
     return false;
   }
@@ -468,7 +470,7 @@ bool RealXConnection::GetWindowAttributes(
   scoped_ptr_malloc<xcb_get_window_attributes_reply_t> reply(
       xcb_get_window_attributes_reply(xcb_conn_, cookie, &error));
   scoped_ptr_malloc<xcb_generic_error_t> scoped_error(error);
-  if (error) {
+  if (error || !reply.get()) {
     LOG(WARNING) << "Getting attributes for window " << XidStr(xid)
                  << " failed";
     return false;
@@ -528,7 +530,7 @@ XWindow RealXConnection::GetCompositingOverlayWindow(XWindow root) {
   scoped_ptr_malloc<xcb_composite_get_overlay_window_reply_t> reply(
       xcb_composite_get_overlay_window_reply(xcb_conn_, cookie, &error));
   scoped_ptr_malloc<xcb_generic_error_t> scoped_error(error);
-  if (error) {
+  if (error || !reply.get()) {
     LOG(WARNING) << "Got X error while getting overlay window";
     return XCB_NONE;
   }
@@ -658,7 +660,7 @@ bool RealXConnection::IsWindowShaped(XWindow xid) {
   scoped_ptr_malloc<xcb_shape_query_extents_reply_t> reply(
       xcb_shape_query_extents_reply(xcb_conn_, cookie, &error));
   scoped_ptr_malloc<xcb_generic_error_t> scoped_error(error);
-  if (error) {
+  if (error || !reply.get()) {
     LOG(WARNING) << "Got X error while checking whether window "
                  << XidStr(xid) << " is shaped";
     return false;
@@ -701,7 +703,7 @@ bool RealXConnection::GetWindowBoundingRegion(XWindow xid, ByteMap* bytemap) {
   scoped_ptr_malloc<xcb_shape_get_rectangles_reply_t> reply(
       xcb_shape_get_rectangles_reply(xcb_conn_, cookie, &error));
   scoped_ptr_malloc<xcb_generic_error_t> scoped_error(error);
-  if (error) {
+  if (error || !reply.get()) {
     LOG(WARNING) << "Got X error while getting bounding region for "
                  << XidStr(xid);
     return false;
@@ -779,7 +781,7 @@ bool RealXConnection::GetAtoms(
     scoped_ptr_malloc<xcb_intern_atom_reply_t> reply(
         xcb_intern_atom_reply(xcb_conn_, cookies[i], &error));
     scoped_ptr_malloc<xcb_generic_error_t> scoped_error(error);
-    if (error) {
+    if (error || !reply.get()) {
       LOG(WARNING) << "Unable to look up X atom named " << names[i];
       return false;
     }
@@ -797,7 +799,7 @@ bool RealXConnection::GetAtomName(XAtom atom, string* name) {
   scoped_ptr_malloc<xcb_get_atom_name_reply_t> reply(
       xcb_get_atom_name_reply(xcb_conn_, cookie, &error));
   scoped_ptr_malloc<xcb_generic_error_t> scoped_error(error);
-  if (error) {
+  if (error || !reply.get()) {
     LOG(WARNING) << "Unable to look up name for X atom " << XidStr(atom);
     return false;
   }
@@ -1003,7 +1005,7 @@ XWindow RealXConnection::GetSelectionOwner(XAtom atom) {
   scoped_ptr_malloc<xcb_get_selection_owner_reply_t> reply(
       xcb_get_selection_owner_reply(xcb_conn_, cookie, &error));
   scoped_ptr_malloc<xcb_generic_error_t> scoped_error(error);
-  if (error) {
+  if (error || !reply.get()) {
     LOG(WARNING) << "Got X error while getting selection owner for "
                  << XidStr(atom);
     return XCB_NONE;
@@ -1130,7 +1132,7 @@ bool RealXConnection::GetParentWindow(XWindow xid, XWindow* parent_out) {
   scoped_ptr_malloc<xcb_query_tree_reply_t> reply(
       xcb_query_tree_reply(xcb_conn_, cookie, &error));
   scoped_ptr_malloc<xcb_generic_error_t> scoped_error(error);
-  if (error) {
+  if (error || !reply.get()) {
     LOG(WARNING) << "Got X error while querying for parent of " << XidStr(xid);
     return false;
   }
@@ -1146,7 +1148,7 @@ bool RealXConnection::GetChildWindows(XWindow xid,
   scoped_ptr_malloc<xcb_query_tree_reply_t> reply(
       xcb_query_tree_reply(xcb_conn_, cookie, &error));
   scoped_ptr_malloc<xcb_generic_error_t> scoped_error(error);
-  if (error) {
+  if (error || !reply.get()) {
     LOG(WARNING) << "Got X error while querying for children of "
                  << XidStr(xid);
     return false;
@@ -1286,7 +1288,7 @@ bool RealXConnection::QueryKeyboardState(vector<uint8_t>* keycodes_out) {
   scoped_ptr_malloc<xcb_query_keymap_reply_t> reply(
       xcb_query_keymap_reply(xcb_conn_, cookie, &error));
   scoped_ptr_malloc<xcb_generic_error_t> scoped_error(error);
-  if (error) {
+  if (error || !reply.get()) {
     LOG(WARNING) << "Querying keyboard state failed";
     return false;
   }
@@ -1302,7 +1304,7 @@ bool RealXConnection::QueryPointerPosition(Point* absolute_pos_out) {
   scoped_ptr_malloc<xcb_query_pointer_reply_t> reply(
       xcb_query_pointer_reply(xcb_conn_, cookie, &error));
   scoped_ptr_malloc<xcb_generic_error_t> scoped_error(error);
-  if (error) {
+  if (error || !reply.get()) {
     LOG(WARNING) << "Querying pointer position failed";
     return false;
   }
@@ -1402,7 +1404,7 @@ bool RealXConnection::QueryExtension(const string& name,
   scoped_ptr_malloc<xcb_query_extension_reply_t> reply(
       xcb_query_extension_reply(xcb_conn_, cookie, &error));
   scoped_ptr_malloc<xcb_generic_error_t> scoped_error(error);
-  if (error) {
+  if (error || !reply.get()) {
     LOG(WARNING) << "Querying extension " << name << " failed";
     return false;
   }
@@ -1438,7 +1440,7 @@ bool RealXConnection::GetPropertyInternal(XWindow xid,
   scoped_ptr_malloc<xcb_get_property_reply_t> reply(
       xcb_get_property_reply(xcb_conn_, cookie, &error));
   scoped_ptr_malloc<xcb_generic_error_t> scoped_error(error);
-  if (error) {
+  if (error || !reply.get()) {
     LOG(WARNING) << "Got X error while getting property " << XidStr(xatom)
                  << " for window " << XidStr(xid);
     return false;
