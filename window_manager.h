@@ -44,7 +44,6 @@ class DBusInterface;
 class EventConsumer;
 class EventLoop;
 class FocusManager;
-class HotkeyOverlay;
 class KeyBindings;
 class KeyBindingsActionRegistrar;
 class KeyBindingsGroup;
@@ -402,19 +401,11 @@ class WindowManager : public PanelManagerAreaChangeListener,
   // doesn't matter.  Returns 0 if there aren't any Chrome windows.
   XWindow GetArbitraryChromeWindow();
 
-  // Callback to show or hide the hotkey overlay images.
-  void ToggleHotkeyOverlay();
-
   // Write a screenshot to disk.  If |use_active_window| is true, the
   // screenshot will contain the currently-active client window's offscreen
   // pixmap.  Otherwise, the composited image from the root window will be
   // captured.
   void TakeScreenshot(bool use_active_window);
-
-  // Helper method called repeatedly by a timeout while the hotkey overlay
-  // is being displayed to query the current keyboard state from the X
-  // server and pass it to the overlay.
-  void QueryKeyboardState();
 
   // Initialize |startup_background_| to hold a new actor that displays the
   // initial contents of the root window.  Called by Init().
@@ -543,17 +534,11 @@ class WindowManager : public PanelManagerAreaChangeListener,
   // ID for the timeout that calls QueryKeyboardState().
   int query_keyboard_state_timeout_id_;
 
-  // Is the hotkey overlay currently being shown?
-  bool showing_hotkey_overlay_;
-
   // Window that has currently been unredirected (in conjunction with
   // disabling compositing) as a performance optimization because it's
   // fullscreen and covering all other windows.  The value will be zero
   // whenever compositing is enabled, non-zero otherwise.
   XWindow unredirected_fullscreen_xid_;
-
-  // Shows overlayed images containing hotkeys.
-  scoped_ptr<HotkeyOverlay> hotkey_overlay_;
 
   // Version of the IPC protocol that Chrome is currently using.  See
   // WM_IPC_MESSAGE_WM_NOTIFY_IPC_VERSION in libcros's

@@ -129,7 +129,6 @@ Compositor::Actor* StackingManager::GetActorIfLayerXid(XWindow xid) {
 const char* StackingManager::LayerToName(Layer layer) {
   switch (layer) {
     case LAYER_DEBUGGING:                return "debugging";
-    case LAYER_HOTKEY_OVERLAY:           return "hotkey overlay";
     case LAYER_SCREEN_LOCKER_SNAPSHOT:   return "screen locker snapshot";
     case LAYER_TOP_CLIENT_WINDOW:        return "top client window";
     case LAYER_SCREEN_LOCKER:            return "screen locker";

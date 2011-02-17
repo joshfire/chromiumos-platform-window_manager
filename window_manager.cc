@@ -30,7 +30,6 @@ extern "C" {
 #include "window_manager/event_loop.h"
 #include "window_manager/focus_manager.h"
 #include "window_manager/geometry.h"
-#include "window_manager/hotkey_overlay.h"
 #include "window_manager/image_container.h"
 #include "window_manager/image_enums.h"
 #include "window_manager/key_bindings.h"
@@ -90,13 +89,6 @@ using window_manager::util::XidStr;
 
 namespace window_manager {
 
-// Time to spend fading the hotkey overlay in or out, in milliseconds.
-static const int kHotkeyOverlayAnimMs = 100;
-
-// Interval with which we query the keyboard state from the X server to
-// update the hotkey overlay (when it's being shown).
-static const int kHotkeyOverlayPollMs = 100;
-
 // How many pixels should |unaccelerated_graphics_actor_| be offset from
 // the upper-left corner of the screen?
 static const int kUnacceleratedGraphicsActorOffsetPixels = 5;
@@ -123,7 +115,6 @@ static const char* kToggleClientWindowDebuggingAction =
 static const char* kToggleProfilerAction = "toggle-profiler";
 #endif
 static const char* kConfigureMonitorAction = "configure-monitor";
-static const char* kToggleHotkeyOverlayAction = "toggle-hotkey-overlay";
 static const char* kTakeRootScreenshotAction = "take-root-screenshot";
 static const char* kTakeWindowScreenshotAction = "take-window-screenshot";
 
@@ -220,7 +211,6 @@ WindowManager::WindowManager(EventLoop* event_loop,
       stacked_xids_(new Stacker<XWindow>),
       active_window_xid_(0),
       query_keyboard_state_timeout_id_(-1),
-      showing_hotkey_overlay_(false),
       unredirected_fullscreen_xid_(0),
       wm_ipc_version_(1),
       logged_in_(false),
@@ -420,12 +410,6 @@ bool WindowManager::Init() {
       event_loop_->AddTimeout(
           NewPermanentCallback(this, &WindowManager::PingChrome),
           kPingChromeFrequencyMs, kPingChromeFrequencyMs);
-
-  hotkey_overlay_.reset(new HotkeyOverlay(xconn_, compositor_));
-  stage_->AddActor(hotkey_overlay_->group());
-  stacking_manager_->StackActorAtTopOfLayer(
-      hotkey_overlay_->group(), StackingManager::LAYER_HOTKEY_OVERLAY);
-  hotkey_overlay_->group()->Move(width_ / 2, height_ / 2, 0);
 
   // Select window management events before we look up existing windows --
   // we want to make sure that we eventually hear about any resizes that we
@@ -1105,21 +1089,6 @@ void WindowManager::RegisterKeyBindings() {
       kConfigureMonitorAction);
 
   key_bindings_actions_->AddAction(
-      kToggleHotkeyOverlayAction,
-      NewPermanentCallback(this, &WindowManager::ToggleHotkeyOverlay),
-      NULL, NULL);
-  logged_in_key_bindings_group_->AddBinding(
-      KeyBindings::KeyCombo(
-          XK_slash, KeyBindings::kControlMask | KeyBindings::kAltMask),
-      kToggleHotkeyOverlayAction);
-  logged_in_key_bindings_group_->AddBinding(
-      KeyBindings::KeyCombo(
-          XK_slash,
-          KeyBindings::kControlMask | KeyBindings::kAltMask |
-            KeyBindings::kShiftMask),
-      kToggleHotkeyOverlayAction);
-
-  key_bindings_actions_->AddAction(
       kTakeRootScreenshotAction,
       NewPermanentCallback(this, &WindowManager::TakeScreenshot, false),
       NULL, NULL);
@@ -1275,7 +1244,6 @@ void WindowManager::HandleScreenResize(int new_width, int new_height) {
   height_ = new_height;
   SetEwmhSizeProperties();
   stage_->SetSize(width_, height_);
-  hotkey_overlay_->group()->Move(width_ / 2, height_ / 2, 0);
 
   FOR_EACH_EVENT_CONSUMER(event_consumers_, HandleScreenResize());
 }
@@ -1742,7 +1710,6 @@ void WindowManager::HandleMapRequest(const XMapRequestEvent& e) {
 void WindowManager::HandleMappingNotify(const XMappingEvent& e) {
   DLOG(INFO) << "Handling (keyboard) mapping notify";
   xconn()->RefreshKeyboardMap(e.request, e.first_keycode, e.count);
-  hotkey_overlay_->RefreshKeyMappings();
   key_bindings_->RefreshKeyMappings();
 }
 
@@ -1941,27 +1908,6 @@ XWindow WindowManager::GetArbitraryChromeWindow() {
   return 0;
 }
 
-void WindowManager::ToggleHotkeyOverlay() {
-  Compositor::Actor* group = hotkey_overlay_->group();
-  showing_hotkey_overlay_ = !showing_hotkey_overlay_;
-  if (showing_hotkey_overlay_) {
-    QueryKeyboardState();
-    group->SetOpacity(0, 0);
-    group->Show();
-    group->SetOpacity(1, kHotkeyOverlayAnimMs);
-    DCHECK_EQ(query_keyboard_state_timeout_id_, -1);
-    query_keyboard_state_timeout_id_ =
-        event_loop_->AddTimeout(
-            NewPermanentCallback(this, &WindowManager::QueryKeyboardState),
-            0, kHotkeyOverlayPollMs);
-  } else {
-    group->SetOpacity(0, kHotkeyOverlayAnimMs);
-    DCHECK_GE(query_keyboard_state_timeout_id_, 0);
-    event_loop_->RemoveTimeout(query_keyboard_state_timeout_id_);
-    query_keyboard_state_timeout_id_ = -1;
-  }
-}
-
 void WindowManager::TakeScreenshot(bool use_active_window) {
   const string& dir = logged_in_ ?
       FLAGS_logged_in_screenshot_output_dir :
@@ -1992,12 +1938,6 @@ void WindowManager::TakeScreenshot(bool use_active_window) {
   } else {
     LOG(INFO) << "Saved screenshot to " << filename;
   }
-}
-
-void WindowManager::QueryKeyboardState() {
-  vector<uint8_t> keycodes;
-  xconn_->QueryKeyboardState(&keycodes);
-  hotkey_overlay_->HandleKeyboardState(keycodes);
 }
 
 void WindowManager::CreateStartupBackground() {
