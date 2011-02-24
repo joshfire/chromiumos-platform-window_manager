@@ -1690,14 +1690,14 @@ void WindowManager::HandleMapRequest(const XMapRequestEvent& e) {
   for (set<EventConsumer*>::iterator it = event_consumers_.begin();
        it != event_consumers_.end(); ++it) {
     if ((*it)->HandleWindowMapRequest(win)) {
-      win->HandleMapRequested();
-      // If one of the event consumers tells us that it's sent a request to
-      // map the window, we act as if the window is already mapped.  This
-      // is safe (it'll be mapped by the time that any subsequent requests
-      // make it to the X server) and avoids races where we can get
-      // messages from Chrome about windows before we've received MapNotify
-      // events about them.
-      HandleMappedWindow(win);
+      // Map the window if the consumer approved it.  If the request fails
+      // (probably because the window has already been destroyed), bail out --
+      // we won't get an UnmapNotify event later, so we don't want to
+      // incorrectly think that the window is mapped.
+      if (win->MapClient()) {
+        win->HandleMapRequested();
+        HandleMappedWindow(win);
+      }
       return;
     }
   }

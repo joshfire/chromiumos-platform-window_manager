@@ -26,10 +26,9 @@ class Window;
 // those events to the window manager.
 //
 // The common case is:
-// - A window gets created and WindowManager begins tracking it.
-// - The window tries to map itself.  WindowManager starts invoking
-//   consumers' HandleWindowMapRequest() methods until one of them maps the
-//   window and returns true.
+// - A client creates a window and WindowManager begins tracking it.
+// - The client tries to map the window.  WindowManager starts invoking
+//   consumers' HandleWindowMapRequest() methods until one of them returns true.
 // - After the map request has been sent (and typically before the map
 //   notify has actually been received -- override-redirect windows are an
 //   exception), WindowManager invokes all consumers' HandleWindowMap()
@@ -39,11 +38,11 @@ class Window;
 //   window's ID.
 // - Stuff happens and the interested consumer is notified about the window's
 //   events.
-// - The window unmaps itself.  WindowManager invokes all consumers'
+// - The client unmaps the window.  WindowManager invokes all consumers'
 //   HandleWindowUnmap() methods.  The consumer that's handling the window
 //   deletes any internal state about it and unregisters interest in the
 //   window's events.
-// - The window is deleted.  WindowManager stops tracking it.
+// - The client destroys the window and WindowManager stops tracking it.
 class EventConsumer {
  public:
   EventConsumer() {}
@@ -62,13 +61,13 @@ class EventConsumer {
 
   // Handle a window's request to be mapped.  This is invoked to give
   // consumers a chance to change a window's position, size, or stacking
-  // before it gets mapped (note that the consumer is ultimately
-  // responsible for mapping the window as well).
+  // before it gets mapped.  If a consumer wants the window to be mapped, it
+  // should do any desired setup of the window (but *not* map the window itself)
+  // and then return true.
   //
-  // WindowManager attempts to invoke this method for all consumers.  If a
-  // consumer handles the event by mapping the window, it should return
-  // true.  Once the event has been handled, it won't be passed to any
-  // other consumers.
+  // WindowManager attempts to invoke this method for all consumers.  Once a
+  // consumer returns true, the window will be mapped and the event won't be
+  // passed to any other consumers.
   virtual bool HandleWindowMapRequest(Window* win) = 0;
 
   // Handle a window being mapped.  Invoked for all consumers.

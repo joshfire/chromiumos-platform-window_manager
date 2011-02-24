@@ -96,7 +96,6 @@ bool PanelManager::HandleWindowMapRequest(Window* win) {
     return false;
 
   DoInitialSetupForWindow(win);
-  win->MapClient();
   return true;
 }
 

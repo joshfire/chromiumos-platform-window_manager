@@ -155,8 +155,9 @@ bool RealXConnection::GetWindowGeometry(XDrawable xid,
 }
 
 bool RealXConnection::MapWindow(XWindow xid) {
-  xcb_map_window(xcb_conn_, xid);
-  return true;
+  xcb_void_cookie_t cookie = xcb_map_window_checked(xcb_conn_, xid);
+  return CheckForXcbError(
+      cookie, "in MapWindow (xid=0x%08x)", static_cast<int>(xid));
 }
 
 bool RealXConnection::UnmapWindow(XWindow xid) {

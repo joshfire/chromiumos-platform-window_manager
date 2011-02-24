@@ -363,7 +363,6 @@ bool LayoutManager::HandleWindowMapRequest(Window* win) {
       win->ResizeClient(width_, height_, GRAVITY_NORTHWEST);
     }
   }
-  win->MapClient();
   return true;
 }
 

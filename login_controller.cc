@@ -186,17 +186,6 @@ bool LoginController::HandleWindowMapRequest(Window* win) {
       // Move all client windows offscreen.  We'll move the windows that
       // need to be onscreen (just the background and controls windows) later.
       win->MoveClientOffscreen();
-      win->MapClient();
-      // Focus the first entry's controls window as soon as it's mapped instead
-      // of waiting until all of the windows are painted.  We want to make sure
-      // that we don't drop any keystrokes as the user is typing their password.
-      // See http://crosbug.com/10456.
-      if (win->type() == chromeos::WM_IPC_WINDOW_LOGIN_CONTROLS &&
-          wm_->focus_manager()->focused_win() == NULL &&
-          LoginEntry::GetUserIndex(win) == 0) {
-        FocusLoginWindow(win);
-        wm_->xconn()->FlushRequests();
-      }
       return true;
     case chromeos::WM_IPC_WINDOW_UNKNOWN:
     case chromeos::WM_IPC_WINDOW_CHROME_INFO_BUBBLE: {
@@ -207,7 +196,6 @@ bool LoginController::HandleWindowMapRequest(Window* win) {
       }
       wm_->stacking_manager()->StackWindowAtTopOfLayer(
           win, StackingManager::LAYER_LOGIN_OTHER_WINDOW);
-      win->MapClient();
       return true;
     }
     default:
@@ -218,6 +206,17 @@ bool LoginController::HandleWindowMapRequest(Window* win) {
 void LoginController::HandleWindowMap(Window* win) {
   if (requested_destruction_ || win->override_redirect())
     return;
+
+  // Focus the first entry's controls window as soon as it's mapped instead
+  // of waiting until all of the windows are painted.  We want to make sure
+  // that we don't drop any keystrokes as the user is typing their password.
+  // See http://crosbug.com/10456.
+  if (win->type() == chromeos::WM_IPC_WINDOW_LOGIN_CONTROLS &&
+      wm_->focus_manager()->focused_win() == NULL &&
+      LoginEntry::GetUserIndex(win) == 0) {
+    FocusLoginWindow(win);
+    wm_->xconn()->FlushRequests();
+  }
 
   if (waiting_for_browser_window_ &&
       win->type() == chromeos::WM_IPC_WINDOW_CHROME_TOPLEVEL) {

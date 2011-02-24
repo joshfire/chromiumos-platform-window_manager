@@ -1417,6 +1417,31 @@ TEST_F(WindowManagerTest, FetchDepth) {
   EXPECT_EQ(32, wm_->GetWindowOrDie(rgba_xid)->client_depth());
 }
 
+// Test that we don't crash when a window is destroyed while a map request for
+// it is in-flight to the window manager.  See http://crosbug.com/12212.
+TEST_F(WindowManagerTest, WindowDestroyedWhileBeingMapped) {
+  // Create a window and let the window manager know about it.
+  XWindow xid = CreateSimpleWindow();
+  XEvent event;
+  xconn_->InitCreateWindowEvent(&event, xid);
+  wm_->HandleEvent(&event);
+
+  // Now destroy the window and *then* send a map request to the window manager
+  // about it.  In reality, the client would send the request first and destroy
+  // the window while the request was in-flight to the WM... which seems dumb,
+  // but that apparently doesn't keep clients from doing it.
+  xconn_->InitMapRequestEvent(&event, xid);
+  xconn_->DestroyWindow(xid);
+  wm_->HandleEvent(&event);
+
+  // Finally, let the WM know that the window was destroyed.  Note that we don't
+  // send an unmap notify event first, since the window was already destroyed by
+  // the time that the WM tried to map it.  This tests that the WM doesn't make
+  // an assumption that its map request succeeded.
+  xconn_->InitDestroyWindowEvent(&event, xid);
+  wm_->HandleEvent(&event);
+}
+
 }  // namespace window_manager
 
 int main(int argc, char** argv) {

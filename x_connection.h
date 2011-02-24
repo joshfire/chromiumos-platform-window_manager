@@ -158,10 +158,17 @@ class XConnection {
   int randr_event_base() const { return randr_event_base_; }
   int sync_event_base() const { return sync_event_base_; }
 
+  // NOTE: In most cases, the RealXConnection implementations of methods that
+  // don't pass any data back via out-params return true without waiting to
+  // check for success.  If you depend on knowing whether the request succeeded
+  // or failed (failures are common, since clients can destroy windows at any
+  // time without any involvement from the window manager), check that the code
+  // that you're calling waits for a reply from the X server.
+
   // Get a window's geometry.
   virtual bool GetWindowGeometry(XWindow xid, WindowGeometry* geom_out) = 0;
 
-  // Map or unmap a window.
+  // Map or unmap a window.  MapWindow() returns false if the request fails.
   virtual bool MapWindow(XWindow xid) = 0;
   virtual bool UnmapWindow(XWindow xid) = 0;
 
