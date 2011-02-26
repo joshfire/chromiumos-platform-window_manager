@@ -154,6 +154,7 @@ class RealXConnection : public XConnection {
   virtual bool SetDetectableKeyboardAutoRepeat(bool detectable);
   virtual bool QueryKeyboardState(std::vector<uint8_t>* keycodes_out);
   virtual bool QueryPointerPosition(Point* absolute_pos_out);
+  virtual bool SetWindowBackgroundPixmap(XWindow xid, XPixmap pixmap);
   // End XConnection methods.
 
   // This convenience function is ONLY available for a real X

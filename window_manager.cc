@@ -315,6 +315,13 @@ bool WindowManager::Init() {
   height_ = root_geometry.bounds.height;
   root_depth_ = root_geometry.depth;
 
+  if (FLAGS_unredirect_fullscreen_window) {
+    // Disable automatic background painting for the root window.  It
+    // should never be visible, and the automatic updates cause flickering
+    // when enabling and disabling compositing.
+    xconn_->SetWindowBackgroundPixmap(root_, None);
+  }
+
   // Create the atom cache first; RegisterExistence() needs it.
   atom_cache_.reset(new AtomCache(xconn_));
 

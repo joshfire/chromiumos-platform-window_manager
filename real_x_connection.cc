@@ -971,6 +971,15 @@ bool RealXConnection::SendConfigureNotifyEvent(XWindow xid,
   return true;
 }
 
+bool RealXConnection::SetWindowBackgroundPixmap(XWindow xid, XPixmap pixmap) {
+  uint32_t value_mask = XCB_CW_BACK_PIXMAP;
+  uint32_t values[] = { pixmap };
+
+  xcb_change_window_attributes(xcb_conn_, xid, value_mask, values);
+
+  return true;
+}
+
 bool RealXConnection::WaitForWindowToBeDestroyed(XWindow xid) {
   XEvent event;
   TrapErrors();

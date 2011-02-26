@@ -178,6 +178,7 @@ class MockXConnection : public XConnection {
     return true;
   }
   virtual bool QueryPointerPosition(Point* absolute_pos_out);
+  virtual bool SetWindowBackgroundPixmap(XWindow xid, XPixmap pixmap);
   // End XConnection methods.
 
   // Testing-specific code.
@@ -251,6 +252,9 @@ class MockXConnection : public XConnection {
     // Information about button grabs installed on this window, keyed by
     // button.
     std::map<int, ButtonGrabInfo> button_grabs;
+
+    // Window background fill pixmap, set by SetWindowBackgroundPixmap()
+    XPixmap background_pixmap;
 
    private:
     DISALLOW_COPY_AND_ASSIGN(WindowInfo);

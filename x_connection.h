@@ -536,6 +536,11 @@ class XConnection {
   // Query the pointer's current position relative to the root window.
   virtual bool QueryPointerPosition(Point* absolute_pos_out) = 0;
 
+  // Set the background pixmap of a window.  This is tiled across the window
+  // automatically by the server when the window is exposed.  Set to 'None'
+  // to disable automatic window-clearing by the server.
+  virtual bool SetWindowBackgroundPixmap(XWindow xid, XPixmap pixmap) = 0;
+
   // Value that should be used in event and property |format| fields for
   // byte and long arguments.
   static const int kByteFormat;

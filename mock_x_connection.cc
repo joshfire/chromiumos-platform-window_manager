@@ -683,6 +683,14 @@ bool MockXConnection::QueryPointerPosition(Point* absolute_pos_out) {
   return true;
 }
 
+bool MockXConnection::SetWindowBackgroundPixmap(XWindow xid, XPixmap pixmap) {
+  WindowInfo* info = GetWindowInfo(xid);
+  if (!info)
+    return false;
+  info->background_pixmap = pixmap;
+  return true;
+}
+
 bool MockXConnection::GetParentWindow(XWindow xid, XWindow* parent_out) {
   DCHECK(parent_out);
   WindowInfo* info = GetWindowInfo(xid);
@@ -743,7 +751,8 @@ MockXConnection::WindowInfo::WindowInfo(XWindow xid, XWindow parent)
       shape_events_selected(false),
       randr_events_selected(false),
       changed(false),
-      num_configures(0) {
+      num_configures(0),
+      background_pixmap(0) {
 }
 
 MockXConnection::PixmapInfo::PixmapInfo(XWindow xid,
