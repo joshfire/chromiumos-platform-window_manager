@@ -22,15 +22,15 @@ extern "C" {
 #include "base/scoped_ptr.h"
 #include "base/string_util.h"
 #include "window_manager/callback.h"
+#include "window_manager/compositor/real_compositor.h"
+#if defined(COMPOSITOR_OPENGL)
+#include "window_manager/compositor/gl/real_gl_interface.h"
+#elif defined(COMPOSITOR_OPENGLES)
+#include "window_manager/compositor/gles/real_gles2_interface.h"
+#endif
 #include "window_manager/event_loop.h"
 #include "window_manager/profiler.h"
-#include "window_manager/real_compositor.h"
 #include "window_manager/real_dbus_interface.h"
-#if defined(COMPOSITOR_OPENGL)
-#include "window_manager/real_gl_interface.h"
-#elif defined(COMPOSITOR_OPENGLES)
-#include "window_manager/gles/real_gles2_interface.h"
-#endif
 #include "window_manager/real_x_connection.h"
 #include "window_manager/util.h"
 #include "window_manager/window_manager.h"

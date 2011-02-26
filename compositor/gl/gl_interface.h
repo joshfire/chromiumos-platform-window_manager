@@ -2,16 +2,16 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifndef WINDOW_MANAGER_GL_INTERFACE_H_
-#define WINDOW_MANAGER_GL_INTERFACE_H_
+#ifndef WINDOW_MANAGER_COMPOSITOR_GL_GL_INTERFACE_H_
+#define WINDOW_MANAGER_COMPOSITOR_GL_GL_INTERFACE_H_
 
 #include <GL/gl.h>
 #include <GL/glext.h>
 #include <GL/glx.h>
 #include <GL/glxext.h>
 
+#include "window_manager/compositor/gl_interface_base.h"
 #include "window_manager/x_connection.h"
-#include "window_manager/gl_interface_base.h"
 
 namespace window_manager {
 
@@ -128,4 +128,4 @@ class GLInterface : virtual public GLInterfaceBase {
 
 };  // namespace window_manager
 
-#endif  //  WINDOW_MANAGER_GL_INTERFACE_H_
+#endif  //  WINDOW_MANAGER_COMPOSITOR_GL_GL_INTERFACE_H_

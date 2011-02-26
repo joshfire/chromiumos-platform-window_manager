@@ -2,8 +2,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifndef WINDOW_MANAGER_GL_INTERFACE_BASE_H_
-#define WINDOW_MANAGER_GL_INTERFACE_BASE_H_
+#ifndef WINDOW_MANAGER_COMPOSITOR_GL_INTERFACE_BASE_H_
+#define WINDOW_MANAGER_COMPOSITOR_GL_INTERFACE_BASE_H_
 
 #include <string>
 #include <vector>
@@ -38,4 +38,4 @@ class GLInterfaceBase {
 
 };  // namespace window_manager
 
-#endif  //  WINDOW_MANAGER_GL_INTERFACE_BASE_H_
+#endif  //  WINDOW_MANAGER_COMPOSITOR_GL_INTERFACE_BASE_H_

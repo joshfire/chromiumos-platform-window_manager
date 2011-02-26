@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include "window_manager/mock_compositor.h"
+#include "window_manager/compositor/mock_compositor.h"
 
 #include "base/logging.h"
 #include "window_manager/image_container.h"

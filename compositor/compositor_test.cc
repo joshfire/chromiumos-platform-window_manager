@@ -7,7 +7,7 @@
 
 #include "base/logging.h"
 #include "base/string_util.h"
-#include "window_manager/compositor.h"
+#include "window_manager/compositor/compositor.h"
 #include "window_manager/test_lib.h"
 
 DEFINE_bool(logtostderr, false,

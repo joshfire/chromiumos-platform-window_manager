@@ -2,10 +2,10 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifndef WINDOW_MANAGER_REAL_GL_INTERFACE_H_
-#define WINDOW_MANAGER_REAL_GL_INTERFACE_H_
+#ifndef WINDOW_MANAGER_COMPOSITOR_GL_REAL_GL_INTERFACE_H_
+#define WINDOW_MANAGER_COMPOSITOR_GL_REAL_GL_INTERFACE_H_
 
-#include "window_manager/gl_interface.h"
+#include "window_manager/compositor/gl/gl_interface.h"
 
 namespace window_manager {
 
@@ -121,4 +121,4 @@ class RealGLInterface : public GLInterface {
 
 }  // namespace window_manager
 
-#endif  // WINDOW_MANAGER_REAL_GL_INTERFACE_H_
+#endif  // WINDOW_MANAGER_COMPOSITOR_GL_REAL_GL_INTERFACE_H_

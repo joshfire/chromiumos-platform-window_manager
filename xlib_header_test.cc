@@ -3,7 +3,7 @@
 // found in the LICENSE file.
 
 #include "window_manager/atom_cache.h"
-#include "window_manager/compositor.h"
+#include "window_manager/compositor/compositor.h"
 #include "window_manager/event_consumer.h"
 #include "window_manager/event_loop.h"
 #include "window_manager/key_bindings.h"

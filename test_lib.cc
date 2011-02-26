@@ -17,7 +17,7 @@ extern "C" {
 #include "base/file_path.h"
 #include "base/string_util.h"
 #include "cros/chromeos_wm_ipc_enums.h"
-#include "window_manager/compositor.h"
+#include "window_manager/compositor/compositor.h"
 #include "window_manager/motion_event_coalescer.h"
 #include "window_manager/panel.h"
 #include "window_manager/panel_bar.h"

@@ -9,7 +9,7 @@
 #include <gtest/gtest.h>
 
 #include "base/logging.h"
-#include "window_manager/compositor.h"
+#include "window_manager/compositor/compositor.h"
 #include "window_manager/event_loop.h"
 #include "window_manager/focus_manager.h"
 #include "window_manager/mock_x_connection.h"

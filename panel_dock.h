@@ -11,7 +11,7 @@
 
 #include "base/basictypes.h"
 #include "base/scoped_ptr.h"
-#include "window_manager/compositor.h"
+#include "window_manager/compositor/compositor.h"
 #include "window_manager/panel_container.h"
 #include "window_manager/x_types.h"
 

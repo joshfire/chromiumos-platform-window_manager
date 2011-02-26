@@ -16,7 +16,7 @@ header = """
 #include <GLES2/gl2.h>
 
 #include "base/basictypes.h"
-#include "window_manager/gles/shader_base.h"
+#include "window_manager/compositor/gles/shader_base.h"
 
 namespace window_manager {
 
@@ -30,13 +30,13 @@ $Headers
 implementation = """
 // Auto generated DO NOT edit.
 
-#include "window_manager/gles/shaders.h"
+#include "window_manager/compositor/gles/shaders.h"
 
 #include <GLES2/gl2.h>
 
 #include "base/logging.h"
 
-#include "window_manager/gles/shader_base.h"
+#include "window_manager/compositor/gles/shader_base.h"
 
 namespace window_manager {
 
@@ -71,12 +71,12 @@ $UsedVertexAttribs
 """
 
 
-shaders = {'TexColorVertex': 'gles/tex_color.glslv',
-           'TexColorFragment': 'gles/tex_color.glslf',
-           'TexShadeVertex': 'gles/tex_shade.glslv',
-           'TexShadeFragment': 'gles/tex_shade.glslf',
-           'NoAlphaColorFragment': 'gles/noalpha_color.glslf',
-           'NoAlphaShadeFragment': 'gles/noalpha_shade.glslf'}
+shaders = {'TexColorVertex': 'compositor/gles/tex_color.glslv',
+           'TexColorFragment': 'compositor/gles/tex_color.glslf',
+           'TexShadeVertex': 'compositor/gles/tex_shade.glslv',
+           'TexShadeFragment': 'compositor/gles/tex_shade.glslf',
+           'NoAlphaColorFragment': 'compositor/gles/noalpha_color.glslf',
+           'NoAlphaShadeFragment': 'compositor/gles/noalpha_shade.glslf'}
 programs = [('TexColorShader', 'TexColorVertex', 'TexColorFragment'),
             ('TexShadeShader', 'TexShadeVertex', 'TexShadeFragment'),
             ('NoAlphaColorShader', 'TexColorVertex', 'NoAlphaColorFragment'),
@@ -192,7 +192,7 @@ def AddBuildRules(env):
     source.append('make_shaders.py')
     for shader in shaders.itervalues():
       source.append(shader)
-    target = ['gles/shaders.h', 'gles/shaders.cc']
+    target = ['compositor/gles/shaders.h', 'compositor/gles/shaders.cc']
     return target, source
 
   bld = SCons.Script.Builder(action='./make_shaders.py',
@@ -220,12 +220,12 @@ def main():
   subs['Sources'] = '\n\n'.join(shader.QuotedSource()
                                 for shader in shader_objects.itervalues())
 
-  header_file = file('gles/shaders.h', 'w')
+  header_file = file('compositor/gles/shaders.h', 'w')
   template = string.Template(header.lstrip('\n'))
   header_file.write(template.substitute(**subs))
   header_file.close()
 
-  implementation_file = file('gles/shaders.cc', 'w')
+  implementation_file = file('compositor/gles/shaders.cc', 'w')
   template = string.Template(implementation.lstrip('\n'))
   implementation_file.write(template.substitute(**subs))
   implementation_file.close()

@@ -2,8 +2,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifndef WINDOW_MANAGER_REAL_COMPOSITOR_H_
-#define WINDOW_MANAGER_REAL_COMPOSITOR_H_
+#ifndef WINDOW_MANAGER_COMPOSITOR_REAL_COMPOSITOR_H_
+#define WINDOW_MANAGER_COMPOSITOR_REAL_COMPOSITOR_H_
 
 #include <list>
 #include <map>
@@ -19,8 +19,8 @@
 #include "base/logging.h"
 #include "base/scoped_ptr.h"
 #include "base/time.h"
-#include "window_manager/animation.h"
-#include "window_manager/compositor.h"
+#include "window_manager/compositor/animation.h"
+#include "window_manager/compositor/compositor.h"
 #include "window_manager/math_types.h"
 #include "window_manager/x_types.h"
 
@@ -737,4 +737,4 @@ class RealCompositor : public Compositor {
 
 }  // namespace window_manager
 
-#endif  // WINDOW_MANAGER_REAL_COMPOSITOR_H_
+#endif  // WINDOW_MANAGER_COMPOSITOR_REAL_COMPOSITOR_H_

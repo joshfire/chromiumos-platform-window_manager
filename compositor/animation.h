@@ -2,8 +2,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifndef WINDOW_MANAGER_ANIMATION_H_
-#define WINDOW_MANAGER_ANIMATION_H_
+#ifndef WINDOW_MANAGER_COMPOSITOR_ANIMATION_H_
+#define WINDOW_MANAGER_COMPOSITOR_ANIMATION_H_
 
 #include <vector>
 
@@ -88,4 +88,4 @@ class AnimationPair {
 
 }  // namespace window_manager
 
-#endif  // WINDOW_MANAGER_ANIMATION_H_
+#endif  // WINDOW_MANAGER_COMPOSITOR_ANIMATION_H_

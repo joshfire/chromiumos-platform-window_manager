@@ -2,8 +2,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifndef WINDOW_MANAGER_GLES_GLES_VISITOR_H_
-#define WINDOW_MANAGER_GLES_GLES_VISITOR_H_
+#ifndef WINDOW_MANAGER_COMPOSITOR_GLES_GLES_VISITOR_H_
+#define WINDOW_MANAGER_COMPOSITOR_GLES_GLES_VISITOR_H_
 
 #include <GLES2/gl2.h>
 #include <EGL/egl.h>
@@ -12,9 +12,9 @@
 #include "base/logging.h"
 #include "base/scoped_ptr.h"
 
-#include "window_manager/compositor.h"
+#include "window_manager/compositor/compositor.h"
+#include "window_manager/compositor/real_compositor.h"
 #include "window_manager/math_types.h"
-#include "window_manager/real_compositor.h"
 #include "window_manager/texture_data.h"
 
 namespace window_manager {
@@ -151,5 +151,5 @@ class OpenGlesEglImageData : public TextureData {
 
 }  // namespace window_manager
 
-#endif  // WINDOW_MANAGER_GLES_GLES_VISITOR_H_
+#endif  // WINDOW_MANAGER_COMPOSITOR_GLES_GLES_VISITOR_H_
 

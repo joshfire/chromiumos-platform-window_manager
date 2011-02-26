@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include "window_manager/real_gl_interface.h"
+#include "window_manager/compositor/gl/real_gl_interface.h"
 
 #include <string>
 

@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include "window_manager/gles/real_gles2_interface.h"
+#include "window_manager/compositor/gles/real_gles2_interface.h"
 
 #ifndef EGLAPI
 #define EGLAPI

@@ -2,8 +2,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifndef WINDOW_MANAGER_GLES_SHADER_BASE_H_
-#define WINDOW_MANAGER_GLES_SHADER_BASE_H_
+#ifndef WINDOW_MANAGER_COMPOSITOR_GLES_SHADER_BASE_H_
+#define WINDOW_MANAGER_COMPOSITOR_GLES_SHADER_BASE_H_
 
 #include <GLES2/gl2.h>
 
@@ -46,5 +46,5 @@ class Shader {
 
 }  // namespace window_manager
 
-#endif  // WINDOW_MANAGER_GLES_SHADER_BASE_H_
+#endif  // WINDOW_MANAGER_COMPOSITOR_GLES_SHADER_BASE_H_
 

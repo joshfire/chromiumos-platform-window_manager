@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include "window_manager/gles/opengles_visitor.h"
+#include "window_manager/compositor/gles/opengles_visitor.h"
 
 #include <X11/Xlib.h>
 #include <xcb/damage.h>
@@ -13,8 +13,8 @@
 #include <GLES2/gl2ext.h>
 
 #include "base/logging.h"
-#include "window_manager/gles/shaders.h"
-#include "window_manager/gles/gles2_interface.h"
+#include "window_manager/compositor/gles/gles2_interface.h"
+#include "window_manager/compositor/gles/shaders.h"
 #include "window_manager/image_container.h"
 #include "window_manager/real_x_connection.h"
 #include "window_manager/x_connection.h"

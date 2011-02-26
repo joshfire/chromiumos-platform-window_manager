@@ -2,14 +2,14 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifndef WINDOW_MANAGER_COMPOSITOR_H_
-#define WINDOW_MANAGER_COMPOSITOR_H_
+#ifndef WINDOW_MANAGER_COMPOSITOR_COMPOSITOR_H_
+#define WINDOW_MANAGER_COMPOSITOR_COMPOSITOR_H_
 
 #include <string>
 #include <tr1/unordered_set>
 
 #include "base/basictypes.h"
-#include "window_manager/animation.h"
+#include "window_manager/compositor/animation.h"
 #include "window_manager/geometry.h"
 #include "window_manager/image_enums.h"
 #include "window_manager/x_types.h"
@@ -280,4 +280,4 @@ class CompositionChangeListener {
 
 }  // namespace window_manager
 
-#endif  // WINDOW_MANAGER_COMPOSITOR_H_
+#endif  // WINDOW_MANAGER_COMPOSITOR_COMPOSITOR_H_

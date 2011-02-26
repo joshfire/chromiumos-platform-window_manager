@@ -5,7 +5,7 @@
 #ifndef WINDOW_MANAGER_LAYER_VISITOR_H_
 #define WINDOW_MANAGER_LAYER_VISITOR_H_
 
-#include "window_manager/real_compositor.h"
+#include "window_manager/compositor/real_compositor.h"
 
 namespace window_manager {
 

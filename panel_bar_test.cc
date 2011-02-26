@@ -7,7 +7,7 @@
 
 #include "base/scoped_ptr.h"
 #include "base/logging.h"
-#include "window_manager/compositor.h"
+#include "window_manager/compositor/compositor.h"
 #include "window_manager/event_loop.h"
 #include "window_manager/mock_x_connection.h"
 #include "window_manager/modality_handler.h"

@@ -5,7 +5,7 @@
 #include <gflags/gflags.h>
 #include <gtest/gtest.h>
 
-#include "window_manager/animation.h"
+#include "window_manager/compositor/animation.h"
 #include "window_manager/test_lib.h"
 #include "window_manager/util.h"
 

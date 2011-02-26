@@ -12,7 +12,7 @@
 #include "base/logging.h"
 #include "base/scoped_ptr.h"
 #include "cros/chromeos_wm_ipc_enums.h"
-#include "window_manager/compositor.h"
+#include "window_manager/compositor/compositor.h"
 #include "window_manager/event_loop.h"
 #include "window_manager/layout_manager.h"
 #include "window_manager/mock_x_connection.h"

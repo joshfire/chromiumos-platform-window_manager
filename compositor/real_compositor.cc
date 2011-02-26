@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include "window_manager/compositor.h"
+#include "window_manager/compositor/compositor.h"
 
 #include <algorithm>
 #include <cmath>
@@ -13,14 +13,14 @@
 #include "base/logging.h"
 #include "base/string_util.h"
 #include "window_manager/callback.h"
+#if defined(COMPOSITOR_OPENGL)
+#include "window_manager/compositor/gl/opengl_visitor.h"
+#elif defined(COMPOSITOR_OPENGLES)
+#include "window_manager/compositor/gles/opengles_visitor.h"
+#endif
 #include "window_manager/event_loop.h"
 #include "window_manager/image_container.h"
 #include "window_manager/layer_visitor.h"
-#if defined(COMPOSITOR_OPENGL)
-#include "window_manager/opengl_visitor.h"
-#elif defined(COMPOSITOR_OPENGLES)
-#include "window_manager/gles/opengles_visitor.h"
-#endif
 #include "window_manager/profiler.h"
 #include "window_manager/util.h"
 #include "window_manager/x_connection.h"

@@ -5,8 +5,8 @@
 #ifndef WINDOW_MANAGER_MOCK_GL_INTERFACE_H_
 #define WINDOW_MANAGER_MOCK_GL_INTERFACE_H_
 
+#include "window_manager/compositor/gl/gl_interface.h"
 #include "window_manager/geometry.h"
-#include "window_manager/gl_interface.h"
 
 namespace window_manager {
 

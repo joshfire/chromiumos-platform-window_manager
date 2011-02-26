@@ -18,7 +18,7 @@
 #include "base/scoped_ptr.h"
 #include "cros/chromeos_wm_ipc_enums.h"
 #include "window_manager/atom_cache.h"  // for Atom enum
-#include "window_manager/compositor.h"
+#include "window_manager/compositor/compositor.h"
 #include "window_manager/geometry.h"
 #include "window_manager/shadow.h"
 #include "window_manager/wm_ipc.h"

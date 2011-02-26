@@ -7,8 +7,8 @@
 #include <algorithm>
 #include <cmath>
 
+#include "window_manager/compositor/real_compositor.h"
 #include "window_manager/geometry.h"
-#include "window_manager/real_compositor.h"
 #include "window_manager/util.h"
 
 namespace window_manager {

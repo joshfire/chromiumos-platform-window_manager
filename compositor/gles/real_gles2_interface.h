@@ -2,13 +2,13 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifndef WINDOW_MANAGER_REAL_GLES2_INTERFACE_H_
-#define WINDOW_MANAGER_REAL_GLES2_INTERFACE_H_
+#ifndef WINDOW_MANAGER_COMPOSITOR_GLES_REAL_GLES2_INTERFACE_H_
+#define WINDOW_MANAGER_COMPOSITOR_GLES_REAL_GLES2_INTERFACE_H_
 
 #include <string>
 #include <vector>
 
-#include "window_manager/gles/gles2_interface.h"
+#include "window_manager/compositor/gles/gles2_interface.h"
 
 namespace window_manager {
 
@@ -167,4 +167,5 @@ class RealGles2Interface : public Gles2Interface {
 
 }  // namespace window_manager
 
-#endif
+#endif  // WINDOW_MANAGER_COMPOSITOR_GLES_REAL_GLES2_INTERFACE_H_
+

@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include "window_manager/opengl_visitor.h"
+#include "window_manager/compositor/gl/opengl_visitor.h"
 
 #include <sys/time.h>
 
@@ -17,7 +17,7 @@
 
 #include "base/basictypes.h"
 #include "base/logging.h"
-#include "window_manager/gl_interface.h"
+#include "window_manager/compositor/gl/gl_interface.h"
 #include "window_manager/image_container.h"
 #include "window_manager/image_enums.h"
 #include "window_manager/profiler.h"

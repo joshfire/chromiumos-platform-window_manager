@@ -2,8 +2,9 @@
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
-import os
+import fnmatch
 import itertools
+import os
 
 import make_shaders
 
@@ -85,13 +86,14 @@ libwm_ipc = wm_env.Library('wm_ipc', srcs)
 # also compiled in different environments here (and hence we just get e.g.
 # atom_cache.cc and util.cc via libwm_ipc).
 srcs = Split('''\
-  animation.cc
   chrome_watchdog.cc
-  compositor.cc
+  compositor/animation.cc
+  compositor/compositor.cc
+  compositor/gl_interface_base.cc
+  compositor/real_compositor.cc
   event_consumer_registrar.cc
   event_loop.cc
   focus_manager.cc
-  gl_interface_base.cc
   image_container.cc
   key_bindings.cc
   layer_visitor.cc
@@ -106,7 +108,6 @@ srcs = Split('''\
   panel_manager.cc
   pointer_position_watcher.cc
   profiler.cc
-  real_compositor.cc
   real_dbus_interface.cc
   screen_locker_handler.cc
   separator.cc
@@ -120,26 +121,26 @@ srcs = Split('''\
 ''')
 if backend == 'opengl':
   srcs.append(Split('''\
-    opengl_visitor.cc
-    real_gl_interface.cc
+    compositor/gl/opengl_visitor.cc
+    compositor/gl/real_gl_interface.cc
   '''))
 elif backend == 'opengles':
   srcs.append(Split('''\
-    gles/opengles_visitor.cc
-    gles/shader_base.cc
-    gles/shaders.cc
-    gles/real_gles2_interface.cc
+    compositor/gles/opengles_visitor.cc
+    compositor/gles/real_gles2_interface.cc
+    compositor/gles/shader_base.cc
+    compositor/gles/shaders.cc
   '''))
   # SCons doesn't figure out this dependency on its own, since
-  # opengles_visitor.cc includes "window_manager/gles/shaders.h", while the
-  # shaders builder just provides "gles/shaders.h".
-  Depends('gles/opengles_visitor.o', 'gles/shaders.h')
+  # opengles_visitor.cc includes "window_manager/compositor/gles/shaders.h", 
+  # while the shaders builder just provides "compositor/gles/shaders.h".
+  Depends('compositor/gles/opengles_visitor.o', 'compositor/gles/shaders.h')
 
 libwm_core = wm_env.Library('wm_core', srcs)
 
 # Define a library to be used by tests.
 srcs = Split('''\
-  mock_compositor.cc
+  compositor/mock_compositor.cc
   mock_dbus_interface.cc
   mock_gl_interface.cc
   mock_x_connection.cc
@@ -167,10 +168,12 @@ backend_tests = {'opengl': ['real_compositor_test.cc',
                             'opengl_visitor_test.cc'],
                  'opengles': []}
 all_backend_tests = set(itertools.chain(*backend_tests.values()))
-for test_src in Glob('*_test.cc', strings=True):
-  if test_src in all_backend_tests and test_src not in backend_tests[backend]:
-    continue
-  tests += test_env.Program(test_src)
+for root, dirnames, filenames in os.walk('.'):
+  for filename in fnmatch.filter(filenames, '*_test.cc'):
+    if filename in all_backend_tests and filename not in backend_tests[backend]:
+      continue
+    tests += test_env.Program(os.path.join(root, filename))
+
 # Create a 'tests' target that will build all tests.
 test_env.Alias('tests', tests)
 

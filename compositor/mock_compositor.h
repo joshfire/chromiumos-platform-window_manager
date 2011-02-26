@@ -2,14 +2,14 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifndef WINDOW_MANAGER_MOCK_COMPOSITOR_H_
-#define WINDOW_MANAGER_MOCK_COMPOSITOR_H_
+#ifndef WINDOW_MANAGER_COMPOSITOR_MOCK_COMPOSITOR_H_
+#define WINDOW_MANAGER_COMPOSITOR_MOCK_COMPOSITOR_H_
 
 #include <set>
 
 #include "base/logging.h"
 #include "base/scoped_ptr.h"
-#include "window_manager/compositor.h"
+#include "window_manager/compositor/compositor.h"
 
 namespace window_manager {
 
@@ -287,4 +287,4 @@ class MockCompositor : public Compositor {
 
 }  // namespace window_manager
 
-#endif  // WINDOW_MANAGER_MOCK_COMPOSITOR_H_
+#endif  // WINDOW_MANAGER_COMPOSITOR_MOCK_COMPOSITOR_H_

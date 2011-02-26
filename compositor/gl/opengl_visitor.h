@@ -2,8 +2,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifndef WINDOW_MANAGER_OPENGL_VISITOR_H_
-#define WINDOW_MANAGER_OPENGL_VISITOR_H_
+#ifndef WINDOW_MANAGER_COMPOSITOR_GL_OPENGL_VISITOR_H_
+#define WINDOW_MANAGER_COMPOSITOR_GL_OPENGL_VISITOR_H_
 
 #include <GL/glx.h>
 
@@ -11,9 +11,9 @@
 
 #include "base/logging.h"
 #include "base/scoped_ptr.h"
-#include "window_manager/compositor.h"
-#include "window_manager/gl_interface.h"
-#include "window_manager/real_compositor.h"
+#include "window_manager/compositor/compositor.h"
+#include "window_manager/compositor/gl/gl_interface.h"
+#include "window_manager/compositor/real_compositor.h"
 #include "window_manager/texture_data.h"
 #include "window_manager/x_connection.h"
 
@@ -194,4 +194,4 @@ class OpenGlDrawVisitor : virtual public RealCompositor::ActorVisitor {
 
 }  // namespace window_manager
 
-#endif  // WINDOW_MANAGER_OPENGL_VISITOR_H_
+#endif  // WINDOW_MANAGER_COMPOSITOR_GL_OPENGL_VISITOR_H_

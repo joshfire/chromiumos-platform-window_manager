@@ -2,8 +2,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifndef WINDOW_MANAGER_GLES2_INTERFACE_H_
-#define WINDOW_MANAGER_GLES2_INTERFACE_H_
+#ifndef WINDOW_MANAGER_COMPOSITOR_GLES_GLES2_INTERFACE_H_
+#define WINDOW_MANAGER_COMPOSITOR_GLES_GLES2_INTERFACE_H_
 
 #include <EGL/egl.h>
 #include <EGL/eglext.h>
@@ -12,7 +12,7 @@
 #include <GLES2/gl2ext.h>
 
 #include "base/basictypes.h"
-#include "window_manager/gl_interface_base.h"
+#include "window_manager/compositor/gl_interface_base.h"
 
 namespace window_manager {
 

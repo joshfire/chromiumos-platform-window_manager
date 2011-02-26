@@ -9,7 +9,7 @@
 #include <gflags/gflags.h>
 
 #include "base/logging.h"
-#include "window_manager/compositor.h"
+#include "window_manager/compositor/compositor.h"
 #include "window_manager/event_consumer_registrar.h"
 #include "window_manager/event_loop.h"
 #include "window_manager/panel.h"
