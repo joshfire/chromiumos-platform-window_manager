@@ -30,10 +30,10 @@ extern "C" {
 #include "cros/chromeos_wm_ipc_enums.h"
 #include "window_manager/atom_cache.h"  // for Atom enum
 #include "window_manager/compositor/compositor.h"
-#include "window_manager/panel_manager.h"
+#include "window_manager/panels/panel_manager.h"
 #include "window_manager/wm_ipc.h"
-#include "window_manager/x_connection.h"
-#include "window_manager/x_types.h"
+#include "window_manager/x11/x_connection.h"
+#include "window_manager/x11/x_types.h"
 
 class MetricsLibrary;  // from metrics/metrics_library.h
 

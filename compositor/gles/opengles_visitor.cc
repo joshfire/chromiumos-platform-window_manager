@@ -16,8 +16,6 @@
 #include "window_manager/compositor/gles/gles2_interface.h"
 #include "window_manager/compositor/gles/shaders.h"
 #include "window_manager/image_container.h"
-#include "window_manager/real_x_connection.h"
-#include "window_manager/x_connection.h"
 
 #ifndef COMPOSITOR_OPENGLES
 #error Need COMPOSITOR_OPENGLES defined to compile this file

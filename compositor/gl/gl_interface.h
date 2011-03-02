@@ -11,7 +11,7 @@
 #include <GL/glxext.h>
 
 #include "window_manager/compositor/gl_interface_base.h"
-#include "window_manager/x_connection.h"
+#include "window_manager/x11/x_types.h"
 
 namespace window_manager {
 

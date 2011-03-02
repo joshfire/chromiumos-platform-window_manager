@@ -11,7 +11,7 @@
 #include <gtest/gtest_prod.h>  // for FRIEND_TEST() macro
 
 #include "window_manager/compositor/compositor.h"
-#include "window_manager/x_types.h"
+#include "window_manager/x11/x_types.h"
 
 namespace window_manager {
 

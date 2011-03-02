@@ -6,7 +6,7 @@
 
 #include "window_manager/window.h"
 #include "window_manager/window_manager.h"
-#include "window_manager/x_connection.h"
+#include "window_manager/x11/x_connection.h"
 
 using std::set;
 

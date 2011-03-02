@@ -22,7 +22,7 @@
 #include "window_manager/compositor/animation.h"
 #include "window_manager/compositor/compositor.h"
 #include "window_manager/math_types.h"
-#include "window_manager/x_types.h"
+#include "window_manager/x11/x_types.h"
 
 #if !(defined(COMPOSITOR_OPENGL) || defined(COMPOSITOR_OPENGLES))
 #error COMPOSITOR_OPENGL or COMPOSITOR_OPENGLES must be defined

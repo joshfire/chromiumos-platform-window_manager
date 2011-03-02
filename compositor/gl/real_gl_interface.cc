@@ -7,7 +7,7 @@
 #include <string>
 
 #include "base/logging.h"
-#include "window_manager/real_x_connection.h"
+#include "window_manager/x11/real_x_connection.h"
 
 using std::string;
 

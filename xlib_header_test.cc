@@ -7,16 +7,16 @@
 #include "window_manager/event_consumer.h"
 #include "window_manager/event_loop.h"
 #include "window_manager/key_bindings.h"
-#include "window_manager/layout_manager.h"
+#include "window_manager/layout/layout_manager.h"
 #include "window_manager/motion_event_coalescer.h"
-#include "window_manager/panel.h"
-#include "window_manager/panel_container.h"
+#include "window_manager/panels/panel.h"
+#include "window_manager/panels/panel_container.h"
 #include "window_manager/shadow.h"
 #include "window_manager/stacking_manager.h"
 #include "window_manager/util.h"
 #include "window_manager/window.h"
 #include "window_manager/wm_ipc.h"
-#include "window_manager/x_connection.h"
+#include "window_manager/x11/x_connection.h"
 
 // This is not an executable test.  Rather, it is code that should fail to
 // compile if symbols from Xlib leak into any of a number of

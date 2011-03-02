@@ -14,8 +14,8 @@
 #include "window_manager/compositor/compositor.h"
 #include "window_manager/compositor/gl/gl_interface.h"
 #include "window_manager/compositor/real_compositor.h"
-#include "window_manager/texture_data.h"
-#include "window_manager/x_connection.h"
+#include "window_manager/compositor/texture_data.h"
+#include "window_manager/x11/x_connection.h"
 
 namespace window_manager {
 

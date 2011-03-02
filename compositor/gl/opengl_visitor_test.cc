@@ -12,14 +12,14 @@
 #include "base/scoped_ptr.h"
 #include "base/logging.h"
 #include "window_manager/compositor/compositor.h"
+#include "window_manager/compositor/gl/mock_gl_interface.h"
 #include "window_manager/compositor/gl/opengl_visitor.h"
 #include "window_manager/compositor/real_compositor.h"
 #include "window_manager/event_loop.h"
 #include "window_manager/geometry.h"
-#include "window_manager/mock_gl_interface.h"
-#include "window_manager/mock_x_connection.h"
 #include "window_manager/test_lib.h"
 #include "window_manager/util.h"
+#include "window_manager/x11/mock_x_connection.h"
 
 DEFINE_bool(logtostderr, false,
             "Print debugging messages to stderr (suppressed otherwise)");

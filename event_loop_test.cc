@@ -10,8 +10,8 @@
 #include "base/logging.h"
 #include "window_manager/callback.h"
 #include "window_manager/event_loop.h"
-#include "window_manager/mock_x_connection.h"
 #include "window_manager/test_lib.h"
+#include "window_manager/x11/mock_x_connection.h"
 
 DEFINE_bool(logtostderr, false,
             "Print debugging messages to stderr (suppressed otherwise)");

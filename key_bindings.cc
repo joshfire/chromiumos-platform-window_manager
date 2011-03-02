@@ -16,7 +16,7 @@ extern "C" {
 #include "base/scoped_ptr.h"
 #include "base/logging.h"
 #include "window_manager/util.h"
-#include "window_manager/x_connection.h"
+#include "window_manager/x11/x_connection.h"
 
 using std::make_pair;
 using std::map;

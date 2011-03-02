@@ -9,7 +9,7 @@
 
 #include "base/basictypes.h"
 #include "base/logging.h"
-#include "window_manager/x_types.h"
+#include "window_manager/x11/x_types.h"
 
 namespace window_manager {
 

@@ -13,7 +13,7 @@
 #include "window_manager/geometry.h"
 #include "window_manager/util.h"
 #include "window_manager/window.h"
-#include "window_manager/x_types.h"
+#include "window_manager/x11/x_types.h"
 
 namespace window_manager {
 

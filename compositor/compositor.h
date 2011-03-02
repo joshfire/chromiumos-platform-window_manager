@@ -12,7 +12,7 @@
 #include "window_manager/compositor/animation.h"
 #include "window_manager/geometry.h"
 #include "window_manager/image_enums.h"
-#include "window_manager/x_types.h"
+#include "window_manager/x11/x_types.h"
 
 namespace window_manager {
 

@@ -5,7 +5,7 @@
 #include "window_manager/pointer_position_watcher.h"
 
 #include "window_manager/event_loop.h"
-#include "window_manager/x_connection.h"
+#include "window_manager/x11/x_connection.h"
 
 namespace window_manager {
 

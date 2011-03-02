@@ -18,12 +18,12 @@
 #elif defined(COMPOSITOR_OPENGLES)
 #include "window_manager/compositor/gles/opengles_visitor.h"
 #endif
+#include "window_manager/compositor/layer_visitor.h"
 #include "window_manager/event_loop.h"
 #include "window_manager/image_container.h"
-#include "window_manager/layer_visitor.h"
 #include "window_manager/profiler.h"
 #include "window_manager/util.h"
-#include "window_manager/x_connection.h"
+#include "window_manager/x11/x_connection.h"
 
 DEFINE_bool(compositor_display_debug_needle, false,
             "Specify this to turn on a debugging aid for seeing when "

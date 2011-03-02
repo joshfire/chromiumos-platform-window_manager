@@ -31,9 +31,9 @@ extern "C" {
 #include "window_manager/event_loop.h"
 #include "window_manager/profiler.h"
 #include "window_manager/real_dbus_interface.h"
-#include "window_manager/real_x_connection.h"
 #include "window_manager/util.h"
 #include "window_manager/window_manager.h"
+#include "window_manager/x11/real_x_connection.h"
 
 DEFINE_string(display, "",
               "X Display to connect to (overrides DISPLAY env var).");

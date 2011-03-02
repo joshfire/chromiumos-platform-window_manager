@@ -10,7 +10,7 @@
 #include "window_manager/atom_cache.h"
 #include "window_manager/util.h"
 #include "window_manager/window.h"
-#include "window_manager/x_connection.h"
+#include "window_manager/x11/x_connection.h"
 
 using std::map;
 using std::string;

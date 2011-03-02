@@ -13,9 +13,9 @@
 #include "base/string_util.h"
 #include "cros/chromeos_wm_ipc_enums.h"
 #include "window_manager/atom_cache.h"
-#include "window_manager/real_x_connection.h"
 #include "window_manager/util.h"
 #include "window_manager/wm_ipc.h"
+#include "window_manager/x11/real_x_connection.h"
 
 DEFINE_string(image_dir, "data/", "Path to static image files");
 DEFINE_string(new_panel_image, "data/panel_chat.png",

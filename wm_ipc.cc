@@ -8,7 +8,7 @@
 
 #include "window_manager/atom_cache.h"
 #include "window_manager/util.h"
-#include "window_manager/x_connection.h"
+#include "window_manager/x11/x_connection.h"
 
 using chromeos::WmIpcMessageType;
 using chromeos::WmIpcWindowType;

@@ -16,18 +16,18 @@ extern "C" {
 #include "base/scoped_ptr.h"
 #include "base/logging.h"
 #include "cros/chromeos_wm_ipc_enums.h"
+#include "window_manager/compositor/gl/mock_gl_interface.h"
 #include "window_manager/compositor/mock_compositor.h"
 #include "window_manager/compositor/real_compositor.h"
 #include "window_manager/event_consumer.h"
 #include "window_manager/event_loop.h"
 #include "window_manager/key_bindings.h"
 #include "window_manager/mock_dbus_interface.h"
-#include "window_manager/mock_gl_interface.h"
-#include "window_manager/mock_x_connection.h"
 #include "window_manager/stacking_manager.h"
 #include "window_manager/window_manager.h"
 #include "window_manager/wm_ipc.h"
-#include "window_manager/x_types.h"
+#include "window_manager/x11/mock_x_connection.h"
+#include "window_manager/x11/x_types.h"
 
 namespace window_manager {
 

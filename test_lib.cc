@@ -19,9 +19,9 @@ extern "C" {
 #include "cros/chromeos_wm_ipc_enums.h"
 #include "window_manager/compositor/compositor.h"
 #include "window_manager/motion_event_coalescer.h"
-#include "window_manager/panel.h"
-#include "window_manager/panel_bar.h"
-#include "window_manager/panel_manager.h"
+#include "window_manager/panels/panel.h"
+#include "window_manager/panels/panel_bar.h"
+#include "window_manager/panels/panel_manager.h"
 #include "window_manager/util.h"
 #include "window_manager/window_manager.h"
 

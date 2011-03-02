@@ -73,11 +73,11 @@ elif backend == 'opengles':
 srcs = Split('''\
   atom_cache.cc
   geometry.cc
-  real_x_connection.cc
   util.cc
   wm_ipc.cc
-  x_connection.cc
-  x_connection_internal.cc
+  x11/real_x_connection.cc
+  x11/x_connection.cc
+  x11/x_connection_internal.cc
 ''')
 libwm_ipc = wm_env.Library('wm_ipc', srcs)
 
@@ -90,31 +90,31 @@ srcs = Split('''\
   compositor/animation.cc
   compositor/compositor.cc
   compositor/gl_interface_base.cc
+  compositor/layer_visitor.cc
   compositor/real_compositor.cc
   event_consumer_registrar.cc
   event_loop.cc
   focus_manager.cc
   image_container.cc
   key_bindings.cc
-  layer_visitor.cc
-  layout_manager.cc
-  login_controller.cc
-  login_entry.cc
+  layout/layout_manager.cc
+  layout/separator.cc
+  layout/snapshot_window.cc
+  layout/toplevel_window.cc
+  login/login_controller.cc
+  login/login_entry.cc
   modality_handler.cc
   motion_event_coalescer.cc
-  panel.cc
-  panel_bar.cc
-  panel_dock.cc
-  panel_manager.cc
+  panels/panel.cc
+  panels/panel_bar.cc
+  panels/panel_dock.cc
+  panels/panel_manager.cc
   pointer_position_watcher.cc
   profiler.cc
   real_dbus_interface.cc
   screen_locker_handler.cc
-  separator.cc
   shadow.cc
-  snapshot_window.cc
   stacking_manager.cc
-  toplevel_window.cc
   transient_window_collection.cc
   window.cc
   window_manager.cc
@@ -140,11 +140,11 @@ libwm_core = wm_env.Library('wm_core', srcs)
 
 # Define a library to be used by tests.
 srcs = Split('''\
+  compositor/gl/mock_gl_interface.cc
   compositor/mock_compositor.cc
   mock_dbus_interface.cc
-  mock_gl_interface.cc
-  mock_x_connection.cc
   test_lib.cc
+  x11/mock_x_connection.cc
 ''')
 libtest = wm_env.Library('test', Split(srcs))
 
@@ -163,7 +163,7 @@ test_env.Append(LIBS=['gtest'])
 test_env.Prepend(LIBS=[libtest])
 tests = []
 
-# These are tests that only get built when we use particular backends
+# These are tests that only get built when we use particular backends.
 backend_tests = {'opengl': ['real_compositor_test.cc',
                             'opengl_visitor_test.cc'],
                  'opengles': []}

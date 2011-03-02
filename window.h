@@ -22,8 +22,8 @@
 #include "window_manager/geometry.h"
 #include "window_manager/shadow.h"
 #include "window_manager/wm_ipc.h"
-#include "window_manager/x_connection.h"
-#include "window_manager/x_types.h"
+#include "window_manager/x11/x_connection.h"
+#include "window_manager/x11/x_types.h"
 
 namespace window_manager {
 

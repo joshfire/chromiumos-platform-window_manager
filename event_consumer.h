@@ -6,7 +6,7 @@
 #define WINDOW_MANAGER_EVENT_CONSUMER_H_
 
 #include "window_manager/wm_ipc.h"  // for WmIpc::Message
-#include "window_manager/x_types.h"
+#include "window_manager/x11/x_types.h"
 
 namespace window_manager {
 

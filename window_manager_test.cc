@@ -23,17 +23,17 @@
 #include "window_manager/event_consumer.h"
 #include "window_manager/event_loop.h"
 #include "window_manager/geometry.h"
-#include "window_manager/layout_manager.h"
-#include "window_manager/mock_x_connection.h"
-#include "window_manager/panel.h"
-#include "window_manager/panel_bar.h"
-#include "window_manager/panel_manager.h"
+#include "window_manager/layout/layout_manager.h"
+#include "window_manager/panels/panel.h"
+#include "window_manager/panels/panel_bar.h"
+#include "window_manager/panels/panel_manager.h"
 #include "window_manager/shadow.h"
 #include "window_manager/test_lib.h"
 #include "window_manager/util.h"
 #include "window_manager/window.h"
 #include "window_manager/window_manager.h"
 #include "window_manager/wm_ipc.h"
+#include "window_manager/x11/mock_x_connection.h"
 
 DEFINE_bool(logtostderr, false,
             "Print debugging messages to stderr (suppressed otherwise)");

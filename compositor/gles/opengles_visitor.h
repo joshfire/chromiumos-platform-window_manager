@@ -14,8 +14,8 @@
 
 #include "window_manager/compositor/compositor.h"
 #include "window_manager/compositor/real_compositor.h"
+#include "window_manager/compositor/texture_data.h"
 #include "window_manager/math_types.h"
-#include "window_manager/texture_data.h"
 
 namespace window_manager {
 
@@ -152,4 +152,3 @@ class OpenGlesEglImageData : public TextureData {
 }  // namespace window_manager
 
 #endif  // WINDOW_MANAGER_COMPOSITOR_GLES_GLES_VISITOR_H_
-

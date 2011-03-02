@@ -33,16 +33,16 @@ extern "C" {
 #include "window_manager/image_container.h"
 #include "window_manager/image_enums.h"
 #include "window_manager/key_bindings.h"
-#include "window_manager/layout_manager.h"
-#include "window_manager/login_controller.h"
+#include "window_manager/layout/layout_manager.h"
+#include "window_manager/login/login_controller.h"
 #include "window_manager/modality_handler.h"
-#include "window_manager/panel_manager.h"
+#include "window_manager/panels/panel_manager.h"
 #include "window_manager/profiler.h"
 #include "window_manager/screen_locker_handler.h"
 #include "window_manager/stacking_manager.h"
 #include "window_manager/util.h"
 #include "window_manager/window.h"
-#include "window_manager/x_connection.h"
+#include "window_manager/x11/x_connection.h"
 
 DEFINE_string(xterm_command, "xterm", "Command to launch a terminal");
 DEFINE_string(background_color, "#000", "Background color");

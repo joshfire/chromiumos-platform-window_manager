@@ -7,7 +7,7 @@
 #include "base/logging.h"
 #include "window_manager/image_container.h"
 #include "window_manager/util.h"
-#include "window_manager/x_connection.h"
+#include "window_manager/x11/x_connection.h"
 
 using std::list;
 using std::string;
