@@ -1247,11 +1247,15 @@ void WindowManager::HandleMappedWindow(Window* win) {
 }
 
 void WindowManager::HandleScreenResize(int new_width, int new_height) {
+  // We move windows offscreen to prevent them from receiving input.
+  // Check that the screen doesn't get so huge that they end up onscreen.
+  DCHECK_LE(new_width, Window::kOffscreenX);
+  DCHECK_LE(new_height, Window::kOffscreenY);
+
   width_ = new_width;
   height_ = new_height;
   SetEwmhSizeProperties();
   stage_->SetSize(width_, height_);
-
   FOR_EACH_EVENT_CONSUMER(event_consumers_, HandleScreenResize());
 }
 

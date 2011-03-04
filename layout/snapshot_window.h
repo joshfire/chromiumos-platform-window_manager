@@ -96,10 +96,6 @@ class LayoutManager::SnapshotWindow {
   // true.
   bool PropertiesChanged();
 
-  // Handles a resize of the screen by making sure that client windows are
-  // still offscreen.
-  void HandleScreenResize();
-
   // Comparison function used when sorting snapshot windows by tab index.
   static bool CompareTabIndex(std::tr1::shared_ptr<SnapshotWindow> first,
                               std::tr1::shared_ptr<SnapshotWindow> second) {

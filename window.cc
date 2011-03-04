@@ -38,6 +38,15 @@ DEFINE_bool(load_window_shapes, false,
 
 namespace window_manager {
 
+// We could technically just move windows to (XConnection::kMaxPosition,
+// XConnection::kMaxPosition) to keep them offscreen (X11 appears to allow
+// window contents to go beyond the 2**15 limit; it's just the origin that needs
+// to fall within it), but GTK sometimes arranges override-redirect windows
+// relative to offscreen windows, and it happily overflows the limit in this
+// case, ending up with negative coordinates.
+const int Window::kOffscreenX = (XConnection::kMaxPosition + 1) / 2;
+const int Window::kOffscreenY = (XConnection::kMaxPosition + 1) / 2;
+
 const int Window::kVideoMinWidth = 300;
 const int Window::kVideoMinHeight = 225;
 const int Window::kVideoMinFramerate = 15;
@@ -624,7 +633,7 @@ bool Window::MoveClient(int x, int y) {
 }
 
 bool Window::MoveClientOffscreen() {
-  return MoveClient(wm_->width(), wm_->height());
+  return MoveClient(kOffscreenX, kOffscreenY);
 }
 
 bool Window::MoveClientToComposited() {

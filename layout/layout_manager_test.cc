@@ -129,10 +129,8 @@ TEST_F(LayoutManagerTest, Basic) {
 
   // The third window should be onscreen now, and the first and second
   // windows should be offscreen.
-  EXPECT_EQ(wm_->width(), win1->client_x());
-  EXPECT_EQ(wm_->height(), win1->client_y());
-  EXPECT_EQ(wm_->width(), win2->client_x());
-  EXPECT_EQ(wm_->height(), win2->client_y());
+  EXPECT_TRUE(WindowIsOffscreen(xid1));
+  EXPECT_TRUE(WindowIsOffscreen(xid2));
   EXPECT_EQ(x, win3->client_x());
   EXPECT_EQ(y, win3->client_y());
   EXPECT_EQ(x, win3->composited_x());
@@ -146,10 +144,8 @@ TEST_F(LayoutManagerTest, Basic) {
   EXPECT_EQ(y, win1->client_y());
   EXPECT_EQ(x, win1->composited_x());
   EXPECT_EQ(y, win1->composited_y());
-  EXPECT_EQ(wm_->width(), win2->client_x());
-  EXPECT_EQ(wm_->height(), win2->client_y());
-  EXPECT_EQ(wm_->width(), win3->client_x());
-  EXPECT_EQ(wm_->height(), win3->client_y());
+  EXPECT_TRUE(WindowIsOffscreen(xid2));
+  EXPECT_TRUE(WindowIsOffscreen(xid3));
 }
 
 TEST_F(LayoutManagerTest, Focus) {

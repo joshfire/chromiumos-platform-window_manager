@@ -546,6 +546,9 @@ class XConnection {
   static const int kByteFormat;
   static const int kLongFormat;
 
+  // Maximum allowed onscreen position.  Hardcoded in the X protocol.
+  static const int kMaxPosition;
+
  protected:
   // Base IDs for extension events.  Implementations should initialize
   // these in their constructors.

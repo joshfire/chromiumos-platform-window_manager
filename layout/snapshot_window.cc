@@ -197,14 +197,6 @@ bool LayoutManager::SnapshotWindow::PropertiesChanged() {
   return changed;
 }
 
-void LayoutManager::SnapshotWindow::HandleScreenResize() {
-  win_->MoveClientOffscreen();
-  if (title_)
-    title_->MoveClientOffscreen();
-  if (fav_icon_)
-    fav_icon_->MoveClientOffscreen();
-}
-
 int LayoutManager::SnapshotWindow::CalculateOverallIndex() const {
   if (toplevel()) {
     return layout_manager_->GetPreceedingTabCount(*(toplevel())) +

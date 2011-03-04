@@ -326,17 +326,6 @@ void LayoutManager::HandleScreenResize() {
   if (background_xid_)
     wm_->xconn()->ResizeWindow(background_xid_,
                                Size(wm_->width(), wm_->height()));
-
-  // Make sure the snapshot windows and hidden transient client windows are
-  // still offscreen.
-  for (SnapshotWindows::iterator it = snapshots_.begin();
-       it != snapshots_.end(); ++it) {
-    (*it)->HandleScreenResize();
-  }
-  for (ToplevelWindows::iterator it = toplevels_.begin();
-       it != toplevels_.end(); ++it) {
-    (*it)->HandleScreenResize();
-  }
 }
 
 bool LayoutManager::HandleWindowMapRequest(Window* win) {
@@ -1139,11 +1128,6 @@ void LayoutManager::MoveAndResizeForAvailableArea() {
                                  GRAVITY_NORTHWEST);
     } else {
       (*it)->win()->ResizeClient(width_, height_, resize_gravity);
-      if (mode_ == MODE_OVERVIEW) {
-        // Make sure the toplevel windows are offscreen still if we're
-        // in overview mode.
-        (*it)->win()->MoveClientOffscreen();
-      }
     }
   }
 

@@ -15,6 +15,7 @@ namespace window_manager {
 
 const int XConnection::kByteFormat = 8;
 const int XConnection::kLongFormat = 32;
+const int XConnection::kMaxPosition = 32767;
 
 XAtom XConnection::GetAtomOrDie(const std::string& name) {
   XAtom atom = 0;

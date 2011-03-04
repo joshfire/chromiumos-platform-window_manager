@@ -250,7 +250,9 @@ class Window {
   // failure.
   bool MoveClient(int x, int y);
 
+  // Move the client window offscreen to prevent it from receiving input.
   bool MoveClientOffscreen();
+
   bool MoveClientToComposited();
 
   // Center the client window over the passed-in window.
@@ -379,6 +381,10 @@ class Window {
   // Send a synthetic ConfigureNotify event to the client containing the
   // window's current position, size, etc.
   void SendSyntheticConfigureNotify();
+
+  // Position to which we move X windows to prevent them from receiving input.
+  static const int kOffscreenX;
+  static const int kOffscreenY;
 
  private:
   friend class BasicWindowManagerTest;

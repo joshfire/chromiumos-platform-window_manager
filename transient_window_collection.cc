@@ -260,16 +260,6 @@ void TransientWindowCollection::Restore() {
   }
 }
 
-void TransientWindowCollection::HandleScreenResize() {
-  if (is_hidden_) {
-    // Make sure that client windows remain offscreen.
-    for (TransientWindowMap::const_iterator it = transients_.begin();
-         it != transients_.end(); ++it) {
-      it->second->win->MoveClientOffscreen();
-    }
-  }
-}
-
 void
 TransientWindowCollection::TransientWindow::UpdateOffsetsToCenterOverWindow(
     Window* base_win, const Rect& bounding_rect, bool force_constrain) {

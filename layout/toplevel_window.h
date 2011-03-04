@@ -67,12 +67,6 @@ class LayoutManager::ToplevelWindow {
   // Focus this window (or maybe one of its transients).
   void TakeFocus(XTime timestamp);
 
-  // Handle the screen being resized, in a limited capacity.  Use
-  // UpdateLayout() instead to move and resize the toplevel window if
-  // needed; this method just ensures that hidden transient client windows
-  // remain offscreen.
-  void HandleScreenResize();
-
   // Try to set the window to be focused the next time that TakeFocus() is
   // called.  NULL can be passed to indicate that the toplevel window
   // should get the focus.

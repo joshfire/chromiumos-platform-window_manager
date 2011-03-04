@@ -98,10 +98,6 @@ class TransientWindowCollection {
   // windows back onscreen and showing the composited windows.
   void Restore();
 
-  // Ensure that client windows remain offscreen even if the screen got
-  // larger.
-  void HandleScreenResize();
-
  private:
   // Information about a transient window.
   struct TransientWindow {

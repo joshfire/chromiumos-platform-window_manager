@@ -472,10 +472,6 @@ void LayoutManager::ToplevelWindow::TakeFocus(XTime timestamp) {
     wm()->FocusWindow(win_, timestamp);
 }
 
-void LayoutManager::ToplevelWindow::HandleScreenResize() {
-  transients_->HandleScreenResize();
-}
-
 void LayoutManager::ToplevelWindow::SetPreferredTransientWindowToFocus(
     Window* transient_win) {
   transients_->SetPreferredWindowToFocus(transient_win);
