@@ -52,9 +52,10 @@ using window_manager::util::XidStr;
 
 namespace window_manager {
 
-const float kDimmedOpacityBegin = 0.2f;
-const float kDimmedOpacityEnd = 0.6f;
-
+static const float kDimmedOpacityBegin = 0.2f;
+static const float kDimmedOpacityEnd = 0.6f;
+// Project layers to this depth. 0.0 or 1.0 may get clipped by GL so use 0.5.
+static const float kProjectedDepth = 0.5f;
 
 // Template used to round float values returned by animations to integers when
 // applied to integer properties (read: position).
@@ -692,9 +693,8 @@ void RealCompositor::StageActor::UpdateProjection() {
   // pass-through projection matrix, update using_passthrough_projection()
   // accordingly.
   projection_ = Matrix4::orthographic(
-                    0, width(), height(), 0,
-                    -LayerVisitor::kMinDepth,
-                    -LayerVisitor::kMaxDepth);
+                    0, width(), height(), 0, 
+		    -kProjectedDepth, -kProjectedDepth);
 }
 
 bool RealCompositor::StageActor::using_passthrough_projection() const {

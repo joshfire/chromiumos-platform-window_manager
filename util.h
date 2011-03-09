@@ -242,17 +242,6 @@ void ReorderIterator(ForwardIterator src_it, ForwardIterator dest_it) {
 // Helper method to convert an XID into a hex string.
 std::string XidStr(unsigned long xid);
 
-// Helper method to return the next highest power of two.
-inline uint32 NextPowerOfTwo(uint32 x) {
-  x--;
-  x = x | (x >> 1);
-  x = x | (x >> 2);
-  x = x | (x >> 4);
-  x = x | (x >> 8);
-  x = x | (x >> 16);
-  return x + 1;
-}
-
 // Convert the passed-in time (containing seconds since the epoch) to a
 // string of the form "YYYYMMDD-HHMMSS" in the local time zone.
 std::string GetTimeAsString(time_t utime);

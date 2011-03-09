@@ -292,7 +292,6 @@ OpenGlDrawVisitor::OpenGlDrawVisitor(GLInterface* gl_interface,
       framebuffer_config_rgb_(0),
       framebuffer_config_rgba_(0),
       context_(0),
-      visit_opaque_(false),
       ancestor_opacity_(1.0f),
       num_frames_drawn_(0),
       has_fullscreen_actor_(false) {
@@ -308,7 +307,6 @@ OpenGlDrawVisitor::OpenGlDrawVisitor(GLInterface* gl_interface,
   if (gl_interface_->HasTextureFromPixmapExtension())
     FindFramebufferConfigurations();
 
-  gl_interface_->Enable(GL_DEPTH_TEST);
   gl_interface_->BlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
   CHECK_GL_ERROR(gl_interface_);
 
@@ -591,13 +589,11 @@ void OpenGlDrawVisitor::DrawNeedle() {
   gl_interface_->DisableClientState(GL_COLOR_ARRAY);
   gl_interface_->Disable(GL_TEXTURE_2D);
   gl_interface_->PushMatrix();
-  gl_interface_->Disable(GL_DEPTH_TEST);
   gl_interface_->Translatef(30, 30, 0);
   gl_interface_->Rotatef(num_frames_drawn_, 0.f, 0.f, 1.f);
   gl_interface_->Scalef(30, 3, 1.f);
   gl_interface_->Color4f(1.f, 0.f, 0.f, 0.8f);
   gl_interface_->DrawArrays(GL_TRIANGLE_STRIP, 0, 4);
-  gl_interface_->Enable(GL_DEPTH_TEST);
   gl_interface_->PopMatrix();
   PROFILER_MARKER_END(DrawNeedle);
 }
@@ -628,10 +624,8 @@ void OpenGlDrawVisitor::VisitStage(RealCompositor::StageActor* actor) {
   }
 
   // No need to clear color buffer if something will cover up the screen.
-  if (has_fullscreen_actor_)
-    gl_interface_->Clear(GL_DEPTH_BUFFER_BIT);
-  else
-    gl_interface_->Clear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+  if (!has_fullscreen_actor_)
+    gl_interface_->Clear(GL_COLOR_BUFFER_BIT);
 
   gl_interface_->MatrixMode(GL_PROJECTION);
   gl_interface_->LoadIdentity();
@@ -646,39 +640,15 @@ void OpenGlDrawVisitor::VisitStage(RealCompositor::StageActor* actor) {
   gl_interface_->VertexPointer(2, GL_FLOAT, 0, 0);
   gl_interface_->EnableClientState(GL_TEXTURE_COORD_ARRAY);
   gl_interface_->TexCoordPointer(2, GL_FLOAT, 0, 0);
-  gl_interface_->DepthMask(GL_TRUE);
   gl_interface_->EnableClientState(GL_COLOR_ARRAY);
   CHECK_GL_ERROR(gl_interface_);
 
-#ifdef EXTRA_LOGGING
-  DLOG(INFO) << "Starting OPAQUE pass.";
-#endif
-  // Disable blending because these actors are all opaque, and we're
-  // drawing them front to back.
-  gl_interface_->Disable(GL_BLEND);
-
-  // For the first pass, we want to collect only opaque actors, in
-  // front to back order.
-  visit_opaque_ = true;
-  PROFILER_MARKER_BEGIN(Opaque_Pass);
-  VisitContainer(actor);
-  PROFILER_MARKER_END(Opaque_Pass);
-
-#ifdef EXTRA_LOGGING
-  DLOG(INFO) << "Ending OPAQUE pass.";
-  DLOG(INFO) << "Starting TRANSPARENT pass.";
-#endif
-  // Visiting back to front now, with no z-buffer, but with blending.
+  // Visiting back to front with no z-buffer.
   ancestor_opacity_ = actor->opacity();
-  gl_interface_->DepthMask(GL_FALSE);
-  gl_interface_->Enable(GL_BLEND);
-  visit_opaque_ = false;
-  PROFILER_MARKER_BEGIN(Transparent_Pass);
+  PROFILER_MARKER_BEGIN(Rendering_Pass);
   VisitContainer(actor);
-  PROFILER_MARKER_END(Transparent_Pass);
+  PROFILER_MARKER_END(Rendering_Pass);
 
-  // Turn the depth mask back on now.
-  gl_interface_->DepthMask(GL_TRUE);
   CHECK_GL_ERROR(gl_interface_);
 
   if (FLAGS_compositor_display_debug_needle)
@@ -730,68 +700,35 @@ void OpenGlDrawVisitor::VisitContainer(RealCompositor::ContainerActor* actor) {
              << actor->width() << "x"  << actor->height() << ")";
 #endif
   RealCompositor::ActorVector children = actor->GetChildren();
-  if (visit_opaque_) {
-    for (RealCompositor::ActorVector::const_iterator iterator =
-           children.begin(); iterator != children.end(); ++iterator) {
-      RealCompositor::Actor* child = *iterator;
-      // Only traverse if the child is visible, and opaque.
-      if (child->IsVisible() && child->is_opaque()) {
-#ifdef EXTRA_LOGGING
-        DLOG(INFO) << "Drawing opaque child " << child->name()
-                   << " (visible: " << child->IsVisible()
-                   << ", opacity: " << child->opacity()
-                   << ", is_opaque: " << child->is_opaque() << ")";
-#endif
-        child->Accept(this);
-      } else {
-#ifdef EXTRA_LOGGING
-        DLOG(INFO) << "NOT drawing transparent child " << child->name()
-                   << " (visible: " << child->IsVisible()
-                   << ", opacity: " << child->opacity()
-                   << ", is_opaque: " << child->is_opaque() << ")";
-#endif
-      }
-      CHECK_GL_ERROR(gl_interface_);
-    }
-  } else {
-    float original_opacity = ancestor_opacity_;
-    ancestor_opacity_ *= actor->opacity();
 
-    // Walk backwards so we go back to front.
-    RealCompositor::ActorVector::const_reverse_iterator iterator;
-    for (iterator = children.rbegin(); iterator != children.rend();
-         ++iterator) {
-      RealCompositor::Actor* child = *iterator;
-      // Only traverse if child is visible, and either transparent or
-      // has children that might be transparent.
-      if (child->IsVisible() &&
-          (ancestor_opacity_ <= 0.999 || child->has_children() ||
-           !child->is_opaque())) {
-#ifdef EXTRA_LOGGING
-        DLOG(INFO) << "Drawing transparent child " << child->name()
-                   << " (visible: " << child->IsVisible()
-                   << ", has_children: " << child->has_children()
-                   << ", opacity: " << child->opacity()
-                   << ", ancestor_opacity: " << ancestor_opacity_
-                   << ", is_opaque: " << child->is_opaque() << ")";
-#endif
-        child->Accept(this);
-      } else {
-#ifdef EXTRA_LOGGING
-        DLOG(INFO) << "NOT drawing opaque child " << child->name()
-                   << " (visible: " << child->IsVisible()
-                   << ", has_children: " << child->has_children()
-                   << ", opacity: " << child->opacity()
-                   << ", ancestor_opacity: " << ancestor_opacity_
-                   << ", is_opaque: " << child->is_opaque() << ")";
-#endif
-      }
-      CHECK_GL_ERROR(gl_interface_);
-    }
+  float original_opacity = ancestor_opacity_;
+  ancestor_opacity_ *= actor->opacity();
 
-    // Reset ancestor opacity.
-    ancestor_opacity_ = original_opacity;
+  // Walk backwards so we go back to front.
+  RealCompositor::ActorVector::const_reverse_iterator iterator;
+  for (iterator = children.rbegin(); iterator != children.rend();
+       ++iterator) {
+    RealCompositor::Actor* child = *iterator;
+    if (!child->IsVisible())
+      continue;
+#ifdef EXTRA_LOGGING
+    DLOG(INFO) << "Drawing child " << child->name()
+               << " (visible: " << child->IsVisible()
+               << ", opacity: " << child->opacity()
+               << ", is_opaque: " << child->is_opaque() << ")";
+#endif
+  
+    // TODO: move this down into the Visit* functions
+    if (child->is_opaque() && child->opacity() * ancestor_opacity_ > 0.999)
+      gl_interface_->Disable(GL_BLEND);
+    else
+      gl_interface_->Enable(GL_BLEND);
+    child->Accept(this);
+    CHECK_GL_ERROR(gl_interface_);
   }
+
+  // Reset ancestor opacity.
+  ancestor_opacity_ = original_opacity;
 }
 
 }  // namespace window_manager

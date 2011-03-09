@@ -45,6 +45,10 @@ class OpenGlesDrawVisitor : virtual public RealCompositor::ActorVisitor {
 
   virtual void VisitActor(RealCompositor::Actor* actor) {}
   virtual void VisitStage(RealCompositor::StageActor* actor);
+  virtual void VisitContainer(RealCompositor::ContainerActor* actor);
+  virtual void VisitImage(RealCompositor::ImageActor* actor);
+  virtual void VisitTexturePixmap(RealCompositor::TexturePixmapActor* actor);
+  virtual void VisitQuad(RealCompositor::QuadActor* actor);
 
   void DrawQuad(RealCompositor::QuadActor* actor,
                 float ancestor_opacity);
@@ -105,6 +109,9 @@ class OpenGlesDrawVisitor : virtual public RealCompositor::ActorVisitor {
   // Height of the stage actor.  Needed to Y-invert the actor rect when
   // passing it to glScissor();
   int stage_height_;
+
+  // Cumulative opacity of the ancestors.
+  float ancestor_opacity_;
 
   DISALLOW_COPY_AND_ASSIGN(OpenGlesDrawVisitor);
 };

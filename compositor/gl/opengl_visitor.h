@@ -161,11 +161,6 @@ class OpenGlDrawVisitor : virtual public RealCompositor::ActorVisitor {
   GLXFBConfig framebuffer_config_rgba_;
   GLXContext context_;
 
-  // If set to true, this indicates that we will be visiting only
-  // opaque actors (in front to back order), and if false, only (at
-  // least partially) transparent ones (in back to front order).
-  bool visit_opaque_;
-
   // This is the cumulative opacity of all the ancestors of the
   // currently visited node. It is recalculated each time we enter or
   // leave a container node.

@@ -33,7 +33,6 @@ using std::tr1::unordered_set;
 using std::vector;
 using window_manager::util::CreateTimeTicksFromMs;
 using window_manager::util::GetMonotonicTime;
-using window_manager::util::NextPowerOfTwo;
 using window_manager::util::SetMonotonicTimeForTest;
 
 namespace window_manager {
@@ -54,20 +53,12 @@ class NameCheckVisitor : virtual public RealCompositor::ActorVisitor {
 class RealCompositorTest : public BasicCompositingTest {};
 class RealCompositorTreeTest : public BasicCompositingTreeTest {};
 
-TEST_F(RealCompositorTreeTest, LayerDepth) {
+TEST_F(RealCompositorTreeTest, Culling) {
   // Test lower-level layer-setting routines
   int32 count = 0;
   stage_->Update(&count, GetMonotonicTime());
   EXPECT_EQ(8, count);
   RealCompositor::ActorVector actors;
-
-  // Code uses a depth range of kMinDepth to kMaxDepth.  Layers are
-  // disributed evenly within that range, except we don't use the
-  // frontmost or backmost values in that range.
-  uint32 max_count = NextPowerOfTwo(static_cast<uint32>(count + 2));
-  float thickness = (LayerVisitor::kMaxDepth -
-                     LayerVisitor::kMinDepth) / max_count;
-  float depth = LayerVisitor::kMinDepth + thickness;
 
   // First we test the layer visitor directly.
   LayerVisitor layer_visitor(count, false);
@@ -75,37 +66,18 @@ TEST_F(RealCompositorTreeTest, LayerDepth) {
 
   // rect3 is fullscreen and opaque, so rect2 and rect1 are culled.
   EXPECT_TRUE(layer_visitor.has_fullscreen_actor());
-  EXPECT_FLOAT_EQ(depth, rect3_->z());
-  depth += thickness;
   EXPECT_TRUE(rect2_->culled());
-  EXPECT_FLOAT_EQ(depth, group4_->z());
-  depth += thickness;
-  EXPECT_FLOAT_EQ(depth, group3_->z());
-  depth += thickness;
   EXPECT_TRUE(rect1_->culled());
-  EXPECT_FLOAT_EQ(depth, group2_->z());
-  depth += thickness;
-  EXPECT_FLOAT_EQ(depth, group1_->z());
 
   // Now we test higher-level layer depth results.
-  depth = LayerVisitor::kMinDepth + thickness;
   compositor_->Draw();
   EXPECT_EQ(8, compositor_->actor_count());
 
-  EXPECT_FLOAT_EQ(depth, rect3_->z());
-  depth += thickness;
   EXPECT_TRUE(rect2_->culled());
-  EXPECT_FLOAT_EQ(depth, group4_->z());
-  depth += thickness;
-  EXPECT_FLOAT_EQ(depth, group3_->z());
-  depth += thickness;
   EXPECT_TRUE(rect1_->culled());
-  EXPECT_FLOAT_EQ(depth, group2_->z());
-  depth += thickness;
-  EXPECT_FLOAT_EQ(depth, group1_->z());
 }
 
-TEST_F(RealCompositorTreeTest, LayerDepthWithOpacity) {
+TEST_F(RealCompositorTreeTest, CullingOpacity) {
   rect3_->SetOpacity(0.5f, 0);
 
   // Test lower-level layer-setting routines
@@ -114,14 +86,6 @@ TEST_F(RealCompositorTreeTest, LayerDepthWithOpacity) {
   EXPECT_EQ(8, count);
   RealCompositor::ActorVector actors;
 
-  // Code uses a depth range of kMinDepth to kMaxDepth.  Layers are
-  // disributed evenly within that range, except we don't use the
-  // frontmost or backmost values in that range.
-  uint32 max_count = NextPowerOfTwo(static_cast<uint32>(count + 2));
-  float thickness = (LayerVisitor::kMaxDepth -
-                     LayerVisitor::kMinDepth) / max_count;
-  float depth = LayerVisitor::kMinDepth + thickness;
-
   // First we test the layer visitor directly.
   LayerVisitor layer_visitor(count, false);
   stage_->Accept(&layer_visitor);
@@ -129,36 +93,13 @@ TEST_F(RealCompositorTreeTest, LayerDepthWithOpacity) {
   // rect3 is fullscreen but not opaque, so rect2 is not culled.
   // rect2 is fullscreen and opaque, so rect1 is culled.
   EXPECT_TRUE(layer_visitor.has_fullscreen_actor());
-  EXPECT_FLOAT_EQ(depth, rect3_->z());
-  depth += thickness;
-  EXPECT_FLOAT_EQ(depth, rect2_->z());
-  depth += thickness;
-  EXPECT_FLOAT_EQ(depth, group4_->z());
-  depth += thickness;
-  EXPECT_FLOAT_EQ(depth, group3_->z());
-  depth += thickness;
   EXPECT_TRUE(rect1_->culled());
-  EXPECT_FLOAT_EQ(depth, group2_->z());
-  depth += thickness;
-  EXPECT_FLOAT_EQ(depth, group1_->z());
 
   // Now we test higher-level layer depth results.
-  depth = LayerVisitor::kMinDepth + thickness;
   compositor_->Draw();
   EXPECT_EQ(8, compositor_->actor_count());
 
-  EXPECT_FLOAT_EQ(depth, rect3_->z());
-  depth += thickness;
-  EXPECT_FLOAT_EQ(depth, rect2_->z());
-  depth += thickness;
-  EXPECT_FLOAT_EQ(depth, group4_->z());
-  depth += thickness;
-  EXPECT_FLOAT_EQ(depth, group3_->z());
-  depth += thickness;
   EXPECT_TRUE(rect1_->culled());
-  EXPECT_FLOAT_EQ(depth, group2_->z());
-  depth += thickness;
-  EXPECT_FLOAT_EQ(depth, group1_->z());
 }
 
 TEST_F(RealCompositorTreeTest, ActorVisitor) {

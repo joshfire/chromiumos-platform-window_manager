@@ -22,64 +22,7 @@
 #endif
 
 namespace window_manager {
-
-// Base for rendering passes.
-class BasePass : virtual public RealCompositor::ActorVisitor {
- public:
-  explicit BasePass(OpenGlesDrawVisitor* gles_visitor)
-      : gles_visitor_(gles_visitor) {}
-  virtual ~BasePass() {}
-  virtual void VisitActor(RealCompositor::Actor* actor) {}
-  virtual void VisitContainer(RealCompositor::ContainerActor* actor) = 0;
-  virtual void VisitTexturePixmap(RealCompositor::TexturePixmapActor* actor);
-  virtual void VisitQuad(RealCompositor::QuadActor* actor) = 0;
-  virtual void VisitImage(RealCompositor::ImageActor* actor) {
-    VisitQuad(actor);
-  }
-
- protected:
-  OpenGlesDrawVisitor* gles_visitor() const { return gles_visitor_; }
-
- private:
-  OpenGlesDrawVisitor* gles_visitor_;  // Not owned.
-
-  DISALLOW_COPY_AND_ASSIGN(BasePass);
-};
-
-// Back to front pass with blending on.
-class TransparentPass : public BasePass {
- public:
-  explicit TransparentPass(OpenGlesDrawVisitor* gles_visitor)
-      : BasePass(gles_visitor) {}
-  virtual ~TransparentPass() {}
-  virtual void VisitStage(RealCompositor::StageActor* actor);
-  virtual void VisitContainer(RealCompositor::ContainerActor* actor);
-  virtual void VisitQuad(RealCompositor::QuadActor* actor) {
-    gles_visitor()->DrawQuad(actor, ancestor_opacity_);
-  }
-
- private:
-  // Cumulative opacity of the ancestors
-  float ancestor_opacity_;
-
-  DISALLOW_COPY_AND_ASSIGN(TransparentPass);
-};
-
-// Front to back pass with blending off.
-class OpaquePass : public BasePass {
- public:
-  explicit OpaquePass(OpenGlesDrawVisitor* gles_visitor)
-      : BasePass(gles_visitor) {}
-  virtual ~OpaquePass() {}
-  virtual void VisitContainer(RealCompositor::ContainerActor* actor);
-  virtual void VisitQuad(RealCompositor::QuadActor* actor) {
-    gles_visitor()->DrawQuad(actor, 1.f);
-  }
-
- private:
-  DISALLOW_COPY_AND_ASSIGN(OpaquePass);
-};
-
+  
 OpenGlesDrawVisitor::OpenGlesDrawVisitor(Gles2Interface* gl,
                                          RealCompositor* compositor,
                                          Compositor::StageActor* stage)
@@ -100,7 +43,6 @@ OpenGlesDrawVisitor::OpenGlesDrawVisitor(Gles2Interface* gl,
     EGL_RED_SIZE, 1,
     EGL_GREEN_SIZE, 1,
     EGL_BLUE_SIZE, 1,
-    EGL_DEPTH_SIZE, 16,
     EGL_RENDERABLE_TYPE, EGL_OPENGL_ES2_BIT,
     EGL_SURFACE_TYPE, EGL_WINDOW_BIT,
     EGL_NONE
@@ -183,7 +125,6 @@ OpenGlesDrawVisitor::OpenGlesDrawVisitor(Gles2Interface* gl,
 
   // Unchanging state
   gl_->BlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-  gl_->Enable(GL_DEPTH_TEST);
 }
 
 OpenGlesDrawVisitor::~OpenGlesDrawVisitor() {
@@ -298,26 +239,16 @@ void OpenGlesDrawVisitor::VisitStage(RealCompositor::StageActor* actor) {
   }
 
   // No need to clear color buffer if something will cover up the screen.
-  if (has_fullscreen_actor_)
-    gl_->Clear(GL_DEPTH_BUFFER_BIT);
-  else
-    gl_->Clear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+  if (!has_fullscreen_actor_)
+    gl_->Clear(GL_COLOR_BUFFER_BIT);
 
   projection_ = actor->projection();
   using_passthrough_projection_ = actor->using_passthrough_projection();
   stage_height_ = actor->height();
 
-  // Front to back opaque rendering pass
-  OpaquePass opaque_pass(this);
-  actor->Accept(&opaque_pass);
-
-  // Back to front rendering transparent pass
-  gl_->Enable(GL_BLEND);
-  gl_->DepthMask(GL_FALSE);
-  TransparentPass transparent_pass(this);
-  actor->Accept(&transparent_pass);
-  gl_->DepthMask(GL_TRUE);
-  gl_->Disable(GL_BLEND);
+  // Back to front rendering of all the actors.
+  ancestor_opacity_ = actor->opacity();
+  VisitContainer(actor);
 
   if (do_partial_update) {
     DCHECK(partial_update_possible);
@@ -345,20 +276,23 @@ void OpenGlesDrawVisitor::CreateTextureData(
   actor->set_texture_data(texture);
 }
 
-void BasePass::VisitTexturePixmap(
+void OpenGlesDrawVisitor::VisitImage(RealCompositor::ImageActor* actor) {
+  VisitQuad(actor);
+}
+
+void OpenGlesDrawVisitor::VisitTexturePixmap(
     RealCompositor::TexturePixmapActor* actor) {
   if (!actor->IsVisible())
     return;
 
   if (!actor->texture_data())
-    gles_visitor_->CreateTextureData(actor);
+    CreateTextureData(actor);
 
   VisitQuad(actor);
 }
 
-void TransparentPass::VisitStage(RealCompositor::StageActor* actor) {
-  ancestor_opacity_ = actor->opacity();
-  VisitContainer(actor);
+void OpenGlesDrawVisitor::VisitQuad(RealCompositor::QuadActor* actor) {
+  DrawQuad(actor, ancestor_opacity_);
 }
 
 void OpenGlesDrawVisitor::DrawQuad(RealCompositor::QuadActor* actor,
@@ -541,7 +475,7 @@ void OpenGlesDrawVisitor::PopScissorRect() {
   }
 }
 
-void TransparentPass::VisitContainer(
+void OpenGlesDrawVisitor::VisitContainer(
     RealCompositor::ContainerActor* actor) {
   if (!actor->IsVisible())
     return;
@@ -555,29 +489,16 @@ void TransparentPass::VisitContainer(
   const RealCompositor::ActorVector children = actor->GetChildren();
   for (RealCompositor::ActorVector::const_reverse_iterator i =
        children.rbegin(); i != children.rend(); ++i) {
-    if (ancestor_opacity_ <= 0.999f || (*i)->has_children() ||
-        !(*i)->is_opaque())
-      (*i)->Accept(this);
+    // TODO move this down into the Visit* functions
+    if ((*i)->is_opaque() && (*i)->opacity() * ancestor_opacity_ > 0.999) 
+      gl_->Disable(GL_BLEND);
+    else
+      gl_->Enable(GL_BLEND);
+    (*i)->Accept(this);
   }
 
   // Reset opacity.
   ancestor_opacity_ = original_opacity;
-}
-
-void OpaquePass::VisitContainer(
-    RealCompositor::ContainerActor* actor) {
-  if (!actor->IsVisible())
-    return;
-
-  LOG(INFO) << "Visit container: " << actor->name();
-
-  // Front to back rendering
-  const RealCompositor::ActorVector children = actor->GetChildren();
-  for (RealCompositor::ActorVector::const_iterator i = children.begin();
-       i != children.end(); ++i) {
-    if ((*i)->is_opaque())
-      (*i)->Accept(this);
-  }
 }
 
 OpenGlesTextureData::OpenGlesTextureData(Gles2Interface* gl)

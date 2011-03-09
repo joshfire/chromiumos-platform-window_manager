@@ -16,16 +16,12 @@ namespace window_manager {
 using std::ceil;
 using std::max;
 using std::min;
-using window_manager::util::NextPowerOfTwo;
 
 enum CullingResult {
   CULLING_WINDOW_OFFSCREEN,
   CULLING_WINDOW_ONSCREEN,
   CULLING_WINDOW_FULLSCREEN
 };
-
-const float LayerVisitor::kMinDepth = 0.0f;
-const float LayerVisitor::kMaxDepth = 4096.0f + LayerVisitor::kMinDepth;
 
 static inline float min4(float a, float b, float c, float d) {
   return min(min(min(a, b), c), d);
@@ -116,8 +112,6 @@ static LayerVisitor::BoundingBox MapRegionToGlCoordinates(
 
 
 void LayerVisitor::VisitActor(RealCompositor::Actor* actor) {
-  actor->set_z(depth_);
-  depth_ += layer_thickness_;
   actor->set_is_opaque(actor->opacity() > 0.999f);
 }
 
@@ -125,23 +119,6 @@ void LayerVisitor::VisitStage(
     RealCompositor::StageActor* actor) {
   if (!actor->IsVisible())
     return;
-
-  // This calculates the next power of two for the actor count, so
-  // that we can avoid roundoff errors when computing the depth.
-  // Also, add two empty layers at the front and the back that we
-  // won't use in order to avoid issues at the extremes.  The eventual
-  // plan here is to have three depth ranges, one in the front that is
-  // 4096 deep, one in the back that is 4096 deep, and the remaining
-  // in the middle for drawing 3D UI elements.  Currently, this code
-  // represents just the front layer range.  Note that the number of
-  // layers is NOT limited to 4096 (this is an arbitrary value that is
-  // a power of two) -- the maximum number of layers depends on the
-  // number of actors and the bit-depth of the hardware's z-buffer.
-  uint32 count = NextPowerOfTwo(static_cast<uint32>(count_ + 2));
-  layer_thickness_ = (kMaxDepth - kMinDepth) / count;
-
-  // Don't start at the very edge of the z-buffer depth.
-  depth_ = kMinDepth + layer_thickness_;
 
   stage_actor_ = actor;
   top_fullscreen_actor_ = NULL;

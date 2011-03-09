@@ -99,7 +99,6 @@ RealGLInterface::RealGLInterface(RealXConnection* connection)
     GLX_GREEN_SIZE, 8,
     GLX_BLUE_SIZE, 8,
     GLX_ALPHA_SIZE, 8,
-    GLX_DEPTH_SIZE, 16,
     None
   };
   visual_info_ = glXChooseVisual(display, DefaultScreen(display), attributes);

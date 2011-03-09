@@ -9,7 +9,7 @@
 
 namespace window_manager {
 
-// LayerVisitor is used to update actors' opacities, z-depths, transformation
+// LayerVisitor is used to update actors' opacities, transformation
 // matrices and culling information.  It traverses through the actor tree
 // before DrawVisitor on each frame.  LayerVisitor keeps information about the
 // composition of the actors during the traversal, and the information is used
@@ -53,13 +53,8 @@ class LayerVisitor : virtual public RealCompositor::ActorVisitor {
     float y_max;
   };
 
-  static const float kMinDepth;
-  static const float kMaxDepth;
-
   LayerVisitor(int32 count, bool use_partial_updates)
-      : depth_(0.0f),
-        layer_thickness_(0.0f),
-        count_(count),
+      : count_(count),
         has_fullscreen_actor_(false),
         stage_actor_(NULL),
         visiting_top_visible_actor_(true),
@@ -88,8 +83,6 @@ class LayerVisitor : virtual public RealCompositor::ActorVisitor {
   Rect GetDamagedRegion(int stage_width, int stage_height);
 
  private:
-  float depth_;
-  float layer_thickness_;
   int32 count_;
   bool has_fullscreen_actor_;
   const RealCompositor::StageActor* stage_actor_;
