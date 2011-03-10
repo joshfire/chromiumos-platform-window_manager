@@ -54,8 +54,9 @@ namespace window_manager {
 
 static const float kDimmedOpacityBegin = 0.2f;
 static const float kDimmedOpacityEnd = 0.6f;
-// Project layers to this depth. 0.0 or 1.0 may get clipped by GL so use 0.5.
-static const float kProjectedDepth = 0.5f;
+// Project layers to depths between 0 and 1.
+static const float kProjectedDepthMin = 0.0f;
+static const float kProjectedDepthMax = 1.0f;
 
 // Template used to round float values returned by animations to integers when
 // applied to integer properties (read: position).
@@ -694,7 +695,7 @@ void RealCompositor::StageActor::UpdateProjection() {
   // accordingly.
   projection_ = Matrix4::orthographic(
                     0, width(), height(), 0, 
-		    -kProjectedDepth, -kProjectedDepth);
+                    -kProjectedDepthMin, -kProjectedDepthMax);
 }
 
 bool RealCompositor::StageActor::using_passthrough_projection() const {
