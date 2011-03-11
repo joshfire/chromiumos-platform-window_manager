@@ -46,5 +46,5 @@ exec "${WM}"                                                            \
   --report_metrics                                                      \
   --separator_image="${IMAGES}/separator.png"                           \
   --unaccelerated_graphics_image="${IMAGES}/unaccelerated_graphics.png" \
-  --unredirect_fullscreen_window=false                                  \
+  --unredirect_fullscreen_window=true                                   \
   --xterm_command="${XTERM_COMMAND}"
