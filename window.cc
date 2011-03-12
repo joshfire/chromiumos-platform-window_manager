@@ -64,6 +64,7 @@ Window::Window(WindowManager* wm,
       mapped_(false),
       shaped_(false),
       type_(chromeos::WM_IPC_WINDOW_UNKNOWN),
+      visibility_(VISIBILITY_UNSET),
       client_x_(geometry.bounds.x),
       client_y_(geometry.bounds.y),
       client_width_(geometry.bounds.width),
@@ -622,14 +623,38 @@ bool Window::UnmapClient() {
   return true;
 }
 
+void Window::SetVisibility(Visibility visibility) {
+  DCHECK_NE(visibility, VISIBILITY_UNSET) << " xid=" << xid_str_;
+  if (visibility == visibility_)
+    return;
+
+  visibility_ = visibility;
+
+  DCHECK(actor_.get());
+  switch (visibility) {
+    case VISIBILITY_SHOWN:  // fallthrough
+    case VISIBILITY_SHOWN_NO_INPUT:
+      actor_->Show();
+      break;
+    case VISIBILITY_HIDDEN:
+      actor_->Hide();
+      break;
+    default:
+      NOTREACHED() << "Unknown visibility setting " << visibility;
+  }
+  UpdateShadowVisibility();
+  UpdateClientWindowPosition();
+}
+
+void Window::Move(const Point& origin, int anim_ms) {
+  DCHECK_NE(visibility_, VISIBILITY_UNSET) << " xid=" << xid_str_;
+  MoveCompositedInternal(origin, anim_ms);
+  UpdateClientWindowPosition();
+}
+
 bool Window::MoveClient(int x, int y) {
-  DLOG(INFO) << "Moving " << xid_str() << "'s client window to ("
-             << x << ", " << y << ")";
-  DCHECK(xid_);
-  if (!wm_->xconn()->MoveWindow(xid_, Point(x, y)))
-    return false;
-  SaveClientPosition(x, y);
-  return true;
+  DCHECK_EQ(visibility_, VISIBILITY_UNSET) << " xid=" << xid_str_;
+  return MoveClientInternal(Point(x, y));
 }
 
 bool Window::MoveClientOffscreen() {
@@ -701,18 +726,15 @@ bool Window::StackClientBelow(XWindow sibling_xid) {
 }
 
 void Window::MoveComposited(int x, int y, int anim_ms) {
-  DLOG(INFO) << "Moving " << xid_str() << "'s composited window to ("
-             << x << ", " << y << ") over " << anim_ms << " ms";
-  DCHECK(actor_.get());
-  composited_x_ = x;
-  composited_y_ = y;
-  MoveActorToAdjustedPosition(MOVE_DIMENSIONS_X_AND_Y, anim_ms);
+  DCHECK_EQ(visibility_, VISIBILITY_UNSET) << " xid=" << xid_str_;
+  MoveCompositedInternal(Point(x, y), anim_ms);
 }
 
 void Window::MoveCompositedX(int x, int anim_ms) {
   DLOG(INFO) << "Setting " << xid_str() << "'s composited window's X "
              << "position to " << x << " over " << anim_ms << " ms";
   DCHECK(actor_.get());
+  DCHECK_EQ(visibility_, VISIBILITY_UNSET) << " xid=" << xid_str_;
   composited_x_ = x;
   MoveActorToAdjustedPosition(MOVE_DIMENSIONS_X_ONLY, anim_ms);
 }
@@ -721,6 +743,7 @@ void Window::MoveCompositedY(int y, int anim_ms) {
   DLOG(INFO) << "Setting " << xid_str() << "'s composited window's Y "
              << "position to " << y << " over " << anim_ms << " ms";
   DCHECK(actor_.get());
+  DCHECK_EQ(visibility_, VISIBILITY_UNSET) << " xid=" << xid_str_;
   composited_y_ = y;
   MoveActorToAdjustedPosition(MOVE_DIMENSIONS_Y_ONLY, anim_ms);
 }
@@ -732,6 +755,7 @@ void Window::MoveCompositedToClient() {
 void Window::ShowComposited() {
   DLOG(INFO) << "Showing " << xid_str() << "'s composited window";
   DCHECK(actor_.get());
+  DCHECK_EQ(visibility_, VISIBILITY_UNSET) << " xid=" << xid_str_;
   actor_->Show();
   composited_shown_ = true;
   UpdateShadowVisibility();
@@ -740,6 +764,7 @@ void Window::ShowComposited() {
 void Window::HideComposited() {
   DLOG(INFO) << "Hiding " << xid_str() << "'s composited window";
   DCHECK(actor_.get());
+  DCHECK_EQ(visibility_, VISIBILITY_UNSET) << " xid=" << xid_str_;
   actor_->Hide();
   composited_shown_ = false;
   UpdateShadowVisibility();
@@ -755,18 +780,30 @@ void Window::SetCompositedOpacity(double opacity, int anim_ms) {
   actor_->SetOpacity(combined_opacity(), anim_ms);
   if (shadow_.get())
     shadow_->SetOpacity(combined_opacity() * shadow_opacity_, anim_ms);
+
+  // If the window became completely transparent (or was and now isn't), we may
+  // need to move the client window offscreen or back onscreen.
+  if (visibility_ != VISIBILITY_UNSET)
+    UpdateClientWindowPosition();
 }
 
 void Window::ScaleComposited(double scale_x, double scale_y, int anim_ms) {
   DLOG(INFO) << "Scaling " << xid_str() << "'s composited window by ("
              << scale_x << ", " << scale_y << ") over " << anim_ms << " ms";
   DCHECK(actor_.get());
+  DCHECK_GE(composited_scale_x_, 0.0);
+  DCHECK_GE(composited_scale_y_, 0.0);
   composited_scale_x_ = scale_x;
   composited_scale_y_ = scale_y;
 
   actor_->Scale(scale_x, scale_y, anim_ms);
   if (shadow_.get())
     shadow_->Resize(scale_x * client_width_, scale_y * client_height_, anim_ms);
+
+  // When the window's scale changes, we may need to move the client window
+  // offscreen or back onscreen.
+  if (visibility_ != VISIBILITY_UNSET)
+    UpdateClientWindowPosition();
 }
 
 AnimationPair* Window::CreateMoveCompositedAnimation() {
@@ -784,6 +821,10 @@ void Window::SetMoveCompositedAnimation(AnimationPair* animations) {
              << "'s composited window to (" << composited_x_ << "x"
              << composited_y_ << ")";
   actor_->SetMoveAnimation(animations);
+
+  // Make sure that the client window is in the right position.
+  if (visibility_ != VISIBILITY_UNSET)
+    UpdateClientWindowPosition();
 }
 
 void Window::HandleMapRequested() {
@@ -1014,6 +1055,48 @@ void Window::SetWmStateInternal(int action, bool* value) const {
   }
 }
 
+bool Window::MoveClientInternal(const Point& origin) {
+  DLOG(INFO) << "Moving " << xid_str() << "'s client window to " << origin;
+  DCHECK(xid_);
+  if (!wm_->xconn()->MoveWindow(xid_, origin))
+    return false;
+  SaveClientPosition(origin.x, origin.y);
+  return true;
+}
+
+void Window::MoveCompositedInternal(const Point& origin, int anim_ms) {
+  DLOG(INFO) << "Moving " << xid_str() << "'s composited window to " << origin
+             << " over " << anim_ms << " ms";
+  DCHECK(actor_.get());
+  composited_x_ = origin.x;
+  composited_y_ = origin.y;
+  MoveActorToAdjustedPosition(MOVE_DIMENSIONS_X_AND_Y, anim_ms);
+}
+
+void Window::UpdateClientWindowPosition() {
+  DCHECK_NE(visibility_, VISIBILITY_UNSET) << " xid=" << xid_str_;
+  if (override_redirect_)
+    return;
+
+  // Without support in X11 for transforming input events, scaled windows can't
+  // receive input.
+  const bool should_be_onscreen =
+      visibility_ == VISIBILITY_SHOWN &&
+      composited_width() == client_width_ &&
+      composited_height() == client_height_ &&
+      combined_opacity() > 0.0;
+
+  Point cur_pos(client_x_, client_y_);
+  Point new_pos = cur_pos;
+  if (should_be_onscreen)
+    new_pos.reset(composited_x_, composited_y_);
+  else
+    new_pos.reset(kOffscreenX, kOffscreenY);
+
+  if (new_pos != cur_pos)
+    MoveClientInternal(new_pos);
+}
+
 bool Window::UpdateWmStateProperty() {
   DCHECK(xid_);
   vector<int> values;
@@ -1129,14 +1212,18 @@ void Window::ResetPixmap() {
 }
 
 void Window::UpdateShadowVisibility() {
-  // If nobody requested that this window have a shadow, shadow_ will just
+  // If nobody requested that this window have a shadow, |shadow_| will just
   // be NULL.
   if (!shadow_.get())
     return;
 
   // Even if it was requested, there may be other reasons not to show it
   // (maybe the window isn't mapped yet, or it's shaped, or it's hidden).
-  const bool should_show = pixmap_ && !shaped_ && composited_shown_;
+  const bool window_is_visible =
+      visibility_ == VISIBILITY_SHOWN ||
+      visibility_ == VISIBILITY_SHOWN_NO_INPUT ||
+      (visibility_ == VISIBILITY_UNSET && composited_shown_);
+  const bool should_show = pixmap_ && !shaped_ && window_is_visible;
 
   if (!shadow_->is_shown() && should_show)
     shadow_->Show();

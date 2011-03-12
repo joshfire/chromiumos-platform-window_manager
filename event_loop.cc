@@ -26,8 +26,8 @@ using std::vector;
 namespace window_manager {
 
 static void FillTimerSpec(struct itimerspec* spec,
-                          int initial_timeout_ms,
-                          int recurring_timeout_ms) {
+                          int64_t initial_timeout_ms,
+                          int64_t recurring_timeout_ms) {
   DCHECK(spec);
   memset(spec, 0, sizeof(*spec));
   spec->it_value.tv_sec = initial_timeout_ms / 1000;
@@ -145,8 +145,8 @@ void EventLoop::AddPrePollCallback(Closure* cb) {
 }
 
 int EventLoop::AddTimeout(Closure* cb,
-                          int initial_timeout_ms,
-                          int recurring_timeout_ms) {
+                          int64_t initial_timeout_ms,
+                          int64_t recurring_timeout_ms) {
   DCHECK(cb);
   DCHECK_GE(initial_timeout_ms, 0);
   DCHECK_GE(recurring_timeout_ms, 0);
@@ -200,8 +200,8 @@ void EventLoop::SuspendTimeout(int id) {
 }
 
 void EventLoop::ResetTimeout(int id,
-                             int initial_timeout_ms,
-                             int recurring_timeout_ms) {
+                             int64_t initial_timeout_ms,
+                             int64_t recurring_timeout_ms) {
   if (!timerfd_supported_)
     return;
 

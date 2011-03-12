@@ -343,7 +343,7 @@ void ScreenLockerHandler::HandleSessionEnding(bool shutting_down) {
 }
 
 void ScreenLockerHandler::TryToGrabInputs() {
-  DCHECK_NE(transparent_cursor_, 0);
+  DCHECK_NE(transparent_cursor_, static_cast<XID>(0));
 
   if (!pointer_grabbed_ || !keyboard_grabbed_) {
     XTime now = wm_->GetCurrentTimeFromServer();

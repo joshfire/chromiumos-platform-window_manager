@@ -62,7 +62,9 @@ class EventLoop {
   // after the initial run; otherwise it will only be run once.  Note that
   // even non-recurring timeouts must be removed using RemoveTimeout() for
   // their resources to be freed.
-  int AddTimeout(Closure* cb, int initial_timeout_ms, int recurring_timeout_ms);
+  int AddTimeout(Closure* cb,
+                 int64_t initial_timeout_ms,
+                 int64_t recurring_timeout_ms);
 
   // Remove a timeout.  It is safe to call this from within the callback of
   // the timeout that's being removed.  Crashes if the timeout doesn't exist.
@@ -90,7 +92,9 @@ class EventLoop {
 
   // Modify a previously-registered timeout.  The timeout arguments are
   // interpreted in the same manner as in AddTimeout().
-  void ResetTimeout(int id, int initial_timeout_ms, int recurring_timeout_ms);
+  void ResetTimeout(int id,
+                    int64_t initial_timeout_ms,
+                    int64_t recurring_timeout_ms);
 
   // Does the system that we're currently running on support the latest
   // timerfd interface (the one with timerfd_create())?  This was

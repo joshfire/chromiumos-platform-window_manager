@@ -1005,6 +1005,102 @@ TEST_F(WindowTest, SimultaneousMoveAndResize) {
             actor->GetBounds());
 }
 
+// Exercises the new interface for managing both X and composited windows
+// simultaneously (SetVisibility() and Move()).
+TEST_F(WindowTest, SetVisibility) {
+  // Create and map a window.
+  const Rect kOrigBounds(100, 150, 300, 250);
+  XWindow xid = xconn_->CreateWindow(xconn_->GetRootWindow(),
+                                     kOrigBounds,
+                                     false,  // override_redirect
+                                     false,  // input_only
+                                     0,      // event_mask
+                                     0);     // visual
+  XConnection::WindowGeometry geometry;
+  ASSERT_TRUE(xconn_->GetWindowGeometry(xid, &geometry));
+  Window win(wm_.get(), xid, false, geometry);
+  ASSERT_TRUE(xconn_->MapWindow(xid));
+  win.HandleMapNotify();
+
+  // In the default state, we should leave the X window at its original
+  // position and hide the composited window.
+  MockXConnection::WindowInfo* info = xconn_->GetWindowInfoOrDie(xid);
+  EXPECT_EQ(kOrigBounds, info->bounds);
+  MockCompositor::TexturePixmapActor* actor = GetMockActorForWindow(&win);
+  EXPECT_EQ(kOrigBounds, actor->GetBounds());
+  EXPECT_FALSE(actor->is_shown());
+
+  // With VISIBILITY_SHOWN, the X and composited windows should be in the same
+  // place and the composited window should be shown.
+  win.SetVisibility(Window::VISIBILITY_SHOWN);
+  EXPECT_EQ(kOrigBounds, info->bounds);
+  EXPECT_EQ(kOrigBounds, actor->GetBounds());
+  EXPECT_TRUE(actor->is_shown());
+
+  // When we call Move(), both windows should be moved.
+  const Point kNewPosition(200, 300);
+  win.Move(kNewPosition, 0);
+  EXPECT_EQ(kNewPosition, info->bounds.position());
+  EXPECT_EQ(kNewPosition, actor->GetBounds().position());
+  EXPECT_TRUE(actor->is_shown());
+
+  // With VISIBILITY_SHOWN_NO_INPUT, the X window should be moved offscreen.
+  const Point kOffscreenPosition(Window::kOffscreenX, Window::kOffscreenY);
+  win.SetVisibility(Window::VISIBILITY_SHOWN_NO_INPUT);
+  EXPECT_EQ(kOffscreenPosition, info->bounds.position());
+  EXPECT_EQ(kNewPosition, actor->GetBounds().position());
+  EXPECT_TRUE(actor->is_shown());
+
+  // The X window should stay offscreen when we call Move().
+  win.Move(kOrigBounds.position(), 0);
+  EXPECT_EQ(kOffscreenPosition, info->bounds.position());
+  EXPECT_EQ(kOrigBounds.position(), actor->GetBounds().position());
+  EXPECT_TRUE(actor->is_shown());
+
+  // With VISIBILITY_HIDDEN, the composited window should additionally be
+  // hidden.
+  win.SetVisibility(Window::VISIBILITY_HIDDEN);
+  EXPECT_EQ(kOffscreenPosition, info->bounds.position());
+  EXPECT_EQ(kOrigBounds.position(), actor->GetBounds().position());
+  EXPECT_FALSE(actor->is_shown());
+
+  // The composited window should get moved but stay hidden when we call Move().
+  win.Move(kNewPosition, 0);
+  EXPECT_EQ(kOffscreenPosition, info->bounds.position());
+  EXPECT_EQ(kNewPosition, actor->GetBounds().position());
+  EXPECT_FALSE(actor->is_shown());
+
+  // After setting the visibility to VISIBILITY_SHOWN, the X window should be
+  // moved back to the same position as the composited window.
+  win.SetVisibility(Window::VISIBILITY_SHOWN);
+  EXPECT_EQ(kNewPosition, info->bounds.position());
+  EXPECT_EQ(kNewPosition, actor->GetBounds().position());
+  EXPECT_TRUE(actor->is_shown());
+
+  // Scaling the composited window should automatically move the X window
+  // offscreen, since mouse events wouldn't get transformed correctly if it
+  // stayed onscreen.
+  win.ScaleComposited(0.5, 1.0, 0);
+  EXPECT_EQ(kOffscreenPosition, info->bounds.position());
+  EXPECT_EQ(kNewPosition, actor->GetBounds().position());
+
+  // Check that the X window gets moved back when we restore the scale.
+  win.ScaleComposited(1.0, 1.0, 0);
+  EXPECT_EQ(kNewPosition, info->bounds.position());
+  EXPECT_EQ(kNewPosition, actor->GetBounds().position());
+
+  // Similarly, setting the opacity to 0 should move the X window offscreen.
+  win.SetCompositedOpacity(0.0, 0);
+  EXPECT_EQ(kOffscreenPosition, info->bounds.position());
+  EXPECT_EQ(kNewPosition, actor->GetBounds().position());
+
+  // The X window should get moved back when we make the window partially
+  // visible.
+  win.SetCompositedOpacity(0.5, 0);
+  EXPECT_EQ(kNewPosition, info->bounds.position());
+  EXPECT_EQ(kNewPosition, actor->GetBounds().position());
+}
+
 }  // namespace window_manager
 
 int main(int argc, char** argv) {

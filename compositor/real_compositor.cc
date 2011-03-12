@@ -913,9 +913,11 @@ void RealCompositor::EnableDrawTimeout() {
         !last_draw_time_.is_null() ?
             GetMonotonicTime() - last_draw_time_ :
             TimeDelta();
-    int ms_until_draw =
-        max(FLAGS_draw_timeout_ms - time_since_draw.InMilliseconds(), 0LL);
-    event_loop_->ResetTimeout(draw_timeout_id_, ms_until_draw,
+    int64_t ms_until_draw =
+        max(FLAGS_draw_timeout_ms - time_since_draw.InMilliseconds(),
+            static_cast<int64_t>(0));
+    event_loop_->ResetTimeout(draw_timeout_id_,
+                              ms_until_draw,
                               FLAGS_draw_timeout_ms);
     draw_timeout_enabled_ = true;
   }

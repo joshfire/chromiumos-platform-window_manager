@@ -5,6 +5,7 @@
 #ifndef WINDOW_MANAGER_WINDOW_H_
 #define WINDOW_MANAGER_WINDOW_H_
 
+#include <cmath>
 #include <ctime>
 #include <map>
 #include <set>
@@ -33,26 +34,51 @@ struct Rect;
 template<class T> class Stacker;  // from util.h
 class WindowManager;
 
-// A client window.
+// A window created by another X client.
 //
-// Because we use Xcomposite, there are (at least) two locations for a
-// given window that we need to keep track of:
+// Because we use the X composite extension, there are two separate positions of
+// interest for a given window:
 //
 // - Where the client window is actually located on the X server.  This is
-//   relevant for input -- we shape the compositing overlay window so that
+//   relevant for mouse input -- we shape the compositing overlay window so that
 //   events fall through it to the client windows underneath.
 // - Where the window gets drawn on the compositing overlay window.  It'll
-//   typically just be drawn in the same location as the actual X window,
+//   typically just be drawn in the same location as the actual client window,
 //   but we could also e.g. draw a scaled-down version of it in a different
 //   location.
 //
-// These two locations are not necessarily the same.  When animating a
-// window move, it may be desirable to just move the X window once to the
-// final location and then animate the move on the overlay.  As a result,
-// there are different sets of methods to manipulate the client window and
-// the composited window.
+// These two positions are not necessarily the same.  When animating a window's
+// position, it's desirable to just move the client window once to the final
+// location and animate the move in the compositor.  To display a window's
+// contents onscreen but not let it receive any mouse events, we draw it in the
+// compositor but move the client window offscreen.
+//
+// The new, preferred way to manage all of this is to call SetVisibility() to
+// set a policy for the two windows and then use Move() to move the window.
+// Move() handles placing the client window in the right place.
+//
+// The old approach, used by existing code, is for callers to not set a
+// visibility policy and instead manage the client and composited windows
+// separately.
 class Window {
  public:
+  enum Visibility {
+    // The old state of affairs: the client and composited windows are managed
+    // separately by the caller.  This value is the default, but it cannot be
+    // passed to SetVisibility().
+    VISIBILITY_UNSET = 0,
+
+    // Don't display the window onscreen and don't let it receive mouse
+    // events.
+    VISIBILITY_HIDDEN = 1,
+
+    // Display the window and let it receive mouse events.
+    VISIBILITY_SHOWN = 2,
+
+    // Display the window but prevent it from receiving mouse events.
+    VISIBILITY_SHOWN_NO_INPUT = 3,
+  };
+
   Window(WindowManager* wm,
          XWindow xid,
          bool override_redirect,
@@ -84,8 +110,12 @@ class Window {
   bool composited_shown() const { return composited_shown_; }
   int composited_x() const { return composited_x_; }
   int composited_y() const { return composited_y_; }
-  int composited_width() const { return client_width_ * composited_scale_x_; }
-  int composited_height() const { return client_height_ * composited_scale_y_; }
+  int composited_width() const {
+    return static_cast<int>(round(client_width_ * composited_scale_x_));
+  }
+  int composited_height() const {
+    return static_cast<int>(round(client_height_ * composited_scale_y_));
+  }
   double composited_scale_x() const { return composited_scale_x_; }
   double composited_scale_y() const { return composited_scale_y_; }
   double composited_opacity() const { return composited_opacity_; }
@@ -245,6 +275,17 @@ class Window {
     client_height_ = height;
   }
 
+  // Set the window's visibility and input policy.  Once this method has been
+  // called, the Move() method (as opposed to MoveClient() / MoveComposited())
+  // must be used to move the window.
+  void SetVisibility(Visibility visibility);
+
+  // Move the window to |origin| over |anim_ms| milliseconds.
+  // This method moves both the composited and client windows, but it can only
+  // be used if the window's visibility has been set via SetVisibility().
+  // Use the individual MoveClient() and MoveComposited() methods otherwise.
+  void Move(const Point& origin, int anim_ms);
+
   // Ask the X server to move or resize the client window.  Also calls the
   // corresponding SetClient*() method on success.  Returns false on
   // failure.
@@ -253,6 +294,7 @@ class Window {
   // Move the client window offscreen to prevent it from receiving input.
   bool MoveClientOffscreen();
 
+  // Move the client window to the same position as the composited window.
   bool MoveClientToComposited();
 
   // Center the client window over the passed-in window.
@@ -274,7 +316,20 @@ class Window {
   void MoveCompositedToClient();  // no animation
   void ShowComposited();
   void HideComposited();
+
+  // Set the composited window's opacity over |anim_ms| milliseconds.
+  // If SetVisibility() has been previously called, setting the opacity to 0
+  // will also move the X window offscreen so it doesn't receive input (but note
+  // that setting the opacity of the composited window's container won't have
+  // this effect).
   void SetCompositedOpacity(double opacity, int anim_ms);
+
+  // Scale the composited window in the X and Y dimensions over |anim_ms|
+  // milliseconds.  |scale_x| and |scale_y| must be greater than or equal to 0.
+  // If SetVisibility() has been previously called, scaling the window with any
+  // values other than (1.0, 1.0) will also move the X window offscreen so it
+  // doesn't receive input (but note that scaling the composited window's
+  // container won't have this effect).
   void ScaleComposited(double scale_x, double scale_y, int anim_ms);
 
   // Create and return a pair of Animation objects that can be used to animate
@@ -417,6 +472,18 @@ class Window {
   // data.l[0] field), updates |value| accordingly.
   void SetWmStateInternal(int action, bool* value) const;
 
+  // Ask the X server to move the client window to |origin|, calling
+  // SaveClientPosition() on success.  Returns false on failure.
+  bool MoveClientInternal(const Point& origin);
+
+  // Move the window's actor to |origin| over |anim_ms| milliseconds.
+  void MoveCompositedInternal(const Point& origin, int anim_ms);
+
+  // Update the client window's position appropriately based on the current
+  // visibility setting.  This can only be invoked if the visibility has been
+  // set (i.e. it isn't equal to VISIBILITY_UNSET).
+  void UpdateClientWindowPosition();
+
   // Update the window's _NET_WM_STATE property based on the current values
   // of the |wm_state_*| members.
   bool UpdateWmStateProperty();
@@ -508,6 +575,8 @@ class Window {
   // Parameters associated with |type_|.  See chromeos::WmIpcWindowType for
   // details.
   std::vector<int> type_params_;
+
+  Visibility visibility_;
 
   // Position and size of the client window.
   int client_x_;
