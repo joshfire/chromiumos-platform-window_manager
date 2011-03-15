@@ -65,6 +65,7 @@ Window::Window(WindowManager* wm,
       shaped_(false),
       type_(chromeos::WM_IPC_WINDOW_UNKNOWN),
       visibility_(VISIBILITY_UNSET),
+      update_client_position_for_moves_(true),
       client_x_(geometry.bounds.x),
       client_y_(geometry.bounds.y),
       client_width_(geometry.bounds.width),
@@ -646,10 +647,34 @@ void Window::SetVisibility(Visibility visibility) {
   UpdateClientWindowPosition();
 }
 
+void Window::SetUpdateClientPositionForMoves(bool update) {
+  DCHECK_NE(visibility_, VISIBILITY_UNSET) << " xid=" << xid_str_;
+  if (update_client_position_for_moves_ == update)
+    return;
+  update_client_position_for_moves_ = update;
+  if (update_client_position_for_moves_)
+    UpdateClientWindowPosition();
+}
+
 void Window::Move(const Point& origin, int anim_ms) {
   DCHECK_NE(visibility_, VISIBILITY_UNSET) << " xid=" << xid_str_;
-  MoveCompositedInternal(origin, anim_ms);
-  UpdateClientWindowPosition();
+  MoveCompositedInternal(origin, MOVE_DIMENSIONS_X_AND_Y, anim_ms);
+  if (update_client_position_for_moves_)
+    UpdateClientWindowPosition();
+}
+
+void Window::MoveX(int x, int anim_ms) {
+  DCHECK_NE(visibility_, VISIBILITY_UNSET) << " xid=" << xid_str_;
+  MoveCompositedInternal(Point(x, 0), MOVE_DIMENSIONS_X_ONLY, anim_ms);
+  if (update_client_position_for_moves_)
+    UpdateClientWindowPosition();
+}
+
+void Window::MoveY(int y, int anim_ms) {
+  DCHECK_NE(visibility_, VISIBILITY_UNSET) << " xid=" << xid_str_;
+  MoveCompositedInternal(Point(0, y), MOVE_DIMENSIONS_Y_ONLY, anim_ms);
+  if (update_client_position_for_moves_)
+    UpdateClientWindowPosition();
 }
 
 bool Window::MoveClient(int x, int y) {
@@ -727,25 +752,17 @@ bool Window::StackClientBelow(XWindow sibling_xid) {
 
 void Window::MoveComposited(int x, int y, int anim_ms) {
   DCHECK_EQ(visibility_, VISIBILITY_UNSET) << " xid=" << xid_str_;
-  MoveCompositedInternal(Point(x, y), anim_ms);
+  MoveCompositedInternal(Point(x, y), MOVE_DIMENSIONS_X_AND_Y, anim_ms);
 }
 
 void Window::MoveCompositedX(int x, int anim_ms) {
-  DLOG(INFO) << "Setting " << xid_str() << "'s composited window's X "
-             << "position to " << x << " over " << anim_ms << " ms";
-  DCHECK(actor_.get());
   DCHECK_EQ(visibility_, VISIBILITY_UNSET) << " xid=" << xid_str_;
-  composited_x_ = x;
-  MoveActorToAdjustedPosition(MOVE_DIMENSIONS_X_ONLY, anim_ms);
+  MoveCompositedInternal(Point(x, 0), MOVE_DIMENSIONS_X_ONLY, anim_ms);
 }
 
 void Window::MoveCompositedY(int y, int anim_ms) {
-  DLOG(INFO) << "Setting " << xid_str() << "'s composited window's Y "
-             << "position to " << y << " over " << anim_ms << " ms";
-  DCHECK(actor_.get());
   DCHECK_EQ(visibility_, VISIBILITY_UNSET) << " xid=" << xid_str_;
-  composited_y_ = y;
-  MoveActorToAdjustedPosition(MOVE_DIMENSIONS_Y_ONLY, anim_ms);
+  MoveCompositedInternal(Point(0, y), MOVE_DIMENSIONS_Y_ONLY, anim_ms);
 }
 
 void Window::MoveCompositedToClient() {
@@ -1064,13 +1081,32 @@ bool Window::MoveClientInternal(const Point& origin) {
   return true;
 }
 
-void Window::MoveCompositedInternal(const Point& origin, int anim_ms) {
-  DLOG(INFO) << "Moving " << xid_str() << "'s composited window to " << origin
-             << " over " << anim_ms << " ms";
+void Window::MoveCompositedInternal(const Point& origin,
+                                    MoveDimensions dimensions,
+                                    int anim_ms) {
+  switch (dimensions) {
+    case MOVE_DIMENSIONS_X_AND_Y:
+      DLOG(INFO) << "Moving " << xid_str() << "'s composited window to "
+                 << origin << " over " << anim_ms << " ms";
+      composited_x_ = origin.x;
+      composited_y_ = origin.y;
+      break;
+    case MOVE_DIMENSIONS_X_ONLY:
+      DLOG(INFO) << "Moving " << xid_str() << "'s composited window's X "
+                 << "position to " << origin.x << " over " << anim_ms << " ms";
+      composited_x_ = origin.x;
+      break;
+    case MOVE_DIMENSIONS_Y_ONLY:
+      DLOG(INFO) << "Moving " << xid_str() << "'s composited window's Y "
+                 << "position to " << origin.y << " over " << anim_ms << " ms";
+      composited_y_ = origin.y;
+      break;
+    default:
+      NOTREACHED() << "Unknown move dimensions " << dimensions;
+  }
+
   DCHECK(actor_.get());
-  composited_x_ = origin.x;
-  composited_y_ = origin.y;
-  MoveActorToAdjustedPosition(MOVE_DIMENSIONS_X_AND_Y, anim_ms);
+  MoveActorToAdjustedPosition(dimensions, anim_ms);
 }
 
 void Window::UpdateClientWindowPosition() {

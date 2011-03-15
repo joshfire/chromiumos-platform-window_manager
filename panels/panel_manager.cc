@@ -212,7 +212,7 @@ void PanelManager::HandleWindowUnmap(Window* win) {
 
   // If the panel was focused, assign the focus to another panel, or
   // failing that, let the window manager decide what to do with it.
-  if (panel->IsFocused()) {
+  if (panel->is_focused()) {
     XTime timestamp = wm()->GetCurrentTimeFromServer();
     if (!TakeFocus(timestamp))
       wm_->TakeFocus(timestamp);
@@ -265,7 +265,7 @@ void PanelManager::HandleWindowConfigureRequest(
                  << " while it's not in a container";
     return;
   }
-  if (panel->IsBeingResizedByUser()) {
+  if (panel->is_being_resized_by_user()) {
     LOG(WARNING) << "Ignoring request to configure panel " << panel->xid_str()
                  << " while it's being manually resized";
     win->SendSyntheticConfigureNotify();
@@ -410,7 +410,10 @@ void PanelManager::HandleChromeMessage(const WmIpc::Message& msg) {
       }
       if (dragged_panel_ && panel != dragged_panel_)
         HandlePanelDragComplete(dragged_panel_, false);  // removed=false
-      dragged_panel_ = panel;
+      if (panel != dragged_panel_) {
+        dragged_panel_ = panel;
+        panel->HandleDragStart();
+      }
       if (!dragged_panel_event_coalescer_->IsRunning())
         dragged_panel_event_coalescer_->Start();
       // We want the right edge of the panel, but pre-IPC-version-1 Chrome
@@ -504,7 +507,7 @@ void PanelManager::HandleWindowPropertyChange(XWindow xid, XAtom xatom) {
 
 void PanelManager::HandleFocusChange() {
   // If a fullscreen panel loses the focus, un-fullscreen it.
-  if (fullscreen_panel_ && !fullscreen_panel_->IsFocused())
+  if (fullscreen_panel_ && !fullscreen_panel_->is_focused())
     RestoreFullscreenPanel(fullscreen_panel_);
 }
 
@@ -596,7 +599,7 @@ void PanelManager::RegisterContainer(PanelContainer* container) {
 }
 
 void PanelManager::DoInitialSetupForWindow(Window* win) {
-  win->MoveClientOffscreen();
+  win->SetVisibility(Window::VISIBILITY_HIDDEN);
 }
 
 void PanelManager::HandlePeriodicPanelDragMotion() {
@@ -647,7 +650,7 @@ void PanelManager::HandlePeriodicPanelDragMotion() {
     }
     if (!panel_was_reattached) {
       dragged_panel_->Move(
-          x, y, false, panel_was_detached ? kDetachPanelAnimMs : 0);
+          x, y, panel_was_detached ? kDetachPanelAnimMs : 0);
     }
   }
 }
@@ -657,6 +660,8 @@ void PanelManager::HandlePanelDragComplete(Panel* panel, bool removed) {
   DCHECK(dragged_panel_ == panel);
   if (dragged_panel_ != panel)
     return;
+
+  panel->HandleDragEnd();
 
   if (dragged_panel_event_coalescer_->IsRunning())
     dragged_panel_event_coalescer_->Stop();

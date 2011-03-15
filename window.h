@@ -280,11 +280,26 @@ class Window {
   // must be used to move the window.
   void SetVisibility(Visibility visibility);
 
+  // Start or stop updating the client window's position in response to calls to
+  // Move().  Disabling client window updates while moving the window repeatedly
+  // (e.g. if the user is dragging it around) can be useful to limit the number
+  // of requests sent to and ConfigureNotify events received from the X server.
+  // When updates are turned back on, the client window will be moved it its
+  // correct position.  This method can only be used if SetVisibility() was
+  // previously called.
+  void SetUpdateClientPositionForMoves(bool update);
+
   // Move the window to |origin| over |anim_ms| milliseconds.
   // This method moves both the composited and client windows, but it can only
   // be used if the window's visibility has been set via SetVisibility().
   // Use the individual MoveClient() and MoveComposited() methods otherwise.
   void Move(const Point& origin, int anim_ms);
+
+  // These methods are like Move(), but they move only the X or Y coordinate of
+  // the window, leaving the other coordinate (and any ongoing animation it may
+  // have) untouched.
+  void MoveX(int x, int anim_ms);
+  void MoveY(int y, int anim_ms);
 
   // Ask the X server to move or resize the client window.  Also calls the
   // corresponding SetClient*() method on success.  Returns false on
@@ -477,7 +492,11 @@ class Window {
   bool MoveClientInternal(const Point& origin);
 
   // Move the window's actor to |origin| over |anim_ms| milliseconds.
-  void MoveCompositedInternal(const Point& origin, int anim_ms);
+  // Depending on the value of |dimensions|, either the X coordinate, Y
+  // coordinate, or both from |origin| may be used.
+  void MoveCompositedInternal(const Point& origin,
+                              MoveDimensions dimensions,
+                              int anim_ms);
 
   // Update the client window's position appropriately based on the current
   // visibility setting.  This can only be invoked if the visibility has been
@@ -577,6 +596,10 @@ class Window {
   std::vector<int> type_params_;
 
   Visibility visibility_;
+
+  // Should we update the client window's position in response to calls to
+  // Move()?
+  bool update_client_position_for_moves_;
 
   // Position and size of the client window.
   int client_x_;

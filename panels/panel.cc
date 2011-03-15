@@ -100,14 +100,14 @@ Panel::Panel(PanelManager* panel_manager,
       horizontal_resize_allowed_(true),
       vertical_resize_allowed_(true),
       composited_windows_set_up_(false),
-      drag_xid_(0),
-      drag_start_x_(0),
-      drag_start_y_(0),
-      drag_orig_width_(1),
-      drag_orig_height_(1),
-      drag_last_width_(1),
-      drag_last_height_(1),
-      client_windows_have_correct_position_(false),
+      being_dragged_to_new_position_(false),
+      resize_drag_xid_(0),
+      resize_drag_start_x_(0),
+      resize_drag_start_y_(0),
+      resize_drag_orig_width_(1),
+      resize_drag_orig_height_(1),
+      resize_drag_last_width_(1),
+      resize_drag_last_height_(1),
       event_consumer_registrar_(
           new EventConsumerRegistrar(wm(), panel_manager)),
       transients_(
@@ -152,6 +152,9 @@ Panel::Panel(PanelManager* panel_manager,
       top_right_input_xid_, 1, event_mask, false);
   wm()->xconn()->AddButtonGrabOnWindow(left_input_xid_, 1, event_mask, false);
   wm()->xconn()->AddButtonGrabOnWindow(right_input_xid_, 1, event_mask, false);
+
+  content_win_->SetVisibility(Window::VISIBILITY_HIDDEN);
+  titlebar_win_->SetVisibility(Window::VISIBILITY_HIDDEN);
 
   content_win_->SetShadowType(Shadow::TYPE_PANEL_CONTENT);
   titlebar_win_->SetShadowType(Shadow::TYPE_PANEL_TITLEBAR);
@@ -235,9 +238,9 @@ Panel::Panel(PanelManager* panel_manager,
 }
 
 Panel::~Panel() {
-  if (drag_xid_) {
+  if (resize_drag_xid_) {
     wm()->xconn()->UngrabPointer(false, 0);
-    drag_xid_ = 0;
+    resize_drag_xid_ = 0;
   }
   transients_->CloseAllWindows();
   wm()->xconn()->DeselectInputOnWindow(titlebar_win_->xid(), EnterWindowMask);
@@ -246,8 +249,8 @@ Panel::~Panel() {
   wm()->xconn()->DestroyWindow(top_right_input_xid_);
   wm()->xconn()->DestroyWindow(left_input_xid_);
   wm()->xconn()->DestroyWindow(right_input_xid_);
-  content_win_->HideComposited();
-  titlebar_win_->HideComposited();
+  content_win_->SetVisibility(Window::VISIBILITY_HIDDEN);
+  titlebar_win_->SetVisibility(Window::VISIBILITY_HIDDEN);
   panel_manager_ = NULL;
   content_win_ = NULL;
   titlebar_win_ = NULL;
@@ -275,15 +278,15 @@ void Panel::HandleInputWindowButtonPress(
     return;
   if (button != 1)
     return;
-  DCHECK(drag_xid_ == 0)
+  DCHECK(resize_drag_xid_ == 0)
       << "Panel " << xid_str() << " got button press in " << XidStr(xid)
-      << " but already has drag XID " << XidStr(drag_xid_);
+      << " but already has resize drag XID " << XidStr(resize_drag_xid_);
 
-  drag_xid_ = xid;
-  drag_start_x_ = x;
-  drag_start_y_ = y;
-  drag_orig_width_ = drag_last_width_ = content_width();
-  drag_orig_height_ = drag_last_height_ = content_height();
+  resize_drag_xid_ = xid;
+  resize_drag_start_x_ = x;
+  resize_drag_start_y_ = y;
+  resize_drag_orig_width_ = resize_drag_last_width_ = content_width();
+  resize_drag_orig_height_ = resize_drag_last_height_ = content_height();
   resize_event_coalescer_.Start();
 
   if (!FLAGS_panel_opaque_resize) {
@@ -305,10 +308,10 @@ void Panel::HandleInputWindowButtonRelease(
     XWindow xid, int x, int y, int button, XTime timestamp) {
   if (button != 1)
     return;
-  if (xid != drag_xid_) {
+  if (xid != resize_drag_xid_) {
     LOG(WARNING) << "Ignoring button release for unexpected input window "
-                 << XidStr(xid) << " (currently in drag initiated by "
-                 << XidStr(drag_xid_) << ")";
+                 << XidStr(xid) << " (currently in resize drag initiated by "
+                 << XidStr(resize_drag_xid_) << ")";
     return;
   }
   // GrabButton-initiated asynchronous pointer grabs are automatically removed
@@ -319,14 +322,15 @@ void Panel::HandleInputWindowButtonRelease(
   wm()->xconn()->UngrabPointer(false, timestamp);
   resize_event_coalescer_.StorePosition(x, y);
   resize_event_coalescer_.Stop();
-  drag_xid_ = 0;
+  resize_drag_xid_ = 0;
 
   if (FLAGS_panel_opaque_resize) {
     ConfigureInputWindows();
   } else {
     DCHECK(resize_actor_.get());
     resize_actor_.reset(NULL);
-    ResizeContent(drag_last_width_, drag_last_height_, drag_gravity_, true);
+    ResizeContent(resize_drag_last_width_, resize_drag_last_height_,
+                  resize_drag_gravity_, true);
   }
 
   // Let the container know about the resize.
@@ -334,93 +338,76 @@ void Panel::HandleInputWindowButtonRelease(
 }
 
 void Panel::HandleInputWindowPointerMotion(XWindow xid, int x, int y) {
-  if (xid != drag_xid_) {
+  if (xid != resize_drag_xid_) {
     LOG(WARNING) << "Ignoring motion event for unexpected input window "
-                 << XidStr(xid) << " (currently in drag initiated by "
-                 << XidStr(drag_xid_) << ")";
+                 << XidStr(xid) << " (currently in resize drag initiated by "
+                 << XidStr(resize_drag_xid_) << ")";
     return;
   }
   resize_event_coalescer_.StorePosition(x, y);
 }
 
-void Panel::Move(int right, int y, bool move_client_windows, int anim_ms) {
+void Panel::Move(int right, int y, int anim_ms) {
   titlebar_bounds_.x = right - titlebar_bounds_.width;
   titlebar_bounds_.y = y;
   content_bounds_.x = right - content_bounds_.width;
   content_bounds_.y = y + titlebar_bounds_.height;
 
   transients_->CloseAllWindows();
-  client_windows_have_correct_position_ = move_client_windows;
 
-  if (CanConfigureWindows()) {
-    titlebar_win_->MoveComposited(
-        titlebar_bounds_.x, titlebar_bounds_.y, anim_ms);
-    content_win_->MoveComposited(content_bounds_.x, content_bounds_.y, anim_ms);
+  if (can_configure_windows()) {
+    titlebar_win_->Move(titlebar_bounds_.position(), anim_ms);
+    content_win_->Move(content_bounds_.position(), anim_ms);
     separator_shadow_->Move(content_bounds_.x, content_bounds_.y, anim_ms);
     if (!composited_windows_set_up_) {
-      titlebar_win_->ScaleComposited(1.0, 1.0, 0);
-      titlebar_win_->SetCompositedOpacity(1.0, 0);
-      titlebar_win_->ShowComposited();
-      content_win_->ScaleComposited(1.0, 1.0, 0);
-      content_win_->SetCompositedOpacity(1.0, 0);
-      content_win_->ShowComposited();
+      titlebar_win_->SetVisibility(Window::VISIBILITY_SHOWN);
+      content_win_->SetVisibility(Window::VISIBILITY_SHOWN);
       separator_shadow_->Show();
       composited_windows_set_up_ = true;
     }
-    if (move_client_windows) {
-      titlebar_win_->MoveClientToComposited();
-      content_win_->MoveClientToComposited();
+    if (!being_dragged_to_new_position_)
       ConfigureInputWindows();
-    }
   }
 }
 
-void Panel::MoveX(int right, bool move_client_windows, int anim_ms) {
+void Panel::MoveX(int right, int anim_ms) {
   DCHECK(composited_windows_set_up_)
       << "Move() must be called initially to configure composited windows";
   titlebar_bounds_.x = right - titlebar_bounds_.width;
   content_bounds_.x = right - content_bounds_.width;
 
   transients_->CloseAllWindows();
-  client_windows_have_correct_position_ = move_client_windows;
 
-  if (CanConfigureWindows()) {
-    titlebar_win_->MoveCompositedX(titlebar_bounds_.x, anim_ms);
-    content_win_->MoveCompositedX(content_bounds_.x, anim_ms);
+  if (can_configure_windows()) {
+    titlebar_win_->MoveX(titlebar_bounds_.x, anim_ms);
+    content_win_->MoveX(content_bounds_.x, anim_ms);
     separator_shadow_->MoveX(content_bounds_.x, anim_ms);
-    if (move_client_windows) {
-      titlebar_win_->MoveClientToComposited();
-      content_win_->MoveClientToComposited();
+    if (!being_dragged_to_new_position_)
       ConfigureInputWindows();
-    }
   }
 }
 
-void Panel::MoveY(int y, bool move_client_windows, int anim_ms) {
+void Panel::MoveY(int y, int anim_ms) {
   DCHECK(composited_windows_set_up_)
       << "Move() must be called initially to configure composited windows";
   titlebar_bounds_.y = y;
   content_bounds_.y = y + titlebar_bounds_.height;
 
   transients_->CloseAllWindows();
-  client_windows_have_correct_position_ = move_client_windows;
 
-  if (CanConfigureWindows()) {
-    titlebar_win_->MoveCompositedY(titlebar_bounds_.y, anim_ms);
-    content_win_->MoveCompositedY(content_bounds_.y, anim_ms);
+  if (can_configure_windows()) {
+    titlebar_win_->MoveY(titlebar_bounds_.y, anim_ms);
+    content_win_->MoveY(content_bounds_.y, anim_ms);
     separator_shadow_->MoveY(content_bounds_.y, anim_ms);
-    if (move_client_windows) {
-      titlebar_win_->MoveClientToComposited();
-      content_win_->MoveClientToComposited();
+    if (!being_dragged_to_new_position_)
       ConfigureInputWindows();
-    }
   }
 }
 
 void Panel::SetTitlebarWidth(int width) {
   CHECK(width > 0);
   titlebar_bounds_.resize(width, titlebar_bounds_.height, GRAVITY_NORTHEAST);
-  if (CanConfigureWindows()) {
+  if (can_configure_windows()) {
     titlebar_win_->ResizeClient(
         width, titlebar_win_->client_height(), GRAVITY_NORTHEAST);
   }
@@ -440,7 +427,7 @@ void Panel::SetResizable(bool resizable) {
 
 void Panel::StackAtTopOfLayer(StackingManager::Layer layer) {
   stacking_layer_ = layer;
-  if (CanConfigureWindows()) {
+  if (can_configure_windows()) {
     // Put the titlebar and content in the same layer, but stack the
     // titlebar higher (the stacking between the two is arbitrary but needs
     // to stay in sync with the input window code in StackInputWindows()).
@@ -504,17 +491,15 @@ void Panel::ResizeContent(int width, int height,
 
   transients_->CloseAllWindows();
 
-  if (CanConfigureWindows()) {
+  if (can_configure_windows()) {
     content_win_->ResizeClient(width, height, gravity);
     titlebar_win_->ResizeClient(width, titlebar_bounds_.height, gravity);
     separator_shadow_->Move(content_x(), content_y(), 0);
     separator_shadow_->Resize(content_width(), 0, 0);
 
     // TODO: This is broken if we start resizing scaled windows.
-    if (changing_height) {
-      titlebar_win_->MoveCompositedY(titlebar_bounds_.y, 0);
-      titlebar_win_->MoveClientToComposited();
-    }
+    if (changing_height)
+      titlebar_win_->Move(titlebar_bounds_.position(), 0);
   }
 
   if (configure_input_windows)
@@ -541,9 +526,7 @@ void Panel::SetFullscreenState(bool fullscreen) {
   if (fullscreen) {
     wm()->stacking_manager()->StackWindowAtTopOfLayer(
         content_win_, StackingManager::LAYER_FULLSCREEN_WINDOW);
-    content_win_->MoveComposited(0, 0, 0);
-    content_win_->MoveClient(0, 0);
-    client_windows_have_correct_position_ = true;
+    content_win_->Move(Point(0, 0), 0);
     content_win_->ResizeClient(
         wm()->width(), wm()->height(), GRAVITY_NORTHWEST);
     if (!content_win_->IsFocused()) {
@@ -554,13 +537,10 @@ void Panel::SetFullscreenState(bool fullscreen) {
   } else {
     content_win_->ResizeClient(
         content_bounds_.width, content_bounds_.height, GRAVITY_NORTHWEST);
-    content_win_->MoveComposited(content_bounds_.x, content_bounds_.y, 0);
-    content_win_->MoveClientToComposited();
-    client_windows_have_correct_position_ = true;
+    content_win_->Move(content_bounds_.position(), 0);
     titlebar_win_->ResizeClient(
         titlebar_bounds_.width, titlebar_bounds_.height, GRAVITY_NORTHWEST);
-    titlebar_win_->MoveComposited(titlebar_bounds_.x, titlebar_bounds_.y, 0);
-    titlebar_win_->MoveClientToComposited();
+    titlebar_win_->Move(titlebar_bounds_.position(), 0);
     separator_shadow_->Move(content_x(), content_y(), 0);
     separator_shadow_->Resize(content_width(), 0, 0);
     StackAtTopOfLayer(stacking_layer_);
@@ -578,6 +558,23 @@ void Panel::HandleScreenResize() {
 
 void Panel::HandleContentWindowSizeHintsChange() {
   UpdateContentWindowSizeLimits();
+}
+
+void Panel::HandleDragStart() {
+  if (being_dragged_to_new_position_)
+    return;
+  being_dragged_to_new_position_ = true;
+  content_win_->SetUpdateClientPositionForMoves(false);
+  titlebar_win_->SetUpdateClientPositionForMoves(false);
+}
+
+void Panel::HandleDragEnd() {
+  if (!being_dragged_to_new_position_)
+    return;
+  being_dragged_to_new_position_ = false;
+  content_win_->SetUpdateClientPositionForMoves(true);
+  titlebar_win_->SetUpdateClientPositionForMoves(true);
+  ConfigureInputWindows();
 }
 
 void Panel::HandleTransientWindowMap(Window* win) {
@@ -708,55 +705,59 @@ void Panel::StackInputWindows() {
 }
 
 void Panel::ApplyResize() {
-  int dx = resize_event_coalescer_.x() - drag_start_x_;
-  int dy = resize_event_coalescer_.y() - drag_start_y_;
-  drag_gravity_ = GRAVITY_NORTHWEST;
+  int dx = resize_event_coalescer_.x() - resize_drag_start_x_;
+  int dy = resize_event_coalescer_.y() - resize_drag_start_y_;
+  resize_drag_gravity_ = GRAVITY_NORTHWEST;
 
-  if (drag_xid_ == top_input_xid_) {
-    drag_gravity_ = GRAVITY_SOUTHWEST;
+  if (resize_drag_xid_ == top_input_xid_) {
+    resize_drag_gravity_ = GRAVITY_SOUTHWEST;
     dx = 0;
     dy *= -1;
-  } else if (drag_xid_ == top_left_input_xid_) {
-    drag_gravity_ = GRAVITY_SOUTHEAST;
+  } else if (resize_drag_xid_ == top_left_input_xid_) {
+    resize_drag_gravity_ = GRAVITY_SOUTHEAST;
     dx *= -1;
     dy *= -1;
-  } else if (drag_xid_ == top_right_input_xid_) {
-    drag_gravity_ = GRAVITY_SOUTHWEST;
+  } else if (resize_drag_xid_ == top_right_input_xid_) {
+    resize_drag_gravity_ = GRAVITY_SOUTHWEST;
     dy *= -1;
-  } else if (drag_xid_ == left_input_xid_) {
-    drag_gravity_ = GRAVITY_NORTHEAST;
+  } else if (resize_drag_xid_ == left_input_xid_) {
+    resize_drag_gravity_ = GRAVITY_NORTHEAST;
     dx *= -1;
     dy = 0;
-  } else if (drag_xid_ == right_input_xid_) {
-    drag_gravity_ = GRAVITY_NORTHWEST;
+  } else if (resize_drag_xid_ == right_input_xid_) {
+    resize_drag_gravity_ = GRAVITY_NORTHWEST;
     dy = 0;
   }
 
-  drag_last_width_ = min(max(drag_orig_width_ + dx, min_content_width_),
-                         max_content_width_);
-  drag_last_height_ = min(max(drag_orig_height_ + dy, min_content_height_),
-                          max_content_height_);
+  resize_drag_last_width_ =
+      min(max(resize_drag_orig_width_ + dx, min_content_width_),
+          max_content_width_);
+  resize_drag_last_height_ =
+      min(max(resize_drag_orig_height_ + dy, min_content_height_),
+          max_content_height_);
 
   if (FLAGS_panel_opaque_resize) {
     // Avoid reconfiguring the input windows until the end of the resize; moving
     // them now would affect the positions of subsequent motion events from the
     // drag.
-    ResizeContent(drag_last_width_, drag_last_height_, drag_gravity_, false);
+    ResizeContent(resize_drag_last_width_, resize_drag_last_height_,
+                  resize_drag_gravity_, false);
   } else {
     if (resize_actor_.get()) {
       int actor_x = titlebar_x();
-      if (drag_gravity_ == GRAVITY_SOUTHEAST ||
-          drag_gravity_ == GRAVITY_NORTHEAST) {
-        actor_x -= (drag_last_width_ - drag_orig_width_);
+      if (resize_drag_gravity_ == GRAVITY_SOUTHEAST ||
+          resize_drag_gravity_ == GRAVITY_NORTHEAST) {
+        actor_x -= (resize_drag_last_width_ - resize_drag_orig_width_);
       }
       int actor_y = titlebar_y();
-      if (drag_gravity_ == GRAVITY_SOUTHWEST ||
-          drag_gravity_ == GRAVITY_SOUTHEAST) {
-        actor_y -= (drag_last_height_ - drag_orig_height_);
+      if (resize_drag_gravity_ == GRAVITY_SOUTHWEST ||
+          resize_drag_gravity_ == GRAVITY_SOUTHEAST) {
+        actor_y -= (resize_drag_last_height_ - resize_drag_orig_height_);
       }
       resize_actor_->Move(actor_x, actor_y, 0);
       resize_actor_->SetSize(
-          drag_last_width_, drag_last_height_ + titlebar_height());
+          resize_drag_last_width_,
+          resize_drag_last_height_ + titlebar_height());
     }
   }
 }

@@ -82,14 +82,10 @@ class Panel {
   int titlebar_height() const { return titlebar_bounds_.height; }
   int total_height() const { return content_height() + titlebar_height(); }
 
-  bool client_windows_have_correct_position() const {
-    return client_windows_have_correct_position_;
-  }
-
-  bool IsFocused() const { return content_win_->IsFocused(); }
+  bool is_focused() const { return content_win_->IsFocused(); }
 
   // Is the user currently dragging one of the resize handles?
-  bool IsBeingResizedByUser() const { return drag_xid_ != 0; }
+  bool is_being_resized_by_user() const { return resize_drag_xid_ != 0; }
 
   // Fill the passed-in vector with all of the panel's input windows (in an
   // arbitrary order).
@@ -110,9 +106,9 @@ class Panel {
   //
   // Note: Move() must be called initially to configure the windows (see
   // the constructor's comment).
-  void Move(int right, int y, bool move_client_windows, int anim_ms);
-  void MoveX(int right, bool move_client_windows, int anim_ms);
-  void MoveY(int y, bool move_client_windows, int anim_ms);
+  void Move(int right, int y, int anim_ms);
+  void MoveX(int right, int anim_ms);
+  void MoveY(int y, int anim_ms);
 
   // Set the titlebar window's width (while keeping it right-aligned with
   // the content window).
@@ -164,6 +160,14 @@ class Panel {
   // window.
   void HandleContentWindowSizeHintsChange();
 
+  // Handle the start or end of a drag of this panel to a new position.
+  // While the panel is being dragged, it avoids updating the position of its
+  // underlying X windows in response to calls to Move() in order to reduce
+  // unnecessary communication with the X server.  When the drag ends, the
+  // windows are moved to the proper locations.
+  void HandleDragStart();
+  void HandleDragEnd();
+
   // Handle events referring to one of this panel's transient windows.
   void HandleTransientWindowMap(Window* win);
   void HandleTransientWindowUnmap(Window* win);
@@ -189,7 +193,7 @@ class Panel {
   // Can we configure |client_win_| and |titlebar_win_| right now?  If not,
   // we only store changes to their size, position, and stacking in
   // |client_bounds_|, |titlebar_bounds_|, and |stacking_layer_|.
-  bool CanConfigureWindows() const {
+  bool can_configure_windows() const {
     return !is_fullscreen_;
   }
 
@@ -295,30 +299,29 @@ class Panel {
   // this until the first time that Move() is called.
   bool composited_windows_set_up_;
 
+  // Are we currently being dragged to a new position?
+  // See HandleDragStart() and HandleDragEnd().
+  bool being_dragged_to_new_position_;
+
   // XID of the input window currently being dragged to resize the panel,
   // or 0 if no drag is in progress.
-  XWindow drag_xid_;
+  XWindow resize_drag_xid_;
 
   // Gravity holding a corner in place as the panel is being resized (e.g.
   // GRAVITY_SOUTHEAST if |top_left_input_xid_| is being dragged).
-  Gravity drag_gravity_;
+  Gravity resize_drag_gravity_;
 
   // Pointer coordinates where the resize drag started.
-  int drag_start_x_;
-  int drag_start_y_;
+  int resize_drag_start_x_;
+  int resize_drag_start_y_;
 
   // Initial content window size at the start of the resize.
-  int drag_orig_width_;
-  int drag_orig_height_;
+  int resize_drag_orig_width_;
+  int resize_drag_orig_height_;
 
   // Most-recent content window size during a resize.
-  int drag_last_width_;
-  int drag_last_height_;
-
-  // Do the content and titlebar client windows match the onscreen position
-  // of the panel?  (That is, were they updated by the last call to one of
-  // the Move() methods, or otherwise updated?)
-  bool client_windows_have_correct_position_;
+  int resize_drag_last_width_;
+  int resize_drag_last_height_;
 
   // PanelManager event registrations related to this panel's windows.
   scoped_ptr<EventConsumerRegistrar> event_consumer_registrar_;

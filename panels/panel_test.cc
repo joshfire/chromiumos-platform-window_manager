@@ -54,7 +54,7 @@ TEST_F(PanelTest, InputWindows) {
   // Create a panel.
   Panel panel(panel_manager_, &content_win, &titlebar_win, true);
   panel.SetResizable(true);
-  panel.Move(0, 0, true, 0);
+  panel.Move(0, 0, 0);
 
   // Restack the panel and check that its titlebar is stacked above the
   // content window, and that the content window is above all of the input
@@ -75,7 +75,7 @@ TEST_F(PanelTest, InputWindows) {
 
   // Now move the panel to a new location and check that all of the input
   // windows are moved correctly around it.
-  panel.MoveX(wm_->width() - 35, true, 0);
+  panel.MoveX(wm_->width() - 35, 0);
 
   MockXConnection::WindowInfo* top_info =
       xconn_->GetWindowInfoOrDie(panel.top_input_xid_);
@@ -173,7 +173,7 @@ TEST_F(PanelTest, Resize) {
   // Create a panel.
   Panel panel(panel_manager_, &content_win, &titlebar_win, true);
   panel.SetResizable(true);
-  panel.Move(0, 0, true, 0);
+  panel.Move(0, 0, 0);
 
   // Check that one of the panel's resize handles has an asynchronous grab
   // installed on the first mouse button.
@@ -264,7 +264,7 @@ TEST_F(PanelTest, ChromeState) {
   ASSERT_TRUE(xconn_->GetWindowGeometry(content_xid, &geometry));
   Window content_win(wm_.get(), content_xid, false, geometry);
   Panel panel(panel_manager_, &content_win, &titlebar_win, false);
-  panel.Move(0, 0, true, 0);
+  panel.Move(0, 0, 0);
 
   // The panel's content window should have have a collapsed state in
   // _CHROME_STATE initially (since we told it to start collapsed).
@@ -325,7 +325,7 @@ TEST_F(PanelTest, Shadows) {
   content_win.HandleMapNotify();
 
   Panel panel(panel_manager_, &content_win, &titlebar_win, true);
-  panel.Move(0, 0, true, 0);
+  panel.Move(0, 0, 0);
 
   // Check that Panel's constructor enabled shadows for both windows.
   ASSERT_TRUE(titlebar_win.shadow() != NULL);
@@ -480,7 +480,7 @@ TEST_F(PanelTest, SeparatorShadow) {
 
   // Check that the separator shadow is scaled across the top of the
   // content window.
-  panel->Move(0, 0, true, 0);
+  panel->Move(0, 0, 0);
   EXPECT_EQ(panel->content_win_->composited_x(),
             panel->separator_shadow_->x());
   EXPECT_EQ(panel->content_win_->composited_y(),
@@ -490,7 +490,7 @@ TEST_F(PanelTest, SeparatorShadow) {
   EXPECT_EQ(0, panel->separator_shadow_->height());
 
   // When we move the panel, the shadow should get moved along with it.
-  panel->Move(50, 100, true, 0);
+  panel->Move(50, 100, 0);
   EXPECT_EQ(panel->content_win_->composited_x(),
             panel->separator_shadow_->x());
   EXPECT_EQ(panel->content_win_->composited_y(),
@@ -530,7 +530,7 @@ TEST_F(PanelTest, SeparatorShadow) {
   // the requested position and apply it after the panel is unfullscreened.
   // Check that the shadow gets moved to the stored position too.
   panel->SetFullscreenState(true);
-  panel->Move(20, 30, true, 0);
+  panel->Move(20, 30, 0);
   panel->SetFullscreenState(false);
 
   // First double-check that the content window got moved to the requested
@@ -591,7 +591,7 @@ TEST_F(PanelTest, TransientWindowsAreConstrainedOnscreen) {
   static const int kTitlebarHeight = 20;
   static const int kContentHeight = 600;
   Panel* panel = CreatePanel(kPanelWidth, kTitlebarHeight, kContentHeight);
-  panel->MoveX(-300 - kPanelWidth, true, 0);
+  panel->MoveX(-300 - kPanelWidth, 0);
 
   static const int kTransientWidth = 400;
   static const int kTransientHeight = 300;

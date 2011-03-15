@@ -129,8 +129,9 @@ void PanelDock::AddPanel(Panel* panel, PanelSource source) {
     panel_y = y_ + height_ - panel->total_height();
   if (panel_y < y_)
     panel_y = y_;
-  panel->Move(type_ == DOCK_TYPE_RIGHT ?  x_ + width_ : x_ + panel->width(),
-              panel_y, true, 0);
+  panel->Move(type_ == DOCK_TYPE_RIGHT ? x_ + width_ : x_ + panel->width(),
+              panel_y,
+              0);
   // TODO: Ideally, we would resize the panel here to match our width, but
   // that messes up the subsequent notification messages about the panel
   // being dragged -- some of them will be with regard to the panel's old
@@ -201,7 +202,7 @@ bool PanelDock::HandleNotifyPanelDraggedMessage(Panel* panel,
   if (drag_y < y_)
     drag_y = y_;
 
-  panel->MoveY(drag_y, false, 0);
+  panel->MoveY(drag_y, 0);
   ReorderPanel(panel);
   return true;
 }
@@ -210,7 +211,7 @@ void PanelDock::HandleNotifyPanelDragCompleteMessage(Panel* panel) {
   if (dragged_panel_ != panel)
     return;
   // Move client windows.
-  panel->Move(panel->right(), panel->titlebar_y(), true, 0);
+  panel->Move(panel->right(), panel->titlebar_y(), 0);
   if (panel->width() != width_) {
     panel->ResizeContent(
         width_, panel->content_height(),
@@ -267,7 +268,7 @@ void PanelDock::HandleScreenResize() {
   if (type_ == DOCK_TYPE_RIGHT) {
     for (vector<Panel*>::iterator it = panels_.begin();
          it != panels_.end(); ++it) {
-      (*it)->MoveX(x_ + width_, true, 0);
+      (*it)->MoveX(x_ + width_, 0);
     }
   }
 }
@@ -340,7 +341,7 @@ void PanelDock::PackPanels(Panel* fixed_panel) {
     PanelInfo* info = GetPanelInfoOrDie(panel);
     info->snapped_y = total_panel_height_;
     if (panel != fixed_panel && panel->titlebar_y() != info->snapped_y)
-      panel->MoveY(info->snapped_y, true, kPackPanelsAnimMs);
+      panel->MoveY(info->snapped_y, kPackPanelsAnimMs);
     total_panel_height_ += panel->total_height();
   }
 }

@@ -191,14 +191,14 @@ void PanelBar::AddPanel(Panel* panel, PanelSource source) {
   switch (source) {
     case PANEL_SOURCE_NEW:
       // Make newly-created panels slide in from the bottom of the screen.
-      panel->Move(info->desired_right, wm()->height(), false, 0);
-      panel->MoveY(final_y, true, kPanelStateAnimMs);
+      panel->Move(info->desired_right, wm()->height(), 0);
+      panel->MoveY(final_y, kPanelStateAnimMs);
       break;
     case PANEL_SOURCE_DRAGGED:
-      panel->MoveY(final_y, true, 0);
+      panel->MoveY(final_y, 0);
       break;
     case PANEL_SOURCE_DROPPED:
-      panel->Move(info->desired_right, final_y, true, kDroppedPanelAnimMs);
+      panel->Move(info->desired_right, final_y, kDroppedPanelAnimMs);
       break;
     default:
       NOTREACHED() << "Unknown panel source " << source;
@@ -219,7 +219,7 @@ void PanelBar::AddPanel(Panel* panel, PanelSource source) {
   if (!wm()->IsModalWindowFocused() &&
       panel->is_expanded() &&
       (focus_requested ||
-       panel->IsFocused() ||
+       panel->is_focused() ||
        !wm()->focus_manager()->focused_win())) {
     FocusPanel(panel, wm()->GetCurrentTimeFromServer());
   }
@@ -403,7 +403,7 @@ bool PanelBar::HandleNotifyPanelDraggedMessage(Panel* panel,
   }
 
   if (dragging_panel_horizontally_) {
-    panel->MoveX(drag_x, false, 0);
+    panel->MoveX(drag_x, 0);
     PanelInfo* info = GetPanelInfoOrDie(panel);
 
     // Make sure that the panel is in the correct vector (floating vs.
@@ -450,7 +450,7 @@ bool PanelBar::HandleNotifyPanelDraggedMessage(Panel* panel,
     const int capped_y =
         max(min(drag_y, wm()->height() - panel->titlebar_height()),
             wm()->height() - panel->total_height());
-    panel->MoveY(capped_y, false, 0);
+    panel->MoveY(capped_y, 0);
   }
   return true;
 }
@@ -490,7 +490,7 @@ void PanelBar::HandleScreenResize() {
   // repack them to animate them sliding to their new X positions.
   for (PanelSet::iterator it = all_panels_.begin();
        it != all_panels_.end(); ++it) {
-    (*it)->MoveY(ComputePanelY(**it), true, 0);
+    (*it)->MoveY(ComputePanelY(**it), 0);
   }
   if (dragged_panel_ && !(GetPanelInfoOrDie(dragged_panel_)->is_floating))
     ReorderPanelInVector(dragged_panel_, &packed_panels_);
@@ -502,7 +502,7 @@ void PanelBar::HandlePanelUrgencyChange(Panel* panel) {
   if (!panel->is_expanded()) {
     const int computed_y = ComputePanelY(*panel);
     if (panel->titlebar_y() != computed_y)
-      panel->MoveY(computed_y, true, kHideCollapsedPanelsAnimMs);
+      panel->MoveY(computed_y, kHideCollapsedPanelsAnimMs);
   }
 }
 
@@ -608,7 +608,7 @@ void PanelBar::ExpandPanel(Panel* panel, bool create_anchor, int anim_ms) {
   }
 
   panel->SetExpandedState(true);
-  panel->MoveY(ComputePanelY(*panel), true, anim_ms);
+  panel->MoveY(ComputePanelY(*panel), anim_ms);
   panel->SetResizable(true);
   if (create_anchor)
     CreateAnchor(panel);
@@ -633,11 +633,11 @@ void PanelBar::CollapsePanel(Panel* panel, int anim_ms) {
     DestroyAnchor();
 
   panel->SetExpandedState(false);
-  panel->MoveY(ComputePanelY(*panel), true, anim_ms);
+  panel->MoveY(ComputePanelY(*panel), anim_ms);
   panel->SetResizable(false);
 
   // Give up the focus if this panel had it.
-  if (panel->IsFocused()) {
+  if (panel->is_focused()) {
     desired_panel_to_focus_ = panel_to_focus;
     XTime timestamp = wm()->GetCurrentTimeFromServer();
     if (!TakeFocus(timestamp))
@@ -698,7 +698,7 @@ void PanelBar::HandlePanelDragComplete(Panel* panel) {
     } else if (!mostly_visible && panel->is_expanded()) {
       CollapsePanel(panel, anim_ms);
     } else {
-      panel->MoveY(ComputePanelY(*panel), true, anim_ms);
+      panel->MoveY(ComputePanelY(*panel), anim_ms);
     }
   }
 
@@ -772,11 +772,8 @@ void PanelBar::ArrangePanels(bool arrange_floating,
     PanelInfo* info = GetPanelInfoOrDie(panel);
 
     info->desired_right = wm()->width() - packed_panel_width_ - padding;
-    if (panel != dragged_panel_ &&
-        (panel->right() != info->desired_right ||
-         !panel->client_windows_have_correct_position())) {
-      panel->MoveX(info->desired_right, true, kPanelArrangeAnimMs);
-    }
+    if (panel != dragged_panel_ && panel->right() != info->desired_right)
+      panel->MoveX(info->desired_right, kPanelArrangeAnimMs);
 
     packed_panel_width_ += panel->width() + padding;
   }
@@ -797,9 +794,8 @@ void PanelBar::ArrangePanels(bool arrange_floating,
 
       if (panel != dragged_panel_) {
         const int panel_right = min(info->desired_right, right_boundary);
-        if (panel->right() != panel_right ||
-            !panel->client_windows_have_correct_position())
-          panel->MoveX(panel_right, true, kPanelArrangeAnimMs);
+        if (panel->right() != panel_right)
+          panel->MoveX(panel_right, kPanelArrangeAnimMs);
       }
       right_boundary = panel->content_x() - kPixelsBetweenPanels;
     }
@@ -812,7 +808,7 @@ void PanelBar::ShiftFloatingPanelsAroundFixedPanel(Panel* fixed_panel,
 
   // Make sure that the fixed panel is in the allowable area.
   if (fixed_panel->right() > right_boundary)
-    fixed_panel->MoveX(right_boundary, true, kPanelArrangeAnimMs);
+    fixed_panel->MoveX(right_boundary, kPanelArrangeAnimMs);
 
   PanelVector::iterator fixed_it = FindPanelInVectorByWindow(
       floating_panels_, *(fixed_panel->content_win()));
@@ -985,7 +981,7 @@ void PanelBar::ShowCollapsedPanels() {
       continue;
     const int computed_y = ComputePanelY(*panel);
     if (panel->titlebar_y() != computed_y)
-      panel->MoveY(computed_y, true, kHideCollapsedPanelsAnimMs);
+      panel->MoveY(computed_y, kHideCollapsedPanelsAnimMs);
   }
 
   ConfigureShowCollapsedPanelsInputWindow(false);
@@ -1013,7 +1009,7 @@ void PanelBar::HideCollapsedPanels() {
       continue;
     const int computed_y = ComputePanelY(*panel);
     if (panel->titlebar_y() != computed_y)
-      panel->MoveY(computed_y, true, kHideCollapsedPanelsAnimMs);
+      panel->MoveY(computed_y, kHideCollapsedPanelsAnimMs);
   }
 
   if (GetNumCollapsedPanels() > 0)

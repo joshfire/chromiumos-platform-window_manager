@@ -643,6 +643,59 @@ TEST_F(PanelManagerTest, UnmapPanelWithTransients) {
   wm_->HandleEvent(&event);
 }
 
+// Test that we defer moving a panel's X windows while it's being dragged
+// and instead only move them once the drag is complete.
+TEST_F(PanelManagerTest, AvoidMovingXWindowsDuringDrag) {
+  const int kPanelWidth = 200, kTitlebarHeight = 20, kContentHeight = 300;
+  Panel* panel = CreatePanel(kPanelWidth, kTitlebarHeight, kContentHeight);
+
+  const int kOrigPanelRight = panel->right();
+  const int kPanelTop = panel->titlebar_y();
+  const Rect kOrigTitlebarBounds(
+      kOrigPanelRight - kPanelWidth, kPanelTop,
+      kPanelWidth, kTitlebarHeight);
+  const Rect kOrigContentBounds(
+      kOrigPanelRight - kPanelWidth, kPanelTop + kTitlebarHeight,
+      kPanelWidth, kContentHeight);
+
+  MockCompositor::TexturePixmapActor* titlebar_actor =
+      GetMockActorForWindow(panel->titlebar_win());
+  EXPECT_EQ(kOrigTitlebarBounds, titlebar_actor->GetBounds());
+  MockXConnection::WindowInfo* titlebar_info =
+      xconn_->GetWindowInfoOrDie(panel->titlebar_xid());
+  EXPECT_EQ(kOrigTitlebarBounds, titlebar_info->bounds);
+
+  MockCompositor::TexturePixmapActor* content_actor =
+      GetMockActorForWindow(panel->content_win());
+  ASSERT_EQ(kOrigContentBounds, content_actor->GetBounds());
+  MockXConnection::WindowInfo* content_info =
+      xconn_->GetWindowInfoOrDie(panel->content_xid());
+  ASSERT_EQ(kOrigContentBounds, content_info->bounds);
+
+  const int kNewPanelRight = kOrigPanelRight - 200;
+  const Rect kNewTitlebarBounds(
+      kNewPanelRight - kPanelWidth, kPanelTop,
+      kPanelWidth, kTitlebarHeight);
+  const Rect kNewContentBounds(
+      kNewPanelRight - kPanelWidth, kPanelTop + kTitlebarHeight,
+      kPanelWidth, kContentHeight);
+
+  // When a drag starts, the composited windows should be moved but the X
+  // windows should remain in their original positions.
+  SendPanelDraggedMessage(panel, kNewPanelRight, kPanelTop);
+  EXPECT_EQ(kNewTitlebarBounds, titlebar_actor->GetBounds());
+  EXPECT_EQ(kOrigTitlebarBounds, titlebar_info->bounds);
+  EXPECT_EQ(kNewContentBounds, content_actor->GetBounds());
+  EXPECT_EQ(kOrigContentBounds, content_info->bounds);
+
+  // After the drag ends, the X windows should be updated.
+  SendPanelDragCompleteMessage(panel);
+  EXPECT_EQ(kNewTitlebarBounds, titlebar_actor->GetBounds());
+  EXPECT_EQ(kNewTitlebarBounds, titlebar_info->bounds);
+  EXPECT_EQ(kNewContentBounds, content_actor->GetBounds());
+  EXPECT_EQ(kNewContentBounds, content_info->bounds);
+}
+
 }  // namespace window_manager
 
 int main(int argc, char** argv) {

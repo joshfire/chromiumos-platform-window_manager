@@ -1101,6 +1101,38 @@ TEST_F(WindowTest, SetVisibility) {
   EXPECT_EQ(kNewPosition, actor->GetBounds().position());
 }
 
+TEST_F(WindowTest, SetUpdateClientPositionForMoves) {
+  // Create and map a window.
+  const Rect kOrigBounds(100, 150, 300, 250);
+  XWindow xid = xconn_->CreateWindow(xconn_->GetRootWindow(),
+                                     kOrigBounds,
+                                     false,  // override_redirect
+                                     false,  // input_only
+                                     0,      // event_mask
+                                     0);     // visual
+  XConnection::WindowGeometry geometry;
+  ASSERT_TRUE(xconn_->GetWindowGeometry(xid, &geometry));
+  Window win(wm_.get(), xid, false, geometry);
+  win.SetVisibility(Window::VISIBILITY_SHOWN);
+  ASSERT_TRUE(xconn_->MapWindow(xid));
+  win.HandleMapNotify();
+
+  MockXConnection::WindowInfo* info = xconn_->GetWindowInfoOrDie(xid);
+  EXPECT_EQ(kOrigBounds, info->bounds);
+  MockCompositor::TexturePixmapActor* actor = GetMockActorForWindow(&win);
+  EXPECT_EQ(kOrigBounds, actor->GetBounds());
+
+  const Point kNewPosition(200, 300);
+  win.SetUpdateClientPositionForMoves(false);
+  win.Move(kNewPosition, 0);
+  EXPECT_EQ(kOrigBounds.position(), info->bounds.position());
+  EXPECT_EQ(kNewPosition, actor->GetBounds().position());
+
+  win.SetUpdateClientPositionForMoves(true);
+  EXPECT_EQ(kNewPosition, info->bounds.position());
+  EXPECT_EQ(kNewPosition, actor->GetBounds().position());
+}
+
 }  // namespace window_manager
 
 int main(int argc, char** argv) {
