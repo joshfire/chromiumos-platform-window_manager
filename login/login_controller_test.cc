@@ -1302,6 +1302,21 @@ TEST_F(LoginControllerTest, UngrabPointerOnBrowserWindowVisible) {
   EXPECT_EQ(0, xconn_->pointer_grab_xid());
 }
 
+// Test that we don't double-register our interest in taking ownership of a
+// login window's actor after the login window is destroyed, if said window gets
+// remapped.  See http://crosbug.com/13093.
+TEST_F(LoginControllerTest, OnlyRegisterOnceForDestroyedWindow) {
+  CreateLoginWindows(2, true, true, true);
+
+  XEvent event;
+  xconn_->UnmapWindow(wizard_xid_);
+  xconn_->InitUnmapEvent(&event, wizard_xid_);
+  wm_->HandleEvent(&event);
+
+  xconn_->InitMapRequestEvent(&event, wizard_xid_);
+  wm_->HandleEvent(&event);
+}
+
 }  // namespace window_manager
 
 int main(int argc, char** argv) {

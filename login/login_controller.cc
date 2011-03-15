@@ -313,7 +313,10 @@ void LoginController::HandleWindowMap(Window* win) {
 
   // Register our interest in taking ownership of this window after the
   // underlying X window gets destroyed.
-  registrar_.RegisterForDestroyedWindow(win->xid());
+  if (!registered_destroyed_xids_.count(win->xid())) {
+    registrar_.RegisterForDestroyedWindow(win->xid());
+    registered_destroyed_xids_.insert(win->xid());
+  }
 
   DoInitialSetupIfWindowsAreReady();
 
@@ -572,6 +575,7 @@ void LoginController::OwnDestroyedWindow(DestroyedWindow* destroyed_win,
   // Let the registrar know that it no longer needs to unregister our
   // interest in this window.
   registrar_.HandleDestroyedWindow(xid);
+  registered_destroyed_xids_.erase(xid);
 }
 
 void LoginController::InitialShow() {

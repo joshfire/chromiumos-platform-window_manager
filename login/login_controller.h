@@ -272,6 +272,12 @@ class LoginController : public EventConsumer {
   // until the browser window has been painted.
   std::set<std::tr1::shared_ptr<DestroyedWindow> > destroyed_windows_;
 
+  // XIDs of login windows that we've asked to take ownership of after they're
+  // destroyed (i.e. windows that will eventually end up in
+  // |destroyed_windows_|).  We track this so we can avoid double-registering a
+  // window if it's remapped (http://crosbug.com/13093).
+  std::set<XWindow> registered_destroyed_xids_;
+
   // Chrome browser windows that we're watching.  We wait for one of the
   // browser windows to get painted and then destroy ourselves.
   std::set<XWindow> browser_xids_;
