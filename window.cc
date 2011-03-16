@@ -26,6 +26,7 @@ using std::max;
 using std::min;
 using std::set;
 using std::string;
+using std::tr1::shared_ptr;
 using std::vector;
 using window_manager::util::GetCurrentTimeSec;
 using window_manager::util::XidStr;
@@ -50,6 +51,19 @@ const int Window::kOffscreenY = (XConnection::kMaxPosition + 1) / 2;
 const int Window::kVideoMinWidth = 300;
 const int Window::kVideoMinHeight = 225;
 const int Window::kVideoMinFramerate = 15;
+
+// Maximum size of |damage_debug_actors_|.  This is effectively the maximum
+// number of damage events that we'll show onscreen at once for this window.
+static const size_t kMaxDamageDebugActors = 8;
+
+// Color for damage actors.
+static const char kDamageDebugColor[] = "#d60";
+
+// Starting opacity for damage actors.
+static const double kDamageDebugOpacity = 0.25;
+
+// Duration in milliseconds over which a damage actor's opacity fades to 0.
+static const int kDamageDebugFadeMs = 200;
 
 Window::Window(WindowManager* wm,
                XWindow xid,
@@ -636,9 +650,13 @@ void Window::SetVisibility(Visibility visibility) {
     case VISIBILITY_SHOWN:  // fallthrough
     case VISIBILITY_SHOWN_NO_INPUT:
       actor_->Show();
+      if (damage_debug_group_.get())
+        damage_debug_group_->Show();
       break;
     case VISIBILITY_HIDDEN:
       actor_->Hide();
+      if (damage_debug_group_.get())
+        damage_debug_group_->Hide();
       break;
     default:
       NOTREACHED() << "Unknown visibility setting " << visibility;
@@ -776,6 +794,8 @@ void Window::ShowComposited() {
   actor_->Show();
   composited_shown_ = true;
   UpdateShadowVisibility();
+  if (damage_debug_group_.get())
+    damage_debug_group_->Show();
 }
 
 void Window::HideComposited() {
@@ -785,6 +805,8 @@ void Window::HideComposited() {
   actor_->Hide();
   composited_shown_ = false;
   UpdateShadowVisibility();
+  if (damage_debug_group_.get())
+    damage_debug_group_->Hide();
 }
 
 void Window::SetCompositedOpacity(double opacity, int anim_ms) {
@@ -802,6 +824,9 @@ void Window::SetCompositedOpacity(double opacity, int anim_ms) {
   // need to move the client window offscreen or back onscreen.
   if (visibility_ != VISIBILITY_UNSET)
     UpdateClientWindowPosition();
+
+  if (damage_debug_group_.get())
+    damage_debug_group_->SetOpacity(combined_opacity(), anim_ms);
 }
 
 void Window::ScaleComposited(double scale_x, double scale_y, int anim_ms) {
@@ -821,6 +846,9 @@ void Window::ScaleComposited(double scale_x, double scale_y, int anim_ms) {
   // offscreen or back onscreen.
   if (visibility_ != VISIBILITY_UNSET)
     UpdateClientWindowPosition();
+
+  if (damage_debug_group_.get())
+    damage_debug_group_->Scale(scale_x, scale_y, anim_ms);
 }
 
 AnimationPair* Window::CreateMoveCompositedAnimation() {
@@ -842,6 +870,9 @@ void Window::SetMoveCompositedAnimation(AnimationPair* animations) {
   // Make sure that the client window is in the right position.
   if (visibility_ != VISIBILITY_UNSET)
     UpdateClientWindowPosition();
+
+  if (damage_debug_group_.get())
+    damage_debug_group_->Move(composited_x_, composited_y_, 0);
 }
 
 void Window::HandleMapRequested() {
@@ -915,6 +946,9 @@ void Window::HandleDamageNotify(const Rect& bounding_box) {
   actor_->UpdateTexture();
   actor_->MergeDamagedRegion(bounding_box);
 
+  if (wm_->damage_debugging_enabled())
+    UpdateDamageDebugging(bounding_box);
+
   // Check if this update could indicate that a video is playing.
   if (!IsClientWindowOffscreen() &&
       bounding_box.width >= kVideoMinWidth &&
@@ -980,6 +1014,8 @@ void Window::StackCompositedAbove(Compositor::Actor* actor,
       shadow_->group()->Raise(shadow_actor);
     }
   }
+  if (damage_debug_group_.get())
+    damage_debug_group_->Raise(actor_.get());
 }
 
 void Window::StackCompositedBelow(Compositor::Actor* actor,
@@ -995,6 +1031,15 @@ void Window::StackCompositedBelow(Compositor::Actor* actor,
       shadow_->group()->Raise(shadow_actor);
     }
   }
+  if (damage_debug_group_.get())
+    damage_debug_group_->Raise(actor_.get());
+}
+
+Compositor::Actor* Window::GetTopActor() {
+  DCHECK(actor_.get());
+  return damage_debug_group_.get() ?
+      static_cast<Compositor::Actor*>(damage_debug_group_.get()) :
+      static_cast<Compositor::Actor*>(actor_.get());
 }
 
 Compositor::Actor* Window::GetBottomActor() {
@@ -1220,6 +1265,9 @@ void Window::MoveActorToAdjustedPosition(MoveDimensions dimensions,
     default:
       NOTREACHED() << "Unknown move dimensions " << dimensions;
   }
+
+  if (damage_debug_group_.get())
+    damage_debug_group_->Move(scaled_rect.x, scaled_rect.y, anim_ms);
 }
 
 void Window::ResetPixmap() {
@@ -1255,11 +1303,7 @@ void Window::UpdateShadowVisibility() {
 
   // Even if it was requested, there may be other reasons not to show it
   // (maybe the window isn't mapped yet, or it's shaped, or it's hidden).
-  const bool window_is_visible =
-      visibility_ == VISIBILITY_SHOWN ||
-      visibility_ == VISIBILITY_SHOWN_NO_INPUT ||
-      (visibility_ == VISIBILITY_UNSET && composited_shown_);
-  const bool should_show = pixmap_ && !shaped_ && window_is_visible;
+  const bool should_show = pixmap_ && !shaped_ && actor_is_shown();
 
   if (!shadow_->is_shown() && should_show)
     shadow_->Show();
@@ -1284,6 +1328,46 @@ void Window::SendWmSyncRequestMessage() {
   wm_->xconn()->SendClientMessageEvent(
       xid_, xid_, wm_->GetXAtom(ATOM_WM_PROTOCOLS), data, 0);
   client_has_redrawn_after_last_resize_ = false;
+}
+
+void Window::UpdateDamageDebugging(const Rect& bounding_box) {
+  // If we don't have a group for transforming all of the actors at once,
+  // initialize one.
+  if (!damage_debug_group_.get()) {
+    damage_debug_group_.reset(wm_->compositor()->CreateGroup());
+    damage_debug_group_->SetName("damage debug group for window " + xid_str_);
+    damage_debug_group_->Move(composited_x_, composited_y_, 0);
+    damage_debug_group_->Scale(composited_scale_x_, composited_scale_y_, 0);
+    damage_debug_group_->SetOpacity(combined_opacity(), 0);
+    if (actor_is_shown())
+      damage_debug_group_->Show();
+    else
+      damage_debug_group_->Hide();
+
+    wm_->stage()->AddActor(damage_debug_group_.get());
+    damage_debug_group_->Raise(actor_.get());
+  }
+
+  // Create a new actor if we're not yet at the limit; recycle the oldest one
+  // otherwise.
+  shared_ptr<Compositor::ColoredBoxActor> debug_actor;
+  if (damage_debug_actors_.size() < kMaxDamageDebugActors) {
+    debug_actor.reset(
+        wm_->compositor()->CreateColoredBox(
+            bounding_box.width, bounding_box.height,
+            Compositor::Color(kDamageDebugColor)));
+    damage_debug_group_->AddActor(debug_actor.get());
+    debug_actor->Show();
+  } else {
+    debug_actor = damage_debug_actors_[0];
+    damage_debug_actors_.pop_front();
+  }
+  damage_debug_actors_.push_back(debug_actor);
+
+  debug_actor->Move(bounding_box.x, bounding_box.y, 0);
+  debug_actor->SetSize(bounding_box.width, bounding_box.height);
+  debug_actor->SetOpacity(kDamageDebugOpacity, 0);
+  debug_actor->SetOpacity(0.0, kDamageDebugFadeMs);
 }
 
 

@@ -7,9 +7,11 @@
 
 #include <cmath>
 #include <ctime>
+#include <deque>
 #include <map>
 #include <set>
 #include <string>
+#include <tr1/memory>
 #include <vector>
 
 #include <gtest/gtest_prod.h>  // for FRIEND_TEST() macro
@@ -435,6 +437,9 @@ class Window {
                             Compositor::Actor* shadow_actor,
                             bool stack_above_shadow_actor);
 
+  // Return this window's topmost actor.
+  Compositor::Actor* GetTopActor();
+
   // Return this window's bottom-most actor (either the window's shadow's
   // group, or its actor itself if there's no shadow).  This is useful for
   // stacking another actor underneath this window.
@@ -478,6 +483,13 @@ class Window {
     MOVE_DIMENSIONS_X_ONLY,
     MOVE_DIMENSIONS_Y_ONLY,
   };
+
+  // Are we currently showing the window's actor?
+  bool actor_is_shown() const {
+    return visibility_ == VISIBILITY_SHOWN ||
+           visibility_ == VISIBILITY_SHOWN_NO_INPUT ||
+           (visibility_ == VISIBILITY_UNSET && composited_shown_);
+  }
 
   // Is the entirety of the client window currently offscreen?
   bool IsClientWindowOffscreen() const;
@@ -559,6 +571,10 @@ class Window {
   // update the counter after it's seen the ConfigureNotify and redrawn its
   // contents.
   void SendWmSyncRequestMessage();
+
+  // Update debugging information shown onscreen in response to a damage event
+  // (if WindowManager::damage_debugging_enabled() is true).
+  void UpdateDamageDebugging(const Rect& bounding_box);
 
   XWindow xid_;
   std::string xid_str_;  // hex for debugging
@@ -695,6 +711,16 @@ class Window {
   // The client's PID as specified in the _NET_WM_PID property, or -1 if
   // unknown.
   int client_pid_;
+
+  // Group containing actors that we display to visualize damage events for
+  // this window.  Stacked directly above |actor_| (but lazily initialized and
+  // NULL until the first time we need it).
+  scoped_ptr<Compositor::ContainerActor> damage_debug_group_;
+
+  // Actors in |damage_debug_group_|.  We add new ones to the deque as needed
+  // and start recycling them after hitting a limit.
+  std::deque<std::tr1::shared_ptr<Compositor::ColoredBoxActor> >
+      damage_debug_actors_;
 
   DISALLOW_COPY_AND_ASSIGN(Window);
 };

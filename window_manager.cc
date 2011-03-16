@@ -108,13 +108,15 @@ COMPILE_ASSERT(kPingChromeFrequencyMs > kPingChromeTimeoutMs,
                ping_timeout_is_greater_than_ping_frequency);
 
 // Names of key binding actions that we register.
-static const char* kLaunchTerminalAction = "launch-terminal";
 #ifndef NDEBUG
 static const char* kToggleClientWindowDebuggingAction =
     "toggle-client-window-debugging";
+static const char* kToggleDamageDebuggingAction = "toggle-damage-debugging";
 static const char* kToggleProfilerAction = "toggle-profiler";
 #endif
+
 static const char* kConfigureMonitorAction = "configure-monitor";
+static const char* kLaunchTerminalAction = "launch-terminal";
 static const char* kTakeRootScreenshotAction = "take-root-screenshot";
 static const char* kTakeWindowScreenshotAction = "take-window-screenshot";
 
@@ -209,6 +211,7 @@ WindowManager::WindowManager(EventLoop* event_loop,
       startup_pixmap_(0),
       mapped_xids_(new Stacker<XWindow>),
       stacked_xids_(new Stacker<XWindow>),
+      damage_debugging_enabled_(false),
       active_window_xid_(0),
       query_keyboard_state_timeout_id_(-1),
       unredirected_fullscreen_xid_(0),
@@ -243,14 +246,23 @@ void WindowManager::HandlePanelManagerAreaChange() {
 
 void WindowManager::HandleTopFullscreenActorChange(
     const Compositor::TexturePixmapActor* top_fullscreen_actor) {
-  if (!FLAGS_unredirect_fullscreen_window)
-    return;
-
   const bool was_compositing = unredirected_fullscreen_xid_ == 0;
   bool should_composite = true;
   XWindow window_to_unredirect = 0;
 
-  if (top_fullscreen_actor) {
+  // If we're debugging damage events, trying to unredirect a window puts us in
+  // a flickery loop:
+  //
+  // 10 We unredirect the browser window, causing a redraw.
+  // 20 We display a debugging actor to visualize the redraw.
+  // 30 We redirect the browser window since there's another actor onscreen.
+  // 40 The debugging actor fades away, leaving us with only the browser window
+  //    onscreen.
+  // 50 GOTO 10
+  const bool unredirection_permitted =
+      FLAGS_unredirect_fullscreen_window && !damage_debugging_enabled_;
+
+  if (unredirection_permitted && top_fullscreen_actor) {
     Window* win = GetWindowOwningActor(*top_fullscreen_actor);
     if (win != NULL &&
         win->client_x() == win->composited_x() &&
@@ -832,6 +844,10 @@ void WindowManager::ToggleClientWindowDebugging() {
   UpdateClientWindowDebugging();
 }
 
+void WindowManager::ToggleDamageDebugging() {
+  damage_debugging_enabled_ = !damage_debugging_enabled_;
+}
+
 void WindowManager::ToggleProfiler() {
 #if defined(PROFILE_BUILD)
   Profiler* profiler = Singleton<Profiler>::get();
@@ -1067,22 +1083,33 @@ void WindowManager::RegisterKeyBindings() {
       kLaunchTerminalAction);
 
 #ifndef NDEBUG
+  static const uint32_t kCtrlAltShiftMask =
+      KeyBindings::kControlMask |
+      KeyBindings::kAltMask |
+      KeyBindings::kShiftMask;
+
   key_bindings_actions_->AddAction(
       kToggleClientWindowDebuggingAction,
       NewPermanentCallback(this, &WindowManager::ToggleClientWindowDebugging),
       NULL, NULL);
   key_bindings_->AddBinding(
-      KeyBindings::KeyCombo(
-          XK_d, KeyBindings::kControlMask | KeyBindings::kAltMask),
+      KeyBindings::KeyCombo(XK_w, kCtrlAltShiftMask),
       kToggleClientWindowDebuggingAction);
+
+  key_bindings_actions_->AddAction(
+      kToggleDamageDebuggingAction,
+      NewPermanentCallback(this, &WindowManager::ToggleDamageDebugging),
+      NULL, NULL);
+  key_bindings_->AddBinding(
+      KeyBindings::KeyCombo(XK_d, kCtrlAltShiftMask),
+      kToggleDamageDebuggingAction);
 
   key_bindings_actions_->AddAction(
       kToggleProfilerAction,
       NewPermanentCallback(this, &WindowManager::ToggleProfiler),
       NULL, NULL);
   key_bindings_->AddBinding(
-      KeyBindings::KeyCombo(
-          XK_p, KeyBindings::kControlMask | KeyBindings::kAltMask),
+      KeyBindings::KeyCombo(XK_p, kCtrlAltShiftMask),
       kToggleProfilerAction);
 #endif
 

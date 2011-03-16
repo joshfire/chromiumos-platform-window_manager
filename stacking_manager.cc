@@ -99,7 +99,7 @@ bool StackingManager::StackWindowRelativeToOtherWindow(
   Compositor::Actor* lower_layer_actor =
       GetActorForLayer(static_cast<Layer>(layer + 1));
   if (above)
-    win->StackCompositedAbove(sibling->actor(), lower_layer_actor, true);
+    win->StackCompositedAbove(sibling->GetTopActor(), lower_layer_actor, true);
   else
     win->StackCompositedBelow(sibling->actor(), lower_layer_actor, true);
 

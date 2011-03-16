@@ -102,6 +102,7 @@ class WindowManager : public PanelManagerAreaChangeListener,
   int wm_ipc_version() const { return wm_ipc_version_; }
 
   bool logged_in() const { return logged_in_; }
+  bool damage_debugging_enabled() const { return damage_debugging_enabled_; }
 
   // Get the title for the window that we create to take ownership of management
   // selections.  This is also used to name our log files.
@@ -237,6 +238,9 @@ class WindowManager : public PanelManagerAreaChangeListener,
 
   // Callback to show or hide debugging information about client windows.
   void ToggleClientWindowDebugging();
+
+  // Callback to toggle visualization of damage events.
+  void ToggleDamageDebugging();
 
   // Callback to toggle profiler states.
   void ToggleProfiler();
@@ -508,9 +512,12 @@ class WindowManager : public PanelManagerAreaChangeListener,
   // the Window object when the underlying X window is destroyed.
   base::hash_map<XWindow, EventConsumer*> destroyed_window_event_consumers_;
 
-  // Actors that are currently being used to debug client windows.
+  // Actors that are being used to show client windows' positions.
   typedef std::vector<std::tr1::shared_ptr<Compositor::Actor> > ActorVector;
   ActorVector client_window_debugging_actors_;
+
+  // Should we flash regions of the screen in response to damage events?
+  bool damage_debugging_enabled_;
 
   // The last window that was passed to SetActiveWindowProperty().
   XWindow active_window_xid_;
