@@ -39,7 +39,7 @@ class TransientWindowCollection {
                             EventConsumer* event_consumer);
   ~TransientWindowCollection();
 
-  bool is_hidden() const { return is_hidden_; }
+  bool shown() const { return shown_; }
 
   // Do we contain the passed-in window?
   bool ContainsWindow(const Window& win) const;
@@ -90,13 +90,9 @@ class TransientWindowCollection {
   // RemoveWindow() for each transient).
   void CloseAllWindows();
 
-  // Hide all transient windows by moving their client windows offscreen
-  // and hiding their composited windows.
+  // Show or hide all transient windows in this collection.
+  void Show();
   void Hide();
-
-  // Restore previously-hidden transient windows by moving their client
-  // windows back onscreen and showing the composited windows.
-  void Restore();
 
  private:
   // Information about a transient window.
@@ -111,11 +107,12 @@ class TransientWindowCollection {
       win = NULL;
     }
 
-    // Save the transient window's current offset from another window
-    // (typically its owner).
-    void SaveOffsetsRelativeToWindow(Window* base_win) {
-      x_offset = win->client_x() - base_win->client_x();
-      y_offset = win->client_y() - base_win->client_y();
+    // Save the transient window's offset from another window (typically its
+    // owner).
+    void SaveOffsetsRelativeToWindow(Window* base_win,
+                                     const Point& transient_pos) {
+      x_offset = transient_pos.x - base_win->client_x();
+      y_offset = transient_pos.y - base_win->client_y();
     }
 
     // Update offsets so the transient will be centered over the passed-in
@@ -195,8 +192,8 @@ class TransientWindowCollection {
   // the owner should be focused instead).
   TransientWindow* transient_to_focus_;
 
-  // Was Hide() called?
-  bool is_hidden_;
+  // Are we currently showing all of the windows in this collection?
+  bool shown_;
 
   // Should we try to constrain transient windows' bounds onscreen, regardless
   // of the position of the owner?

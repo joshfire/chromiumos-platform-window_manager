@@ -425,8 +425,8 @@ void LayoutManager::ToplevelWindow::ConfigureForActiveMode(bool animate) {
 
   // If we previously hid our transient windows because we were in overview
   // mode, show them again.
-  if (transients_->is_hidden())
-    transients_->Restore();
+  if (!transients_->shown())
+    transients_->Show();
 }
 
 void LayoutManager::ToplevelWindow::ConfigureForOverviewMode(bool animate) {
@@ -462,7 +462,7 @@ void LayoutManager::ToplevelWindow::ConfigureForOverviewMode(bool animate) {
   } else {
     win_->SetCompositedOpacity(0.0, 0);
   }
-  if (!transients_->is_hidden())
+  if (transients_->shown())
     transients_->Hide();
   win_->MoveClientOffscreen();
 }

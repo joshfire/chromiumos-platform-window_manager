@@ -315,31 +315,24 @@ TEST_F(LayoutManagerTest, ConfigureTransient) {
       GetMockActorForWindow(wm_->GetWindowOrDie(bubble_xid));
   EXPECT_FALSE(bubble_actor->is_shown());
 
-  // We should ignore configure requests while the transient is hidden.
+  // We shouldn't move the client window in response to configure requests
+  // while the transient is hidden, but we should save the offset.
+  const Point kBubbleOffset(20, 30);
   xconn_->InitConfigureRequestEvent(
       &event,
       bubble_xid,
-      Rect(20, 30, bubble_info->bounds.width, bubble_info->bounds.height));
-  event.xconfigurerequest.value_mask = CWWidth | CWHeight;
+      Rect(Point(owner_info->bounds.x + kBubbleOffset.x,
+                 owner_info->bounds.y + kBubbleOffset.y),
+           bubble_info->bounds.size()));
+  event.xconfigurerequest.value_mask = CWX | CWY | CWWidth | CWHeight;
   wm_->HandleEvent(&event);
   EXPECT_TRUE(WindowIsOffscreen(bubble_xid));
 
-  // Make the screen much larger and check that the bubble's client window
-  // gets moved to remain offscreen.
-  const XWindow root_xid = xconn_->GetRootWindow();
-  MockXConnection::WindowInfo* root_info = xconn_->GetWindowInfoOrDie(root_xid);
-  xconn_->ResizeWindow(
-      root_xid,
-      Size(root_info->bounds.width * 2, root_info->bounds.height * 2));
-  xconn_->InitConfigureNotifyEvent(&event, root_xid);
-  wm_->HandleEvent(&event);
-  EXPECT_TRUE(WindowIsOffscreen(bubble_xid));
-
-  // After switching back to active mode, the bubble should be moved back
-  // to its original position and the actor should be shown.
+  // After switching back to active mode, the transient window should be at the
+  // expected offset from its owner (which will be at (0, 0)).
   lm_->SetMode(LayoutManager::MODE_ACTIVE);
-  EXPECT_EQ(bubble_x, bubble_info->bounds.x);
-  EXPECT_EQ(bubble_y, bubble_info->bounds.y);
+  EXPECT_EQ(kBubbleOffset, bubble_info->bounds.position());
+  EXPECT_EQ(kBubbleOffset, bubble_actor->GetBounds().position());
   EXPECT_TRUE(bubble_actor->is_shown());
 }
 

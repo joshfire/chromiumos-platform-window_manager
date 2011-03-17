@@ -25,7 +25,7 @@ TransientWindowCollection::TransientWindowCollection(
       event_consumer_(event_consumer),
       stacked_transients_(new Stacker<TransientWindow*>),
       transient_to_focus_(NULL),
-      is_hidden_(false),
+      shown_(true),
       constrain_onscreen_(constrain_onscreen) {
   DCHECK(owner_win_);
   DCHECK(event_consumer);
@@ -99,7 +99,9 @@ void TransientWindowCollection::AddWindow(
 
   // Info bubbles always keep their initial positions.
   if (transient_win->type() == chromeos::WM_IPC_WINDOW_CHROME_INFO_BUBBLE) {
-    transient->SaveOffsetsRelativeToWindow(owner_win_);
+    transient->SaveOffsetsRelativeToWindow(
+        owner_win_,
+        Point(transient_win->composited_x(), transient_win->composited_y()));
     transient->centered = false;
   } else {
     transient->UpdateOffsetsToCenterOverWindow(
@@ -127,20 +129,17 @@ void TransientWindowCollection::AddWindow(
     stacked_transients_->AddOnBottom(transient.get());
 
   SetPreferredWindowToFocus(transient_win);
+  wm()->focus_manager()->UseClickToFocusForWindow(transient_win);
 
+  transient_win->SetVisibility(shown_ ?
+                               Window::VISIBILITY_SHOWN :
+                               Window::VISIBILITY_HIDDEN);
   ConfigureTransientWindow(transient.get(), 0);
   ApplyStackingForTransientWindow(
       transient.get(),
       transient_to_stack_above ?
       transient_to_stack_above->win :
       (stack_directly_above_owner ? win_to_stack_above_ : NULL));
-
-  if (is_hidden_)
-    transient_win->HideComposited();
-  else
-    transient_win->ShowComposited();
-
-  wm()->focus_manager()->UseClickToFocusForWindow(transient_win);
 }
 
 void TransientWindowCollection::RemoveWindow(Window* transient_win) {
@@ -152,7 +151,7 @@ void TransientWindowCollection::RemoveWindow(Window* transient_win) {
     return;
   }
 
-  transient_win->HideComposited();
+  transient_win->SetVisibility(Window::VISIBILITY_HIDDEN);
   wm()->UnregisterEventConsumerForWindowEvents(transient_win->xid(),
                                                event_consumer_);
   stacked_transients_->Remove(transient);
@@ -191,27 +190,17 @@ void TransientWindowCollection::HandleConfigureRequest(
     Window* transient_win,
     int req_x, int req_y,
     int req_width, int req_height) {
-  if (is_hidden_) {
-    DLOG(INFO) << "Ignoring configure request for offscreen transient window "
-               << transient_win->xid_str();
-    transient_win->SendSyntheticConfigureNotify();
-    return;
-  }
-
   CHECK(transient_win);
   TransientWindow* transient = GetTransientWindow(*transient_win);
   CHECK(transient);
 
+  Rect orig_client_bounds = transient_win->client_bounds();
+
   // Move and resize the transient window as requested (only let info bubbles
   // move themselves).
-  bool moved = false;
-  if ((req_x != transient_win->client_x() ||
-       req_y != transient_win->client_y()) &&
-      transient_win->type() == chromeos::WM_IPC_WINDOW_CHROME_INFO_BUBBLE) {
-    transient_win->MoveClient(req_x, req_y);
-    transient->SaveOffsetsRelativeToWindow(owner_win_);
+  if (transient_win->type() == chromeos::WM_IPC_WINDOW_CHROME_INFO_BUBBLE) {
+    transient->SaveOffsetsRelativeToWindow(owner_win_, Point(req_x, req_y));
     transient->centered = false;
-    moved = true;
   }
 
   if (req_width != transient_win->client_width() ||
@@ -222,12 +211,15 @@ void TransientWindowCollection::HandleConfigureRequest(
           owner_win_,
           Rect(0, 0, wm()->width(), wm()->height()),
           constrain_onscreen_);
-      moved = true;
     }
   }
 
-  if (moved)
-    ConfigureTransientWindow(transient, 0);
+  ConfigureTransientWindow(transient, 0);
+
+  // If the window didn't change, send a fake ConfigureNotify to the
+  // client to let it know that we at least considered its request.
+  if (transient_win->client_bounds() == orig_client_bounds)
+    transient_win->SendSyntheticConfigureNotify();
 }
 
 void TransientWindowCollection::CloseAllWindows() {
@@ -240,23 +232,21 @@ void TransientWindowCollection::CloseAllWindows() {
   }
 }
 
-void TransientWindowCollection::Hide() {
-  is_hidden_ = true;
+void TransientWindowCollection::Show() {
+  shown_ = true;
   for (TransientWindowMap::const_iterator it = transients_.begin();
        it != transients_.end(); ++it) {
     TransientWindow* transient = it->second.get();
-    transient->win->MoveClientOffscreen();
-    transient->win->HideComposited();
+    transient->win->SetVisibility(Window::VISIBILITY_SHOWN);
   }
 }
 
-void TransientWindowCollection::Restore() {
-  is_hidden_ = false;
+void TransientWindowCollection::Hide() {
+  shown_ = false;
   for (TransientWindowMap::const_iterator it = transients_.begin();
        it != transients_.end(); ++it) {
     TransientWindow* transient = it->second.get();
-    transient->win->MoveClientToComposited();
-    transient->win->ShowComposited();
+    transient->win->SetVisibility(Window::VISIBILITY_HIDDEN);
   }
 }
 
@@ -308,17 +298,11 @@ TransientWindowCollection::GetTransientWindow(const Window& win) {
 
 void TransientWindowCollection::ConfigureTransientWindow(
     TransientWindow* transient, int anim_ms) {
-  if (!is_hidden_) {
-    transient->win->MoveClient(
-        owner_win_->client_x() + transient->x_offset,
-        owner_win_->client_y() + transient->y_offset);
-  }
-
-  transient->win->MoveComposited(
-      owner_win_->composited_x() +
-          owner_win_->composited_scale_x() * transient->x_offset,
-      owner_win_->composited_y() +
-          owner_win_->composited_scale_y() * transient->y_offset,
+  transient->win->Move(
+      Point(owner_win_->composited_x() +
+                owner_win_->composited_scale_x() * transient->x_offset,
+            owner_win_->composited_y() +
+                owner_win_->composited_scale_y() * transient->y_offset),
       anim_ms);
   transient->win->ScaleComposited(
       owner_win_->composited_scale_x(),

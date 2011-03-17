@@ -108,6 +108,9 @@ class Window {
   int client_width() const { return client_width_; }
   int client_height() const { return client_height_; }
   int client_depth() const { return client_depth_; }
+  Rect client_bounds() const {
+    return Rect(client_x_, client_y_, client_width_, client_height_);
+  }
 
   bool composited_shown() const { return composited_shown_; }
   int composited_x() const { return composited_x_; }

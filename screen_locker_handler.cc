@@ -107,8 +107,8 @@ bool ScreenLockerHandler::HandleWindowMapRequest(Window* win) {
   if (win->type() != chromeos::WM_IPC_WINDOW_CHROME_SCREEN_LOCKER)
     return false;
 
-  win->MoveClient(0, 0);
-  win->MoveCompositedToClient();
+  win->SetVisibility(Window::VISIBILITY_SHOWN);
+  win->Move(Point(0, 0), 0);
   win->ResizeClient(wm_->width(), wm_->height(), GRAVITY_NORTHWEST);
   wm_->stacking_manager()->StackWindowAtTopOfLayer(
       win, StackingManager::LAYER_SCREEN_LOCKER);
@@ -136,7 +136,6 @@ void ScreenLockerHandler::HandleWindowMap(Window* win) {
 
   if (!is_locked_)
     win->SetCompositedOpacity(0, 0);
-  win->ShowComposited();
   win->actor()->AddToVisibilityGroup(
       WindowManager::VISIBILITY_GROUP_SCREEN_LOCKER);
 
