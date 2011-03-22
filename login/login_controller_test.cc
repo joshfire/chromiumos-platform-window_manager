@@ -1255,33 +1255,42 @@ TEST_F(LoginControllerTest, FocusFirstControlsWindowImmediately) {
   EXPECT_EQ(controls_xid, GetActiveWindowProperty());
 }
 
-// Check that we grab the pointer at startup to hide the cursor and ungrab it
-// when the user moves the mouse.
-TEST_F(LoginControllerTest, UngrabPointerOnMotion) {
-  XWindow root = xconn_->GetRootWindow();
-  // Check that we start out with the pointer grabbed.
-  EXPECT_EQ(root, xconn_->pointer_grab_xid());
+TEST_F(LoginControllerTest, UnhideCursorOnLeave) {
+  // At startup, we should hide the cursor and map a fullscreen input window.
+  EXPECT_FALSE(xconn_->cursor_shown());
+  XWindow hide_mouse_cursor_xid = login_controller_->hide_mouse_cursor_xid_;
+  ASSERT_TRUE(hide_mouse_cursor_xid != 0);
+  MockXConnection::WindowInfo* info =
+      xconn_->GetWindowInfoOrDie(hide_mouse_cursor_xid);
+  EXPECT_EQ(wm_->bounds(), info->bounds);
+  EXPECT_TRUE(info->input_only);
+  EXPECT_TRUE(info->mapped);
 
-  // It should be ungrabbed as soon as the user moves it.
+  // The window should be destroyed and the cursor shown as soon as the mouse
+  // moves.
   XEvent event;
-  xconn_->InitMotionNotifyEvent(&event, root, Point(200, 200));
+  xconn_->InitMotionNotifyEvent(&event, hide_mouse_cursor_xid, Point(0, 0));
   wm_->HandleEvent(&event);
-  EXPECT_EQ(0, xconn_->pointer_grab_xid());
+  EXPECT_TRUE(xconn_->cursor_shown());
+  EXPECT_TRUE(xconn_->GetWindowInfo(hide_mouse_cursor_xid) == NULL);
 }
 
-// Check that we also ungrab the pointer when the first browser window is
-// visible.
-TEST_F(LoginControllerTest, UngrabPointerOnBrowserWindowVisible) {
-  XWindow root = xconn_->GetRootWindow();
-  EXPECT_EQ(root, xconn_->pointer_grab_xid());
+TEST_F(LoginControllerTest, UnhideCursorOnBrowserWindowVisible) {
+  // We should create a window to hide the cursor at startup.
+  EXPECT_FALSE(xconn_->cursor_shown());
+  XWindow hide_mouse_cursor_xid = login_controller_->hide_mouse_cursor_xid_;
+  ASSERT_TRUE(hide_mouse_cursor_xid != 0);
+  EXPECT_TRUE(xconn_->GetWindowInfo(hide_mouse_cursor_xid) != NULL);
 
-  // It should still be grabbed after the login windows are created...
+  // It should still be there after the login windows are created...
   CreateLoginWindows(2, true, true, true);
-  EXPECT_EQ(root, xconn_->pointer_grab_xid());
+  EXPECT_FALSE(xconn_->cursor_shown());
+  EXPECT_TRUE(xconn_->GetWindowInfo(hide_mouse_cursor_xid) != NULL);
 
   // ... and after the user logs in...
   SetLoggedInState(true);
-  EXPECT_EQ(root, xconn_->pointer_grab_xid());
+  EXPECT_FALSE(xconn_->cursor_shown());
+  EXPECT_TRUE(xconn_->GetWindowInfo(hide_mouse_cursor_xid) != NULL);
 
   // ... and after the first browser window is mapped.
   XWindow browser_xid =
@@ -1289,17 +1298,13 @@ TEST_F(LoginControllerTest, UngrabPointerOnBrowserWindowVisible) {
                            0, 0, 200, 200);  // position and size
   ConfigureWindowForSyncRequestProtocol(browser_xid);
   SendInitialEventsForWindow(browser_xid);
-  EXPECT_EQ(root, xconn_->pointer_grab_xid());
+  EXPECT_FALSE(xconn_->cursor_shown());
+  EXPECT_TRUE(xconn_->GetWindowInfo(hide_mouse_cursor_xid) != NULL);
 
-  // Once the browser window is visible, it should be ungrabbed.
+  // Once the browser window is visible, it should be destroyed.
   SendSyncRequestProtocolAlarm(browser_xid);
-  EXPECT_EQ(0, xconn_->pointer_grab_xid());
-
-  // If the login controller is created while the user is already logged in
-  // (like what happens if we crash and are restarted), we shouldn't grab the
-  // pointer at all.
-  CreateAndInitNewWm();
-  EXPECT_EQ(0, xconn_->pointer_grab_xid());
+  EXPECT_TRUE(xconn_->cursor_shown());
+  EXPECT_TRUE(xconn_->GetWindowInfo(hide_mouse_cursor_xid) == NULL);
 }
 
 // Test that we don't double-register our interest in taking ownership of a

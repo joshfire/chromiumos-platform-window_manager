@@ -134,6 +134,8 @@ class RealXConnection : public XConnection {
   virtual XID CreateShapedCursor(uint32 shape);
   virtual XID CreateTransparentCursor();
   virtual void FreeCursor(XID cursor);
+  virtual void HideCursor();
+  virtual void ShowCursor();
   virtual bool GetParentWindow(XWindow xid, XWindow* parent_out);
   virtual bool GetChildWindows(XWindow xid, std::vector<XWindow>* children_out);
   virtual void RefreshKeyboardMap(int request,

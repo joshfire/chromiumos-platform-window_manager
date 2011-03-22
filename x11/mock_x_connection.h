@@ -149,6 +149,8 @@ class MockXConnection : public XConnection {
   }
   virtual XID CreateTransparentCursor() { return kTransparentCursor; }
   virtual void FreeCursor(XID cursor) {}
+  virtual void HideCursor() { cursor_shown_ = false; }
+  virtual void ShowCursor() { cursor_shown_ = true; }
   virtual bool GetParentWindow(XWindow xid, XWindow* parent_out);
   virtual bool GetChildWindows(XWindow xid, std::vector<XWindow>* children_out);
   virtual void RefreshKeyboardMap(int request,
@@ -313,6 +315,7 @@ class MockXConnection : public XConnection {
   XTime last_focus_timestamp() const { return last_focus_timestamp_; }
   XWindow pointer_grab_xid() const { return pointer_grab_xid_; }
   XWindow keyboard_grab_xid() const { return keyboard_grab_xid_; }
+  bool cursor_shown() const { return cursor_shown_; }
   int num_keymap_refreshes() const { return num_keymap_refreshes_; }
   bool using_detectable_keyboard_auto_repeat() const {
     return using_detectable_keyboard_auto_repeat_;
@@ -499,6 +502,10 @@ class MockXConnection : public XConnection {
 
   // Current position of the mouse pointer for QueryPointerPosition().
   Point pointer_pos_;
+
+  // Is the mouse cursor currently shown?
+  // true unless HideCursor() has been called.
+  bool cursor_shown_;
 
   // Value set by SetDetectableKeyboardAutoRepeat().
   bool using_detectable_keyboard_auto_repeat_;

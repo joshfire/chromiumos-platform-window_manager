@@ -60,7 +60,7 @@ class LoginController : public EventConsumer {
   virtual void HandlePointerLeave(XWindow xid,
                                   int x, int y,
                                   int x_root, int y_root,
-                                  XTime timestamp) {}
+                                  XTime timestamp);
   virtual void HandlePointerMotion(XWindow xid,
                                    int x, int y,
                                    int x_root, int y_root,
@@ -75,15 +75,17 @@ class LoginController : public EventConsumer {
 
  private:
   friend class LoginControllerTest;  // runs InitialShow() manually
-  FRIEND_TEST(LoginControllerTest, Focus);
-  FRIEND_TEST(LoginControllerTest, KeyBindingsDuringStateChange);
-  FRIEND_TEST(LoginControllerTest, SelectGuest);
-  FRIEND_TEST(LoginControllerTest, RemoveUser);
   FRIEND_TEST(LoginControllerTest, AllWindowsAreReady);
   FRIEND_TEST(LoginControllerTest, ClientOnOffScreen);
+  FRIEND_TEST(LoginControllerTest, Focus);
+  FRIEND_TEST(LoginControllerTest, KeyBindingsDuringStateChange);
+  FRIEND_TEST(LoginControllerTest, LoginEntryRelativePositions);
+  FRIEND_TEST(LoginControllerTest, RemoveUser);
+  FRIEND_TEST(LoginControllerTest, SelectGuest);
   FRIEND_TEST(LoginControllerTest, SelectTwice);
   FRIEND_TEST(LoginControllerTest, ShowEntriesAfterTheyGetPixmaps);
-  FRIEND_TEST(LoginControllerTest, LoginEntryRelativePositions);
+  FRIEND_TEST(LoginControllerTest, UnhideCursorOnBrowserWindowVisible);
+  FRIEND_TEST(LoginControllerTest, UnhideCursorOnLeave);
 
   // SelectionChangedManager is used to cleanup after the selection changes.
   // When the selection changes |Schedule| is invoked on the
@@ -191,15 +193,13 @@ class LoginController : public EventConsumer {
   // Focus a window and save it to login_window_to_focus_.
   void FocusLoginWindow(Window* win);
 
-  // Ungrab the pointer if we've grabbed it and destroy ourselves.
+  // Stop hiding the mouse cursor if it's hidden and destroy ourselves.
   // Don't access |this| after calling this method!  Invoked when the first
   // browser window becomes visible.
   void HandleInitialBrowserWindowVisible();
 
-  // Ungrab the pointer and tell WindowManager that we're no longer interested
-  // in events on the root window.  Called when the user moves the pointer or
-  // the first browser window becomes visible.
-  void UngrabPointer(XTime timestamp);
+  // Re-show the mouse cursor and destroy |hide_mouse_cursor_xid_|.
+  void ShowMouseCursor();
 
   // Hide all login-related windows and ask the window manager to destroy us.
   // Called when we see the pixmap for a browser window get loaded.
@@ -264,8 +264,9 @@ class LoginController : public EventConsumer {
   // Index of the entry that was inserted or kNoSelection if no such entry.
   size_t last_inserted_entry_;
 
-  // Have we grabbed the pointer to hide it?
-  bool pointer_grabbed_for_startup_;
+  // ID of an input window created so we can hide the mouse cursor until the
+  // user starts using it.
+  XWindow hide_mouse_cursor_xid_;
 
   // Login windows that have been destroyed post-login but that we're
   // holding on to, so we can continue displaying their actors onscreen

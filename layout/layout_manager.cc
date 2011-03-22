@@ -124,8 +124,7 @@ LayoutManager::LayoutManager(WindowManager* wm, PanelManager* panel_manager)
       active_mode_key_bindings_group_(new KeyBindingsGroup(wm->key_bindings())),
       overview_mode_key_bindings_group_(
           new KeyBindingsGroup(wm->key_bindings())),
-      background_xid_(
-          wm_->CreateInputWindow(0, 0, wm_->width(), wm_->height(), 0)),
+      background_xid_(wm_->CreateInputWindow(wm_->bounds(), 0)),
       should_layout_windows_after_initial_pixmap_(false),
       should_animate_after_initial_pixmap_(false) {
   wm_->focus_manager()->RegisterFocusChangeListener(this);

@@ -59,7 +59,8 @@ MockXConnection::MockXConnection()
       pointer_grab_xid_(None),
       keyboard_grab_xid_(None),
       num_keymap_refreshes_(0),
-      pointer_pos_(0, 0),
+      pointer_pos_(kDisplayWidth / 2, kDisplayHeight / 2),
+      cursor_shown_(true),
       using_detectable_keyboard_auto_repeat_(false),
       connection_pipe_has_data_(false),
       num_pointer_ungrabs_with_replayed_events_(0) {

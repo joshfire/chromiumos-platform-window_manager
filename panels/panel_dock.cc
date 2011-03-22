@@ -57,7 +57,8 @@ PanelDock::PanelDock(PanelManager* panel_manager, DockType type, int width)
                     FLAGS_panel_dock_background_image)),
       bg_shadow_(Shadow::Create(wm()->compositor(), Shadow::TYPE_RECTANGULAR)),
       bg_input_xid_(wm()->CreateInputWindow(
-                        -1, -1, 1, 1, ButtonPressMask|ButtonReleaseMask)),
+                        Rect(-1, -1, 1, 1),
+                        ButtonPressMask | ButtonReleaseMask)),
       event_consumer_registrar_(
           new EventConsumerRegistrar(wm(), panel_manager_)) {
   event_consumer_registrar_->RegisterForWindowEvents(bg_input_xid_);
@@ -111,7 +112,7 @@ void PanelDock::AddPanel(Panel* panel, PanelSource source) {
     ReorderPanel(panel);
 
   if (panels_.size() == static_cast<size_t>(1)) {
-    wm()->ConfigureInputWindow(bg_input_xid_, x_, y_, width_, height_);
+    wm()->ConfigureInputWindow(bg_input_xid_, Rect(x_, y_, width_, height_));
     bg_actor_->MoveX(x_, kBackgroundAnimMs);
     bg_shadow_->MoveX(x_, kBackgroundAnimMs);
     bg_shadow_->SetOpacity(1, kBackgroundAnimMs);
@@ -262,7 +263,7 @@ void PanelDock::HandleScreenResize() {
   bg_shadow_->Resize(width_, height_, 0);
   bg_shadow_->Move(bg_x, y_, 0);
   if (!hidden)
-    wm()->ConfigureInputWindow(bg_input_xid_, x_, y_, width_, height_);
+    wm()->ConfigureInputWindow(bg_input_xid_, Rect(x_, y_, width_, height_));
 
   // If we're on the right side of the screen, we need to move the panels.
   if (type_ == DOCK_TYPE_RIGHT) {

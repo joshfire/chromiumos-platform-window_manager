@@ -459,6 +459,10 @@ class XConnection {
   // CreateTransparentCursor().
   virtual void FreeCursor(XID cursor) = 0;
 
+  // Hide or show the mouse cursor.
+  virtual void HideCursor() = 0;
+  virtual void ShowCursor() = 0;
+
   // Get the parent window of |xid|.  Sets |parent_out| to 0 if passed the
   // root window.
   virtual bool GetParentWindow(XWindow xid, XWindow* parent_out) = 0;

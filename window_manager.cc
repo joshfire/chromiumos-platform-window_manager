@@ -590,11 +590,10 @@ void WindowManager::HandleEvent(XEvent* event) {
   }
 }
 
-XWindow WindowManager::CreateInputWindow(
-    int x, int y, int width, int height, int event_mask) {
+XWindow WindowManager::CreateInputWindow(const Rect& bounds, int event_mask) {
   XWindow xid = xconn_->CreateWindow(
       root_,  // parent
-      Rect(x, y, width, height),
+      bounds,
       true,   // override redirect
       true,   // input only
       event_mask,
@@ -609,11 +608,9 @@ XWindow WindowManager::CreateInputWindow(
   return xid;
 }
 
-bool WindowManager::ConfigureInputWindow(
-    XWindow xid, int x, int y, int width, int height) {
-  Rect rect(x, y, width, height);
-  DLOG(INFO) << "Configuring input window " << XidStr(xid) << " to " << rect;
-  return xconn_->ConfigureWindow(xid, rect);
+bool WindowManager::ConfigureInputWindow(XWindow xid, const Rect& bounds) {
+  DLOG(INFO) << "Configuring input window " << XidStr(xid) << " to " << bounds;
+  return xconn_->ConfigureWindow(xid, bounds);
 }
 
 XAtom WindowManager::GetXAtom(Atom atom) {

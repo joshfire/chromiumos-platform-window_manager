@@ -249,7 +249,7 @@ TEST_F(WindowManagerTest, OverrideRedirectMapping) {
 TEST_F(WindowManagerTest, InputWindows) {
   // Check that CreateInputWindow() creates windows as requested.
   int event_mask = ButtonPressMask | ButtonReleaseMask;
-  XWindow xid = wm_->CreateInputWindow(100, 200, 300, 400, event_mask);
+  XWindow xid = wm_->CreateInputWindow(Rect(100, 200, 300, 400), event_mask);
   MockXConnection::WindowInfo* info = xconn_->GetWindowInfo(xid);
   ASSERT_TRUE(info != NULL);
   EXPECT_EQ(100, info->bounds.x);
@@ -261,7 +261,7 @@ TEST_F(WindowManagerTest, InputWindows) {
   EXPECT_EQ(event_mask, info->event_mask);
 
   // Move and resize the window.
-  EXPECT_TRUE(wm_->ConfigureInputWindow(xid, 500, 600, 700, 800));
+  EXPECT_TRUE(wm_->ConfigureInputWindow(xid, Rect(500, 600, 700, 800)));
   EXPECT_EQ(500, info->bounds.x);
   EXPECT_EQ(600, info->bounds.y);
   EXPECT_EQ(700, info->bounds.width);

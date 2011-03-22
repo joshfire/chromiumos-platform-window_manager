@@ -1130,6 +1130,14 @@ void RealXConnection::FreeCursor(XID cursor) {
   }
 }
 
+void RealXConnection::HideCursor() {
+  xcb_xfixes_hide_cursor(xcb_conn_, root_);
+}
+
+void RealXConnection::ShowCursor() {
+  xcb_xfixes_show_cursor(xcb_conn_, root_);
+}
+
 bool RealXConnection::GetParentWindow(XWindow xid, XWindow* parent_out) {
   DCHECK(parent_out);
   if (xid == root_) {

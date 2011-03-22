@@ -93,6 +93,7 @@ class WindowManager : public PanelManagerAreaChangeListener,
   int width() const { return width_; }
   int height() const { return height_; }
   int root_depth() const { return root_depth_; }
+  Rect bounds() const { return Rect(0, 0, width_, height_); }
 
   XWindow wm_xid() const { return wm_xid_; }
   XWindow active_window_xid() const { return active_window_xid_; }
@@ -133,12 +134,11 @@ class WindowManager : public PanelManagerAreaChangeListener,
   void HandleEvent(XEvent* event);
 
   // Create a new X window for receiving input.
-  XWindow CreateInputWindow(
-      int x, int y, int width, int height, int event_mask);
+  XWindow CreateInputWindow(const Rect& bounds, int event_mask);
 
   // Move and resize the passed-in window.
   // TODO: This isn't limited to input windows.
-  bool ConfigureInputWindow(XWindow xid, int x, int y, int width, int height);
+  bool ConfigureInputWindow(XWindow xid, const Rect& bounds);
 
   // Get the X server's ID corresponding to the passed-in atom (the Atom
   // enum is defined in atom_cache.h).

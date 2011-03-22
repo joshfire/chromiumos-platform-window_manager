@@ -98,7 +98,6 @@ void LoginController::SelectionChangedManager::Stop() {
 
 void LoginController::SelectionChangedManager::Run() {
   Stop();
-
   layout_->ProcessSelectionChangeCompleted(selected_index_);
 }
 
@@ -115,33 +114,32 @@ LoginController::LoginController(WindowManager* wm)
       requested_destruction_(false),
       is_entry_selection_enabled_(true),
       last_inserted_entry_(kNoSelection),
-      pointer_grabbed_for_startup_(false) {
+      hide_mouse_cursor_xid_(0) {
   registrar_.RegisterForChromeMessages(
       chromeos::WM_IPC_MESSAGE_WM_SET_LOGIN_STATE);
   registrar_.RegisterForChromeMessages(
       chromeos::WM_IPC_MESSAGE_WM_SELECT_LOGIN_USER);
 
-  // Hide the pointer's cursor until the user moves it.
+  // Hide the mouse cursor until the user moves the pointer.  We map a
+  // fullscreen input window so we can tell when they've moved it (at which
+  // point we'll destroy the window immediately so other windows can receive
+  // input).
   DCHECK(!wm_->logged_in());
-  XID cursor = wm_->xconn()->CreateTransparentCursor();
-  if (wm_->xconn()->GrabPointer(wm_->root(),
-                                PointerMotionMask,
-                                wm_->GetCurrentTimeFromServer(),
-                                cursor)) {
-    pointer_grabbed_for_startup_ = true;
-    registrar_.RegisterForWindowEvents(wm_->root());
-  }
-  if (cursor)
-    wm_->xconn()->FreeCursor(cursor);
+  wm_->xconn()->HideCursor();
+  hide_mouse_cursor_xid_ =
+      wm_->CreateInputWindow(
+          wm_->bounds(), PointerMotionMask | LeaveWindowMask | ButtonPressMask);
+  registrar_.RegisterForWindowEvents(hide_mouse_cursor_xid_);
+  wm_->xconn()->RaiseWindow(hide_mouse_cursor_xid_);
 }
 
 LoginController::~LoginController() {
-  if (pointer_grabbed_for_startup_)
-    UngrabPointer(wm_->GetCurrentTimeFromServer());
+  if (hide_mouse_cursor_xid_)
+    ShowMouseCursor();
 }
 
 bool LoginController::IsInputWindow(XWindow xid) {
-  return false;
+  return xid == hide_mouse_cursor_xid_;
 }
 
 void LoginController::HandleScreenResize() {
@@ -476,6 +474,9 @@ void LoginController::HandleButtonPress(XWindow xid,
   if (requested_destruction_)
     return;
 
+  if (hide_mouse_cursor_xid_)
+    ShowMouseCursor();
+
   // Ignore clicks if a modal window has the focus.
   if (wm_->focus_manager()->focused_win() &&
       wm_->focus_manager()->focused_win()->wm_state_modal()) {
@@ -500,14 +501,25 @@ void LoginController::HandleButtonPress(XWindow xid,
     wm_->FocusWindow(login_window_to_focus_, wm_->GetCurrentTimeFromServer());
 }
 
+void LoginController::HandlePointerLeave(XWindow xid,
+                                         int x, int y,
+                                         int x_root, int y_root,
+                                         XTime timestamp) {
+  // We'll get a LeaveNotify event when the pointer is grabbed.  We need to show
+  // the mouse cursor in response to this since we won't get any MotionNotify
+  // events while it's grabbed.  If the user opens a menu with the keyboard
+  // (causing a grab) and then tries to move the mouse, we want to make sure
+  // that they can see the cursor.
+  if (hide_mouse_cursor_xid_)
+    ShowMouseCursor();
+}
+
 void LoginController::HandlePointerMotion(XWindow xid,
                                           int x, int y,
                                           int x_root, int y_root,
                                           XTime timestamp) {
-  if (pointer_grabbed_for_startup_) {
-    UngrabPointer(timestamp);
-    return;
-  }
+  if (hide_mouse_cursor_xid_)
+    ShowMouseCursor();
 }
 
 void LoginController::HandleChromeMessage(const WmIpc::Message& msg) {
@@ -912,16 +924,17 @@ void LoginController::FocusLoginWindow(Window* win) {
 void LoginController::HandleInitialBrowserWindowVisible() {
   DCHECK(waiting_for_browser_window_);
   waiting_for_browser_window_ = false;
-  if (pointer_grabbed_for_startup_)
-    UngrabPointer(wm_->GetCurrentTimeFromServer());
+  if (hide_mouse_cursor_xid_)
+    ShowMouseCursor();
   HideWindowsAndRequestDestruction();
 }
 
-void LoginController::UngrabPointer(XTime timestamp) {
-  DCHECK(pointer_grabbed_for_startup_);
-  wm_->xconn()->UngrabPointer(false, timestamp);
-  registrar_.UnregisterForWindowEvents(wm_->root());
-  pointer_grabbed_for_startup_ = false;
+void LoginController::ShowMouseCursor() {
+  DCHECK(hide_mouse_cursor_xid_);
+  wm_->xconn()->ShowCursor();
+  registrar_.UnregisterForWindowEvents(hide_mouse_cursor_xid_);
+  wm_->xconn()->DestroyWindow(hide_mouse_cursor_xid_);
+  hide_mouse_cursor_xid_ = 0;
 }
 
 void LoginController::HideWindowsAndRequestDestruction() {

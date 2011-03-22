@@ -52,7 +52,7 @@ LayoutManager::SnapshotWindow::SnapshotWindow(Window* win,
       toplevel_xid_(0),
       title_(NULL),
       fav_icon_(NULL),
-      input_xid_(wm()->CreateInputWindow(-1, -1, 1, 1,
+      input_xid_(wm()->CreateInputWindow(Rect(-1, -1, 1, 1),
                                          ButtonPressMask | ButtonReleaseMask)),
       state_(STATE_NEW),
       last_state_(STATE_NEW),
@@ -364,10 +364,10 @@ void LayoutManager::SnapshotWindow::ConfigureForOverviewMode(bool animate) {
   }
 
   wm()->ConfigureInputWindow(input_xid_,
-                             absolute_overview_x,
-                             absolute_overview_y,
-                             input_width,
-                             overview_height_with_title);
+                             Rect(absolute_overview_x,
+                                  absolute_overview_y,
+                                  input_width,
+                                  overview_height_with_title));
 }
 
 void LayoutManager::SnapshotWindow::SetSize(int max_width, int max_height) {
