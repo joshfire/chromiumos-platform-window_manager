@@ -1329,7 +1329,8 @@ TEST_F(WindowManagerTest, NotifyAboutInitialPixmap) {
   TestEventConsumer ec;
 
   // Create a window that doesn't support the _NET_WM_SYNC_REQUEST
-  // protocol.  We should fetch its pixmap as soon as it gets mapped.
+  // protocol.  We should fetch its pixmap as soon as it gets mapped and also
+  // notify the event consumer.
   XWindow xid = CreateSimpleWindow();
   wm_->RegisterEventConsumerForWindowEvents(xid, &ec);
   XEvent event;
@@ -1341,7 +1342,7 @@ TEST_F(WindowManagerTest, NotifyAboutInitialPixmap) {
   EXPECT_TRUE(wm_->GetWindowOrDie(xid)->has_initial_pixmap());
   xconn_->InitMapEvent(&event, xid);
   wm_->HandleEvent(&event);
-  EXPECT_EQ(0, ec.num_initial_pixmaps());
+  EXPECT_EQ(1, ec.num_initial_pixmaps());
 
   // Create a window that supports _NET_WM_SYNC_REQUEST.
   // Window::has_initial_pixmap() should return false after it's mapped

@@ -1133,6 +1133,58 @@ TEST_F(WindowTest, SetUpdateClientPositionForMoves) {
   EXPECT_EQ(kNewPosition, actor->GetBounds().position());
 }
 
+TEST_F(WindowTest, FreezeUpdates) {
+  XWindow xid = CreateSimpleWindow();
+  XConnection::WindowGeometry geometry;
+  ASSERT_TRUE(xconn_->GetWindowGeometry(xid, &geometry));
+  Window win(wm_.get(), xid, false, geometry);
+
+  // Set the _CHROME_FREEZE_UPDATES property on the window before mapping it.
+  // We should avoid fetching its pixmap.
+  const XAtom kAtom = xconn_->GetAtomOrDie("_CHROME_FREEZE_UPDATES");
+  ASSERT_TRUE(xconn_->SetIntProperty(xid, kAtom, kAtom, 1));
+  win.HandleFreezeUpdatesPropertyChange(true);
+  win.HandleMapRequested();
+  xconn_->MapWindow(xid);
+  win.HandleMapNotify();
+  EXPECT_EQ(0, win.pixmap_);
+  EXPECT_FALSE(win.has_initial_pixmap());
+
+  // After the property is removed, we should fetch the pixmap.
+  ASSERT_TRUE(xconn_->DeletePropertyIfExists(xid, kAtom));
+  win.HandleFreezeUpdatesPropertyChange(false);
+  EXPECT_NE(0, win.pixmap_);
+  EXPECT_TRUE(win.has_initial_pixmap());
+
+  // Create a second window.  Configure it for _NET_WM_SYNC_REQUEST and set the
+  // _CHROME_FREEZE_UPDATES property before the Window class hears about it.
+  XWindow xid2 = CreateSimpleWindow();
+  ConfigureWindowForSyncRequestProtocol(xid2);
+  ASSERT_TRUE(xconn_->SetIntProperty(xid2, kAtom, kAtom, 1));
+  ASSERT_TRUE(xconn_->GetWindowGeometry(xid2, &geometry));
+  Window win2(wm_.get(), xid2, false, geometry);
+
+  // Map the window and check that we don't load its pixmap.
+  win2.HandleMapRequested();
+  xconn_->MapWindow(xid2);
+  win2.HandleMapNotify();
+  EXPECT_EQ(0, win2.pixmap_);
+  EXPECT_FALSE(win2.has_initial_pixmap());
+
+  // Update the sync counter.  We should still avoid loading the pixmap, since
+  // the freeze-updates property is still set.
+  win2.HandleSyncAlarmNotify(win2.wm_sync_request_alarm_,
+                             win2.current_wm_sync_num_);
+  EXPECT_EQ(0, win2.pixmap_);
+  EXPECT_FALSE(win2.has_initial_pixmap());
+
+  // After the property is removed, the pixmap should finally be loaded.
+  ASSERT_TRUE(xconn_->DeletePropertyIfExists(xid2, kAtom));
+  win2.HandleFreezeUpdatesPropertyChange(false);
+  EXPECT_NE(0, win2.pixmap_);
+  EXPECT_TRUE(win2.has_initial_pixmap());
+}
+
 }  // namespace window_manager
 
 int main(int argc, char** argv) {

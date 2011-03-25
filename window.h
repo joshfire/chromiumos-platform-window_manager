@@ -200,6 +200,13 @@ class Window {
   // Fetch the window's _NET_WM_PID property and update |client_pid_|.
   void FetchAndApplyWmPid();
 
+  // Check if the window has the _CHROME_FREEZE_UPDATES property set and call
+  // HandleFreezeUpdatesPropertyChange().  The value of the property doesn't
+  // matter, so HandleFreezeUpdatesPropertyChange() can be called directly in
+  // response to the property being added or deleted -- this method is just used
+  // by our c'tor to get the initial state.
+  void FetchAndApplyChromeFreezeUpdates();
+
   // Check if the window has been shaped using the Shape extension and
   // update its compositing actor accordingly.  If the window is shaped, we
   // hide its shadow if it has one.
@@ -395,6 +402,10 @@ class Window {
   // Handle the window's contents being changed.
   void HandleDamageNotify(const Rect& bounding_box);
 
+  // Handle the _CHROME_FREEZE_UPDATES property getting set or unset on this
+  // window.  See |updates_frozen_| for details.
+  void HandleFreezeUpdatesPropertyChange(bool frozen);
+
   // Handle the underlying X window being destroyed.  If this method is
   // invoked before destroying this Window object, a few
   // compositing-related resources (actor, shadow, X pixmap) will be
@@ -470,6 +481,7 @@ class Window {
   FRIEND_TEST(FocusManagerTest, Modality);  // sets |wm_state_modal_|
   FRIEND_TEST(WindowTest, SyncRequest);
   FRIEND_TEST(WindowTest, DeferFetchingPixmapUntilPainted);
+  FRIEND_TEST(WindowTest, FreezeUpdates);
   FRIEND_TEST(WindowManagerTest, VideoTimeProperty);
   FRIEND_TEST(WindowManagerTest, HandleLateSyncRequestCounter);
 
@@ -492,6 +504,12 @@ class Window {
     return visibility_ == VISIBILITY_SHOWN ||
            visibility_ == VISIBILITY_SHOWN_NO_INPUT ||
            (visibility_ == VISIBILITY_UNSET && composited_shown_);
+  }
+
+  // Are the X window's contents currently in a state where we're able to fetch
+  // them as a new pixmap?
+  bool able_to_reset_pixmap() const {
+    return client_has_redrawn_after_last_resize_ && !updates_frozen_;
   }
 
   // Is the entirety of the client window currently offscreen?
@@ -685,12 +703,10 @@ class Window {
   // Offscreen pixmap containing the window's redirected contents.
   XID pixmap_;
 
-  // Number of "video-sized" or larger damage events that we've seen for
-  // this window during the second beginning at |video_damage_start_time_|.
-  // We use this as a rough heuristic to try to detect when the user is
-  // watching a video.
-  int num_video_damage_events_;
-  time_t video_damage_start_time_;
+  // Do we need to fetch a new pixmap to get at the X window's contents?
+  // This happens when the window is first mapped, or resized, or unredirected
+  // (in the X Composite Extension sense) and then redirected again.
+  bool need_to_reset_pixmap_;
 
   // XSync counter ID from the window's _NET_WM_SYNC_REQUEST_COUNTER
   // property, or 0 if the window doesn't support _NET_WM_SYNC_REQUEST.
@@ -707,6 +723,25 @@ class Window {
   // doesn't support _NET_WM_SYNC_REQUEST.
   bool client_has_redrawn_after_last_resize_;
 
+  // Is the _CHROME_FREEZE_UPDATES property currently set on this window?
+  //
+  // The client can set this to indicate that the WM should temporarily refrain
+  // from refetching the window's pixmap, to prevent a newly-mapped window from
+  // being shown until it's been painted (i.e. set the property, map the window,
+  // paint it in response to the expose event, and then unset the property).
+  // _NET_WM_SYNC_REQUEST could theoretically be used for this (for
+  // non-override-redirect windows only), but we've run into problems; see
+  // http://crosbug.com/11514.
+  //
+  // This is a partial implementation of the _NET_WM_FREEZE_UPDATES property
+  // proposed by Owen Taylor in
+  // http://mail.gnome.org/archives/wm-spec-list/2009-June/msg00002.html.  Note
+  // that unlike the proposed version, our property doesn't prevent the window
+  // manager from rebinding the texture in response to damage events.  This just
+  // hasn't been implemented because it makes the code more complicated and we
+  // don't need it -- Chrome uses double-buffering.
+  bool updates_frozen_;
+
   // Hostname of the system on which the client is running, as specified in
   // the WM_CLIENT_MACHINE property.
   std::string client_hostname_;
@@ -714,6 +749,13 @@ class Window {
   // The client's PID as specified in the _NET_WM_PID property, or -1 if
   // unknown.
   int client_pid_;
+
+  // Number of "video-sized" or larger damage events that we've seen for
+  // this window during the second beginning at |video_damage_start_time_|.
+  // We use this as a rough heuristic to try to detect when the user is
+  // watching a video.
+  int num_video_damage_events_;
+  time_t video_damage_start_time_;
 
   // Group containing actors that we display to visualize damage events for
   // this window.  Stacked directly above |actor_| (but lazily initialized and

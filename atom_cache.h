@@ -22,6 +22,7 @@ class XConnection;  // from x_connection.h
 enum Atom {
   ATOM_ATOM = 0,
   ATOM_CARDINAL,
+  ATOM_CHROME_FREEZE_UPDATES,
   ATOM_CHROME_GET_SERVER_TIME,
   ATOM_CHROME_LOGGED_IN,
   ATOM_CHROME_STATE,

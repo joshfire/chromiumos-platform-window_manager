@@ -104,12 +104,14 @@ Window::Window(WindowManager* wm,
       wm_hint_urgent_(false),
       damage_(0),
       pixmap_(0),
-      num_video_damage_events_(0),
-      video_damage_start_time_(-1),
+      need_to_reset_pixmap_(false),
       wm_sync_request_alarm_(0),
       current_wm_sync_num_(0),
       client_has_redrawn_after_last_resize_(true),
-      client_pid_(-1) {
+      updates_frozen_(false),
+      client_pid_(-1),
+      num_video_damage_events_(0),
+      video_damage_start_time_(-1) {
   DCHECK(xid_);
   DLOG(INFO) << "Constructing object to track "
              << (override_redirect_ ? "override-redirect " : "")
@@ -152,6 +154,7 @@ Window::Window(WindowManager* wm,
   FetchAndApplyWmWindowType();
   FetchAndApplyWmClientMachine();
   FetchAndApplyWmPid();
+  FetchAndApplyChromeFreezeUpdates();
 }
 
 Window::~Window() {
@@ -417,6 +420,15 @@ void Window::FetchAndApplyWmPid() {
       xid_, wm_->GetXAtom(ATOM_NET_WM_PID), &client_pid_);
   DLOG(INFO) << "Client owning window " << xid_str() << " has PID "
              << client_pid_;
+}
+
+void Window::FetchAndApplyChromeFreezeUpdates() {
+  DCHECK(xid_);
+  int dummy_value = 0;
+  bool property_exists =
+      wm_->xconn()->GetIntProperty(
+          xid_, wm_->GetXAtom(ATOM_CHROME_FREEZE_UPDATES), &dummy_value);
+  HandleFreezeUpdatesPropertyChange(property_exists);
 }
 
 void Window::FetchAndApplyShape() {
@@ -891,16 +903,19 @@ void Window::HandleMapRequested() {
 
 void Window::HandleMapNotify() {
   DCHECK(xid_);
-  mapped_ = true;
+  if (mapped_)
+    return;
 
-  // If we're still waiting for the client to redraw the window (probably
-  // in response to the _NET_WM_SYNC_REQUEST message that we sent in
-  // HandleMapRequested()), then hold off on fetching the pixmap.  This
-  // makes us not composite new windows until clients have painted them.
-  if (client_has_redrawn_after_last_resize_) {
+  mapped_ = true;
+  need_to_reset_pixmap_ = true;
+
+  // If we're still waiting for the client to redraw the window (probably in
+  // response to the _NET_WM_SYNC_REQUEST message that we sent in
+  // HandleMapRequested() or due to the client setting _CHROME_FREEZE_UPDATES
+  // before mapping), then hold off on fetching the pixmap.  This makes us not
+  // composite new windows until clients have painted them.
+  if (able_to_reset_pixmap())
     ResetPixmap();
-    UpdateShadowVisibility();
-  }
 }
 
 void Window::HandleUnmapNotify() {
@@ -914,6 +929,7 @@ void Window::HandleRedirect() {
   if (!mapped_)
     return;
 
+  need_to_reset_pixmap_ = true;
   ResetPixmap();
 
   // If the window is in the middle of an animation (sliding offscreen),
@@ -936,8 +952,11 @@ void Window::HandleConfigureNotify(int width, int height) {
       actor_->GetWidth() != width || actor_->GetHeight() != height;
   // Hold off on grabbing the window's contents if we haven't received
   // notification that the client has drawn to the new pixmap yet.
-  if (size_changed && client_has_redrawn_after_last_resize_)
-    ResetPixmap();
+  if (size_changed) {
+    need_to_reset_pixmap_ = true;
+    if (able_to_reset_pixmap())
+      ResetPixmap();
+  }
 }
 
 void Window::HandleDamageNotify(const Rect& bounding_box) {
@@ -962,6 +981,18 @@ void Window::HandleDamageNotify(const Rect& bounding_box) {
     if (num_video_damage_events_ == kVideoMinFramerate)
       wm_->SetVideoTimeProperty(now);
   }
+}
+
+void Window::HandleFreezeUpdatesPropertyChange(bool frozen) {
+  if (frozen == updates_frozen_)
+    return;
+
+  DLOG(INFO) << "Updates are " << (frozen ? "" : "un") << "frozen on window "
+             << xid_str_;
+  updates_frozen_ = frozen;
+
+  if (need_to_reset_pixmap_ && able_to_reset_pixmap())
+    ResetPixmap();
 }
 
 DestroyedWindow* Window::HandleDestroyNotify() {
@@ -1069,16 +1100,8 @@ void Window::HandleSyncAlarmNotify(XID alarm_id, int64_t value) {
     return;
 
   client_has_redrawn_after_last_resize_ = true;
-
-  // If we didn't have a pixmap already, then we're showing the window for
-  // the first time and may need to show the shadow as well.
-  const bool fetching_initial_pixmap = (pixmap_ == 0);
-  ResetPixmap();
-  if (fetching_initial_pixmap) {
-    DLOG(INFO) << "Fetching initial pixmap for already-mapped " << xid_str();
-    UpdateShadowVisibility();
-    wm_->HandleWindowInitialPixmap(this);
-  }
+  if (able_to_reset_pixmap())
+    ResetPixmap();
 }
 
 void Window::SendSyntheticConfigureNotify() {
@@ -1291,8 +1314,17 @@ void Window::ResetPixmap() {
       Size(actor_->GetWidth(), actor_->GetHeight()) != old_size)
     MoveActorToAdjustedPosition(MOVE_DIMENSIONS_X_AND_Y, 0);
 
-  if (old_pixmap)
+  if (old_pixmap) {
     wm_->xconn()->FreePixmap(old_pixmap);
+  } else {
+    // If we didn't have a pixmap already, then we're showing the window for
+    // the first time and may need to show the shadow as well.
+    DLOG(INFO) << "Fetched initial pixmap for already-mapped " << xid_str_;
+    UpdateShadowVisibility();
+    wm_->HandleWindowInitialPixmap(this);
+  }
+
+  need_to_reset_pixmap_ = false;
 }
 
 void Window::UpdateShadowVisibility() {

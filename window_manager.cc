@@ -1140,9 +1140,8 @@ void WindowManager::RegisterKeyBindings() {
 
 bool WindowManager::ManageExistingWindows() {
   vector<XWindow> windows;
-  if (!xconn_->GetChildWindows(root_, &windows)) {
+  if (!xconn_->GetChildWindows(root_, &windows))
     return false;
-  }
 
   // Snapshot and panel content windows that are already mapped.  We defer
   // calling HandleMappedWindow() on these until we've handled all other
@@ -1774,7 +1773,7 @@ void WindowManager::HandlePropertyNotify(const XPropertyEvent& e) {
 
   Window* win = GetWindow(e.window);
   if (win) {
-    bool deleted = (e.state == PropertyDelete);
+    const bool deleted = (e.state == PropertyDelete);
     DLOG(INFO) << "Handling property notify for " << win->xid_str() << " about "
                << (deleted ? "deleted " : "") << "property "
                << XidStr(e.atom) << " (" << GetXAtomName(e.atom) << ")";
@@ -1805,6 +1804,8 @@ void WindowManager::HandlePropertyNotify(const XPropertyEvent& e) {
       // after we've already read WM_PROTOCOLS -- see comment #3 at
       // http://crosbug.com/5846.
       win->FetchAndApplyWmProtocols();
+    } else if (e.atom == GetXAtom(ATOM_CHROME_FREEZE_UPDATES)) {
+      win->HandleFreezeUpdatesPropertyChange(!deleted);
     }
   }
 
