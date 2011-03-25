@@ -150,6 +150,9 @@ LayoutManager::LayoutManager(WindowManager* wm, PanelManager* panel_manager)
     }
   }
 
+  event_consumer_registrar_->RegisterForChromeMessages(
+      chromeos::WM_IPC_MESSAGE_WM_CYCLE_WINDOWS);
+
   int event_mask = ButtonPressMask | ButtonReleaseMask | PointerMotionMask;
   wm_->xconn()->AddButtonGrabOnWindow(
       background_xid_, 1, event_mask, false);
@@ -662,6 +665,11 @@ void LayoutManager::HandlePointerMotion(XWindow xid,
                                         XTime timestamp) {
   if (xid == background_xid_)
     overview_background_event_coalescer_->StorePosition(x, y);
+}
+
+void LayoutManager::HandleChromeMessage(const WmIpc::Message& message) {
+  if (message.type() == chromeos::WM_IPC_MESSAGE_WM_CYCLE_WINDOWS)
+    CycleCurrentToplevelWindow(message.param(0) != 0);
 }
 
 void LayoutManager::HandleClientMessage(XWindow xid,

@@ -146,6 +146,35 @@ TEST_F(LayoutManagerTest, Basic) {
   EXPECT_EQ(y, win1->composited_y());
   EXPECT_TRUE(WindowIsOffscreen(xid2));
   EXPECT_TRUE(WindowIsOffscreen(xid3));
+
+  // After cycling the windows again, the first and third windows
+  // should be offscreen and the second window should be onscreen.
+  // Cycle the windows with a chrome message to test message handling.
+  WmIpc::Message message_forward(chromeos::WM_IPC_MESSAGE_WM_CYCLE_WINDOWS);
+  message_forward.set_param(0, true);
+  lm_->HandleChromeMessage(message_forward);
+  EXPECT_TRUE(WindowIsOffscreen(xid1));
+  EXPECT_FALSE(WindowIsOffscreen(xid2));
+  EXPECT_TRUE(WindowIsOffscreen(xid3));
+
+  // After cycling the windows back, the second and third windows
+  // should be offscreen and the first window should be onscreen.
+  // Cycle the windows with a chrome message to test message handling.
+  WmIpc::Message message_back(chromeos::WM_IPC_MESSAGE_WM_CYCLE_WINDOWS);
+  message_back.set_param(0, false);
+  lm_->HandleChromeMessage(message_back);
+  EXPECT_FALSE(WindowIsOffscreen(xid1));
+  EXPECT_TRUE(WindowIsOffscreen(xid2));
+  EXPECT_TRUE(WindowIsOffscreen(xid3));
+
+  // After cycling the windows back again, the first and second
+  // windows should be offscreen and the third window should be
+  // onscreen.  Cycle the windows with a chrome message to test
+  // message handling.
+  lm_->HandleChromeMessage(message_back);
+  EXPECT_TRUE(WindowIsOffscreen(xid1));
+  EXPECT_TRUE(WindowIsOffscreen(xid2));
+  EXPECT_FALSE(WindowIsOffscreen(xid3));
 }
 
 TEST_F(LayoutManagerTest, Focus) {

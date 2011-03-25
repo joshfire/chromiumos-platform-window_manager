@@ -91,7 +91,7 @@ class LayoutManager : public EventConsumer,
                                    int x, int y,
                                    int x_root, int y_root,
                                    XTime timestamp);
-  virtual void HandleChromeMessage(const WmIpc::Message& msg) {}
+  virtual void HandleChromeMessage(const WmIpc::Message& msg);
   virtual void HandleClientMessage(XWindow xid,
                                    XAtom message_type,
                                    const long data[5]);
