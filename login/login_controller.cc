@@ -1,4 +1,4 @@
-// Copyright (c) 2010 The Chromium OS Authors. All rights reserved.
+// Copyright (c) 2011 The Chromium OS Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -120,6 +120,7 @@ LoginController::LoginController(WindowManager* wm)
   registrar_.RegisterForChromeMessages(
       chromeos::WM_IPC_MESSAGE_WM_SELECT_LOGIN_USER);
 
+#ifndef TOUCH_UI
   // Hide the mouse cursor until the user moves the pointer.  We map a
   // fullscreen input window so we can tell when they've moved it (at which
   // point we'll destroy the window immediately so other windows can receive
@@ -131,6 +132,7 @@ LoginController::LoginController(WindowManager* wm)
           wm_->bounds(), PointerMotionMask | LeaveWindowMask | ButtonPressMask);
   registrar_.RegisterForWindowEvents(hide_mouse_cursor_xid_);
   wm_->xconn()->RaiseWindow(hide_mouse_cursor_xid_);
+#endif
 }
 
 LoginController::~LoginController() {
@@ -139,7 +141,7 @@ LoginController::~LoginController() {
 }
 
 bool LoginController::IsInputWindow(XWindow xid) {
-  return xid == hide_mouse_cursor_xid_;
+  return hide_mouse_cursor_xid_ && xid == hide_mouse_cursor_xid_;
 }
 
 void LoginController::HandleScreenResize() {

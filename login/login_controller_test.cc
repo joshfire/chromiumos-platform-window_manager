@@ -1,4 +1,4 @@
-// Copyright (c) 2010 The Chromium OS Authors. All rights reserved.
+// Copyright (c) 2011 The Chromium OS Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -1255,6 +1255,7 @@ TEST_F(LoginControllerTest, FocusFirstControlsWindowImmediately) {
   EXPECT_EQ(controls_xid, GetActiveWindowProperty());
 }
 
+#ifndef TOUCH_UI
 TEST_F(LoginControllerTest, UnhideCursorOnLeave) {
   // At startup, we should hide the cursor and map a fullscreen input window.
   EXPECT_FALSE(xconn_->cursor_shown());
@@ -1306,6 +1307,7 @@ TEST_F(LoginControllerTest, UnhideCursorOnBrowserWindowVisible) {
   EXPECT_TRUE(xconn_->cursor_shown());
   EXPECT_TRUE(xconn_->GetWindowInfo(hide_mouse_cursor_xid) == NULL);
 }
+#endif  // !defined(TOUCH_UI)
 
 // Test that we don't double-register our interest in taking ownership of a
 // login window's actor after the login window is destroyed, if said window gets
