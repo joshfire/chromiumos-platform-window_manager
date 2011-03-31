@@ -13,6 +13,7 @@ extern "C" {
 #include <xcb/xfixes.h>
 #include <X11/extensions/shape.h>
 #include <X11/extensions/sync.h>
+#include <X11/extensions/Xcomposite.h>
 #include <X11/extensions/Xdamage.h>
 #include <X11/Xatom.h>
 #include <X11/Xlib-xcb.h>
@@ -508,34 +509,47 @@ bool RealXConnection::GetWindowAttributes(
 }
 
 bool RealXConnection::RedirectSubwindowsForCompositing(XWindow xid) {
-  xcb_composite_redirect_subwindows(
-      xcb_conn_, xid, XCB_COMPOSITE_REDIRECT_MANUAL);
+  TrapErrors();
+  XCompositeRedirectSubwindows(display_, xid, CompositeRedirectManual);
+  if (int error = UntrapErrors()) {
+    LOG(WARNING) << "Got X error while redirecting " << XidStr(xid)
+                 << "'s subwindows: " << GetErrorText(error);
+    return false;
+  }
   return true;
 }
 
 bool RealXConnection::RedirectWindowForCompositing(XWindow xid) {
-  xcb_composite_redirect_window(xcb_conn_, xid, XCB_COMPOSITE_REDIRECT_MANUAL);
+  TrapErrors();
+  XCompositeRedirectWindow(display_, xid, CompositeRedirectManual);
+  if (int error = UntrapErrors()) {
+    LOG(WARNING) << "Got X error while redirecting " << XidStr(xid) << ": "
+                 << GetErrorText(error);
+    return false;
+  }
   return true;
 }
 
 bool RealXConnection::UnredirectWindowForCompositing(XWindow xid) {
-  xcb_composite_unredirect_window(
-      xcb_conn_, xid, XCB_COMPOSITE_REDIRECT_MANUAL);
+  TrapErrors();
+  XCompositeUnredirectWindow(display_, xid, CompositeRedirectManual);
+  if (int error = UntrapErrors()) {
+    LOG(WARNING) << "Got X error while unredirecting " << XidStr(xid) << ": "
+                 << GetErrorText(error);
+    return false;
+  }
   return true;
 }
 
 XWindow RealXConnection::GetCompositingOverlayWindow(XWindow root) {
-  xcb_composite_get_overlay_window_cookie_t cookie =
-      xcb_composite_get_overlay_window(xcb_conn_, root);
-  xcb_generic_error_t* error = NULL;
-  scoped_ptr_malloc<xcb_composite_get_overlay_window_reply_t> reply(
-      xcb_composite_get_overlay_window_reply(xcb_conn_, cookie, &error));
-  scoped_ptr_malloc<xcb_generic_error_t> scoped_error(error);
-  if (error || !reply.get()) {
-    LOG(WARNING) << "Got X error while getting overlay window";
-    return XCB_NONE;
+  TrapErrors();
+  XWindow overlay = XCompositeGetOverlayWindow(display_, root);
+  if (int error = UntrapErrors()) {
+    LOG(WARNING) << "Got X error while getting compositing overlay window: "
+                 << GetErrorText(error);
+    return 0;
   }
-  return reply->overlay_win;
+  return overlay;
 }
 
 XPixmap RealXConnection::CreatePixmap(XDrawable drawable,
@@ -548,12 +562,13 @@ XPixmap RealXConnection::CreatePixmap(XDrawable drawable,
 }
 
 XPixmap RealXConnection::GetCompositingPixmapForWindow(XWindow xid) {
-  const xcb_pixmap_t pixmap = xcb_generate_id(xcb_conn_);
-  xcb_void_cookie_t cookie = xcb_composite_name_window_pixmap_checked(
-      xcb_conn_, xid, pixmap);
-  CheckForXcbError(cookie, "in GetCompositingPixmapForWindow "
-                   "(xid=0x%08x, pixmap=0x%08x)", static_cast<int>(xid),
-                   static_cast<int>(pixmap));
+  TrapErrors();
+  XPixmap pixmap = XCompositeNameWindowPixmap(display_, xid);
+  if (int error = UntrapErrors()) {
+    LOG(WARNING) << "Got X error while getting compositing pixmap for "
+                 << XidStr(xid) << ": " << GetErrorText(error);
+    return 0;
+  }
   return pixmap;
 }
 
@@ -567,7 +582,6 @@ void RealXConnection::CopyArea(XDrawable src_drawable,
                                const Point& src_pos,
                                const Point& dest_pos,
                                const Size& size) {
-
   xcb_gcontext_t gc = xcb_generate_id(xcb_conn_);
   const static uint32_t kGcValueMask =
       XCB_GC_FUNCTION | XCB_GC_PLANE_MASK | XCB_GC_SUBWINDOW_MODE;

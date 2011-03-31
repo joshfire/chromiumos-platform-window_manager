@@ -56,8 +56,7 @@ wm_env = base_env.Clone()
 wm_env.Append(LIBS=Split('chromeos metrics protobuf'))
 wm_env.ParseConfig('pkg-config --cflags --libs dbus-1 libpcrecpp libpng12 ' +
                    'xcb x11-xcb xcb-composite xcb-randr xcb-shape xcb-damage ' +
-                   'xcb-sync xdamage xext')
-
+                   'xcb-sync xcomposite xdamage xext')
 
 if backend == 'opengl':
   # This is needed so that glext headers include glBindBuffer and
