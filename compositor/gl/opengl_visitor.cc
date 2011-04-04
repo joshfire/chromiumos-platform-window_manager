@@ -436,10 +436,10 @@ void OpenGlDrawVisitor::BindImage(const ImageContainer* container,
                             0, pixel_data_format, GL_UNSIGNED_BYTE,
                             container->data());
   CHECK_GL_ERROR(gl_interface_);
-  OpenGlTextureData* data = new OpenGlTextureData(gl_interface_);
+  scoped_ptr<OpenGlTextureData> data(new OpenGlTextureData(gl_interface_));
   data->SetTexture(new_texture);
   data->set_has_alpha(ImageFormatUsesAlpha(container->format()));
-  actor->set_texture_data(data);
+  actor->set_texture_data(data.release());
 }
 
 void OpenGlDrawVisitor::VisitImage(RealCompositor::ImageActor* actor) {
@@ -468,13 +468,13 @@ void OpenGlDrawVisitor::VisitTexturePixmap(
       return;
     }
 
-    OpenGlPixmapData* data = new OpenGlPixmapData(this);
+    scoped_ptr<OpenGlPixmapData> data(new OpenGlPixmapData(this));
     if (!data->Init(actor)) {
       PROFILER_MARKER_END(VisitTexturePixmap);
       return;
     }
     data->set_has_alpha(!actor->pixmap_is_opaque());
-    actor->set_texture_data(data);
+    actor->set_texture_data(data.release());
   }
 
   // All texture pixmaps are also QuadActors, and so we let the
@@ -717,7 +717,7 @@ void OpenGlDrawVisitor::VisitContainer(RealCompositor::ContainerActor* actor) {
                << ", opacity: " << child->opacity()
                << ", is_opaque: " << child->is_opaque() << ")";
 #endif
-  
+
     // TODO: move this down into the Visit* functions
     if (child->is_opaque() && child->opacity() * ancestor_opacity_ > 0.999)
       gl_interface_->Disable(GL_BLEND);

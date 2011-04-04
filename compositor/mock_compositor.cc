@@ -146,7 +146,6 @@ void MockCompositor::ImageActor::SetImageData(
 
 MockCompositor::TexturePixmapActor::TexturePixmapActor(XConnection* xconn)
     : xconn_(xconn),
-      alpha_mask_bytes_(NULL),
       pixmap_(0),
       num_texture_updates_(0),
       damaged_region_() {
@@ -154,7 +153,6 @@ MockCompositor::TexturePixmapActor::TexturePixmapActor(XConnection* xconn)
 }
 
 MockCompositor::TexturePixmapActor::~TexturePixmapActor() {
-  ClearAlphaMask();
 }
 
 void MockCompositor::TexturePixmapActor::SetPixmap(XWindow pixmap) {
@@ -171,13 +169,12 @@ void MockCompositor::TexturePixmapActor::SetAlphaMask(
     const uint8_t* bytes, int width, int height) {
   ClearAlphaMask();
   size_t size = width * height;
-  alpha_mask_bytes_ = new unsigned char[size];
-  memcpy(alpha_mask_bytes_, bytes, size);
+  alpha_mask_bytes_.reset(new uint8_t[size]);
+  memcpy(alpha_mask_bytes_.get(), bytes, size);
 }
 
 void MockCompositor::TexturePixmapActor::ClearAlphaMask() {
-  delete[] alpha_mask_bytes_;
-  alpha_mask_bytes_ = NULL;
+  alpha_mask_bytes_.reset();
 }
 
 MockCompositor::ImageActor* MockCompositor::CreateImageFromFile(

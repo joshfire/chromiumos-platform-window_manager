@@ -36,7 +36,7 @@ class OpenGlesDrawVisitor : virtual public RealCompositor::ActorVisitor {
   void set_has_fullscreen_actor(bool has_fullscreen_actor) {
     has_fullscreen_actor_ = has_fullscreen_actor;
   }
-  void set_damaged_region(Rect damaged_region) {
+  void set_damaged_region(const Rect& damaged_region) {
     damaged_region_ = damaged_region;
   }
 
@@ -68,10 +68,10 @@ class OpenGlesDrawVisitor : virtual public RealCompositor::ActorVisitor {
   Compositor::StageActor* stage_;  // Not owned.
   XConnection* x_connection_;  // Not owned.
 
-  TexColorShader* tex_color_shader_;
-  TexShadeShader* tex_shade_shader_;
-  NoAlphaColorShader* no_alpha_color_shader_;
-  NoAlphaShadeShader* no_alpha_shade_shader_;
+  scoped_ptr<TexColorShader> tex_color_shader_;
+  scoped_ptr<TexShadeShader> tex_shade_shader_;
+  scoped_ptr<NoAlphaColorShader> no_alpha_color_shader_;
+  scoped_ptr<NoAlphaShadeShader> no_alpha_shade_shader_;
 
   EGLDisplay egl_display_;
   EGLSurface egl_surface_;

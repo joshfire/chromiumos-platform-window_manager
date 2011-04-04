@@ -204,7 +204,7 @@ class MockCompositor : public Compositor {
    public:
     explicit TexturePixmapActor(XConnection* xconn);
     virtual ~TexturePixmapActor();
-    const uint8_t* alpha_mask_bytes() const { return alpha_mask_bytes_; }
+    const uint8_t* alpha_mask_bytes() const { return alpha_mask_bytes_.get(); }
     XID pixmap() const { return pixmap_; }
     int num_texture_updates() const { return num_texture_updates_; }
 
@@ -222,7 +222,7 @@ class MockCompositor : public Compositor {
     XConnection* xconn_;  // not owned
 
     // Shape as set by SetAlphaMask(), or NULL if the actor is unshaped.
-    uint8_t* alpha_mask_bytes_;
+    scoped_array<uint8_t> alpha_mask_bytes_;
 
     // Redirected window that we're tracking.
     XWindow redirected_window_;

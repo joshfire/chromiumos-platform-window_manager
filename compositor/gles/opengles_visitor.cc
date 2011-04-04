@@ -22,7 +22,7 @@
 #endif
 
 namespace window_manager {
-  
+
 OpenGlesDrawVisitor::OpenGlesDrawVisitor(Gles2Interface* gl,
                                          RealCompositor* compositor,
                                          Compositor::StageActor* stage)
@@ -95,10 +95,10 @@ OpenGlesDrawVisitor::OpenGlesDrawVisitor(Gles2Interface* gl,
   CHECK(gl_->InitGLExtensions()) << "Failed to load GL-ES extensions.";
 
   // Allocate shaders
-  tex_color_shader_ = new TexColorShader();
-  tex_shade_shader_ = new TexShadeShader();
-  no_alpha_color_shader_ = new NoAlphaColorShader();
-  no_alpha_shade_shader_ = new NoAlphaShadeShader();
+  tex_color_shader_.reset(new TexColorShader());
+  tex_shade_shader_.reset(new TexShadeShader());
+  no_alpha_color_shader_.reset(new NoAlphaColorShader());
+  no_alpha_shade_shader_.reset(new NoAlphaShadeShader());
   gl_->ReleaseShaderCompiler();
 
   // TODO: Move away from one global Vertex Buffer Object
@@ -128,14 +128,10 @@ OpenGlesDrawVisitor::OpenGlesDrawVisitor(Gles2Interface* gl,
 }
 
 OpenGlesDrawVisitor::~OpenGlesDrawVisitor() {
-  delete tex_color_shader_;
-  delete tex_shade_shader_;
-  delete no_alpha_color_shader_;
-  delete no_alpha_shade_shader_;
-
   gl_->DeleteBuffers(1, &vertex_buffer_object_);
 
-  LOG_IF(ERROR, gl_->EglMakeCurrent(egl_display_, EGL_NO_SURFACE,
+  LOG_IF(ERROR, gl_->EglMakeCurrent(egl_display_,
+                                    EGL_NO_SURFACE,
                                     EGL_NO_SURFACE,
                                     EGL_NO_CONTEXT) != EGL_TRUE)
       << "eglMakeCurrent() failed: " << eglGetError();
@@ -184,10 +180,10 @@ void OpenGlesDrawVisitor::BindImage(const ImageContainer* container,
                   container->width(), container->height(),
                   0, gl_format, gl_type, container->data());
 
-  OpenGlesTextureData* data = new OpenGlesTextureData(gl_);
+  scoped_ptr<OpenGlesTextureData> data(new OpenGlesTextureData(gl_));
   data->SetTexture(texture);
   data->set_has_alpha(ImageFormatUsesAlpha(container->format()));
-  actor->set_texture_data(data);
+  actor->set_texture_data(data.release());
 }
 
 void OpenGlesDrawVisitor::VisitStage(RealCompositor::StageActor* actor) {
@@ -271,9 +267,9 @@ void OpenGlesDrawVisitor::CreateTextureData(
   if (!image_data.Bind(actor))
     return;
 
-  OpenGlesTextureData* texture = new OpenGlesTextureData(gl_);
-  image_data.BindTexture(texture, !actor->pixmap_is_opaque());
-  actor->set_texture_data(texture);
+  scoped_ptr<OpenGlesTextureData> texture(new OpenGlesTextureData(gl_));
+  image_data.BindTexture(texture.get(), !actor->pixmap_is_opaque());
+  actor->set_texture_data(texture.release());
 }
 
 void OpenGlesDrawVisitor::VisitImage(RealCompositor::ImageActor* actor) {
