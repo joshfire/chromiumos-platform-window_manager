@@ -396,10 +396,10 @@ OpenGlDrawVisitor::~OpenGlDrawVisitor() {
   }
 }
 
-void OpenGlDrawVisitor::BindImage(const ImageContainer* container,
+void OpenGlDrawVisitor::BindImage(const ImageContainer& container,
                                   RealCompositor::ImageActor* actor) {
   GLenum pixel_data_format = 0;
-  switch (container->format()) {
+  switch (container.format()) {
     case IMAGE_FORMAT_RGBA_32:  // fallthrough
     case IMAGE_FORMAT_RGBX_32:
       pixel_data_format = GL_RGBA;
@@ -410,7 +410,7 @@ void OpenGlDrawVisitor::BindImage(const ImageContainer* container,
       break;
     default:
       NOTREACHED() << "Unhandled image container data format "
-                   << container->format();
+                   << container.format();
   }
 
   // Create an OpenGL texture with the loaded image data.
@@ -432,151 +432,14 @@ void OpenGlDrawVisitor::BindImage(const ImageContainer* container,
                                GL_TEXTURE_WRAP_T,
                                GL_CLAMP_TO_EDGE);
   gl_interface_->TexImage2D(GL_TEXTURE_2D, 0, GL_RGBA,
-                            container->width(), container->height(),
+                            container.width(), container.height(),
                             0, pixel_data_format, GL_UNSIGNED_BYTE,
-                            container->data());
+                            container.data());
   CHECK_GL_ERROR(gl_interface_);
   scoped_ptr<OpenGlTextureData> data(new OpenGlTextureData(gl_interface_));
   data->SetTexture(new_texture);
-  data->set_has_alpha(ImageFormatUsesAlpha(container->format()));
+  data->set_has_alpha(ImageFormatUsesAlpha(container.format()));
   actor->set_texture_data(data.release());
-}
-
-void OpenGlDrawVisitor::VisitImage(RealCompositor::ImageActor* actor) {
-  if (!actor->IsVisible())
-    return;
-
-  PROFILER_MARKER_BEGIN(VisitImage);
-
-  // All ImageActors are also QuadActors, and so we let the
-  // QuadActor do all the actual drawing.
-  VisitQuad(actor);
-  PROFILER_MARKER_END(VisitImage);
-}
-
-void OpenGlDrawVisitor::VisitTexturePixmap(
-    RealCompositor::TexturePixmapActor* actor) {
-  if (!actor->IsVisible())
-    return;
-
-  PROFILER_MARKER_BEGIN(VisitTexturePixmap);
-
-  // Make sure there's a bound texture.
-  if (!actor->texture_data()) {
-    if (!actor->pixmap()) {
-      PROFILER_MARKER_END(VisitTexturePixmap);
-      return;
-    }
-
-    scoped_ptr<OpenGlPixmapData> data(new OpenGlPixmapData(this));
-    if (!data->Init(actor)) {
-      PROFILER_MARKER_END(VisitTexturePixmap);
-      return;
-    }
-    data->set_has_alpha(!actor->pixmap_is_opaque());
-    actor->set_texture_data(data.release());
-  }
-
-  // All texture pixmaps are also QuadActors, and so we let the
-  // QuadActor do all the actual drawing.
-  VisitQuad(actor);
-  PROFILER_MARKER_END(VisitTexturePixmap);
-}
-
-void OpenGlDrawVisitor::VisitQuad(RealCompositor::QuadActor* actor) {
-  if (!actor->IsVisible())
-    return;
-
-#ifdef EXTRA_LOGGING
-  DLOG(INFO) << "Drawing quad " << actor->name() << ".";
-#endif
-  PROFILER_DYNAMIC_MARKER_BEGIN(actor->name().c_str());
-
-  // Calculate the vertex colors, taking into account the actor color,
-  // opacity and the dimming gradient.
-  float actor_opacity = actor->is_opaque() ? 1.0f :
-                        actor->opacity() * ancestor_opacity_;
-  float dimmed_transparency_begin = 1.f - actor->dimmed_opacity_begin();
-  float dimmed_transparency_end = 1.f - actor->dimmed_opacity_end();
-  float red = actor->color().red;
-  float green = actor->color().green;
-  float blue = actor->color().blue;
-  DCHECK_LE(actor_opacity, 1.f);
-  DCHECK_GE(actor_opacity, 0.f);
-  DCHECK_LE(dimmed_transparency_begin, 1.f);
-  DCHECK_GE(dimmed_transparency_begin, 0.f);
-  DCHECK_LE(dimmed_transparency_end, 1.f);
-  DCHECK_GE(dimmed_transparency_end, 0.f);
-  DCHECK_LE(red, 1.f);
-  DCHECK_GE(red, 0.f);
-  DCHECK_LE(green, 1.f);
-  DCHECK_GE(green, 0.f);
-  DCHECK_LE(blue, 1.f);
-  DCHECK_GE(blue, 0.f);
-
-  if (state_cache_.ColorStateChanged(actor_opacity,
-                                     dimmed_transparency_begin,
-                                     dimmed_transparency_end,
-                                     red, green, blue)) {
-    // Scale the vertex colors on the right by the transparency, since
-    // we want it to fade to black as transparency of the dimming
-    // overlay goes to zero. (note that the dimming is not *really* an
-    // overlay -- it's just multiplied in here to simulate that).
-    float dim_red_begin = red * dimmed_transparency_begin;
-    float dim_green_begin = green * dimmed_transparency_begin;
-    float dim_blue_begin = blue * dimmed_transparency_begin;
-    float dim_red_end = red * dimmed_transparency_end;
-    float dim_green_end = green * dimmed_transparency_end;
-    float dim_blue_end = blue * dimmed_transparency_end;
-
-    quad_drawing_data_->set_vertex_color(
-        0, dim_red_begin, dim_green_begin, dim_blue_begin, actor_opacity);
-    quad_drawing_data_->set_vertex_color(
-        1, dim_red_begin, dim_green_begin, dim_blue_begin, actor_opacity);
-    quad_drawing_data_->set_vertex_color(
-        2, dim_red_end, dim_green_end, dim_blue_end, actor_opacity);
-    quad_drawing_data_->set_vertex_color(
-        3, dim_red_end, dim_green_end, dim_blue_end, actor_opacity);
-
-    gl_interface_->EnableClientState(GL_COLOR_ARRAY);
-    // Have to un-bind the array buffer to set the color pointer so that
-    // it uses the color buffer instead of the vertex buffer memory.
-    gl_interface_->BindBuffer(GL_ARRAY_BUFFER, 0);
-    gl_interface_->ColorPointer(4, GL_FLOAT, 0,
-                                quad_drawing_data_->color_buffer());
-  }
-
-  gl_interface_->BindBuffer(GL_ARRAY_BUFFER,
-                            quad_drawing_data_->vertex_buffer());
-  CHECK_GL_ERROR(gl_interface_);
-
-  // Find out if this quad has pixmap or texture data to bind.
-  if (actor->texture_data()) {
-    // Actor has a texture to bind.
-    gl_interface_->Enable(GL_TEXTURE_2D);
-    gl_interface_->BindTexture(GL_TEXTURE_2D,
-                               actor->texture_data()->texture());
-  } else {
-    // Actor has no texture.
-    gl_interface_->Disable(GL_TEXTURE_2D);
-  }
-
-#ifdef EXTRA_LOGGING
-  DLOG(INFO) << "  at: (" << actor->x() << ", "  << actor->y()
-             << ", " << actor->z() << ") with scale: ("
-             << actor->scale_x() << ", "  << actor->scale_y() << ") at size ("
-             << actor->width() << "x"  << actor->height()
-             << ") and opacity " << actor_opacity;
-#endif
-
-  gl_interface_->PushMatrix();
-  // operator[] in Matrix4 returns by value in const version.
-  Matrix4 model_view = actor->model_view();
-  gl_interface_->LoadMatrixf(&model_view[0][0]);
-  gl_interface_->DrawArrays(GL_TRIANGLE_STRIP, 0, 4);
-  gl_interface_->PopMatrix();
-  CHECK_GL_ERROR(gl_interface_);
-  PROFILER_DYNAMIC_MARKER_END();
 }
 
 void OpenGlDrawVisitor::DrawNeedle() {
@@ -729,6 +592,143 @@ void OpenGlDrawVisitor::VisitContainer(RealCompositor::ContainerActor* actor) {
 
   // Reset ancestor opacity.
   ancestor_opacity_ = original_opacity;
+}
+
+void OpenGlDrawVisitor::VisitImage(RealCompositor::ImageActor* actor) {
+  if (!actor->IsVisible())
+    return;
+
+  PROFILER_MARKER_BEGIN(VisitImage);
+
+  // All ImageActors are also QuadActors, and so we let the
+  // QuadActor do all the actual drawing.
+  VisitQuad(actor);
+  PROFILER_MARKER_END(VisitImage);
+}
+
+void OpenGlDrawVisitor::VisitTexturePixmap(
+    RealCompositor::TexturePixmapActor* actor) {
+  if (!actor->IsVisible())
+    return;
+
+  PROFILER_MARKER_BEGIN(VisitTexturePixmap);
+
+  // Make sure there's a bound texture.
+  if (!actor->texture_data()) {
+    if (!actor->pixmap()) {
+      PROFILER_MARKER_END(VisitTexturePixmap);
+      return;
+    }
+
+    scoped_ptr<OpenGlPixmapData> data(new OpenGlPixmapData(this));
+    if (!data->Init(actor)) {
+      PROFILER_MARKER_END(VisitTexturePixmap);
+      return;
+    }
+    data->set_has_alpha(!actor->pixmap_is_opaque());
+    actor->set_texture_data(data.release());
+  }
+
+  // All texture pixmaps are also QuadActors, and so we let the
+  // QuadActor do all the actual drawing.
+  VisitQuad(actor);
+  PROFILER_MARKER_END(VisitTexturePixmap);
+}
+
+void OpenGlDrawVisitor::VisitQuad(RealCompositor::QuadActor* actor) {
+  if (!actor->IsVisible())
+    return;
+
+#ifdef EXTRA_LOGGING
+  DLOG(INFO) << "Drawing quad " << actor->name() << ".";
+#endif
+  PROFILER_DYNAMIC_MARKER_BEGIN(actor->name().c_str());
+
+  // Calculate the vertex colors, taking into account the actor color,
+  // opacity and the dimming gradient.
+  float actor_opacity = actor->is_opaque() ? 1.0f :
+                        actor->opacity() * ancestor_opacity_;
+  float dimmed_transparency_begin = 1.f - actor->dimmed_opacity_begin();
+  float dimmed_transparency_end = 1.f - actor->dimmed_opacity_end();
+  float red = actor->color().red;
+  float green = actor->color().green;
+  float blue = actor->color().blue;
+  DCHECK_LE(actor_opacity, 1.f);
+  DCHECK_GE(actor_opacity, 0.f);
+  DCHECK_LE(dimmed_transparency_begin, 1.f);
+  DCHECK_GE(dimmed_transparency_begin, 0.f);
+  DCHECK_LE(dimmed_transparency_end, 1.f);
+  DCHECK_GE(dimmed_transparency_end, 0.f);
+  DCHECK_LE(red, 1.f);
+  DCHECK_GE(red, 0.f);
+  DCHECK_LE(green, 1.f);
+  DCHECK_GE(green, 0.f);
+  DCHECK_LE(blue, 1.f);
+  DCHECK_GE(blue, 0.f);
+
+  if (state_cache_.ColorStateChanged(actor_opacity,
+                                     dimmed_transparency_begin,
+                                     dimmed_transparency_end,
+                                     red, green, blue)) {
+    // Scale the vertex colors on the right by the transparency, since
+    // we want it to fade to black as transparency of the dimming
+    // overlay goes to zero. (note that the dimming is not *really* an
+    // overlay -- it's just multiplied in here to simulate that).
+    float dim_red_begin = red * dimmed_transparency_begin;
+    float dim_green_begin = green * dimmed_transparency_begin;
+    float dim_blue_begin = blue * dimmed_transparency_begin;
+    float dim_red_end = red * dimmed_transparency_end;
+    float dim_green_end = green * dimmed_transparency_end;
+    float dim_blue_end = blue * dimmed_transparency_end;
+
+    quad_drawing_data_->set_vertex_color(
+        0, dim_red_begin, dim_green_begin, dim_blue_begin, actor_opacity);
+    quad_drawing_data_->set_vertex_color(
+        1, dim_red_begin, dim_green_begin, dim_blue_begin, actor_opacity);
+    quad_drawing_data_->set_vertex_color(
+        2, dim_red_end, dim_green_end, dim_blue_end, actor_opacity);
+    quad_drawing_data_->set_vertex_color(
+        3, dim_red_end, dim_green_end, dim_blue_end, actor_opacity);
+
+    gl_interface_->EnableClientState(GL_COLOR_ARRAY);
+    // Have to un-bind the array buffer to set the color pointer so that
+    // it uses the color buffer instead of the vertex buffer memory.
+    gl_interface_->BindBuffer(GL_ARRAY_BUFFER, 0);
+    gl_interface_->ColorPointer(4, GL_FLOAT, 0,
+                                quad_drawing_data_->color_buffer());
+  }
+
+  gl_interface_->BindBuffer(GL_ARRAY_BUFFER,
+                            quad_drawing_data_->vertex_buffer());
+  CHECK_GL_ERROR(gl_interface_);
+
+  // Find out if this quad has pixmap or texture data to bind.
+  if (actor->texture_data()) {
+    // Actor has a texture to bind.
+    gl_interface_->Enable(GL_TEXTURE_2D);
+    gl_interface_->BindTexture(GL_TEXTURE_2D,
+                               actor->texture_data()->texture());
+  } else {
+    // Actor has no texture.
+    gl_interface_->Disable(GL_TEXTURE_2D);
+  }
+
+#ifdef EXTRA_LOGGING
+  DLOG(INFO) << "  at: (" << actor->x() << ", "  << actor->y()
+             << ", " << actor->z() << ") with scale: ("
+             << actor->scale_x() << ", "  << actor->scale_y() << ") at size ("
+             << actor->width() << "x"  << actor->height()
+             << ") and opacity " << actor_opacity;
+#endif
+
+  gl_interface_->PushMatrix();
+  // operator[] in Matrix4 returns by value in const version.
+  Matrix4 model_view = actor->model_view();
+  gl_interface_->LoadMatrixf(&model_view[0][0]);
+  gl_interface_->DrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+  gl_interface_->PopMatrix();
+  CHECK_GL_ERROR(gl_interface_);
+  PROFILER_DYNAMIC_MARKER_END();
 }
 
 }  // namespace window_manager

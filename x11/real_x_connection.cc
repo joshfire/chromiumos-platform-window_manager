@@ -15,6 +15,7 @@ extern "C" {
 #include <X11/extensions/sync.h>
 #include <X11/extensions/Xcomposite.h>
 #include <X11/extensions/Xdamage.h>
+#include <X11/extensions/Xrender.h>
 #include <X11/Xatom.h>
 #include <X11/Xlib-xcb.h>
 #include <X11/Xutil.h>
@@ -1342,6 +1343,137 @@ bool RealXConnection::QueryPointerPosition(Point* absolute_pos_out) {
   }
   absolute_pos_out->reset(reply->root_x, reply->root_y);
   return true;
+}
+
+bool RealXConnection::RenderQueryExtension() {
+  int render_event, render_error;
+  return XRenderQueryExtension(display_, &render_event, &render_error);
+}
+
+XPicture RealXConnection::RenderCreatePicture(XDrawable drawable, int depth) {
+  XRenderPictFormat *format;
+  XRenderPictureAttributes pa;
+
+  format = XRenderFindStandardFormat(
+      display_,
+      depth == 24 ? PictStandardRGB24 : PictStandardARGB32);
+  pa.repeat = True;
+  XPicture r = XRenderCreatePicture(display_, drawable, format, CPRepeat, &pa);
+  return r;
+}
+
+XPixmap RealXConnection::CreatePixmapFromContainer(
+    const ImageContainer& container) {
+  Size size = container.size();
+  int data_size = size.width * size.height * 4;
+
+  // XDestroyImage will free() this.
+  char* pixmap_data = static_cast<char*>(malloc(data_size));
+
+  // Premultiply the RGB channels.
+  memcpy(pixmap_data, container.data(), data_size);
+  for (int i = 0; i < size.width * size.height; i++) {
+     pixmap_data[i*4+0] = pixmap_data[i*4+0] * pixmap_data[i*4+3] / 255;
+     pixmap_data[i*4+1] = pixmap_data[i*4+1] * pixmap_data[i*4+3] / 255;
+     pixmap_data[i*4+2] = pixmap_data[i*4+2] * pixmap_data[i*4+3] / 255;
+  }
+
+  XPixmap pixmap = XCreatePixmap(display_, root_, size.width, size.height, 32);
+
+  XImage* image = XCreateImage(
+      display_,
+      DefaultVisual(display_, DefaultScreen(display_)),
+      32,  // depth
+      ZPixmap,
+      0,   // offset
+      pixmap_data,
+      size.width, size.height,
+      32,  // bitmap_pad
+      0);  // bytes_per_line
+
+  GC gc = XCreateGC(display_, pixmap, 0, NULL);
+  if (!gc) {
+    XDestroyImage(image);
+    XFreePixmap(display_, pixmap);
+    return None;
+  }
+
+  XPutImage(display_,
+            pixmap,
+            gc,
+            image,
+            0, 0,  // src x,y
+            0, 0,  // dst x,y
+            size.width, size.height);
+  XDestroyImage(image);
+
+  XFreeGC(display_, gc);
+
+  return pixmap;
+}
+
+void RealXConnection::RenderComposite(bool blend,
+                                      XPicture src,
+                                      XPicture mask,
+                                      XPicture dst,
+                                      const Point& srcpos,
+                                      const Point& maskpos,
+                                      const Matrix4& transform,
+                                      const Size& size) {
+  Point dstpos(transform[3][0], transform[3][1]);
+
+  // Don't use transform/filtering all the time,
+  // there are performance implications in doing so.
+  if (size != Size(transform[0][0], transform[1][1])) {
+    XTransform xform = {{{XDoubleToFixed(size.width/float(transform[0][0])),
+                          XDoubleToFixed(transform[1][0]),
+                          XDoubleToFixed(transform[2][0])},
+                         {XDoubleToFixed(transform[0][1]),
+                          XDoubleToFixed(size.height/float(transform[1][1])),
+                          XDoubleToFixed(transform[2][1])},
+                         {XDoubleToFixed(0.0),
+                          XDoubleToFixed(0.0),
+                          XDoubleToFixed(1.0)}}};
+    XRenderSetPictureTransform(display_, src, &xform);
+    XRenderSetPictureFilter(display_, src, FilterBilinear, 0, 0);
+  }
+
+  int op = blend ? PictOpOver : PictOpSrc;
+  XRenderComposite(display_,
+                   op,
+                   src,
+                   mask,
+                   dst,
+                   static_cast<int>(srcpos.x),  static_cast<int>(srcpos.y),
+                   static_cast<int>(maskpos.x), static_cast<int>(maskpos.y),
+                   static_cast<int>(dstpos.x),  static_cast<int>(dstpos.y),
+                   static_cast<int>(transform[0][0]),
+                   static_cast<int>(transform[1][1]));
+}
+
+bool RealXConnection::RenderFreePicture(XPicture pict) {
+  XRenderFreePicture(display_, pict);
+  return true;
+}
+
+void RealXConnection::RenderFillRectangle(XPicture dst,
+                                          float red,
+                                          float green,
+                                          float blue,
+                                          const Point& pos,
+                                          const Size& size) {
+  XRenderColor c;
+
+  c.red = red * 0xffff;
+  c.green = green * 0xffff;
+  c.blue = blue * 0xffff;
+  c.alpha = 0xffff;
+  XRenderFillRectangle(display_,
+                       PictOpSrc,
+                       dst,
+                       &c,
+                       pos.x, pos.y,
+                       size.width, size.height);
 }
 
 void RealXConnection::Free(void* item) {

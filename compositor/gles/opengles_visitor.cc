@@ -141,13 +141,13 @@ OpenGlesDrawVisitor::~OpenGlesDrawVisitor() {
       << "eglDestroyCotnext() failed: " << eglGetError();
 }
 
-void OpenGlesDrawVisitor::BindImage(const ImageContainer* container,
+void OpenGlesDrawVisitor::BindImage(const ImageContainer& container,
                                     RealCompositor::QuadActor* actor) {
-  // TODO: Check container->format() and use a shader to swizzle BGR
+  // TODO: Check container.format() and use a shader to swizzle BGR
   // data into RGB.
   GLenum gl_format = 0;
   GLenum gl_type = 0;
-  switch (container->format()) {
+  switch (container.format()) {
     case IMAGE_FORMAT_RGBA_32:
     case IMAGE_FORMAT_RGBX_32:
       gl_format = GL_RGBA;
@@ -177,12 +177,12 @@ void OpenGlesDrawVisitor::BindImage(const ImageContainer* container,
   gl_->TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
   gl_->TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
   gl_->TexImage2D(GL_TEXTURE_2D, 0, gl_format,
-                  container->width(), container->height(),
-                  0, gl_format, gl_type, container->data());
+                  container.width(), container.height(),
+                  0, gl_format, gl_type, container.data());
 
   scoped_ptr<OpenGlesTextureData> data(new OpenGlesTextureData(gl_));
   data->SetTexture(texture);
-  data->set_has_alpha(ImageFormatUsesAlpha(container->format()));
+  data->set_has_alpha(ImageFormatUsesAlpha(container.format()));
   actor->set_texture_data(data.release());
 }
 
@@ -260,16 +260,30 @@ void OpenGlesDrawVisitor::VisitStage(RealCompositor::StageActor* actor) {
   }
 }
 
-void OpenGlesDrawVisitor::CreateTextureData(
-    RealCompositor::TexturePixmapActor* actor) const {
-  OpenGlesEglImageData image_data(gl_);
-
-  if (!image_data.Bind(actor))
+void OpenGlesDrawVisitor::VisitContainer(
+    RealCompositor::ContainerActor* actor) {
+  if (!actor->IsVisible())
     return;
 
-  scoped_ptr<OpenGlesTextureData> texture(new OpenGlesTextureData(gl_));
-  image_data.BindTexture(texture.get(), !actor->pixmap_is_opaque());
-  actor->set_texture_data(texture.release());
+  LOG(INFO) << "Visit container: " << actor->name();
+
+  const float original_opacity = ancestor_opacity_;
+  ancestor_opacity_ *= actor->opacity();
+
+  // Back to front rendering
+  const RealCompositor::ActorVector children = actor->GetChildren();
+  for (RealCompositor::ActorVector::const_reverse_iterator i =
+       children.rbegin(); i != children.rend(); ++i) {
+    // TODO move this down into the Visit* functions
+    if ((*i)->is_opaque() && (*i)->opacity() * ancestor_opacity_ > 0.999)
+      gl_->Disable(GL_BLEND);
+    else
+      gl_->Enable(GL_BLEND);
+    (*i)->Accept(this);
+  }
+
+  // Reset opacity.
+  ancestor_opacity_ = original_opacity;
 }
 
 void OpenGlesDrawVisitor::VisitImage(RealCompositor::ImageActor* actor) {
@@ -443,6 +457,18 @@ void OpenGlesDrawVisitor::DrawQuad(RealCompositor::QuadActor* actor,
   }
 }
 
+void OpenGlesDrawVisitor::CreateTextureData(
+    RealCompositor::TexturePixmapActor* actor) const {
+  OpenGlesEglImageData image_data(gl_);
+
+  if (!image_data.Bind(actor))
+    return;
+
+  scoped_ptr<OpenGlesTextureData> texture(new OpenGlesTextureData(gl_));
+  image_data.BindTexture(texture.get(), !actor->pixmap_is_opaque());
+  actor->set_texture_data(texture.release());
+}
+
 void OpenGlesDrawVisitor::PushScissorRect(const Rect& scissor) {
   if (scissor_stack_.empty()) {
     scissor_stack_.push_back(scissor);
@@ -469,32 +495,6 @@ void OpenGlesDrawVisitor::PopScissorRect() {
     gl_->Scissor(new_scissor.x, new_scissor.y,
                  new_scissor.width, new_scissor.height);
   }
-}
-
-void OpenGlesDrawVisitor::VisitContainer(
-    RealCompositor::ContainerActor* actor) {
-  if (!actor->IsVisible())
-    return;
-
-  LOG(INFO) << "Visit container: " << actor->name();
-
-  const float original_opacity = ancestor_opacity_;
-  ancestor_opacity_ *= actor->opacity();
-
-  // Back to front rendering
-  const RealCompositor::ActorVector children = actor->GetChildren();
-  for (RealCompositor::ActorVector::const_reverse_iterator i =
-       children.rbegin(); i != children.rend(); ++i) {
-    // TODO move this down into the Visit* functions
-    if ((*i)->is_opaque() && (*i)->opacity() * ancestor_opacity_ > 0.999) 
-      gl_->Disable(GL_BLEND);
-    else
-      gl_->Enable(GL_BLEND);
-    (*i)->Accept(this);
-  }
-
-  // Reset opacity.
-  ancestor_opacity_ = original_opacity;
 }
 
 OpenGlesTextureData::OpenGlesTextureData(Gles2Interface* gl)

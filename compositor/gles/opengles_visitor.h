@@ -40,7 +40,7 @@ class OpenGlesDrawVisitor : virtual public RealCompositor::ActorVisitor {
     damaged_region_ = damaged_region;
   }
 
-  void BindImage(const ImageContainer* container,
+  void BindImage(const ImageContainer& container,
                  RealCompositor::QuadActor* actor);
 
   virtual void VisitActor(RealCompositor::Actor* actor) {}

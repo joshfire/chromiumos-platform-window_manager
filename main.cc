@@ -56,8 +56,10 @@ using window_manager::RealDBusInterface;
 using window_manager::RealGLInterface;
 #elif defined(COMPOSITOR_OPENGLES)
 using window_manager::RealGles2Interface;
+#elif defined(COMPOSITOR_XRENDER)
 #else
-#error COMPOSITOR_OPENGL or COMPOSITOR_OPENGLES must be defined
+#error COMPOSITOR_OPENGL, COMPOSITOR_OPENGLES or \
+COMPOSITOR_XRENDER must be defined
 #endif
 using window_manager::RealXConnection;
 using window_manager::WindowManager;
@@ -147,10 +149,13 @@ int main(int argc, char** argv) {
   EventLoop event_loop;
 #if defined(COMPOSITOR_OPENGL)
   RealGLInterface gl_interface(&xconn);
+  RealCompositor compositor(&event_loop, &xconn, &gl_interface);
 #elif defined(COMPOSITOR_OPENGLES)
   RealGles2Interface gl_interface(&xconn);
-#endif
   RealCompositor compositor(&event_loop, &xconn, &gl_interface);
+#elif defined(COMPOSITOR_XRENDER)
+  RealCompositor compositor(&event_loop, &xconn);
+#endif
   RealDBusInterface dbus;
   dbus.Init();
 

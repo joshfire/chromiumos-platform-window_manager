@@ -14,7 +14,9 @@
 #include "base/scoped_ptr.h"
 #include "base/time.h"
 #include "window_manager/geometry.h"
+#include "window_manager/image_container.h"
 #include "window_manager/image_enums.h"
+#include "window_manager/math_types.h"
 #include "window_manager/x11/x_types.h"
 
 namespace window_manager {
@@ -544,6 +546,37 @@ class XConnection {
   // automatically by the server when the window is exposed.  Set to 'None'
   // to disable automatic window-clearing by the server.
   virtual bool SetWindowBackgroundPixmap(XWindow xid, XPixmap pixmap) = 0;
+
+  // Query the presence of the Render extension.
+  virtual bool RenderQueryExtension() = 0;
+
+  // Create an XRender Picture.
+  virtual XPicture RenderCreatePicture(XDrawable drawable, int depth) = 0;
+
+  // Create an XPixmap from |container|.
+  virtual XPixmap CreatePixmapFromContainer(
+      const ImageContainer& container) = 0;
+
+  // Perform an XRender Composite operation.
+  virtual void RenderComposite(bool blend,
+                               XPicture src,
+                               XPicture mask,
+                               XPicture dst,
+                               const Point& srcpos,
+                               const Point& maskpos,
+                               const Matrix4& transform,
+                               const Size& size) = 0;
+
+  // Free an XRender Picture.
+  virtual bool RenderFreePicture(XPicture pict) = 0;
+
+  // Do an XRender solid fill.
+  virtual void RenderFillRectangle(XPicture dst,
+                                   float red,
+                                   float green,
+                                   float blue,
+                                   const Point& pos,
+                                   const Size& size) = 0;
 
   // Value that should be used in event and property |format| fields for
   // byte and long arguments.

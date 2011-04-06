@@ -56,7 +56,7 @@ wm_env = base_env.Clone()
 wm_env.Append(LIBS=Split('chromeos metrics protobuf'))
 wm_env.ParseConfig('pkg-config --cflags --libs dbus-1 libpcrecpp libpng12 ' +
                    'xcb x11-xcb xcb-composite xcb-randr xcb-shape xcb-damage ' +
-                   'xcb-sync xcomposite xdamage xext')
+                   'xcb-sync xcomposite xdamage xext xrender')
 
 if backend == 'opengl':
   # This is needed so that glext headers include glBindBuffer and
@@ -134,6 +134,10 @@ elif backend == 'opengles':
   # opengles_visitor.cc includes "window_manager/compositor/gles/shaders.h", 
   # while the shaders builder just provides "compositor/gles/shaders.h".
   Depends('compositor/gles/opengles_visitor.o', 'compositor/gles/shaders.h')
+elif backend == 'xrender':
+  srcs.append(Split('''\
+    compositor/xrender/xrender_visitor.cc
+  '''))
 
 libwm_core = wm_env.Library('wm_core', srcs)
 
@@ -150,7 +154,8 @@ libtest = wm_env.Library('test', Split(srcs))
 wm_env.Prepend(LIBS=[libwm_core, libwm_ipc])
 
 backend_defines = {'opengl': ['COMPOSITOR_OPENGL'],
-                   'opengles': ['COMPOSITOR_OPENGLES']}
+                   'opengles': ['COMPOSITOR_OPENGLES'],
+                   'xrender': ['COMPOSITOR_XRENDER']}
 wm_env.Append(CPPDEFINES=backend_defines[backend])
 
 test_env = wm_env.Clone()
@@ -165,7 +170,8 @@ tests = []
 # These are tests that only get built when we use particular backends.
 backend_tests = {'opengl': ['real_compositor_test.cc',
                             'opengl_visitor_test.cc'],
-                 'opengles': []}
+                 'opengles': [],
+                 'xrender': []}
 all_backend_tests = set(itertools.chain(*backend_tests.values()))
 for root, dirnames, filenames in os.walk('.'):
   for filename in fnmatch.filter(filenames, '*_test.cc'):

@@ -17,6 +17,8 @@
 #include "window_manager/compositor/gl/opengl_visitor.h"
 #elif defined(COMPOSITOR_OPENGLES)
 #include "window_manager/compositor/gles/opengles_visitor.h"
+#elif defined(COMPOSITOR_XRENDER)
+#include "window_manager/compositor/xrender/xrender_visitor.h"
 #endif
 #include "window_manager/compositor/layer_visitor.h"
 #include "window_manager/event_loop.h"
@@ -606,7 +608,7 @@ RealCompositor::Actor* RealCompositor::ImageActor::Clone() {
 
 void RealCompositor::ImageActor::SetImageData(
     const ImageContainer& image_container) {
-  compositor()->draw_visitor()->BindImage(&image_container, this);
+  compositor()->draw_visitor()->BindImage(image_container, this);
   SetSizeInternal(image_container.width(), image_container.height());
   SetDirty();
 }
@@ -704,11 +706,11 @@ bool RealCompositor::StageActor::using_passthrough_projection() const {
 
 
 RealCompositor::RealCompositor(EventLoop* event_loop,
-                               XConnection* xconn,
+                               XConnection* xconn
 #if defined(COMPOSITOR_OPENGL)
-                               GLInterface* gl_interface
+                               ,GLInterface* gl_interface
 #elif defined(COMPOSITOR_OPENGLES)
-                               Gles2Interface* gl_interface
+                               ,Gles2Interface* gl_interface
 #endif
                               )
     : event_loop_(event_loop),
@@ -743,6 +745,8 @@ RealCompositor::RealCompositor(EventLoop* event_loop,
       new OpenGlDrawVisitor(gl_interface, this, default_stage_.get())
 #elif defined(COMPOSITOR_OPENGLES)
       new OpenGlesDrawVisitor(gl_interface, this, default_stage_.get())
+#elif defined(COMPOSITOR_XRENDER)
+      new XRenderDrawVisitor(this, default_stage_.get())
 #endif
       );
 

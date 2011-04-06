@@ -18,6 +18,7 @@ extern "C" {
 
 #include "window_manager/geometry.h"
 #include "window_manager/image_enums.h"
+#include "window_manager/math_types.h"
 #include "window_manager/x11/x_connection.h"
 #include "window_manager/x11/x_types.h"
 
@@ -157,6 +158,24 @@ class RealXConnection : public XConnection {
   virtual bool QueryKeyboardState(std::vector<uint8_t>* keycodes_out);
   virtual bool QueryPointerPosition(Point* absolute_pos_out);
   virtual bool SetWindowBackgroundPixmap(XWindow xid, XPixmap pixmap);
+  virtual bool RenderQueryExtension();
+  virtual XPicture RenderCreatePicture(XDrawable drawable, int depth);
+  virtual XPixmap CreatePixmapFromContainer(const ImageContainer& container);
+  virtual void RenderComposite(bool blend,
+                               XPicture src,
+                               XPicture mask,
+                               XPicture dst,
+                               const Point& srcpos,
+                               const Point& maskpos,
+                               const Matrix4& transform,
+                               const Size& size);
+  virtual bool RenderFreePicture(XPicture pict);
+  virtual void RenderFillRectangle(XPicture dst,
+                                   float red,
+                                   float green,
+                                   float blue,
+                                   const Point& pos,
+                                   const Size& size);
   // End XConnection methods.
 
   // This convenience function is ONLY available for a real X

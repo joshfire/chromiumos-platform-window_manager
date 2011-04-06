@@ -24,8 +24,11 @@
 #include "window_manager/math_types.h"
 #include "window_manager/x11/x_types.h"
 
-#if !(defined(COMPOSITOR_OPENGL) || defined(COMPOSITOR_OPENGLES))
-#error COMPOSITOR_OPENGL or COMPOSITOR_OPENGLES must be defined
+#if !(defined(COMPOSITOR_OPENGL) || \
+      defined(COMPOSITOR_OPENGLES) || \
+      defined(COMPOSITOR_XRENDER))
+#error COMPOSITOR_OPENGL, COMPOSITOR_OPENGLES or\
+ COMPOSITOR_XRENDER must be defined
 #endif
 
 namespace window_manager {
@@ -37,6 +40,7 @@ class OpenGlDrawVisitor;
 class OpenGlesDrawVisitor;
 class TextureData;
 class XConnection;
+class XRenderDrawVisitor;
 
 class RealCompositor : public Compositor {
  public:
@@ -591,11 +595,11 @@ class RealCompositor : public Compositor {
   };
 
   RealCompositor(EventLoop* event_loop,
-                 XConnection* x_conn,
+                 XConnection* x_conn
 #if defined(COMPOSITOR_OPENGL)
-                 GLInterface* gl_interface
+                 ,GLInterface* gl_interface
 #elif defined(COMPOSITOR_OPENGLES)
-                 Gles2Interface* gl_interface
+                 ,Gles2Interface* gl_interface
 #endif
                 );
   ~RealCompositor();
@@ -631,6 +635,8 @@ class RealCompositor : public Compositor {
   OpenGlDrawVisitor* draw_visitor() { return draw_visitor_.get(); }
 #elif defined(COMPOSITOR_OPENGLES)
   OpenGlesDrawVisitor* draw_visitor() { return draw_visitor_.get(); }
+#elif defined(COMPOSITOR_XRENDER)
+  XRenderDrawVisitor* draw_visitor() { return draw_visitor_.get(); }
 #endif
   int actor_count() { return actor_count_; }
   bool dirty() const { return dirty_; }
@@ -703,6 +709,8 @@ class RealCompositor : public Compositor {
   scoped_ptr<OpenGlDrawVisitor> draw_visitor_;
 #elif defined(COMPOSITOR_OPENGLES)
   scoped_ptr<OpenGlesDrawVisitor> draw_visitor_;
+#elif defined(COMPOSITOR_XRENDER)
+  scoped_ptr<XRenderDrawVisitor> draw_visitor_;
 #endif
 
   // Time that we last drew the scene.

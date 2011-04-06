@@ -16,6 +16,7 @@ typedef XID KeySym;
 typedef XID XAtom;
 typedef XID XDamage;
 typedef XID XDrawable;
+typedef XID XPicture;
 typedef XID XPixmap;
 typedef XID XVisualID;
 typedef XID XWindow;

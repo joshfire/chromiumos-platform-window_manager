@@ -10,6 +10,7 @@
 #include "base/basictypes.h"
 #include "base/logging.h"
 #include "base/scoped_ptr.h"
+#include "window_manager/geometry.h"
 #include "window_manager/image_enums.h"
 
 namespace window_manager {
@@ -40,6 +41,7 @@ class ImageContainer {
   uint8_t* data() const { return data_; }
   size_t width() const { return width_; }
   size_t height() const { return height_; }
+  Size size() const { return Size(width_,height_); }
 
   // Return stride in bytes of a row of pixels in the image data.
   size_t stride() const {

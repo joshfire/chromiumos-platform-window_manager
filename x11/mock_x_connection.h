@@ -20,6 +20,7 @@ extern "C" {
 #include "base/logging.h"
 #include "window_manager/callback.h"
 #include "window_manager/geometry.h"
+#include "window_manager/math_types.h"
 #include "window_manager/x11/x_connection.h"
 
 namespace window_manager {
@@ -181,6 +182,31 @@ class MockXConnection : public XConnection {
   }
   virtual bool QueryPointerPosition(Point* absolute_pos_out);
   virtual bool SetWindowBackgroundPixmap(XWindow xid, XPixmap pixmap);
+  virtual bool RenderQueryExtension() {
+    return true;
+  }
+  virtual XPixmap CreatePixmapFromContainer(const ImageContainer& container) {
+    return 0;
+  }
+  virtual XPicture RenderCreatePicture(Drawable drawable, int depth) {
+    return 0;
+  }
+  virtual void RenderComposite(bool blend,
+                               XPicture src,
+                               XPicture mask,
+                               XPicture dst,
+                               const Point& srcpos,
+                               const Point& maskpos,
+                               const Matrix4& transform,
+                               const Size& size) {}
+  virtual bool RenderFreePicture(XPicture pict) {return true;}
+  virtual void RenderFillRectangle(XPicture dst,
+                                   float red,
+                                   float green,
+                                   float blue,
+                                   const Point& pos,
+                                   const Size& size) {}
+
   // End XConnection methods.
 
   // Testing-specific code.
