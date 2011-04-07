@@ -9,7 +9,6 @@ export HOME=/home/chronos/user
 export XAUTHORITY=/home/chronos/.Xauthority
 export DISPLAY=:0.0
 export USER_ID=1000
-export PULSE_RUNTIME_PATH=/var/run/pulse
 
 WM="/usr/bin/chromeos-wm"
 IMAGES="/usr/share/chromeos-assets/images"
