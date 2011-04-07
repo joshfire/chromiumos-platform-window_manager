@@ -55,9 +55,9 @@ RealGLInterface::RealGLInterface(RealXConnection* connection)
     }
     CHECK(_gl_release_tex_image)
         << "Unable to find proc address for glXReleaseTexImageEXT";
-    has_texture_from_pixmap_extension_ = true;
-  }
-  if (kGlxExtensions.find("GLX_SGIX_fbconfig") != string::npos) {
+
+    // Here we assume that GLX 1.3 is present (since it is a dependency of
+    // GLX_EXT_texture_from_pixmap it should be there).
     if (_gl_create_pixmap == NULL) {
       _gl_create_pixmap = reinterpret_cast<PFNGLXCREATEPIXMAPPROC>(
           glXGetProcAddress(
@@ -73,8 +73,8 @@ RealGLInterface::RealGLInterface(RealXConnection* connection)
     }
     CHECK(_gl_destroy_pixmap)
         << "Unable to find proc address for glXDestroyPixmap";
-  } else {
-    CHECK(false) << "FBConfig not supported on this device.";
+
+    has_texture_from_pixmap_extension_ = true;
   }
   if (kGlxExtensions.find("GLX_MESA_copy_sub_buffer") != string::npos) {
     if (_gl_copy_sub_buffer == NULL) {
