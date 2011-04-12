@@ -74,7 +74,7 @@ void ModalityHandler::HandlePossibleModalityChange() {
     wm_->stacking_manager()->StackActorRelativeToOtherActor(
         dimming_actor_.get(),
         focused_win->GetBottomActor(),
-        false);  // above=false
+        StackingManager::BELOW_SIBLING);
     if (!modal_window_is_focused_) {
       modal_window_is_focused_ = true;
       dimming_actor_->SetOpacity(kDimmingOpacity, kDimmingFadeMs);

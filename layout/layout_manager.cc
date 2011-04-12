@@ -341,10 +341,14 @@ bool LayoutManager::HandleWindowMapRequest(Window* win) {
       win->type() == chromeos::WM_IPC_WINDOW_CHROME_TAB_SNAPSHOT ||
       win->type() == chromeos::WM_IPC_WINDOW_CHROME_TAB_TITLE) {
     wm_->stacking_manager()->StackWindowAtTopOfLayer(
-        win, StackingManager::LAYER_SNAPSHOT_WINDOW);
+        win,
+        StackingManager::LAYER_SNAPSHOT_WINDOW,
+        StackingManager::SHADOW_AT_BOTTOM_OF_LAYER);
   } else {
     wm_->stacking_manager()->StackWindowAtTopOfLayer(
-        win, StackingManager::LAYER_TOPLEVEL_WINDOW);
+        win,
+        StackingManager::LAYER_TOPLEVEL_WINDOW,
+        StackingManager::SHADOW_AT_BOTTOM_OF_LAYER);
 
     // Resize windows to their final size before mapping them to give them
     // more time to draw their contents.
@@ -370,7 +374,9 @@ void LayoutManager::HandleWindowMap(Window* win) {
     case chromeos::WM_IPC_WINDOW_CHROME_TAB_TITLE: {
       if (!saw_map_request_)
         wm_->stacking_manager()->StackWindowAtTopOfLayer(
-            win, StackingManager::LAYER_SNAPSHOT_WINDOW);
+            win,
+            StackingManager::LAYER_SNAPSHOT_WINDOW,
+            StackingManager::SHADOW_AT_BOTTOM_OF_LAYER);
       LOG_IF(WARNING, win->type_params().empty()) << "Missing type parameters.";
       if (!win->type_params().empty()) {
         SnapshotWindow* snapshot = GetSnapshotWindowByXid(
@@ -390,7 +396,9 @@ void LayoutManager::HandleWindowMap(Window* win) {
 
       if (!saw_map_request_)
         wm_->stacking_manager()->StackWindowAtTopOfLayer(
-            win, StackingManager::LAYER_SNAPSHOT_WINDOW);
+            win,
+            StackingManager::LAYER_SNAPSHOT_WINDOW,
+            StackingManager::SHADOW_AT_BOTTOM_OF_LAYER);
       shared_ptr<SnapshotWindow> snapshot(new SnapshotWindow(win, this));
       input_to_snapshot_[snapshot->input_xid()] = snapshot.get();
       snapshots_.push_back(snapshot);
@@ -425,7 +433,9 @@ void LayoutManager::HandleWindowMap(Window* win) {
       // (so we never saw MapRequest events for them).
       if (!saw_map_request_)
         wm_->stacking_manager()->StackWindowAtTopOfLayer(
-            win, StackingManager::LAYER_TOPLEVEL_WINDOW);
+            win,
+            StackingManager::LAYER_TOPLEVEL_WINDOW,
+            StackingManager::SHADOW_AT_BOTTOM_OF_LAYER);
 
       if (win->transient_for_xid()) {
         HandleTransientWindowMap(win);

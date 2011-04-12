@@ -38,19 +38,16 @@ TEST_F(StackingManagerTest, StackXidAtTopOfLayer) {
 
   // Tell the stacking manager to stack them in different layers and then
   // make sure that they were restacked correctly.
-  EXPECT_TRUE(
-      stacking_manager_->StackXidAtTopOfLayer(
-          xid, StackingManager::LAYER_TOPLEVEL_WINDOW));
-  EXPECT_TRUE(
-      stacking_manager_->StackXidAtTopOfLayer(
-          xid2, StackingManager::LAYER_PACKED_PANEL_IN_BAR));
+  stacking_manager_->StackXidAtTopOfLayer(
+      xid, StackingManager::LAYER_TOPLEVEL_WINDOW);
+  stacking_manager_->StackXidAtTopOfLayer(
+      xid2, StackingManager::LAYER_PACKED_PANEL_IN_BAR);
   EXPECT_LT(xconn_->stacked_xids().GetIndex(xid2),
             xconn_->stacked_xids().GetIndex(xid));
 
   // Now move the lower window to the top of the other window's layer.
-  EXPECT_TRUE(
-      stacking_manager_->StackXidAtTopOfLayer(
-          xid, StackingManager::LAYER_PACKED_PANEL_IN_BAR));
+  stacking_manager_->StackXidAtTopOfLayer(
+      xid, StackingManager::LAYER_PACKED_PANEL_IN_BAR);
   EXPECT_LT(xconn_->stacked_xids().GetIndex(xid),
             xconn_->stacked_xids().GetIndex(xid2));
 }
@@ -85,6 +82,7 @@ TEST_F(StackingManagerTest, StackWindowAtTopOfLayer) {
   ASSERT_TRUE(xconn_->GetWindowGeometry(xid, &geometry));
   Window win(wm_.get(), xid, false, geometry);
   win.SetShadowType(Shadow::TYPE_RECTANGULAR);
+
   XWindow xid2 = CreateSimpleWindow();
   ASSERT_TRUE(xconn_->GetWindowGeometry(xid2, &geometry));
   Window win2(wm_.get(), xid2, false, geometry);
@@ -92,10 +90,14 @@ TEST_F(StackingManagerTest, StackWindowAtTopOfLayer) {
 
   // Stack both of the windows in the same layer and make sure that their
   // relative positions are correct.
-  EXPECT_TRUE(stacking_manager_->StackWindowAtTopOfLayer(
-      &win, StackingManager::LAYER_TOPLEVEL_WINDOW));
-  EXPECT_TRUE(stacking_manager_->StackWindowAtTopOfLayer(
-      &win2, StackingManager::LAYER_TOPLEVEL_WINDOW));
+  stacking_manager_->StackWindowAtTopOfLayer(
+      &win,
+      StackingManager::LAYER_TOPLEVEL_WINDOW,
+      StackingManager::SHADOW_AT_BOTTOM_OF_LAYER);
+  stacking_manager_->StackWindowAtTopOfLayer(
+      &win2,
+      StackingManager::LAYER_TOPLEVEL_WINDOW,
+      StackingManager::SHADOW_AT_BOTTOM_OF_LAYER);
   EXPECT_LT(xconn_->stacked_xids().GetIndex(xid2),
             xconn_->stacked_xids().GetIndex(xid));
 
@@ -112,8 +114,10 @@ TEST_F(StackingManagerTest, StackWindowAtTopOfLayer) {
   // Now stack the first window on a higher layer.  Their client windows
   // should be restacked as expected, and the first window's shadow should
   // be stacked above the second window.
-  EXPECT_TRUE(stacking_manager_->StackWindowAtTopOfLayer(
-      &win, StackingManager::LAYER_PACKED_PANEL_IN_BAR));
+  stacking_manager_->StackWindowAtTopOfLayer(
+      &win,
+      StackingManager::LAYER_PACKED_PANEL_IN_BAR,
+      StackingManager::SHADOW_AT_BOTTOM_OF_LAYER);
   EXPECT_LT(xconn_->stacked_xids().GetIndex(xid),
             xconn_->stacked_xids().GetIndex(xid2));
   EXPECT_LT(stage->GetStackingIndex(win.actor()),
@@ -124,6 +128,86 @@ TEST_F(StackingManagerTest, StackWindowAtTopOfLayer) {
             stage->GetStackingIndex(win2.actor()));
   EXPECT_LT(stage->GetStackingIndex(win2.actor()),
             stage->GetStackingIndex(win2.shadow()->group()));
+
+  // Stack the second window on the higher layer as well, but with its shadow
+  // stacked directly below it.  Check that the second window's shadow is above
+  // the first window now.
+  stacking_manager_->StackWindowAtTopOfLayer(
+      &win2,
+      StackingManager::LAYER_PACKED_PANEL_IN_BAR,
+      StackingManager::SHADOW_DIRECTLY_BELOW_ACTOR);
+  EXPECT_LT(xconn_->stacked_xids().GetIndex(xid2),
+            xconn_->stacked_xids().GetIndex(xid));
+  EXPECT_LT(stage->GetStackingIndex(win2.actor()),
+            stage->GetStackingIndex(win2.shadow()->group()));
+  EXPECT_LT(stage->GetStackingIndex(win2.shadow()->group()),
+            stage->GetStackingIndex(win.actor()));
+  EXPECT_LT(stage->GetStackingIndex(win.actor()),
+            stage->GetStackingIndex(win.shadow()->group()));
+}
+
+TEST_F(StackingManagerTest, StackWindowRelativeToOtherWindow) {
+  // Create two windows.
+  XWindow xid = CreateSimpleWindow();
+  XConnection::WindowGeometry geometry;
+  ASSERT_TRUE(xconn_->GetWindowGeometry(xid, &geometry));
+  Window win(wm_.get(), xid, false, geometry);
+  win.SetShadowType(Shadow::TYPE_RECTANGULAR);
+
+  XWindow xid2 = CreateSimpleWindow();
+  ASSERT_TRUE(xconn_->GetWindowGeometry(xid2, &geometry));
+  Window win2(wm_.get(), xid2, false, geometry);
+  win2.SetShadowType(Shadow::TYPE_RECTANGULAR);
+
+  MockCompositor::StageActor* stage = compositor_->GetDefaultStage();
+  stacking_manager_->StackWindowAtTopOfLayer(
+      &win,
+      StackingManager::LAYER_TOPLEVEL_WINDOW,
+      StackingManager::SHADOW_AT_BOTTOM_OF_LAYER);
+
+  // Stack the second window above the first with its shadow at the bottom of
+  // the layer.
+  stacking_manager_->StackWindowRelativeToOtherWindow(
+      &win2,
+      &win,
+      StackingManager::ABOVE_SIBLING,
+      StackingManager::SHADOW_AT_BOTTOM_OF_LAYER,
+      StackingManager::LAYER_TOPLEVEL_WINDOW);
+  EXPECT_LT(stage->GetStackingIndex(win2.actor()),
+            stage->GetStackingIndex(win.actor()));
+  EXPECT_LT(stage->GetStackingIndex(win.actor()),
+            stage->GetStackingIndex(win.shadow()->group()));
+  EXPECT_LT(stage->GetStackingIndex(win.actor()),
+            stage->GetStackingIndex(win2.shadow()->group()));
+
+  // Stack the second window below the first with its shadow at the bottom of
+  // the layer.
+  stacking_manager_->StackWindowRelativeToOtherWindow(
+      &win2,
+      &win,
+      StackingManager::BELOW_SIBLING,
+      StackingManager::SHADOW_AT_BOTTOM_OF_LAYER,
+      StackingManager::LAYER_TOPLEVEL_WINDOW);
+  EXPECT_LT(stage->GetStackingIndex(win.actor()),
+            stage->GetStackingIndex(win2.actor()));
+  EXPECT_LT(stage->GetStackingIndex(win2.actor()),
+            stage->GetStackingIndex(win.shadow()->group()));
+  EXPECT_LT(stage->GetStackingIndex(win2.actor()),
+            stage->GetStackingIndex(win2.shadow()->group()));
+
+  // Stack the second window above the first with its shadow directly under it.
+  stacking_manager_->StackWindowRelativeToOtherWindow(
+      &win2,
+      &win,
+      StackingManager::ABOVE_SIBLING,
+      StackingManager::SHADOW_DIRECTLY_BELOW_ACTOR,
+      StackingManager::LAYER_TOPLEVEL_WINDOW);
+  EXPECT_LT(stage->GetStackingIndex(win2.actor()),
+            stage->GetStackingIndex(win2.shadow()->group()));
+  EXPECT_LT(stage->GetStackingIndex(win2.shadow()->group()),
+            stage->GetStackingIndex(win.actor()));
+  EXPECT_LT(stage->GetStackingIndex(win.actor()),
+            stage->GetStackingIndex(win.shadow()->group()));
 }
 
 }  // namespace window_manager

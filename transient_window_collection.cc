@@ -316,11 +316,17 @@ void TransientWindowCollection::ApplyStackingForTransientWindow(
     TransientWindow* transient, Window* other_win) {
   DCHECK(transient);
   if (other_win) {
-    transient->win->StackClientAbove(other_win->xid());
-    transient->win->StackCompositedAbove(other_win->actor(), NULL, false);
+    wm()->stacking_manager()->StackWindowRelativeToOtherWindow(
+        transient->win,
+        other_win,
+        StackingManager::ABOVE_SIBLING,
+        StackingManager::SHADOW_DIRECTLY_BELOW_ACTOR,
+        StackingManager::LAYER_ACTIVE_TRANSIENT_WINDOW);
   } else {
     wm()->stacking_manager()->StackWindowAtTopOfLayer(
-        transient->win, StackingManager::LAYER_ACTIVE_TRANSIENT_WINDOW);
+        transient->win,
+        StackingManager::LAYER_ACTIVE_TRANSIENT_WINDOW,
+        StackingManager::SHADOW_DIRECTLY_BELOW_ACTOR);
   }
 }
 

@@ -431,8 +431,14 @@ void Panel::StackAtTopOfLayer(StackingManager::Layer layer) {
     // Put the titlebar and content in the same layer, but stack the
     // titlebar higher (the stacking between the two is arbitrary but needs
     // to stay in sync with the input window code in StackInputWindows()).
-    wm()->stacking_manager()->StackWindowAtTopOfLayer(content_win_, layer);
-    wm()->stacking_manager()->StackWindowAtTopOfLayer(titlebar_win_, layer);
+    wm()->stacking_manager()->StackWindowAtTopOfLayer(
+        content_win_,
+        layer,
+        StackingManager::SHADOW_AT_BOTTOM_OF_LAYER);
+    wm()->stacking_manager()->StackWindowAtTopOfLayer(
+        titlebar_win_,
+        layer,
+        StackingManager::SHADOW_AT_BOTTOM_OF_LAYER);
     separator_shadow_->group()->Raise(content_win_->actor());
     StackInputWindows();
   }
@@ -525,7 +531,9 @@ void Panel::SetFullscreenState(bool fullscreen) {
 
   if (fullscreen) {
     wm()->stacking_manager()->StackWindowAtTopOfLayer(
-        content_win_, StackingManager::LAYER_FULLSCREEN_WINDOW);
+        content_win_,
+        StackingManager::LAYER_FULLSCREEN_WINDOW,
+        StackingManager::SHADOW_AT_BOTTOM_OF_LAYER);
     content_win_->Move(Point(0, 0), 0);
     content_win_->ResizeClient(
         wm()->width(), wm()->height(), GRAVITY_NORTHWEST);

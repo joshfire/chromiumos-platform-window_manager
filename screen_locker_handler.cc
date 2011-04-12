@@ -111,7 +111,9 @@ bool ScreenLockerHandler::HandleWindowMapRequest(Window* win) {
   win->Move(Point(0, 0), 0);
   win->ResizeClient(wm_->width(), wm_->height(), GRAVITY_NORTHWEST);
   wm_->stacking_manager()->StackWindowAtTopOfLayer(
-      win, StackingManager::LAYER_SCREEN_LOCKER);
+      win,
+      StackingManager::LAYER_SCREEN_LOCKER,
+      StackingManager::SHADOW_DIRECTLY_BELOW_ACTOR);
   return true;
 }
 

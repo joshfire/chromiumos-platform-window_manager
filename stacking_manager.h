@@ -25,14 +25,6 @@ class XConnection;
 // between layers.
 class StackingManager {
  public:
-  // The layer reference points will be created at the top of the current stack
-  // of X windows (for LAYER_TOP_CLIENT_WINDOW and below) and children of the
-  // default compositor stage.
-  StackingManager(XConnection* xconn,
-                  Compositor* compositor,
-                  AtomCache* atom_cache);
-  ~StackingManager();
-
   // Layers into which windows can be stacked, in top-to-bottom order.
   // Layers above LAYER_TOP_CLIENT_WINDOW don't have X windows, since we want
   // them to always appear above client windows.
@@ -104,6 +96,35 @@ class StackingManager {
     kNumLayers,
   };
 
+  // Policies for stacking something relative to a supplied sibling.
+  enum SiblingPolicy {
+    // Stack the object directly above the sibling.
+    ABOVE_SIBLING = 0,
+
+    // Stack the object directly below the sibling.
+    BELOW_SIBLING,
+  };
+
+  // Policies for stacking a window's shadow.
+  enum ShadowPolicy {
+    // Stack the shadow at the bottom of the window's layer.
+    // This can be useful for preventing a window's shadow from falling on its
+    // siblings -- imagine the case of two stationary panels located a pixel
+    // apart.
+    SHADOW_AT_BOTTOM_OF_LAYER = 0,
+
+    // Stack the shadow directly below the window.
+    SHADOW_DIRECTLY_BELOW_ACTOR,
+  };
+
+  // The layer reference points will be created at the top of the current stack
+  // of X windows (for LAYER_TOP_CLIENT_WINDOW and below) and children of the
+  // default compositor stage.
+  StackingManager(XConnection* xconn,
+                  Compositor* compositor,
+                  AtomCache* atom_cache);
+  ~StackingManager();
+
   // Is the passed-in X window one of our internal windows?
   bool IsInternalWindow(XWindow xid) {
     return (xid_to_layer_.find(xid) != xid_to_layer_.end());
@@ -111,29 +132,32 @@ class StackingManager {
 
   // Stack a window (both its X window and its compositor actor) at the top
   // of the passed-in layer, which must be LAYER_TOP_CLIENT_WINDOW or below.
-  // Its shadow will be stacked at the bottom of the layer so as to not appear
-  // above the windows' siblings.  Returns false if the X request fails.
-  bool StackWindowAtTopOfLayer(Window* win, Layer layer);
+  void StackWindowAtTopOfLayer(
+      Window* win, Layer layer, ShadowPolicy shadow_policy);
 
   // Stack an X window at the top of the passed-in layer, which must be
   // LAYER_TOP_CLIENT_WINDOW or below.  This is useful for X windows that don't
-  // have Window objects associated with them (e.g. input windows).  Returns
-  // false if the X request fails.
-  bool StackXidAtTopOfLayer(XWindow xid, Layer layer);
+  // have Window objects associated with them (e.g. input windows).
+  void StackXidAtTopOfLayer(XWindow xid, Layer layer);
 
   // Stack a compositor actor at the top of the passed-in layer.
   void StackActorAtTopOfLayer(Compositor::Actor* actor, Layer layer);
 
   // Stack a window's client and composited windows directly above or below
-  // another window.  As in StackWindowAtTopOfLayer(), the window's shadow
-  // will be stacked at the bottom of |layer|.  Make sure that |sibling| is
-  // in |layer| -- things will get confusing otherwise.
-  bool StackWindowRelativeToOtherWindow(
-      Window* win, Window* sibling, bool above, Layer layer);
+  // another window.  Make sure that |sibling| is in |layer| if using
+  // SHADOW_AT_BOTTOM_OF_LAYER -- things will get confusing otherwise.
+  void StackWindowRelativeToOtherWindow(
+      Window* win,
+      Window* sibling,
+      SiblingPolicy sibling_policy,
+      ShadowPolicy shadow_policy,
+      Layer shadow_layer);
 
   // Stack a compositor actor above or below another actor.
   void StackActorRelativeToOtherActor(
-      Compositor::Actor* actor, Compositor::Actor* sibling, bool above);
+      Compositor::Actor* actor,
+      Compositor::Actor* sibling,
+      SiblingPolicy sibling_policy);
 
   // If |xid| is being used as a layer's stacking reference point, return
   // the actor corresponding to the layer.  Returns NULL otherwise.

@@ -136,7 +136,9 @@ Window::Window(WindowManager* wm,
   // TODO(derat): Move this stuff to WindowManager::TrackWindow() instead.
   wm_->stage()->AddActor(actor_.get());
   wm_->stacking_manager()->StackWindowAtTopOfLayer(
-      this, StackingManager::LAYER_TOP_CLIENT_WINDOW);
+      this,
+      StackingManager::LAYER_TOP_CLIENT_WINDOW,
+      StackingManager::SHADOW_DIRECTLY_BELOW_ACTOR);
 
   // Various properties could've been set on this window after it was
   // created but before we selected PropertyChangeMask, so we need to query

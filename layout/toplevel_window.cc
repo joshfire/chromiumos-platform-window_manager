@@ -237,7 +237,9 @@ void LayoutManager::ToplevelWindow::SetFullscreenState(bool fullscreen) {
 
   if (is_fullscreen_) {
     wm()->stacking_manager()->StackWindowAtTopOfLayer(
-        win_, StackingManager::LAYER_FULLSCREEN_WINDOW);
+        win_,
+        StackingManager::LAYER_FULLSCREEN_WINDOW,
+        StackingManager::SHADOW_AT_BOTTOM_OF_LAYER);
     win_->ResizeClient(wm()->width(), wm()->height(), GRAVITY_NORTHWEST);
     win_->MoveClient(0, 0);
     win_->MoveCompositedToClient();
@@ -247,7 +249,9 @@ void LayoutManager::ToplevelWindow::SetFullscreenState(bool fullscreen) {
     win_->SetCompositedOpacity(1, 0);
   } else {
     wm()->stacking_manager()->StackWindowAtTopOfLayer(
-        win_, StackingManager::LAYER_TOPLEVEL_WINDOW);
+        win_,
+        StackingManager::LAYER_TOPLEVEL_WINDOW,
+        StackingManager::SHADOW_AT_BOTTOM_OF_LAYER);
     win_->ResizeClient(layout_manager_->width(), layout_manager_->height(),
                        GRAVITY_NORTHWEST);
     win_->MoveClient(layout_manager_->x(), layout_manager_->y());

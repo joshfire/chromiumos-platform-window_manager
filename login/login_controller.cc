@@ -195,7 +195,9 @@ bool LoginController::HandleWindowMapRequest(Window* win) {
         return false;
       }
       wm_->stacking_manager()->StackWindowAtTopOfLayer(
-          win, StackingManager::LAYER_LOGIN_OTHER_WINDOW);
+          win,
+          StackingManager::LAYER_LOGIN_OTHER_WINDOW,
+          StackingManager::SHADOW_DIRECTLY_BELOW_ACTOR);
       return true;
     }
     default:
@@ -290,7 +292,9 @@ void LoginController::HandleWindowMap(Window* win) {
       // Restack the window again in case it was mapped before the
       // window manager started.
       wm_->stacking_manager()->StackWindowAtTopOfLayer(
-          win, StackingManager::LAYER_LOGIN_OTHER_WINDOW);
+          win,
+          StackingManager::LAYER_LOGIN_OTHER_WINDOW,
+          StackingManager::SHADOW_DIRECTLY_BELOW_ACTOR);
 
       // Center the window over its owner (unless it's an infobubble, which
       // we just let Chrome position wherever it wants).
@@ -309,7 +313,9 @@ void LoginController::HandleWindowMap(Window* win) {
 
   login_xids_.insert(win->xid());
   wm_->stacking_manager()->StackWindowAtTopOfLayer(
-      win, StackingManager::LAYER_LOGIN_WINDOW);
+      win,
+      StackingManager::LAYER_LOGIN_WINDOW,
+      StackingManager::SHADOW_AT_BOTTOM_OF_LAYER);
 
   // Register our interest in taking ownership of this window after the
   // underlying X window gets destroyed.
@@ -490,7 +496,9 @@ void LoginController::HandleButtonPress(XWindow xid,
     Window* win = wm_->GetWindowOrDie(xid);
     wm_->FocusWindow(win, timestamp);
     wm_->stacking_manager()->StackWindowAtTopOfLayer(
-        win, StackingManager::LAYER_LOGIN_OTHER_WINDOW);
+        win,
+        StackingManager::LAYER_LOGIN_OTHER_WINDOW,
+        StackingManager::SHADOW_DIRECTLY_BELOW_ACTOR);
     return;
   }
 
@@ -569,7 +577,9 @@ void LoginController::HandleClientMessage(XWindow xid,
     if (non_login_xids_.count(xid)) {
       wm_->FocusWindow(win, data[1]);
       wm_->stacking_manager()->StackWindowAtTopOfLayer(
-          win, StackingManager::LAYER_LOGIN_OTHER_WINDOW);
+          win,
+          StackingManager::LAYER_LOGIN_OTHER_WINDOW,
+          StackingManager::SHADOW_DIRECTLY_BELOW_ACTOR);
     } else if (login_xids_.count(xid)) {
       wm_->FocusWindow(win, data[1]);
     }
@@ -629,7 +639,9 @@ void LoginController::ConfigureBackgroundWindow() {
 
   DCHECK(background_window_);
   wm_->stacking_manager()->StackWindowAtTopOfLayer(
-      background_window_, StackingManager::LAYER_LOGIN_WINDOW);
+      background_window_,
+      StackingManager::LAYER_LOGIN_WINDOW,
+      StackingManager::SHADOW_AT_BOTTOM_OF_LAYER);
   background_window_->MoveClient(0, 0);
   background_window_->MoveCompositedToClient();
   background_window_->SetCompositedOpacity(0, 0);
@@ -904,7 +916,9 @@ void LoginController::DoInitialSetupIfWindowsAreReady() {
         (wm_->height() - wizard_window_->client_height()) / 2);
     wizard_window_->MoveCompositedToClient();
     wm_->stacking_manager()->StackWindowAtTopOfLayer(
-        wizard_window_, StackingManager::LAYER_LOGIN_WINDOW);
+        wizard_window_,
+        StackingManager::LAYER_LOGIN_WINDOW,
+        StackingManager::SHADOW_AT_BOTTOM_OF_LAYER);
     wizard_window_->SetCompositedOpacity(0, 0);
     wizard_window_->ShowComposited();
     wizard_window_->SetCompositedOpacity(1, kInitialShowAnimationTimeInMs);

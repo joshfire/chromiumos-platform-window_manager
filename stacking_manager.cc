@@ -56,7 +56,8 @@ StackingManager::~StackingManager() {
     xconn_->DestroyWindow(it->first);
 }
 
-bool StackingManager::StackWindowAtTopOfLayer(Window* win, Layer layer) {
+void StackingManager::StackWindowAtTopOfLayer(
+    Window* win, Layer layer, ShadowPolicy shadow_policy) {
   DCHECK(win);
 
   DCHECK_GE(layer, LAYER_TOP_CLIENT_WINDOW)
@@ -64,24 +65,25 @@ bool StackingManager::StackWindowAtTopOfLayer(Window* win, Layer layer) {
       << "top-client-window layer";
   Compositor::Actor* layer_actor = GetActorForLayer(layer);
 
+  Compositor::Actor* lower_layer_actor = NULL;
   // Find the next-lowest layer so we can stack the window's shadow
   // directly above it.
   // TODO: This won't work for the bottom layer; write additional code to
   // handle it if it ever becomes necessary.
-  Compositor::Actor* lower_layer_actor =
-      GetActorForLayer(static_cast<Layer>(layer + 1));
+  if (shadow_policy == SHADOW_AT_BOTTOM_OF_LAYER)
+    lower_layer_actor = GetActorForLayer(static_cast<Layer>(layer + 1));
   win->StackCompositedBelow(layer_actor, lower_layer_actor, true);
 
   XWindow layer_xid = GetXidForLayer(layer);
-  return win->StackClientBelow(layer_xid);
+  win->StackClientBelow(layer_xid);
 }
 
-bool StackingManager::StackXidAtTopOfLayer(XWindow xid, Layer layer) {
+void StackingManager::StackXidAtTopOfLayer(XWindow xid, Layer layer) {
   DCHECK_GE(layer, LAYER_TOP_CLIENT_WINDOW)
       << "Window " << XidStr(xid) << " being stacked above "
       << "top-client-window layer";
   XWindow layer_xid = GetXidForLayer(layer);
-  return xconn_->StackWindow(xid, layer_xid, false);  // above=false
+  xconn_->StackWindow(xid, layer_xid, false);  // above=false
 }
 
 void StackingManager::StackActorAtTopOfLayer(Compositor::Actor* actor,
@@ -91,31 +93,59 @@ void StackingManager::StackActorAtTopOfLayer(Compositor::Actor* actor,
   actor->Lower(layer_actor);
 }
 
-bool StackingManager::StackWindowRelativeToOtherWindow(
-    Window* win, Window* sibling, bool above, Layer layer) {
+void StackingManager::StackWindowRelativeToOtherWindow(
+    Window* win,
+    Window* sibling,
+    SiblingPolicy sibling_policy,
+    ShadowPolicy shadow_policy,
+    Layer shadow_layer) {
   DCHECK(win);
   DCHECK(sibling);
 
-  Compositor::Actor* lower_layer_actor =
-      GetActorForLayer(static_cast<Layer>(layer + 1));
-  if (above)
-    win->StackCompositedAbove(sibling->GetTopActor(), lower_layer_actor, true);
-  else
-    win->StackCompositedBelow(sibling->actor(), lower_layer_actor, true);
+  Compositor::Actor* lower_layer_actor = NULL;
+  if (shadow_policy == SHADOW_AT_BOTTOM_OF_LAYER)
+    lower_layer_actor = GetActorForLayer(static_cast<Layer>(shadow_layer + 1));
 
-  return above ?
-         win->StackClientAbove(sibling->xid()) :
-         win->StackClientBelow(sibling->xid());
+  switch (sibling_policy) {
+    case ABOVE_SIBLING:
+      win->StackCompositedAbove(
+          sibling->GetTopActor(), lower_layer_actor, true);
+      win->StackClientAbove(sibling->xid());
+      break;
+    case BELOW_SIBLING: {
+      // If we're stacking |win|'s shadow at the bottom of the layer, assume
+      // that |sibling|'s shadow was also stacked there and stack |win| directly
+      // under |sibling| instead of under its shadow.
+      Compositor::Actor* sibling_actor =
+          shadow_policy == SHADOW_AT_BOTTOM_OF_LAYER ?
+          sibling->actor() :
+          sibling->GetBottomActor();
+      win->StackCompositedBelow(sibling_actor, lower_layer_actor, true);
+      win->StackClientBelow(sibling->xid());
+      break;
+    }
+    default:
+      NOTREACHED() << "Unknown sibling policy " << sibling_policy;
+  }
 }
 
 void StackingManager::StackActorRelativeToOtherActor(
-    Compositor::Actor* actor, Compositor::Actor* sibling, bool above) {
+    Compositor::Actor* actor,
+    Compositor::Actor* sibling,
+    SiblingPolicy sibling_policy) {
   DCHECK(actor);
   DCHECK(sibling);
-  if (above)
-    actor->Raise(sibling);
-  else
-    actor->Lower(sibling);
+
+  switch (sibling_policy) {
+    case ABOVE_SIBLING:
+      actor->Raise(sibling);
+      break;
+    case BELOW_SIBLING:
+      actor->Lower(sibling);
+      break;
+    default:
+      NOTREACHED() << "Unknown sibling policy " << sibling_policy;
+  }
 }
 
 Compositor::Actor* StackingManager::GetActorIfLayerXid(XWindow xid) {

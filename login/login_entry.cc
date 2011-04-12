@@ -415,15 +415,25 @@ void LoginEntry::StackWindows() {
   DCHECK(sizes_initialized_);
 
   wm_->stacking_manager()->StackWindowAtTopOfLayer(
-      border_window_, StackingManager::LAYER_LOGIN_WINDOW);
+      border_window_,
+      StackingManager::LAYER_LOGIN_WINDOW,
+      StackingManager::SHADOW_AT_BOTTOM_OF_LAYER);
   wm_->stacking_manager()->StackWindowAtTopOfLayer(
-      image_window_, StackingManager::LAYER_LOGIN_WINDOW);
+      image_window_,
+      StackingManager::LAYER_LOGIN_WINDOW,
+      StackingManager::SHADOW_AT_BOTTOM_OF_LAYER);
   wm_->stacking_manager()->StackWindowAtTopOfLayer(
-      unselected_label_window_, StackingManager::LAYER_LOGIN_WINDOW);
+      unselected_label_window_,
+      StackingManager::LAYER_LOGIN_WINDOW,
+      StackingManager::SHADOW_AT_BOTTOM_OF_LAYER);
   wm_->stacking_manager()->StackWindowAtTopOfLayer(
-      label_window_, StackingManager::LAYER_LOGIN_WINDOW);
+      label_window_,
+      StackingManager::LAYER_LOGIN_WINDOW,
+      StackingManager::SHADOW_AT_BOTTOM_OF_LAYER);
   wm_->stacking_manager()->StackWindowAtTopOfLayer(
-      controls_window_, StackingManager::LAYER_LOGIN_WINDOW);
+      controls_window_,
+      StackingManager::LAYER_LOGIN_WINDOW,
+      StackingManager::SHADOW_AT_BOTTOM_OF_LAYER);
 }
 
 }  // namespace window_manager

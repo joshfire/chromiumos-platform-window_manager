@@ -314,12 +314,18 @@ void LayoutManager::SnapshotWindow::ConfigureForOverviewMode(bool animate) {
     // stacked on top during the mode-switching animation, but stacked
     // regularly otherwise.
     wm()->stacking_manager()->StackWindowAtTopOfLayer(
-        win_, StackingManager::LAYER_SNAPSHOT_WINDOW);
+        win_,
+        StackingManager::LAYER_SNAPSHOT_WINDOW,
+        StackingManager::SHADOW_AT_BOTTOM_OF_LAYER);
     wm()->stacking_manager()->StackXidAtTopOfLayer(
         input_xid_, StackingManager::LAYER_SNAPSHOT_WINDOW);
   } else {
-    win_->StackCompositedBelow(
-        snapshot_to_stack_under->win()->GetBottomActor(), NULL, false);
+    wm()->stacking_manager()->StackWindowRelativeToOtherWindow(
+        win_,
+        snapshot_to_stack_under->win(),
+        StackingManager::BELOW_SIBLING,
+        StackingManager::SHADOW_AT_BOTTOM_OF_LAYER,
+        StackingManager::LAYER_SNAPSHOT_WINDOW);
     wm()->xconn()->StackWindow(
         input_xid_, snapshot_to_stack_under->input_xid(), false);
   }
