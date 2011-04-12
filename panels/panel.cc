@@ -1,4 +1,4 @@
-// Copyright (c) 2010 The Chromium OS Authors. All rights reserved.
+// Copyright (c) 2011 The Chromium OS Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -775,12 +775,12 @@ bool Panel::UpdateChromeStateProperty() {
 }
 
 void Panel::UpdateContentWindowSizeLimits() {
-  DCHECK(content_win_->shadow());
   min_content_width_ = max(content_win_->size_hints().min_size.width,
-                           max(kResizeCornerSize + kResizeCornerSize + 1,
-                               content_win_->shadow()->min_width()));
+                           max(2 * (kResizeCornerSize - kResizeBorderWidth) + 1,
+                               content_win_->shadow()->GetMinWidth()));
   min_content_height_ = max(content_win_->size_hints().min_size.height,
-                            max(1, content_win_->shadow()->min_height()));
+                            max(kResizeCornerSize - kResizeBorderWidth + 1,
+                                content_win_->shadow()->GetMinHeight()));
 
   max_content_width_ = content_win_->size_hints().max_size.width > 0 ?
                        content_win_->size_hints().max_size.width :

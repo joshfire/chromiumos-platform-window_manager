@@ -1,4 +1,4 @@
-// Copyright (c) 2010 The Chromium OS Authors. All rights reserved.
+// Copyright (c) 2011 The Chromium OS Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,9 +15,10 @@
 #include "base/scoped_ptr.h"
 #include "window_manager/compositor/compositor.h"
 #include "window_manager/geometry.h"
-#include "window_manager/util.h"
 
 namespace window_manager {
+
+class ImageGrid;
 
 // This class displays a drop shadow that can be positioned under a window.
 //
@@ -49,7 +50,7 @@ class Shadow {
   // Create a new shadow, ownership of which is passed to the caller.
   // The shadow is hidden when first created.
   static Shadow* Create(Compositor* compositor, Type type);
-  ~Shadow() {}
+  ~Shadow();
 
   bool is_shown() const { return is_shown_; }
   double opacity() const { return opacity_; }
@@ -59,12 +60,8 @@ class Shadow {
   int height() const { return height_; }
   Rect bounds() const { return Rect(x_, y_, width_, height_); }
 
-  // Minimum size that the shadow can take without having overlapping images.
-  int min_width() const { return left_inset_ + right_inset_; }
-  int min_height() const { return top_inset_ + bottom_inset_; }
-
   // Get the group containing all of the actors.
-  Compositor::Actor* group() const { return group_.get(); }
+  Compositor::Actor* group() const;
 
   void Show();
   void Hide();
@@ -73,6 +70,11 @@ class Shadow {
   void MoveY(int y, int anim_ms);
   void Resize(int width, int height, int anim_ms);
   void SetOpacity(double opacity, int anim_ms);
+
+  // Get the minimum width or height of an object for which this shadow can
+  // be displayed.
+  int GetMinWidth() const;
+  int GetMinHeight() const;
 
  private:
   FRIEND_TEST(ShadowTest, Basic);
@@ -97,20 +99,8 @@ class Shadow {
 
   Shadow(Compositor* compositor);
 
-  // Initialize just the image actors and related variables, by loading
-  // images from disk, to create a prototype object that can be used by
-  // Factory.  |group_| isn't initialized, for instance.
-  void InitAsPrototypeFromDisk(const std::string& images_dir);
-
-  // Clone image actors and copy related variables from an existing shadow.
-  // Also initializes |group_| and adds actors to it.
-  void InitFromPrototype(Shadow* prototype);
-
-  // Helper method for InitFromImages().  Given an image directory and the
-  // base name of an image file, creates and returns a new ImageActor if
-  // the file exists, or NULL if it doesn't.
-  Compositor::ImageActor* CreateActor(const std::string& images_dir,
-                                      const std::string& filename);
+  void InitFromFiles(const std::string& images_dir);
+  void InitFromExisting(const Shadow& shadow);
 
   Compositor* compositor_;  // not owned
 
@@ -122,37 +112,8 @@ class Shadow {
   int width_;
   int height_;
 
-  // Number of pixels that the shadow extends beyond the edge of the window.
-  int top_height_;
-  int bottom_height_;
-  int left_width_;
-  int right_width_;
-
-  // Size in pixels of the transparent inset area in corner images.
-  //
-  //   +---------+
-  //   |   ...xxx|  For example, in the top-left corner image depicted
-  //   | .xxXXXXX|  to the left, the inset would be the size of the
-  //   | .xXX    |  transparent area in the lower right that should be
-  //   | .xXX    |  overlayed over the client window.  |left_inset_| is
-  //   +---------+  its width and |top_inset_| is its height.
-  int top_inset_;
-  int bottom_inset_;
-  int left_inset_;
-  int right_inset_;
-
-  // Group containing the image actors.
-  scoped_ptr<Compositor::ContainerActor> group_;
-
-  // ImageActors used to display the shadow.
-  scoped_ptr<Compositor::Actor> top_actor_;
-  scoped_ptr<Compositor::Actor> bottom_actor_;
-  scoped_ptr<Compositor::Actor> left_actor_;
-  scoped_ptr<Compositor::Actor> right_actor_;
-  scoped_ptr<Compositor::Actor> top_left_actor_;
-  scoped_ptr<Compositor::Actor> top_right_actor_;
-  scoped_ptr<Compositor::Actor> bottom_left_actor_;
-  scoped_ptr<Compositor::Actor> bottom_right_actor_;
+  // ImageGrid containing the image actors.
+  scoped_ptr<ImageGrid> grid_;
 
   DISALLOW_COPY_AND_ASSIGN(Shadow);
 };

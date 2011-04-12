@@ -1,4 +1,4 @@
-# Copyright (c) 2010 The Chromium OS Authors. All rights reserved.
+# Copyright (c) 2011 The Chromium OS Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -95,6 +95,7 @@ srcs = Split('''\
   event_loop.cc
   focus_manager.cc
   image_container.cc
+  image_grid.cc
   key_bindings.cc
   layout/layout_manager.cc
   layout/separator.cc

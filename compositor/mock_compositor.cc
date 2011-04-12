@@ -1,4 +1,4 @@
-// Copyright (c) 2010 The Chromium OS Authors. All rights reserved.
+// Copyright (c) 2011 The Chromium OS Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -76,6 +76,19 @@ void MockCompositor::Actor::LowerToBottom() {
   CHECK(parent_->stacked_children()->Contains(this));
   parent_->stacked_children()->Remove(this);
   parent_->stacked_children()->AddOnBottom(this);
+}
+
+MockCompositor::Actor* MockCompositor::Actor::Clone() {
+  MockCompositor::Actor* actor = new MockCompositor::Actor();
+  actor->x_ = x_;
+  actor->y_ = y_;
+  actor->width_ = width_;
+  actor->height_ = height_;
+  actor->opacity_ = opacity_;
+  actor->tilt_ = tilt_;
+  actor->is_dimmed_ = is_dimmed_;
+  actor->is_shown_ = is_shown_;
+  return actor;
 }
 
 string MockCompositor::Actor::GetDebugString(int indent_level) {
@@ -177,15 +190,6 @@ void MockCompositor::TexturePixmapActor::ClearAlphaMask() {
   alpha_mask_bytes_.reset();
 }
 
-MockCompositor::ImageActor* MockCompositor::CreateImageFromFile(
-    const std::string& filename) {
-  ImageActor* actor = new ImageActor;
-  InMemoryImageContainer container(
-      new uint8_t[1], 1, 1, IMAGE_FORMAT_RGBA_32, false);  // malloc=false
-  actor->SetImageData(container);
-  return actor;
-}
-
 void MockCompositor::TexturePixmapActor::MergeDamagedRegion(
     const Rect& region) {
   damaged_region_.merge(region);
@@ -197,6 +201,31 @@ const Rect& MockCompositor::TexturePixmapActor::GetDamagedRegion() const {
 
 void MockCompositor::TexturePixmapActor::ResetDamagedRegion() {
   damaged_region_.reset(0, 0, 0, 0);
+}
+
+MockCompositor::ImageActor* MockCompositor::CreateImageFromFile(
+    const std::string& filename) {
+  ImageActor* actor = new ImageActor;
+
+  scoped_ptr<ImageContainer> container;
+  if (should_load_images_) {
+    container.reset(ImageContainer::CreateContainerFromFile(filename));
+    CHECK(container.get());
+    CHECK(container->LoadImage() == ImageContainer::IMAGE_LOAD_SUCCESS);
+  } else {
+    container.reset(new InMemoryImageContainer(
+        new uint8_t[1], 1, 1, IMAGE_FORMAT_RGBA_32, false));  // malloc=false
+  }
+
+  actor->SetImageData(*(container.get()));
+  return actor;
+}
+
+MockCompositor::Actor* MockCompositor::CloneActor(Compositor::Actor* orig) {
+  MockCompositor::Actor* cast_orig =
+      dynamic_cast<MockCompositor::Actor*>(orig);
+  CHECK(cast_orig);
+  return cast_orig->Clone();
 }
 
 }  // namespace window_manager

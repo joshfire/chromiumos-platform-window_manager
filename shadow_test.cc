@@ -1,4 +1,4 @@
-// Copyright (c) 2009 The Chromium OS Authors. All rights reserved.
+// Copyright (c) 2011 The Chromium OS Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,7 @@
 #include "base/logging.h"
 #include "base/scoped_ptr.h"
 #include "window_manager/compositor/compositor.h"
+#include "window_manager/image_grid.h"
 #include "window_manager/shadow.h"
 #include "window_manager/test_lib.h"
 #include "window_manager/x11/mock_x_connection.h"
@@ -24,6 +25,7 @@ class ShadowTest : public ::testing::Test {
   virtual void SetUp() {
     xconn_.reset(new MockXConnection);
     compositor_.reset(new MockCompositor(xconn_.get()));
+    compositor_->set_should_load_images(true);
   }
 
   scoped_ptr<MockXConnection> xconn_;
@@ -31,65 +33,35 @@ class ShadowTest : public ::testing::Test {
 };
 
 TEST_F(ShadowTest, Basic) {
+  const int kShadowTopHeight = 2;
+  const int kShadowBottomHeight = 6;
+  const int kShadowLeftWidth = 4;
+  const int kShadowRightWidth = 4;
   scoped_ptr<Shadow> shadow(
       Shadow::Create(compositor_.get(), Shadow::TYPE_RECTANGULAR));
-  int x = 10;
-  int y = 20;
-  int w = 200;
-  int h = 100;
 
-  shadow->Move(x, y, 0);
-  shadow->Resize(w, h, 0);
-  shadow->SetOpacity(0.75, 0);
-  shadow->Show();
+  Rect kBounds(10, 20, 200, 100);
+  shadow->Move(kBounds.x, kBounds.y, 0);
+  shadow->Resize(kBounds.width, kBounds.height, 0);
 
-  // Check the group transform
-  EXPECT_EQ(10, shadow->group_->GetX());
-  EXPECT_EQ(20, shadow->group_->GetY());
-  EXPECT_FLOAT_EQ(1.0f, shadow->group_->GetXScale());
-  EXPECT_FLOAT_EQ(1.0f, shadow->group_->GetYScale());
+  double kOpacity = 0.75;
+  shadow->SetOpacity(kOpacity, 0);
 
-  // Check the sides.
-  EXPECT_EQ(0, shadow->top_actor_->GetX());
-  EXPECT_EQ(-1, shadow->top_actor_->GetY());
-  EXPECT_FLOAT_EQ(200.0f, shadow->top_actor_->GetXScale());
-  EXPECT_FLOAT_EQ(1.0f, shadow->top_actor_->GetYScale());
+  // Check the group's position and scale.  It should be offset based on the
+  // size of the shadow's top and left edges.
+  EXPECT_EQ(Point(kBounds.x - kShadowLeftWidth,
+                  kBounds.y - kShadowTopHeight),
+            shadow->group()->GetBounds().position());
+  EXPECT_DOUBLE_EQ(1.0, shadow->group()->GetXScale());
+  EXPECT_DOUBLE_EQ(1.0, shadow->group()->GetYScale());
 
-  EXPECT_EQ(0, shadow->bottom_actor_->GetX());
-  EXPECT_EQ(100, shadow->bottom_actor_->GetY());
-  EXPECT_FLOAT_EQ(200.0f, shadow->bottom_actor_->GetXScale());
-  EXPECT_FLOAT_EQ(1.0f, shadow->bottom_actor_->GetYScale());
+  // Check the size of the ImageGrid.  It should be the size of the window plus
+  // the size of the shadow's edges.
+  EXPECT_EQ(Size(kBounds.width + kShadowLeftWidth + kShadowRightWidth,
+                 kBounds.height + kShadowTopHeight + kShadowBottomHeight),
+            shadow->grid_->size());
 
-  EXPECT_EQ(-1, shadow->left_actor_->GetX());
-  EXPECT_EQ(0, shadow->left_actor_->GetY());
-  EXPECT_FLOAT_EQ(1.0f, shadow->left_actor_->GetXScale());
-  EXPECT_FLOAT_EQ(100.0f, shadow->left_actor_->GetYScale());
-
-  EXPECT_EQ(200, shadow->right_actor_->GetX());
-  EXPECT_EQ(0, shadow->right_actor_->GetY());
-  EXPECT_FLOAT_EQ(1.0f, shadow->right_actor_->GetXScale());
-  EXPECT_FLOAT_EQ(100.0f, shadow->right_actor_->GetYScale());
-
-  // Check the corners.
-  EXPECT_EQ(-1, shadow->top_left_actor_->GetX());
-  EXPECT_EQ(-1, shadow->top_left_actor_->GetY());
-  EXPECT_FLOAT_EQ(1.0f, shadow->top_left_actor_->GetXScale());
-  EXPECT_FLOAT_EQ(1.0f, shadow->top_left_actor_->GetYScale());
-
-  EXPECT_EQ(200, shadow->top_right_actor_->GetX());
-  EXPECT_EQ(-1, shadow->top_right_actor_->GetY());
-  EXPECT_FLOAT_EQ(1.0f, shadow->top_right_actor_->GetXScale());
-  EXPECT_FLOAT_EQ(1.0f, shadow->top_right_actor_->GetYScale());
-
-  EXPECT_EQ(200, shadow->bottom_right_actor_->GetX());
-  EXPECT_EQ(100, shadow->bottom_right_actor_->GetY());
-  EXPECT_FLOAT_EQ(1.0f, shadow->bottom_right_actor_->GetXScale());
-  EXPECT_FLOAT_EQ(1.0f, shadow->bottom_right_actor_->GetYScale());
-
-  EXPECT_EQ(-1, shadow->bottom_left_actor_->GetX());
-  EXPECT_EQ(100, shadow->bottom_left_actor_->GetY());
-  EXPECT_FLOAT_EQ(1.0f, shadow->bottom_left_actor_->GetXScale());
-  EXPECT_FLOAT_EQ(1.0f, shadow->bottom_left_actor_->GetYScale());
+  EXPECT_DOUBLE_EQ(kOpacity, shadow->group()->GetOpacity());
 }
 
 }  // namespace window_manager

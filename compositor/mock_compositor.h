@@ -1,4 +1,4 @@
-// Copyright (c) 2010 The Chromium OS Authors. All rights reserved.
+// Copyright (c) 2011 The Chromium OS Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -38,11 +38,13 @@ class MockCompositor : public Compositor {
     }
     virtual ~Actor();
 
+    // TODO: Remove these methods.
     int x() const { return x_; }
     int y() const { return y_; }
     double scale_x() const { return scale_x_; }
     double scale_y() const { return scale_y_; }
     double opacity() const { return opacity_; }
+
     bool is_dimmed() const { return is_dimmed_; }
     bool is_shown() const { return is_shown_; }
     int num_moves() const { return num_moves_; }
@@ -58,13 +60,14 @@ class MockCompositor : public Compositor {
 
     // Begin Compositor::Actor methods.
     virtual void SetName(const std::string& name) { name_ = name; }
-    virtual Rect GetBounds() { return Rect(x_, y_, width_, height_); }
-    virtual int GetWidth() { return width_; }
-    virtual int GetHeight() { return height_; }
-    virtual int GetX() { return x_; }
-    virtual int GetY() { return y_; }
-    virtual double GetXScale() { return scale_x_; }
-    virtual double GetYScale() { return scale_y_; }
+    virtual Rect GetBounds() const { return Rect(x_, y_, width_, height_); }
+    virtual int GetWidth() const { return width_; }
+    virtual int GetHeight() const { return height_; }
+    virtual int GetX() const { return x_; }
+    virtual int GetY() const { return y_; }
+    virtual double GetXScale() const { return scale_x_; }
+    virtual double GetYScale() const { return scale_y_; }
+    virtual double GetOpacity() const { return opacity_; }
     virtual void Move(int x, int y, int anim_ms);
     virtual void MoveX(int x, int anim_ms) { Move(x, y_, anim_ms); }
     virtual void MoveY(int y, int anim_ms) { Move(x_, y, anim_ms); }
@@ -92,6 +95,8 @@ class MockCompositor : public Compositor {
       visibility_groups_.erase(group_id);
     }
     // End Compositor::Actor methods.
+
+    Actor* Clone();
 
    protected:
     virtual void SetSizeInternal(int width, int height) {
@@ -241,7 +246,8 @@ class MockCompositor : public Compositor {
 
   explicit MockCompositor(XConnection* xconn)
       : xconn_(xconn),
-        num_draws_(0) {}
+        num_draws_(0),
+        should_load_images_(false) {}
   ~MockCompositor() {}
 
   // Begin Compositor methods
@@ -262,7 +268,7 @@ class MockCompositor : public Compositor {
   virtual TexturePixmapActor* CreateTexturePixmap() {
     return new TexturePixmapActor(xconn_);
   }
-  Actor* CloneActor(Compositor::Actor* orig) { return new Actor; }
+  Actor* CloneActor(Compositor::Actor* orig);
   StageActor* GetDefaultStage() { return &default_stage_; }
   virtual void SetActiveVisibilityGroups(
       const std::tr1::unordered_set<int>& groups) {
@@ -276,11 +282,16 @@ class MockCompositor : public Compositor {
   }
   int num_draws() const { return num_draws_; }
 
+  void set_should_load_images(bool load) { should_load_images_ = load; }
+
  private:
   XConnection* xconn_;  // not owned
   StageActor default_stage_;
   std::tr1::unordered_set<int> active_visibility_groups_;
   int num_draws_;
+
+  // Should we load actual image files in CreateImageFromFile()?
+  bool should_load_images_;
 
   DISALLOW_COPY_AND_ASSIGN(MockCompositor);
 };

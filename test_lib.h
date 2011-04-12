@@ -1,4 +1,4 @@
-// Copyright (c) 2010 The Chromium OS Authors. All rights reserved.
+// Copyright (c) 2011 The Chromium OS Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -53,22 +53,22 @@ testing::AssertionResult BytesAreEqual(
 // |&FLAGS_logtostderr|).
 int InitAndRunTests(int* argc, char** argv, bool* log_to_stderr);
 
+// Simple RAII class for creating and deleting a temporary directory.
+class ScopedTempDirectory {
+ public:
+  ScopedTempDirectory();
+  ~ScopedTempDirectory();
+  const FilePath& path() const { return path_; }
+
+ private:
+  FilePath path_;
+};
+
 // A basic test that sets up fake X and compositor interfaces and creates a
 // WindowManager object.  Also includes several methods that tests can use
 // for convenience.
 class BasicWindowManagerTest : public ::testing::Test {
  protected:
-  // Simple RAII class for creating and deleting a temporary directory.
-  class ScopedTempDirectory {
-   public:
-    ScopedTempDirectory();
-    ~ScopedTempDirectory();
-    const FilePath& path() const { return path_; }
-
-   private:
-    FilePath path_;
-  };
-
   virtual void SetUp();
 
   // Register keycodes corresponding to common keysyms.

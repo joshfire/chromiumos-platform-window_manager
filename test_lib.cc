@@ -1,4 +1,4 @@
-// Copyright (c) 2010 The Chromium OS Authors. All rights reserved.
+// Copyright (c) 2011 The Chromium OS Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -84,11 +84,11 @@ int InitAndRunTests(int* argc, char** argv, bool* log_to_stderr) {
 }
 
 
-BasicWindowManagerTest::ScopedTempDirectory::ScopedTempDirectory() {
+ScopedTempDirectory::ScopedTempDirectory() {
   CHECK(file_util::CreateNewTempDirectory(string(), &path_));
 }
 
-BasicWindowManagerTest::ScopedTempDirectory::~ScopedTempDirectory() {
+ScopedTempDirectory::~ScopedTempDirectory() {
   if (!file_util::Delete(path_, true))  // recursive=true
     LOG(ERROR) << "Failed to delete path " << path_.value();
 }

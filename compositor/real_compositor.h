@@ -1,4 +1,4 @@
-// Copyright (c) 2010 The Chromium OS Authors. All rights reserved.
+// Copyright (c) 2011 The Chromium OS Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -102,13 +102,14 @@ class RealCompositor : public Compositor {
 
     // Begin Compositor::Actor methods.
     virtual void SetName(const std::string& name) { name_ = name; }
-    virtual Rect GetBounds() { return Rect(x_, y_, width_, height_); }
-    virtual int GetWidth() { return width_; }
-    virtual int GetHeight() { return height_; }
-    virtual int GetX() { return x_; }
-    virtual int GetY() { return y_; }
-    virtual double GetXScale() { return scale_x_; }
-    virtual double GetYScale() { return scale_y_; }
+    virtual Rect GetBounds() const { return Rect(x_, y_, width_, height_); }
+    virtual int GetWidth() const { return width_; }
+    virtual int GetHeight() const { return height_; }
+    virtual int GetX() const { return x_; }
+    virtual int GetY() const { return y_; }
+    virtual double GetXScale() const { return scale_x_; }
+    virtual double GetYScale() const { return scale_y_; }
+    virtual double GetOpacity() const { return opacity_; }
     virtual void Move(int x, int y, int duration_ms);
     virtual void MoveX(int x, int duration_ms);
     virtual void MoveY(int y, int duration_ms);

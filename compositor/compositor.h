@@ -1,4 +1,4 @@
-// Copyright (c) 2010 The Chromium OS Authors. All rights reserved.
+// Copyright (c) 2011 The Chromium OS Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -53,13 +53,14 @@ class Compositor {
     virtual ~Actor() {}
 
     virtual void SetName(const std::string& name) = 0;
-    virtual Rect GetBounds() = 0;
-    virtual int GetWidth() = 0;
-    virtual int GetHeight() = 0;
-    virtual int GetX() = 0;
-    virtual int GetY() = 0;
-    virtual double GetXScale() = 0;
-    virtual double GetYScale() = 0;
+    virtual Rect GetBounds() const = 0;
+    virtual int GetWidth() const = 0;
+    virtual int GetHeight() const = 0;
+    virtual int GetX() const = 0;
+    virtual int GetY() const = 0;
+    virtual double GetXScale() const = 0;
+    virtual double GetYScale() const = 0;
+    virtual double GetOpacity() const = 0;
 
     virtual void Move(int x, int y, int anim_ms) = 0;
     virtual void MoveX(int x, int anim_ms) = 0;
