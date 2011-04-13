@@ -638,6 +638,10 @@ void BasicCompositingTest::SetUp() {
       new RealCompositor(event_loop_.get(), xconn_.get(), gl_.get()));
 }
 
+void BasicCompositingTest::Draw() {
+  compositor_->Draw();
+}
+
 
 BasicCompositingTreeTest::~BasicCompositingTreeTest() {}
 

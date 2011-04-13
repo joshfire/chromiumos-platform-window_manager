@@ -114,6 +114,9 @@ class WindowManager : public PanelManagerAreaChangeListener,
   // End PanelManagerAreaChangeListener implementation.
 
   // Begin CompositionChangeListener implementation.
+  // This method is called by the compositor while it's drawing, and is the
+  // point at which we disable or enable compositing depending on whether
+  // there's a single actor covering the entire screen or not.
   virtual void HandleTopFullscreenActorChange(
       const Compositor::TexturePixmapActor* top_fullscreen_actor);
   // End CompositionChangeListener implementation.
@@ -268,6 +271,13 @@ class WindowManager : public PanelManagerAreaChangeListener,
   // Does nothing if metrics reporting is disabled.
   void ReportUserAction(const std::string& action);
 
+  // Increment or decrement a counter tracking compositing requests.  When it's
+  // greater than zero, we force compositing.  If we're not already compositing,
+  // IncrementCompositingRequests() will force us to draw a composited frame
+  // before returning.
+  void IncrementCompositingRequests();
+  void DecrementCompositingRequests();
+
  private:
   friend class BasicWindowManagerTest;
   friend class LayoutManagerTest;         // uses |layout_manager_|
@@ -294,6 +304,7 @@ class WindowManager : public PanelManagerAreaChangeListener,
   FRIEND_TEST(WindowManagerTest, ConfigureBackground);
   FRIEND_TEST(WindowManagerTest, VideoTimeProperty);
   FRIEND_TEST(WindowManagerTest, HandleTopFullscreenActorChange);
+  FRIEND_TEST(WindowManagerTest, ForceCompositing);
 
   typedef std::map<XWindow, std::set<EventConsumer*> > WindowEventConsumerMap;
   typedef std::map<std::pair<XWindow, XAtom>, std::set<EventConsumer*> >
@@ -547,6 +558,10 @@ class WindowManager : public PanelManagerAreaChangeListener,
   // whenever compositing is enabled, non-zero otherwise.
   XWindow unredirected_fullscreen_xid_;
 
+  // Is there a task currently posted to the event loop to run
+  // DisableCompositing()?
+  bool disable_compositing_task_is_pending_;
+
   // Version of the IPC protocol that Chrome is currently using.  See
   // WM_IPC_MESSAGE_WM_NOTIFY_IPC_VERSION in libcros's
   // chromeos_wm_ipc_enums.h for details.
@@ -583,8 +598,11 @@ class WindowManager : public PanelManagerAreaChangeListener,
   // ID for the timeout that calls HideUnacceleratedGraphicsActor().
   int hide_unaccelerated_graphics_actor_timeout_id_;
 
-  // Id for the timeout that calls PingChrome().
+  // ID for the timeout that calls PingChrome().
   int chrome_watchdog_timeout_id_;
+
+  // Number of outstanding requests to force compositing.
+  int num_compositing_requests_;
 
   DISALLOW_COPY_AND_ASSIGN(WindowManager);
 };

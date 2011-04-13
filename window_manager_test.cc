@@ -1263,16 +1263,16 @@ TEST_F(WindowManagerTest, HandleTopFullscreenActorChange) {
 
   // Make sure no window is unredirected.
   FLAGS_unredirect_fullscreen_window = true;
-  EXPECT_TRUE(wm_->unredirected_fullscreen_xid_ == 0);
+  EXPECT_EQ(static_cast<XWindow>(0), wm_->unredirected_fullscreen_xid_);
   EXPECT_TRUE(info1->redirected);
   EXPECT_TRUE(info2->redirected);
   expected_overlay->Clear(0xff);
   xconn_->GetWindowBoundingRegion(wm_->overlay_xid_, actual_overlay.get());
   EXPECT_TRUE(*expected_overlay.get() == *actual_overlay.get());
 
-  // Test transition from no fullscreen actor to have fullscreen actor.
+  // Test transition from no fullscreen actor to having a fullscreen actor.
   wm_->HandleTopFullscreenActorChange(actor1);
-  EXPECT_EQ(wm_->unredirected_fullscreen_xid_, xwin1);
+  EXPECT_EQ(xwin1, wm_->unredirected_fullscreen_xid_);
   // We would expect this method to be posted to the event loop via
   // HandleTopFullscreenActorChange(), but it is called manually here since
   // the event loop isn't started in the tests.
@@ -1282,24 +1282,27 @@ TEST_F(WindowManagerTest, HandleTopFullscreenActorChange) {
   expected_overlay->Clear(0);
   xconn_->GetWindowBoundingRegion(wm_->overlay_xid_, actual_overlay.get());
   EXPECT_TRUE(*expected_overlay.get() == *actual_overlay.get());
+  EXPECT_FALSE(compositor_->should_draw_frame());
 
   // Test change from one to another top fullscreen actor.
   wm_->HandleTopFullscreenActorChange(actor2);
-  EXPECT_EQ(wm_->unredirected_fullscreen_xid_, xwin2);
+  EXPECT_EQ(xwin2, wm_->unredirected_fullscreen_xid_);
   wm_->DisableCompositing();
   EXPECT_TRUE(info1->redirected);
   EXPECT_FALSE(info2->redirected);
   xconn_->GetWindowBoundingRegion(wm_->overlay_xid_, actual_overlay.get());
   EXPECT_TRUE(*expected_overlay.get() == *actual_overlay.get());
+  EXPECT_FALSE(compositor_->should_draw_frame());
 
   // Test transition from having fullscreen actor to not.
   wm_->HandleTopFullscreenActorChange(NULL);
-  EXPECT_TRUE(wm_->unredirected_fullscreen_xid_ == 0);
+  EXPECT_EQ(static_cast<XWindow>(0), wm_->unredirected_fullscreen_xid_);
   EXPECT_TRUE(info1->redirected);
   EXPECT_TRUE(info2->redirected);
   expected_overlay->Clear(0xff);
   xconn_->GetWindowBoundingRegion(wm_->overlay_xid_, actual_overlay.get());
   EXPECT_TRUE(*expected_overlay.get() == *actual_overlay.get());
+  EXPECT_TRUE(compositor_->should_draw_frame());
 }
 
 // Check that WindowManager passes ownership of destroyed windows to
@@ -1452,6 +1455,57 @@ TEST_F(WindowManagerTest, WindowDestroyedWhileBeingMapped) {
   // an assumption that its map request succeeded.
   xconn_->InitDestroyWindowEvent(&event, xid);
   wm_->HandleEvent(&event);
+}
+
+// Test that the IncrementCompositingRequests() method, used to force
+// compositing, works as expected.
+TEST_F(WindowManagerTest, ForceCompositing) {
+  // Create a window.
+  XWindow xid = CreateSimpleWindow();
+  ConfigureWindowForSyncRequestProtocol(xid);
+  SendInitialEventsForWindow(xid);
+  SendSyncRequestProtocolAlarm(xid);
+  Window* win = wm_->GetWindowOrDie(xid);
+  MockCompositor::TexturePixmapActor* actor = GetMockActorForWindow(win);
+
+  // Resize it to cover the whole screen.
+  win->ResizeClient(wm_->width(), wm_->height(), GRAVITY_NORTHWEST);
+  SendSyncRequestProtocolAlarm(xid);
+
+  // Tell the WM that the window is covering the screen and check that we
+  // disable compositing.
+  wm_->HandleTopFullscreenActorChange(actor);
+  EXPECT_EQ(xid, wm_->unredirected_fullscreen_xid_);
+  EXPECT_TRUE(wm_->disable_compositing_task_is_pending_);
+  wm_->DisableCompositing();
+  EXPECT_FALSE(compositor_->should_draw_frame());
+
+  // Now force compositing back on and check that we redraw the scene.
+  const int kPrevForcedDraws = compositor_->num_forced_draws();
+  wm_->IncrementCompositingRequests();
+  EXPECT_EQ(kPrevForcedDraws + 1, compositor_->num_forced_draws());
+  wm_->HandleTopFullscreenActorChange(actor);
+  EXPECT_EQ(static_cast<XWindow>(0), wm_->unredirected_fullscreen_xid_);
+  EXPECT_TRUE(compositor_->should_draw_frame());
+  EXPECT_FALSE(wm_->disable_compositing_task_is_pending_);
+
+  // Resize the window and remove the compositing request.  Since we're waiting
+  // for the window to be repainted after the resize, we should continue
+  // compositing.
+  win->ResizeClient(wm_->width() / 2, wm_->height() / 2, GRAVITY_NORTHWEST);
+  wm_->DecrementCompositingRequests();
+  wm_->HandleTopFullscreenActorChange(actor);
+  EXPECT_EQ(static_cast<XWindow>(0), wm_->unredirected_fullscreen_xid_);
+  EXPECT_TRUE(compositor_->should_draw_frame());
+  EXPECT_FALSE(wm_->disable_compositing_task_is_pending_);
+
+  // After the window is repainted, we should still be compositing since the
+  // window is no longer covering the entire screen.
+  SendSyncRequestProtocolAlarm(xid);
+  wm_->HandleTopFullscreenActorChange(NULL);
+  EXPECT_EQ(static_cast<XWindow>(0), wm_->unredirected_fullscreen_xid_);
+  EXPECT_TRUE(compositor_->should_draw_frame());
+  EXPECT_FALSE(wm_->disable_compositing_task_is_pending_);
 }
 
 }  // namespace window_manager

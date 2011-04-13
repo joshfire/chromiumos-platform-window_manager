@@ -275,6 +275,9 @@ class BasicCompositingTest : public ::testing::Test {
   virtual void TearDown() {}
 
  protected:
+  // Call |compositor_|'s Draw() method.
+  void Draw();
+
   scoped_ptr<MockGLInterface> gl_;
   scoped_ptr<MockXConnection> xconn_;
   scoped_ptr<EventLoop> event_loop_;

@@ -1303,6 +1303,7 @@ void Window::ResetPixmap() {
 
   XID old_pixmap = pixmap_;
   pixmap_ = wm_->xconn()->GetCompositingPixmapForWindow(xid_);
+  DLOG(INFO) << "Fetched pixmap " << XidStr(pixmap_) << " for " << xid_str_;
 
   Size old_size(actor_->GetWidth(), actor_->GetHeight());
   actor_->SetPixmap(pixmap_);

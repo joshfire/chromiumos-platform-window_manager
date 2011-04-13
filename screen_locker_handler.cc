@@ -260,7 +260,7 @@ void ScreenLockerHandler::HandleLocked() {
   // Redraw (only if we hid the screen contents immediately) and then let
   // Chrome know that we're ready for the system to be suspended now.
   if (!do_animation)
-    wm_->compositor()->Draw();
+    wm_->compositor()->ForceDraw();
   DCHECK(chrome_win);
   WmIpc::Message msg(
       chromeos::WM_IPC_MESSAGE_CHROME_NOTIFY_SCREEN_REDRAWN_FOR_LOCK);
@@ -301,7 +301,7 @@ void ScreenLockerHandler::HandlePreShutdown() {
     // held since before the screen was locked, we don't want to reuse the
     // snapshot taken while the screen was unlocked.
     DestroySnapshotAndUpdateVisibilityGroup();
-    wm_->compositor()->Draw();
+    wm_->compositor()->ForceDraw();
   }
   StartSlowCloseAnimation();
   wm_->compositor()->SetActiveVisibilityGroup(

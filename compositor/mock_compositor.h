@@ -246,7 +246,7 @@ class MockCompositor : public Compositor {
 
   explicit MockCompositor(XConnection* xconn)
       : xconn_(xconn),
-        num_draws_(0),
+        num_forced_draws_(0),
         should_load_images_(false) {}
   ~MockCompositor() {}
 
@@ -274,13 +274,13 @@ class MockCompositor : public Compositor {
       const std::tr1::unordered_set<int>& groups) {
     active_visibility_groups_ = groups;
   }
-  virtual void Draw() { num_draws_++; }
+  virtual void ForceDraw() { num_forced_draws_++; }
   // End Compositor methods
 
   const std::tr1::unordered_set<int>& active_visibility_groups() const {
     return active_visibility_groups_;
   }
-  int num_draws() const { return num_draws_; }
+  int num_forced_draws() const { return num_forced_draws_; }
 
   void set_should_load_images(bool load) { should_load_images_ = load; }
 
@@ -288,7 +288,7 @@ class MockCompositor : public Compositor {
   XConnection* xconn_;  // not owned
   StageActor default_stage_;
   std::tr1::unordered_set<int> active_visibility_groups_;
-  int num_draws_;
+  int num_forced_draws_;
 
   // Should we load actual image files in CreateImageFromFile()?
   bool should_load_images_;

@@ -102,6 +102,9 @@ class Window {
   bool mapped() const { return mapped_; }
   bool shaped() const { return shaped_; }
   bool is_rgba() const { return client_depth_ == 32; }
+  bool client_has_redrawn_after_last_resize() const {
+    return client_has_redrawn_after_last_resize_;
+  }
 
   int client_x() const { return client_x_; }
   int client_y() const { return client_y_; }

@@ -623,10 +623,7 @@ class RealCompositor : public Compositor {
   virtual StageActor* GetDefaultStage() { return default_stage_.get(); }
   virtual void SetActiveVisibilityGroups(
       const std::tr1::unordered_set<int>& groups);
-
-  // Run in-progress animations and redraw the scene if needed.  Disables
-  // the draw timeout if there are no in-progress animations.
-  virtual void Draw();
+  virtual void ForceDraw();
   // End Compositor methods
 
   XConnection* x_conn() { return x_conn_; }
@@ -673,10 +670,15 @@ class RealCompositor : public Compositor {
   void DecrementNumAnimations();
 
  private:
+  friend class BasicCompositingTest;  // calls Draw()
   FRIEND_TEST(OpenGlVisitorTreeTest, LayerDepth);  // sets actor count
 
   // Used by tests.
   void set_actor_count(int count) { actor_count_ = count; }
+
+  // Run in-progress animations and redraw the scene if needed.  Disables
+  // the draw timeout if there are no in-progress animations.
+  void Draw();
 
   // Enable or disable the draw timeout.  Safe to call if it's already
   // enabled/disabled.
@@ -735,6 +737,10 @@ class RealCompositor : public Compositor {
   // know when we need to HandleTopFullscreenActorChange.  It is set to NULL
   // if there wasn't a TexturePixmapActor satisfying the criteria.
   const TexturePixmapActor* prev_top_fullscreen_actor_;
+
+  // If true, we'll notify CompositionChangeListeners during the next frame even
+  // if the top fullscreen actor hasn't changed.
+  bool force_notification_about_top_fullscreen_actor_;
 
   // Listeners that will be notified when the screen area consumed by the
   // actors changes.  Listener objects aren't owned by us.

@@ -252,7 +252,7 @@ class Compositor {
 
   // Draw the scene.  This happens automatically as needed but can also be
   // triggered manually.
-  virtual void Draw() = 0;
+  virtual void ForceDraw() = 0;
 
  private:
   // This flag indicates whether the GL draw visitor should draw the frame

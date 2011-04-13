@@ -121,7 +121,7 @@ TEST_F(ScreenLockerHandlerTest, BasicLock) {
           screen_locker_xid,
           chromeos::WM_IPC_MESSAGE_CHROME_NOTIFY_SCREEN_REDRAWN_FOR_LOCK,
           &msg));
-  const int initial_num_draws = compositor_->num_draws();
+  const int initial_num_draws = compositor_->num_forced_draws();
   SendInitialEventsForWindow(screen_locker_xid);
   Window* screen_locker_win = wm_->GetWindowOrDie(screen_locker_xid);
   MockCompositor::TexturePixmapActor* screen_locker_actor =
@@ -152,7 +152,7 @@ TEST_F(ScreenLockerHandlerTest, BasicLock) {
   // message letting it know that we did so.  We should also update the
   // _NET_WM_ACTIVE_WINDOW property so that the window's widgets know that it's
   // active.
-  EXPECT_GT(compositor_->num_draws(), initial_num_draws);
+  EXPECT_GT(compositor_->num_forced_draws(), initial_num_draws);
   EXPECT_TRUE(
       GetFirstWmIpcMessageOfType(
           screen_locker_xid,

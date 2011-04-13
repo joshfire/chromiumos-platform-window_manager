@@ -215,11 +215,13 @@ WindowManager::WindowManager(EventLoop* event_loop,
       active_window_xid_(0),
       query_keyboard_state_timeout_id_(-1),
       unredirected_fullscreen_xid_(0),
+      disable_compositing_task_is_pending_(false),
       wm_ipc_version_(1),
       logged_in_(false),
       initialize_logging_(false),
       hide_unaccelerated_graphics_actor_timeout_id_(-1),
-      chrome_watchdog_timeout_id_(-1) {
+      chrome_watchdog_timeout_id_(-1),
+      num_compositing_requests_(0) {
   CHECK(event_loop_);
   CHECK(xconn_);
   CHECK(compositor_);
@@ -228,12 +230,12 @@ WindowManager::WindowManager(EventLoop* event_loop,
 WindowManager::~WindowManager() {
   if (startup_pixmap_)
     xconn_->FreePixmap(startup_pixmap_);
-  if (query_keyboard_state_timeout_id_ >= 0)
-    event_loop_->RemoveTimeout(query_keyboard_state_timeout_id_);
-  if (chrome_watchdog_timeout_id_ >= 0)
-    event_loop_->RemoveTimeout(chrome_watchdog_timeout_id_);
-  if (hide_unaccelerated_graphics_actor_timeout_id_ >= 0)
-    event_loop_->RemoveTimeout(hide_unaccelerated_graphics_actor_timeout_id_);
+
+  event_loop_->RemoveTimeoutIfSet(&query_keyboard_state_timeout_id_);
+  event_loop_->RemoveTimeoutIfSet(&chrome_watchdog_timeout_id_);
+  event_loop_->RemoveTimeoutIfSet(
+      &hide_unaccelerated_graphics_actor_timeout_id_);
+
   if (panel_manager_.get())
     panel_manager_->UnregisterAreaChangeListener(this);
   if (compositor_)
@@ -260,7 +262,9 @@ void WindowManager::HandleTopFullscreenActorChange(
   //    onscreen.
   // 50 GOTO 10
   const bool unredirection_permitted =
-      FLAGS_unredirect_fullscreen_window && !damage_debugging_enabled_;
+      FLAGS_unredirect_fullscreen_window &&
+      !damage_debugging_enabled_ &&
+      !num_compositing_requests_;
 
   if (unredirection_permitted && top_fullscreen_actor) {
     Window* win = GetWindowOwningActor(*top_fullscreen_actor);
@@ -268,7 +272,10 @@ void WindowManager::HandleTopFullscreenActorChange(
         win->client_x() == win->composited_x() &&
         win->client_y() == win->composited_y() &&
         win->composited_scale_x() == 1.0 &&
-        win->composited_scale_y() == 1.0) {
+        win->composited_scale_y() == 1.0 &&
+        // If we're waiting for the window to be repainted so we can fetch a
+        // resized pixmap for it, we don't want to turn off compositing.
+        win->client_has_redrawn_after_last_resize()) {
       window_to_unredirect = win->xid();
       should_composite = false;
     }
@@ -295,17 +302,19 @@ void WindowManager::HandleTopFullscreenActorChange(
       // Force the frame to draw when changing from one fullscreen actor to
       // another fullscreen actor in case X does not redraw the entire
       // screen and we get a partially updated frame.
-      should_composite = true;
     }
   }
 
   if (window_to_unredirect) {
-    unredirected_fullscreen_xid_ = window_to_unredirect;
-    event_loop_->PostTask(
-        NewPermanentCallback(this, &WindowManager::DisableCompositing));
-    // Don't update should_draw_frame here because we want to draw the current
-    // frame before we disable compositing.  The flag is updated in the
+    // Don't update should_draw_frame here; we want to draw the current frame
+    // before we disable compositing.  The flag is updated in the
     // DisableCompositing callback, which does the actual disabling.
+    unredirected_fullscreen_xid_ = window_to_unredirect;
+    if (!disable_compositing_task_is_pending_) {
+      event_loop_->PostTask(
+          NewPermanentCallback(this, &WindowManager::DisableCompositing));
+      disable_compositing_task_is_pending_ = true;
+    }
   }
 
   if (!was_compositing && should_composite) {
@@ -371,7 +380,7 @@ bool WindowManager::Init() {
     CreateStartupBackground();
 
   // Draw the scene first to make sure that it's ready.
-  compositor_->Draw();
+  compositor_->ForceDraw();
   CHECK(xconn_->RedirectSubwindowsForCompositing(root_));
   // Create the compositing overlay, put the stage's window inside of it,
   // and make events fall through both to the client windows underneath.
@@ -920,6 +929,17 @@ void WindowManager::DestroyLoginController() {
 void WindowManager::ReportUserAction(const string& action) {
   if (metrics_library_.get())
     metrics_library_->SendUserActionToUMA(action);
+}
+
+void WindowManager::IncrementCompositingRequests() {
+  num_compositing_requests_++;
+  if (num_compositing_requests_ == 1 && unredirected_fullscreen_xid_)
+    compositor_->ForceDraw();
+}
+
+void WindowManager::DecrementCompositingRequests() {
+  DCHECK_GE(num_compositing_requests_, 1);
+  num_compositing_requests_--;
 }
 
 bool WindowManager::IsSessionEnding() const {
@@ -2006,11 +2026,17 @@ void WindowManager::HideUnacceleratedGraphicsActor() {
 }
 
 void WindowManager::DisableCompositing() {
+  DCHECK(disable_compositing_task_is_pending_);
+  disable_compositing_task_is_pending_ = false;
+
+  // Looks like we changed our minds about disabling compositing.
+  if (!unredirected_fullscreen_xid_)
+    return;
+
   // Make sure to remove window bounding region before unredirect window
   // because unredirect window will not create exposure events, so we need
   // to remove bounding region first to let X know that it should refresh
   // the content, otherwise the content will stay stale.
-  DCHECK(unredirected_fullscreen_xid_);
   xconn_->RemoveWindowBoundingRegion(overlay_xid_);
   xconn_->UnredirectWindowForCompositing(unredirected_fullscreen_xid_);
   compositor_->set_should_draw_frame(false);

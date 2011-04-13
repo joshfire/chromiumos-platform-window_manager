@@ -70,7 +70,7 @@ TEST_F(RealCompositorTreeTest, Culling) {
   EXPECT_TRUE(rect1_->culled());
 
   // Now we test higher-level layer depth results.
-  compositor_->Draw();
+  Draw();
   EXPECT_EQ(8, compositor_->actor_count());
 
   EXPECT_TRUE(rect2_->culled());
@@ -96,7 +96,7 @@ TEST_F(RealCompositorTreeTest, CullingOpacity) {
   EXPECT_TRUE(rect1_->culled());
 
   // Now we test higher-level layer depth results.
-  compositor_->Draw();
+  Draw();
   EXPECT_EQ(8, compositor_->actor_count());
 
   EXPECT_TRUE(rect1_->culled());
@@ -261,7 +261,7 @@ TEST_F(RealCompositorTreeTest, CloneTest) {
 // Test RealCompositor's handling of X events concerning composited windows.
 TEST_F(RealCompositorTest, HandleXEvents) {
   // Draw once initially to make sure that the compositor isn't dirty.
-  compositor_->Draw();
+  Draw();
   EXPECT_FALSE(compositor_->dirty());
 
   // Now create an texture pixmap actor and add it to the stage.
@@ -274,7 +274,7 @@ TEST_F(RealCompositorTest, HandleXEvents) {
   cast_actor->Show();
   compositor_->GetDefaultStage()->AddActor(cast_actor);
   EXPECT_TRUE(compositor_->dirty());
-  compositor_->Draw();
+  Draw();
   EXPECT_FALSE(compositor_->dirty());
 
   XWindow xid = xconn_->CreateWindow(
@@ -296,7 +296,7 @@ TEST_F(RealCompositorTest, HandleXEvents) {
   EXPECT_TRUE(compositor_->dirty());
 
   // The visitor should initialize the texture data from the actor's pixmap.
-  compositor_->Draw();
+  Draw();
   EXPECT_TRUE(cast_actor->texture_data() != NULL);
   EXPECT_FALSE(compositor_->dirty());
 
@@ -336,7 +336,7 @@ TEST_F(RealCompositorTest, DeleteGroup) {
   EXPECT_TRUE(rect->parent() == group.get());
   group.reset();
   EXPECT_TRUE(rect->parent() == NULL);
-  compositor_->Draw();
+  Draw();
 }
 
 // Test that we enable and disable the draw timeout as needed.
@@ -348,7 +348,7 @@ TEST_F(RealCompositorTest, DrawTimeout) {
   // initially.
   EXPECT_GE(compositor_->draw_timeout_id(), 0);
   EXPECT_TRUE(compositor_->draw_timeout_enabled());
-  compositor_->Draw();
+  Draw();
   EXPECT_FALSE(compositor_->draw_timeout_enabled());
 
   // After we add an actor, we should draw another frame.
@@ -356,7 +356,7 @@ TEST_F(RealCompositorTest, DrawTimeout) {
       compositor_->CreateColoredBox(1, 1, Compositor::Color()));
   compositor_->GetDefaultStage()->AddActor(actor.get());
   EXPECT_TRUE(compositor_->draw_timeout_enabled());
-  compositor_->Draw();
+  Draw();
   EXPECT_FALSE(compositor_->draw_timeout_enabled());
 
   // Now animate the actor's X position over 100 ms and its Y position over
@@ -369,33 +369,33 @@ TEST_F(RealCompositorTest, DrawTimeout) {
   // well as the timeout.
   now += 50;
   SetMonotonicTimeForTest(CreateTimeTicksFromMs(now));
-  compositor_->Draw();
+  Draw();
   EXPECT_TRUE(compositor_->draw_timeout_enabled());
 
   // After drawing 51 ms later, the first animation will be gone, but we
   // still keep the timeout alive for the second animation.
   now += 51;
   SetMonotonicTimeForTest(CreateTimeTicksFromMs(now));
-  compositor_->Draw();
+  Draw();
   EXPECT_TRUE(compositor_->draw_timeout_enabled());
 
   // 100 ms later, the second animation has ended, so we should remove the
   // timeout after drawing.
   now += 100;
   SetMonotonicTimeForTest(CreateTimeTicksFromMs(now));
-  compositor_->Draw();
+  Draw();
   EXPECT_FALSE(compositor_->draw_timeout_enabled());
 
   // If we move the actor instantaneously, we should draw a single frame.
   actor->Move(500, 600, 0);
   EXPECT_TRUE(compositor_->draw_timeout_enabled());
-  compositor_->Draw();
+  Draw();
   EXPECT_FALSE(compositor_->draw_timeout_enabled());
 
   // We should also draw one more time after deleting the actor.
   actor.reset();
   EXPECT_TRUE(compositor_->draw_timeout_enabled());
-  compositor_->Draw();
+  Draw();
   EXPECT_FALSE(compositor_->draw_timeout_enabled());
 
   // TODO: Test the durations that we set for for the timeout.
@@ -410,7 +410,7 @@ TEST_F(RealCompositorTest, ReplaceAnimations) {
   scoped_ptr<RealCompositor::Actor> actor(
       compositor_->CreateColoredBox(1, 1, Compositor::Color()));
   compositor_->GetDefaultStage()->AddActor(actor.get());
-  compositor_->Draw();
+  Draw();
 
   // Create 500-ms animations of the actor's X position to 200 and its
   // Y position to 300, but then replace the Y animation with one that goes
@@ -422,7 +422,7 @@ TEST_F(RealCompositorTest, ReplaceAnimations) {
   // at the final X position.
   now += 101;
   SetMonotonicTimeForTest(CreateTimeTicksFromMs(now));
-  compositor_->Draw();
+  Draw();
   EXPECT_EQ(800, actor->GetY());
   EXPECT_LT(actor->GetX(), 200);
 
@@ -432,7 +432,7 @@ TEST_F(RealCompositorTest, ReplaceAnimations) {
   // 800).
   now += 400;
   SetMonotonicTimeForTest(CreateTimeTicksFromMs(now));
-  compositor_->Draw();
+  Draw();
   EXPECT_EQ(200, actor->GetX());
   EXPECT_EQ(800, actor->GetY());
 
@@ -441,7 +441,7 @@ TEST_F(RealCompositorTest, ReplaceAnimations) {
   actor->Scale(0.5, 0.5, 200);
   now += 100;
   SetMonotonicTimeForTest(CreateTimeTicksFromMs(now));
-  compositor_->Draw();
+  Draw();
   EXPECT_FLOAT_EQ(0.75, actor->GetXScale());
   EXPECT_FLOAT_EQ(0.75, actor->GetYScale());
 
@@ -452,14 +452,14 @@ TEST_F(RealCompositorTest, ReplaceAnimations) {
   actor->Scale(1.0, 1.0, 200);
   now += 100;
   SetMonotonicTimeForTest(CreateTimeTicksFromMs(now));
-  compositor_->Draw();
+  Draw();
   EXPECT_FLOAT_EQ(0.875, actor->GetXScale());
   EXPECT_FLOAT_EQ(0.875, actor->GetYScale());
 
   // After another 100 ms, we should be back at the original scale.
   now += 100;
   SetMonotonicTimeForTest(CreateTimeTicksFromMs(now));
-  compositor_->Draw();
+  Draw();
   EXPECT_FLOAT_EQ(1, actor->GetXScale());
   EXPECT_FLOAT_EQ(1, actor->GetYScale());
 }
@@ -473,14 +473,14 @@ TEST_F(RealCompositorTest, SkipUnneededAnimations) {
       compositor_->CreateColoredBox(1, 1, Compositor::Color()));
   compositor_->GetDefaultStage()->AddActor(actor.get());
   EXPECT_TRUE(compositor_->draw_timeout_enabled());
-  compositor_->Draw();
+  Draw();
   EXPECT_FALSE(compositor_->draw_timeout_enabled());
 
   // Set the actor's X position.  We should draw just once.
   // 200 ms.
   actor->MoveX(300, 0);
   EXPECT_TRUE(compositor_->draw_timeout_enabled());
-  compositor_->Draw();
+  Draw();
   EXPECT_FALSE(compositor_->draw_timeout_enabled());
 
   // We shouldn't do any drawing if we animate to the same position that
@@ -496,7 +496,7 @@ TEST_F(RealCompositorTest, VisibilityGroups) {
       compositor_->CreateColoredBox(1, 1, Compositor::Color()));
   compositor_->GetDefaultStage()->AddActor(actor.get());
   EXPECT_TRUE(compositor_->dirty());
-  compositor_->Draw();
+  Draw();
   EXPECT_FALSE(compositor_->dirty());
   EXPECT_TRUE(actor->IsVisible());
 
@@ -515,7 +515,7 @@ TEST_F(RealCompositorTest, VisibilityGroups) {
   compositor_->SetActiveVisibilityGroups(groups);
   EXPECT_TRUE(compositor_->dirty());
   EXPECT_FALSE(actor->IsVisible());
-  compositor_->Draw();
+  Draw();
 
   // The stage shouldn't care about visibility groups.
   EXPECT_TRUE(compositor_->GetDefaultStage()->IsVisible());
@@ -524,20 +524,20 @@ TEST_F(RealCompositorTest, VisibilityGroups) {
   actor->AddToVisibilityGroup(2);
   EXPECT_TRUE(compositor_->dirty());
   EXPECT_FALSE(actor->IsVisible());
-  compositor_->Draw();
+  Draw();
 
   // Now add it to visibility group 1 and make sure that it gets shown.
   actor->AddToVisibilityGroup(1);
   EXPECT_TRUE(compositor_->dirty());
   EXPECT_TRUE(actor->IsVisible());
-  compositor_->Draw();
+  Draw();
 
   // Remove it from both groups and check that it's hidden again.
   actor->RemoveFromVisibilityGroup(1);
   actor->RemoveFromVisibilityGroup(2);
   EXPECT_TRUE(compositor_->dirty());
   EXPECT_FALSE(actor->IsVisible());
-  compositor_->Draw();
+  Draw();
 
   // Now disable visibility groups in the compositor and check that the
   // actor is visible.
@@ -545,7 +545,7 @@ TEST_F(RealCompositorTest, VisibilityGroups) {
   compositor_->SetActiveVisibilityGroups(groups);
   EXPECT_TRUE(compositor_->dirty());
   EXPECT_TRUE(actor->IsVisible());
-  compositor_->Draw();
+  Draw();
 }
 
 // Test RealCompositor's handling of partial updates.
@@ -566,7 +566,7 @@ TEST_F(RealCompositorTest, PartialUpdates) {
   CHECK(cast_actor);
   cast_actor->Show();
   compositor_->GetDefaultStage()->AddActor(cast_actor);
-  compositor_->Draw();
+  Draw();
   EXPECT_FALSE(compositor_->dirty());
 
   XWindow xid = xconn_->CreateWindow(
@@ -582,7 +582,7 @@ TEST_F(RealCompositorTest, PartialUpdates) {
   cast_actor->SetPixmap(pixmap_id);
   int full_updates_count = gl_->full_updates_count();
   int partial_updates_count = gl_->partial_updates_count();
-  compositor_->Draw();
+  Draw();
   EXPECT_FALSE(compositor_->dirty());
   ++full_updates_count;
   EXPECT_EQ(gl_->full_updates_count(), full_updates_count);
@@ -595,7 +595,7 @@ TEST_F(RealCompositorTest, PartialUpdates) {
   cast_actor->MergeDamagedRegion(damaged_region);
   compositor_->SetPartiallyDirty();
   EXPECT_FALSE(compositor_->dirty());
-  compositor_->Draw();
+  Draw();
   ++partial_updates_count;
   EXPECT_FALSE(compositor_->dirty());
   EXPECT_EQ(gl_->full_updates_count(), full_updates_count);
@@ -666,7 +666,7 @@ TEST_F(RealCompositorTest, LayerVisitorTopFullscreenWindow) {
   actor2->SetPixmap(xconn_->GetCompositingPixmapForWindow(xwin2));
   actor3->SetPixmap(xconn_->GetCompositingPixmapForWindow(xwin3));
 
-  compositor_->Draw();
+  Draw();
   EXPECT_TRUE(actor1->is_opaque());
   EXPECT_FALSE(actor2->is_opaque());
   EXPECT_TRUE(actor3->is_opaque());

@@ -722,7 +722,8 @@ RealCompositor::RealCompositor(EventLoop* event_loop,
       draw_timeout_id_(-1),
       draw_timeout_enabled_(false),
       texture_pixmap_actor_uses_fast_path_(true),
-      prev_top_fullscreen_actor_(NULL) {
+      prev_top_fullscreen_actor_(NULL),
+      force_notification_about_top_fullscreen_actor_(false) {
   CHECK(event_loop_);
   XWindow root = x_conn()->GetRootWindow();
   XConnection::WindowGeometry geometry;
@@ -826,6 +827,12 @@ void RealCompositor::SetActiveVisibilityGroups(
   SetDirty();
 }
 
+void RealCompositor::ForceDraw() {
+  force_notification_about_top_fullscreen_actor_ = true;
+  SetDirty();
+  Draw();
+}
+
 void RealCompositor::RemoveActor(Actor* actor) {
   ActorVector::iterator iterator = find(actors_.begin(), actors_.end(), actor);
   if (iterator != actors_.end()) {
@@ -850,8 +857,10 @@ void RealCompositor::UpdateTopFullscreenActor(
     const RealCompositor::TexturePixmapActor* top_fullscreen_actor) {
   // The top fullscreen actor has not changed from previous frame to
   // current frame, no need to notify the listeners.
-  if (prev_top_fullscreen_actor_ == top_fullscreen_actor)
+  if (!force_notification_about_top_fullscreen_actor_ &&
+      prev_top_fullscreen_actor_ == top_fullscreen_actor)
     return;
+
   prev_top_fullscreen_actor_ = top_fullscreen_actor;
 
   for (unordered_set<CompositionChangeListener*>::const_iterator it =
@@ -880,6 +889,7 @@ void RealCompositor::Draw() {
     default_stage_->Update(&actor_count_, now);
     PROFILER_MARKER_END(RealCompositor_Draw_Update);
   }
+
   if (dirty_ || partially_dirty_) {
     last_draw_time_ = now;
 
@@ -887,6 +897,7 @@ void RealCompositor::Draw() {
     LayerVisitor layer_visitor(actor_count(), use_partial_updates);
     default_stage_->Accept(&layer_visitor);
     UpdateTopFullscreenActor(layer_visitor.top_fullscreen_actor());
+    force_notification_about_top_fullscreen_actor_ = false;
     Rect damaged_region = layer_visitor.GetDamagedRegion(
         default_stage_->width(), default_stage_->height());
 
