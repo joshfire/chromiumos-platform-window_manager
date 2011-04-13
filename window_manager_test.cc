@@ -512,10 +512,10 @@ TEST_F(WindowManagerTest, StackOverrideRedirectWindowsAboveLayers) {
             stage->GetStackingIndex(normal_win2->actor()));
 }
 
-// Test that we honor ConfigureRequest events that change an unmapped
-// window's size, and that we ignore fields that are unset in its
+// Test that we honor ConfigureRequest events that change an unmapped window's
+// size or position, and that we ignore fields that are unset in its
 // |value_mask| field.
-TEST_F(WindowManagerTest, ConfigureRequestResize) {
+TEST_F(WindowManagerTest, ConfigureRequestBeforeMap) {
   XWindow xid = CreateSimpleWindow();
   MockXConnection::WindowInfo* info = xconn_->GetWindowInfoOrDie(xid);
   const int orig_width = info->bounds.width;
@@ -547,6 +547,17 @@ TEST_F(WindowManagerTest, ConfigureRequestResize) {
   wm_->HandleEvent(&event);
   EXPECT_EQ(new_width, info->bounds.width);
   EXPECT_EQ(new_height, info->bounds.height);
+
+  // Send a request to move the window and check that both the X and composited
+  // positions are updated.  See http://crosbug.com/14075.
+  const Point kNewPosition(info->bounds.x + 10, info->bounds.y + 20);
+  xconn_->InitConfigureRequestEvent(
+      &event, xid, Rect(kNewPosition.x, kNewPosition.y, 0, 0));
+  event.xconfigurerequest.value_mask = (CWX | CWY);
+  wm_->HandleEvent(&event);
+  EXPECT_EQ(kNewPosition, info->bounds.position());
+  EXPECT_EQ(kNewPosition,
+            wm_->GetWindowOrDie(xid)->actor()->GetBounds().position());
 }
 
 TEST_F(WindowManagerTest, ResizeScreen) {

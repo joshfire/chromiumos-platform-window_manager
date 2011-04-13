@@ -1555,8 +1555,10 @@ void WindowManager::HandleConfigureRequest(const XConfigureRequestEvent& e) {
   if (!win->mapped()) {
     // If the window is unmapped, it's unlikely that any event consumers
     // will know what to do with it.  Do whatever we were asked to do.
-    if (req_x != win->client_x() || req_y != win->client_y())
+    if (req_x != win->client_x() || req_y != win->client_y()) {
       win->MoveClient(req_x, req_y);
+      win->MoveComposited(req_x, req_y, 0);
+    }
     if (req_width != win->client_width() || req_height != win->client_height())
       win->ResizeClient(req_width, req_height, GRAVITY_NORTHWEST);
   } else {
