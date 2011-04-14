@@ -873,7 +873,6 @@ TEST_F(WindowManagerTest, KeepPanelsAfterRestart) {
 // Makes sure the _CHROME_LOGGED_IN property is interpreted correctly.
 TEST_F(WindowManagerTest, LoggedIn) {
   EXPECT_TRUE(wm_->logged_in());
-  EXPECT_TRUE(wm_->logged_in_key_bindings_group_->enabled());
 
   // When the _CHROME_LOGGED_IN property doesn't exist, the window manager
   // should assume that we're not logged in.
@@ -881,27 +880,23 @@ TEST_F(WindowManagerTest, LoggedIn) {
   xconn_->DeletePropertyIfExists(xconn_->GetRootWindow(), logged_in_xatom);
   CreateAndInitNewWm();
   EXPECT_FALSE(wm_->logged_in());
-  EXPECT_FALSE(wm_->logged_in_key_bindings_group_->enabled());
 
   // Ditto for when it exists but is set to 0.
   SetLoggedInState(false);
   CreateAndInitNewWm();
   EXPECT_FALSE(wm_->logged_in());
-  EXPECT_FALSE(wm_->logged_in_key_bindings_group_->enabled());
 
   // Check that we handle property changes too.
   TestEventConsumer ec;
   wm_->event_consumers_.insert(&ec);
   SetLoggedInState(true);
   EXPECT_TRUE(wm_->logged_in());
-  EXPECT_TRUE(wm_->logged_in_key_bindings_group_->enabled());
   EXPECT_EQ(1, ec.num_logged_in_state_changes());
 
   // We should ignore logged-in to not-logged-in transitions.
   ec.reset_stats();
   SetLoggedInState(false);
   EXPECT_TRUE(wm_->logged_in());
-  EXPECT_TRUE(wm_->logged_in_key_bindings_group_->enabled());
   EXPECT_EQ(0, ec.num_logged_in_state_changes());
 }
 

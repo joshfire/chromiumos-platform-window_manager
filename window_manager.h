@@ -566,10 +566,6 @@ class WindowManager : public PanelManagerAreaChangeListener,
   // Key binding actions that we've registered.
   scoped_ptr<KeyBindingsActionRegistrar> key_bindings_actions_;
 
-  // Key bindings that should only be enabled when a user is logged in (e.g.
-  // starting a terminal).
-  scoped_ptr<KeyBindingsGroup> logged_in_key_bindings_group_;
-
   // Has the user logged in yet?  This affects whether some key bindings
   // are enabled or not and determines how new windows are handled.  This
   // tracks the _CHROME_LOGGED_IN property that Chrome sets on the root

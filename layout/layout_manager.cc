@@ -43,12 +43,15 @@ DEFINE_bool(enable_overview_mode, false,
             "Should the user be able to switch to overview mode to see all "
             "of their open tabs at once?");
 
+DEFINE_string(xterm_command, "xterm", "Command to launch a terminal");
+
 using std::map;
 using std::max;
 using std::min;
 using std::string;
 using std::tr1::shared_ptr;
 using window_manager::util::FindWithDefault;
+using window_manager::util::RunCommandInBackground;
 using window_manager::util::XidStr;
 
 namespace window_manager {
@@ -82,6 +85,7 @@ static const char* kSelectLastToplevelAction = "select-last-toplevel";
 static const char* kSelectLastSnapshotAction = "select-last-snapshot";
 static const char* kPanOverviewModeLeftAction = "pan-overview-mode-left";
 static const char* kPanOverviewModeRightAction = "pan-overview-mode-right";
+static const char* kLaunchTerminalAction = "launch-terminal";
 
 const double LayoutManager::kOverviewGroupSpacing = 0.06;
 const double LayoutManager::kOverviewSelectedPadding = 4.0;
@@ -124,6 +128,8 @@ LayoutManager::LayoutManager(WindowManager* wm, PanelManager* panel_manager)
       active_mode_key_bindings_group_(new KeyBindingsGroup(wm->key_bindings())),
       overview_mode_key_bindings_group_(
           new KeyBindingsGroup(wm->key_bindings())),
+      post_toplevel_key_bindings_group_(
+          new KeyBindingsGroup(wm->key_bindings())),
       background_xid_(wm_->CreateInputWindow(wm_->bounds(), 0)),
       should_layout_windows_after_initial_pixmap_(false),
       should_animate_after_initial_pixmap_(false) {
@@ -134,6 +140,7 @@ LayoutManager::LayoutManager(WindowManager* wm, PanelManager* panel_manager)
 
   // Disable the overview key bindings, since we start in active mode.
   overview_mode_key_bindings_group_->Disable();
+  post_toplevel_key_bindings_group_->Disable();
 
   MoveAndResizeForAvailableArea();
 
@@ -300,6 +307,15 @@ LayoutManager::LayoutManager(WindowManager* wm, PanelManager* panel_manager)
   overview_mode_key_bindings_group_->AddBinding(
       KeyBindings::KeyCombo(XK_l, KeyBindings::kAltMask),
       kPanOverviewModeRightAction);
+
+  key_bindings_actions_->AddAction(
+      kLaunchTerminalAction,
+      NewPermanentCallback(&RunCommandInBackground, FLAGS_xterm_command),
+      NULL, NULL);
+  post_toplevel_key_bindings_group_->AddBinding(
+      KeyBindings::KeyCombo(
+          XK_t, KeyBindings::kControlMask | KeyBindings::kAltMask),
+      kLaunchTerminalAction);
 }
 
 LayoutManager::~LayoutManager() {
@@ -1882,6 +1898,8 @@ void LayoutManager::HandleFirstToplevelChromeWindowMapped(Window* win) {
   // Start drawing our background when we see the first Chrome window.
   if (background_.get())
     background_->Show();
+
+  post_toplevel_key_bindings_group_->Enable();
 
   if (!FLAGS_initial_chrome_window_mapped_file.empty()) {
     DLOG(INFO) << "Writing initial Chrome window's ID to file "

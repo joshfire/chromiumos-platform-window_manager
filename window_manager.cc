@@ -44,7 +44,6 @@ extern "C" {
 #include "window_manager/window.h"
 #include "window_manager/x11/x_connection.h"
 
-DEFINE_string(xterm_command, "xterm", "Command to launch a terminal");
 DEFINE_string(background_color, "#000", "Background color");
 DEFINE_string(configure_monitor_command,
               "/usr/bin/monitor_reconfigure",
@@ -117,7 +116,6 @@ static const char* kToggleProfilerAction = "toggle-profiler";
 #endif
 
 static const char* kConfigureMonitorAction = "configure-monitor";
-static const char* kLaunchTerminalAction = "launch-terminal";
 static const char* kTakeRootScreenshotAction = "take-root-screenshot";
 static const char* kTakeWindowScreenshotAction = "take-window-screenshot";
 
@@ -418,10 +416,6 @@ bool WindowManager::Init() {
   key_bindings_.reset(new KeyBindings(xconn()));
   key_bindings_actions_.reset(
       new KeyBindingsActionRegistrar(key_bindings_.get()));
-  logged_in_key_bindings_group_.reset(
-      new KeyBindingsGroup(key_bindings_.get()));
-  if (!logged_in_)
-    logged_in_key_bindings_group_->Disable();
   RegisterKeyBindings();
 
   SetLoggedInState(logged_in_, true);  // initial=true
@@ -492,13 +486,6 @@ void WindowManager::SetLoggedInState(bool logged_in, bool initial) {
                          logging::LOG_ONLY_TO_FILE,
                          logging::DONT_LOCK_LOG_FILE,
                          logging::APPEND_TO_OLD_LOG_FILE);
-  }
-
-  if (logged_in_key_bindings_group_.get()) {
-    if (logged_in_)
-      logged_in_key_bindings_group_->Enable();
-    else
-      logged_in_key_bindings_group_->Disable();
   }
 
   if (logged_in_) {
@@ -1090,15 +1077,6 @@ bool WindowManager::SetEwmhWorkareaProperty() {
 }
 
 void WindowManager::RegisterKeyBindings() {
-  key_bindings_actions_->AddAction(
-      kLaunchTerminalAction,
-      NewPermanentCallback(&RunCommandInBackground, FLAGS_xterm_command),
-      NULL, NULL);
-  logged_in_key_bindings_group_->AddBinding(
-      KeyBindings::KeyCombo(
-          XK_t, KeyBindings::kControlMask | KeyBindings::kAltMask),
-      kLaunchTerminalAction);
-
 #ifndef NDEBUG
   static const uint32_t kCtrlAltShiftMask =
       KeyBindings::kControlMask |

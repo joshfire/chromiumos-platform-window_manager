@@ -511,6 +511,10 @@ class LayoutManager : public EventConsumer,
   scoped_ptr<KeyBindingsGroup> active_mode_key_bindings_group_;
   scoped_ptr<KeyBindingsGroup> overview_mode_key_bindings_group_;
 
+  // Key bindings only enabled after |first_toplevel_chrome_window_mapped_| is
+  // true.
+  scoped_ptr<KeyBindingsGroup> post_toplevel_key_bindings_group_;
+
   // Deque of separators for placing between groups of snapshots.
   Separators separators_;
 
