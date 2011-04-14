@@ -281,6 +281,16 @@ bool SetUpLogSymlink(const std::string& symlink_path,
 // Get the machine's hostname, as returned by gethostname().
 std::string GetHostname();
 
+// Run a command using system().  '&' is appended.
+// Ideally we'd just use LaunchApp() from Chrome's process_util.h instead,
+// but that method expects a pre-parsed argv and we're running commands
+// specified on the command line (and don't want to do shell-style
+// quote-handling ourselves).
+//
+// The argument is not a reference because the callback code that we're
+// using from protobuf has trouble with references.
+void RunCommandInBackground(std::string command);
+
 }  // namespace util
 
 }  // namespace window_manager

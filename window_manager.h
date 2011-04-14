@@ -407,10 +407,6 @@ class WindowManager : public PanelManagerAreaChangeListener,
   void HandleSyncAlarmNotify(const XSyncAlarmNotifyEvent& e);
   void HandleUnmapNotify(const XUnmapEvent& e);
 
-  // Run a command using system().  "&" will be appended to the command to
-  // run it in the background.
-  void RunCommand(std::string command);
-
   // Get an arbitrary window owned by Chrome.  This can be used when
   // sending a message to Chrome, when the particular window that's used
   // doesn't matter.  Returns 0 if there aren't any Chrome windows.

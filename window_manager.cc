@@ -84,6 +84,7 @@ using window_manager::util::FindWithDefault;
 using window_manager::util::GetTimeAsString;
 using window_manager::util::GetCurrentTimeSec;
 using window_manager::util::GetMonotonicTime;
+using window_manager::util::RunCommandInBackground;
 using window_manager::util::SetUpLogSymlink;
 using window_manager::util::XidStr;
 
@@ -1091,8 +1092,7 @@ bool WindowManager::SetEwmhWorkareaProperty() {
 void WindowManager::RegisterKeyBindings() {
   key_bindings_actions_->AddAction(
       kLaunchTerminalAction,
-      NewPermanentCallback(
-          this, &WindowManager::RunCommand, FLAGS_xterm_command),
+      NewPermanentCallback(&RunCommandInBackground, FLAGS_xterm_command),
       NULL, NULL);
   logged_in_key_bindings_group_->AddBinding(
       KeyBindings::KeyCombo(
@@ -1132,7 +1132,7 @@ void WindowManager::RegisterKeyBindings() {
 
   key_bindings_actions_->AddAction(
       kConfigureMonitorAction,
-      NewPermanentCallback(this, &WindowManager::RunCommand,
+      NewPermanentCallback(&RunCommandInBackground,
                            FLAGS_configure_monitor_command),
       NULL, NULL);
   key_bindings_->AddBinding(
@@ -1945,16 +1945,6 @@ void WindowManager::HandleUnmapNotify(const XUnmapEvent& e) {
     UpdateClientListProperty();
     UpdateClientListStackingProperty();
   }
-}
-
-void WindowManager::RunCommand(string command) {
-  if (command.empty())
-    return;
-
-  command += " &";
-  DLOG(INFO) << "Running command \"" << command << "\"";
-  if (system(command.c_str()) < 0)
-    LOG(WARNING) << "Got error while running \"" << command << "\"";
 }
 
 XWindow WindowManager::GetArbitraryChromeWindow() {

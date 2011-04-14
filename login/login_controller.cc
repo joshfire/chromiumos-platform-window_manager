@@ -31,6 +31,7 @@ using std::set;
 using std::string;
 using std::tr1::shared_ptr;
 using std::vector;
+using window_manager::util::RunCommandInBackground;
 using window_manager::util::XidStr;
 
 namespace window_manager {
@@ -630,12 +631,8 @@ void LoginController::ConfigureBackgroundWindow() {
   // started.  That leads to a noticeable shift in colors, though, so we instead
   // sneak it in here, while we're also fading from the boot splash image to the
   // login background window.
-  if (!FLAGS_calibrate_display_command.empty()) {
-    string cmd = FLAGS_calibrate_display_command + " &";
-    LOG(INFO) << "Running \"" << cmd << "\" to calibrate display";
-    if (system(cmd.c_str()) != 0)
-      LOG(ERROR) << "Display calibration failed";
-  }
+  if (!FLAGS_calibrate_display_command.empty())
+    RunCommandInBackground(FLAGS_calibrate_display_command);
 
   DCHECK(background_window_);
   wm_->stacking_manager()->StackWindowAtTopOfLayer(

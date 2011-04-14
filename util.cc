@@ -151,6 +151,16 @@ string GetHostname() {
   return string(hostname);
 }
 
+void RunCommandInBackground(string command) {
+  if (command.empty())
+    return;
+
+  command += " &";
+  DLOG(INFO) << "Running command \"" << command << "\"";
+  if (system(command.c_str()) < 0)
+    LOG(WARNING) << "Got error while running \"" << command << "\"";
+}
+
 }  // namespace util
 
 }  // namespace window_manager
