@@ -1273,11 +1273,20 @@ void WindowManager::HandleScreenResize(int new_width, int new_height) {
   DCHECK_LE(new_width, Window::kOffscreenX);
   DCHECK_LE(new_height, Window::kOffscreenY);
 
+  // The window manager sometimes tries to fetch an updated
+  // pixmap for a resized window while the window is unredirected, resulting
+  // in a black screen until compositing is toggled on and off again.
+  // To avoid this, disable compositing while resizing.
+  IncrementCompositingRequests();
+
   width_ = new_width;
   height_ = new_height;
   SetEwmhSizeProperties();
   stage_->SetSize(width_, height_);
   FOR_EACH_EVENT_CONSUMER(event_consumers_, HandleScreenResize());
+
+  // Reenable unredirection.
+  DecrementCompositingRequests();
 }
 
 bool WindowManager::SetWmStateProperty(XWindow xid, int state) {
