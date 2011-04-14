@@ -223,6 +223,9 @@ void TransientWindowCollection::HandleConfigureRequest(
 }
 
 void TransientWindowCollection::CloseAllWindows() {
+  if (transients_.empty())
+    return;
+
   XTime timestamp = wm()->GetCurrentTimeFromServer();
   for (TransientWindowMap::const_iterator it = transients_.begin();
        it != transients_.end(); ++it) {

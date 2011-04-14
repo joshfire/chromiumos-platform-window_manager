@@ -82,14 +82,16 @@ static int HandleXError(XDisplay* display, XErrorEvent* event) {
   last_error_code = event->error_code;
   last_error_request_major_opcode = event->request_code;
   last_error_request_minor_opcode = event->minor_code;
+#ifndef NDEBUG
   char error_description[256] = "";
   XGetErrorText(display, event->error_code,
                 error_description, sizeof(error_description));
-  LOG(WARNING) << "Handled X error on display " << display << ":"
-               << " error=" << last_error_code
-               << " (" << error_description << ")"
-               << " major=" << last_error_request_major_opcode
-               << " minor=" << last_error_request_minor_opcode;
+  DLOG(WARNING) << "Handled X error on display " << display << ":"
+                << " error=" << last_error_code
+                << " (" << error_description << ")"
+                << " major=" << last_error_request_major_opcode
+                << " minor=" << last_error_request_minor_opcode;
+#endif
   return 0;
 }
 
