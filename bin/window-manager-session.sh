@@ -20,16 +20,8 @@ LOGGED_IN_SCREENSHOT_DIR="${HOME}/Downloads/Screenshots"
 LOGGED_OUT_SCREENSHOT_DIR="/tmp"
 XTERM_COMMAND="/usr/bin/cros-term"
 
-# If there's an ICC color profile installed, use it to configure the display.
-COLOR_PROFILE="/usr/share/color/icc/internal_display.icm"
-CALIBRATE_DISPLAY_COMMAND=
-if [ -e "$COLOR_PROFILE" ]; then
-  CALIBRATE_DISPLAY_COMMAND="/usr/bin/xcalib $COLOR_PROFILE"
-fi
-
 exec "${WM}"                                                            \
   --background_image="${IMAGES}/background_1024x600.png"                \
-  --calibrate_display_command="${CALIBRATE_DISPLAY_COMMAND}"            \
   --initial_chrome_window_mapped_file="${INITIAL_CHROME_FILE}"          \
   --logged_in_log_dir="${LOGGED_IN_LOG_DIR}"                            \
   --logged_in_screenshot_output_dir="${LOGGED_IN_SCREENSHOT_DIR}"       \

@@ -22,10 +22,6 @@
 #include "window_manager/window.h"
 #include "window_manager/window_manager.h"
 
-DEFINE_string(calibrate_display_command,
-              "", "Command to run to calibrate the display while we're "
-              "transitioning to the login background");
-
 using std::map;
 using std::set;
 using std::string;
@@ -626,14 +622,6 @@ void LoginController::InitialShow() {
 }
 
 void LoginController::ConfigureBackgroundWindow() {
-  // TODO: This is very much not the right place to be loading gamma settings;
-  // ideally session_manager_setup.sh would load them immediately after X is
-  // started.  That leads to a noticeable shift in colors, though, so we instead
-  // sneak it in here, while we're also fading from the boot splash image to the
-  // login background window.
-  if (!FLAGS_calibrate_display_command.empty())
-    RunCommandInBackground(FLAGS_calibrate_display_command);
-
   DCHECK(background_window_);
   wm_->stacking_manager()->StackWindowAtTopOfLayer(
       background_window_,
