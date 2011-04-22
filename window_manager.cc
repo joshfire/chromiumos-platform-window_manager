@@ -45,9 +45,6 @@ extern "C" {
 #include "window_manager/x11/x_connection.h"
 
 DEFINE_string(background_color, "#000", "Background color");
-DEFINE_string(configure_monitor_command,
-              "/usr/bin/monitor_reconfigure",
-              "Command to configure an external monitor");
 DEFINE_string(screenshot_binary,
               "/usr/bin/screenshot",
               "Path to the screenshot binary");
@@ -115,7 +112,6 @@ static const char* kToggleDamageDebuggingAction = "toggle-damage-debugging";
 static const char* kToggleProfilerAction = "toggle-profiler";
 #endif
 
-static const char* kConfigureMonitorAction = "configure-monitor";
 static const char* kTakeRootScreenshotAction = "take-root-screenshot";
 static const char* kTakeWindowScreenshotAction = "take-window-screenshot";
 
@@ -1107,15 +1103,6 @@ void WindowManager::RegisterKeyBindings() {
       KeyBindings::KeyCombo(XK_p, kCtrlAltShiftMask),
       kToggleProfilerAction);
 #endif
-
-  key_bindings_actions_->AddAction(
-      kConfigureMonitorAction,
-      NewPermanentCallback(&RunCommandInBackground,
-                           FLAGS_configure_monitor_command),
-      NULL, NULL);
-  key_bindings_->AddBinding(
-      KeyBindings::KeyCombo(XK_F4, KeyBindings::kControlMask),
-      kConfigureMonitorAction);
 
   key_bindings_actions_->AddAction(
       kTakeRootScreenshotAction,
