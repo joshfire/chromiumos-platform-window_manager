@@ -1324,10 +1324,10 @@ void Window::ResetPixmap() {
     // the first time and may need to show the shadow as well.
     DLOG(INFO) << "Fetched initial pixmap for already-mapped " << xid_str_;
     UpdateShadowVisibility();
-    wm_->HandleWindowInitialPixmap(this);
   }
 
   need_to_reset_pixmap_ = false;
+  wm_->HandleWindowPixmapFetch(this);
 }
 
 void Window::UpdateShadowVisibility() {

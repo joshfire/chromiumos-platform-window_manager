@@ -168,7 +168,7 @@ void ScreenLockerHandler::HandleWindowUnmap(Window* win) {
     HandleUnlocked();
 }
 
-void ScreenLockerHandler::HandleWindowInitialPixmap(Window* win) {
+void ScreenLockerHandler::HandleWindowPixmapFetch(Window* win) {
   if (!is_locked_ && HasWindowWithInitialPixmap())
     HandleLocked();
 }

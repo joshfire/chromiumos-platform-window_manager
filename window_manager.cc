@@ -698,10 +698,10 @@ bool WindowManager::SetVideoTimeProperty(time_t video_time) {
   return true;
 }
 
-void WindowManager::HandleWindowInitialPixmap(Window* win) {
+void WindowManager::HandleWindowPixmapFetch(Window* win) {
   DCHECK(win);
   FOR_EACH_INTERESTED_EVENT_CONSUMER(
-      window_event_consumers_, win->xid(), HandleWindowInitialPixmap(win));
+      window_event_consumers_, win->xid(), HandleWindowPixmapFetch(win));
 }
 
 void WindowManager::RegisterEventConsumerForWindowEvents(

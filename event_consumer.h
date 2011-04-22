@@ -76,12 +76,13 @@ class EventConsumer {
   // Handle a window being unmapped.  Invoked for all consumers.
   virtual void HandleWindowUnmap(Window* win) = 0;
 
-  // Handle a mapped window's initial contents having been fetched (meaning
-  // that the window can be drawn onscreen).  This is invoked regardless of
-  // whether we were able to fetch the pixmap as soon as we received
-  // notification that the window was mapped or we had to defer fetching it due
-  // to _NET_WM_SYNC_REQUEST or _CHROME_FREEZE_UPDATES.
-  virtual void HandleWindowInitialPixmap(Window* win) = 0;
+  // Handle a pixmap being fetched for a mapped window.  A newly-mapped window
+  // cannot be composited until its pixmap has been fetched for the first time
+  // (Window::has_initial_pixmap() can be used to track this).  When a window is
+  // resized, a new pixmap must be fetched before it can be composited at the
+  // new size.  Pixmaps are fetched automatically when needed; EventConsumers
+  // don't need to do anything to trigger it.
+  virtual void HandleWindowPixmapFetch(Window* win) = 0;
 
   // Handle a mapped window's request to be configured (unmapped windows'
   // requests are applied automatically).  If the consumer wants to

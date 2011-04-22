@@ -353,7 +353,7 @@ class TestEventConsumer : public EventConsumer {
     num_map_requests_ = 0;
     num_mapped_windows_ = 0;
     num_unmapped_windows_ = 0;
-    num_initial_pixmaps_ = 0;
+    num_fetched_pixmaps_ = 0;
     num_button_presses_ = 0;
   }
 
@@ -367,7 +367,7 @@ class TestEventConsumer : public EventConsumer {
   int num_map_requests() const { return num_map_requests_; }
   int num_mapped_windows() const { return num_mapped_windows_; }
   int num_unmapped_windows() const { return num_unmapped_windows_; }
-  int num_initial_pixmaps() const { return num_initial_pixmaps_; }
+  int num_fetched_pixmaps() const { return num_fetched_pixmaps_; }
   int num_button_presses() const { return num_button_presses_; }
   const std::vector<WmIpc::Message>& chrome_messages() const {
     return chrome_messages_;
@@ -387,8 +387,8 @@ class TestEventConsumer : public EventConsumer {
   }
   virtual void HandleWindowMap(Window* win) { num_mapped_windows_++; }
   virtual void HandleWindowUnmap(Window* win) { num_unmapped_windows_++; }
-  virtual void HandleWindowInitialPixmap(Window* win) {
-    num_initial_pixmaps_++;
+  virtual void HandleWindowPixmapFetch(Window* win) {
+    num_fetched_pixmaps_++;
   }
   virtual void HandleWindowConfigureRequest(Window* win,
                                             int req_x, int req_y,
@@ -439,7 +439,7 @@ class TestEventConsumer : public EventConsumer {
   int num_map_requests_;
   int num_mapped_windows_;
   int num_unmapped_windows_;
-  int num_initial_pixmaps_;
+  int num_fetched_pixmaps_;
   int num_button_presses_;
 
   // Messages received via HandleChromeMessage().

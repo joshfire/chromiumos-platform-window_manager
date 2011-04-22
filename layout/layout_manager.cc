@@ -588,11 +588,11 @@ void LayoutManager::HandleWindowUnmap(Window* win) {
   }
 }
 
-void LayoutManager::HandleWindowInitialPixmap(Window* win) {
+void LayoutManager::HandleWindowPixmapFetch(Window* win) {
   DCHECK(win);
 
-  if (current_toplevel_ && current_toplevel_->win() == win &&
-      should_layout_windows_after_initial_pixmap_) {
+  if (should_layout_windows_after_initial_pixmap_ &&
+      current_toplevel_ && current_toplevel_->win() == win) {
     should_layout_windows_after_initial_pixmap_ = false;
     LayoutWindows(should_animate_after_initial_pixmap_);
   }

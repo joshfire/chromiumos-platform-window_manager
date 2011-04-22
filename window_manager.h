@@ -189,10 +189,10 @@ class WindowManager : public PanelManagerAreaChangeListener,
   // the property but failed and true otherwise.
   bool SetVideoTimeProperty(time_t video_time);
 
-  // Handle notification from a window that it received its initial pixmap.
+  // Handle notification from a window that a new pixmap has been fetched.
   // We notify all of the event consumers that are interested in this
   // window.
-  void HandleWindowInitialPixmap(Window* win);
+  void HandleWindowPixmapFetch(Window* win);
 
   // Register an event consumer as being interested in non-property-change
   // events on a particular window.

@@ -434,7 +434,7 @@ void LoginController::HandleWindowUnmap(Window* win) {
     login_window_to_focus_ = NULL;
 }
 
-void LoginController::HandleWindowInitialPixmap(Window* win) {
+void LoginController::HandleWindowPixmapFetch(Window* win) {
   if (waiting_for_browser_window_ && browser_xids_.count(win->xid())) {
     HandleInitialBrowserWindowVisible();
     return;

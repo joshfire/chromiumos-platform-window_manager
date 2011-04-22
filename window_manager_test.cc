@@ -1351,7 +1351,7 @@ TEST_F(WindowManagerTest, NotifyAboutInitialPixmap) {
   EXPECT_TRUE(wm_->GetWindowOrDie(xid)->has_initial_pixmap());
   xconn_->InitMapEvent(&event, xid);
   wm_->HandleEvent(&event);
-  EXPECT_EQ(1, ec.num_initial_pixmaps());
+  EXPECT_EQ(1, ec.num_fetched_pixmaps());
 
   // Create a window that supports _NET_WM_SYNC_REQUEST.
   // Window::has_initial_pixmap() should return false after it's mapped
@@ -1369,7 +1369,7 @@ TEST_F(WindowManagerTest, NotifyAboutInitialPixmap) {
   ASSERT_TRUE(xconn_->GetWindowInfoOrDie(sync_xid)->mapped);
   xconn_->InitMapEvent(&event, sync_xid);
   wm_->HandleEvent(&event);
-  EXPECT_EQ(0, ec.num_initial_pixmaps());
+  EXPECT_EQ(0, ec.num_fetched_pixmaps());
   EXPECT_FALSE(sync_win->has_initial_pixmap());
 
   // Notify the window manager that the pixmap has been painted.
@@ -1377,16 +1377,14 @@ TEST_F(WindowManagerTest, NotifyAboutInitialPixmap) {
   // should be notified that the pixmap was received.
   SendSyncRequestProtocolAlarm(sync_xid);
   EXPECT_TRUE(sync_win->has_initial_pixmap());
-  EXPECT_EQ(1, ec.num_initial_pixmaps());
+  EXPECT_EQ(1, ec.num_fetched_pixmaps());
 
   // Resize the window and mimic the client syncing with the window manager
-  // again, and make sure that we don't re-notify the event consumer about
-  // the pixmap.
-  ec.reset_stats();
+  // again, and check that we notify the event consumer about the new pixmap.
   sync_win->ResizeClient(600, 500, GRAVITY_NORTHWEST);
   SendSyncRequestProtocolAlarm(sync_xid);
   EXPECT_TRUE(sync_win->has_initial_pixmap());
-  EXPECT_EQ(0, ec.num_initial_pixmaps());
+  EXPECT_EQ(2, ec.num_fetched_pixmaps());
 }
 
 // Test that we make a second attempt at loading the sync request counter
