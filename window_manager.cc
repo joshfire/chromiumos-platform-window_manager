@@ -188,6 +188,17 @@ static const char* XEventTypeToName(int type) {
 }
 #endif
 
+WindowManager::ScopedCompositingRequest::ScopedCompositingRequest(
+    WindowManager* wm)
+    : wm_(wm) {
+  wm_->IncrementCompositingRequests();
+}
+
+WindowManager::ScopedCompositingRequest::~ScopedCompositingRequest() {
+  wm_->DecrementCompositingRequests();
+  wm_ = NULL;
+}
+
 WindowManager::WindowManager(EventLoop* event_loop,
                              XConnection* xconn,
                              Compositor* compositor,
@@ -926,6 +937,11 @@ void WindowManager::DecrementCompositingRequests() {
   num_compositing_requests_--;
 }
 
+WindowManager::ScopedCompositingRequest*
+WindowManager::CreateScopedCompositingRequest() {
+  return new ScopedCompositingRequest(this);
+}
+
 bool WindowManager::IsSessionEnding() const {
   if (!screen_locker_handler_.get())
     return false;
@@ -1264,16 +1280,14 @@ void WindowManager::HandleScreenResize(int new_width, int new_height) {
   // pixmap for a resized window while the window is unredirected, resulting
   // in a black screen until compositing is toggled on and off again.
   // To avoid this, disable compositing while resizing.
-  IncrementCompositingRequests();
+  scoped_ptr<ScopedCompositingRequest> comp_request(
+      CreateScopedCompositingRequest());
 
   width_ = new_width;
   height_ = new_height;
   SetEwmhSizeProperties();
   stage_->SetSize(width_, height_);
   FOR_EACH_EVENT_CONSUMER(event_consumers_, HandleScreenResize());
-
-  // Reenable unredirection.
-  DecrementCompositingRequests();
 }
 
 bool WindowManager::SetWmStateProperty(XWindow xid, int state) {

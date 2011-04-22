@@ -66,6 +66,19 @@ class WindowManager : public PanelManagerAreaChangeListener,
     VISIBILITY_GROUP_SESSION_ENDING = 2,
   };
 
+  // RAII-type object returned by CreateScopedCompositingRequest() that calls
+  // IncrementCompositingRequests() in its constructor and
+  // DecrementCompositingRequests() in its destructor.
+  class ScopedCompositingRequest {
+   public:
+    explicit ScopedCompositingRequest(WindowManager* wm);
+    ~ScopedCompositingRequest();
+
+   private:
+    WindowManager* wm_;  // not owned
+    DISALLOW_COPY_AND_ASSIGN(ScopedCompositingRequest);
+  };
+
   WindowManager(EventLoop* event_loop,
                 XConnection* xconn,
                 Compositor* compositor,
@@ -277,6 +290,11 @@ class WindowManager : public PanelManagerAreaChangeListener,
   // before returning.
   void IncrementCompositingRequests();
   void DecrementCompositingRequests();
+
+  // Create and return a new ScopedCompositingRequest object.  The caller
+  // should stick it in a scoped_ptr that goes out of scope at the point where
+  // the request should be withdrawn.
+  ScopedCompositingRequest* CreateScopedCompositingRequest();
 
  private:
   friend class BasicWindowManagerTest;
