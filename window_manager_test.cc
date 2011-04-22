@@ -904,14 +904,14 @@ TEST_F(WindowManagerTest, LoggedIn) {
 // MappingNotify event.
 TEST_F(WindowManagerTest, HandleMappingNotify) {
   // Check that a grab has been installed for an arbitrary key binding
-  // (Ctrl-F4).
+  // (F5).
   EXPECT_EQ(0, xconn_->num_keymap_refreshes());
-  const KeySym keysym = XK_F4;
-  const uint32_t modifiers = ControlMask;
+  const KeySym keysym = XK_F5;
+  const uint32_t modifiers = 0;
   const KeyCode old_keycode = xconn_->GetKeyCodeFromKeySym(keysym);
   EXPECT_TRUE(xconn_->KeyIsGrabbed(old_keycode, modifiers));
 
-  // Now remap the 'm' key and give the window manager a MappingNotify event.
+  // Now remap the F5 key and give the window manager a MappingNotify event.
   const KeyCode new_keycode = 255;
   EXPECT_FALSE(xconn_->KeyIsGrabbed(new_keycode, modifiers));
   xconn_->RemoveKeyMapping(old_keycode, keysym);
