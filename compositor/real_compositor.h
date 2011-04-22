@@ -685,6 +685,9 @@ class RealCompositor : public Compositor {
   void EnableDrawTimeout();
   void DisableDrawTimeout();
 
+  // Get the starting time that should be used for newly-added animations.
+  base::TimeTicks GetMonotonicTimeForAnimation();
+
   EventLoop* event_loop_;  // not owned
   XConnection* x_conn_;    // not owned
 
@@ -732,6 +735,16 @@ class RealCompositor : public Compositor {
   // False if we're using OpenGL and GLX_EXT_texture_from_pixmap is
   // unavailable; true otherwise.
   bool texture_pixmap_actor_uses_fast_path_;
+
+  // Used as the starting time for new animations.  This is initialized the
+  // first time that we add an animation for a given frame and then reused for
+  // all other animations added in the same frame.  If we instead used the
+  // actual current time whenever an animation was added, it would be impossible
+  // to reliably make two animations happen in sync, as a tiny amount of time
+  // will always pass between when they're added.  Reset to 0 whenever we draw a
+  // frame and later accessed with GetMonotonicTimeForAnimation(), which sets it
+  // to the current time if it's 0.
+  base::TimeTicks monotonic_time_for_animation_;
 
   // Top fullscreen actor that was present in the last frame.  Tracked so we
   // know when we need to HandleTopFullscreenActorChange.  It is set to NULL

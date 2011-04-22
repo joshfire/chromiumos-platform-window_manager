@@ -700,6 +700,56 @@ TEST_F(RealCompositorTest, LayerVisitorTopFullscreenWindow) {
   EXPECT_TRUE(layer_visitor.top_fullscreen_actor() == NULL);
 }
 
+TEST_F(RealCompositorTest, SynchronizeAnimations) {
+  int64_t now = 1000;  // arbitrary
+  SetMonotonicTimeForTest(CreateTimeTicksFromMs(now));
+
+  // Create two actors.
+  scoped_ptr<RealCompositor::TexturePixmapActor> actor1(
+      compositor_->CreateTexturePixmap());
+  compositor_->GetDefaultStage()->AddActor(actor1.get());
+
+  scoped_ptr<RealCompositor::TexturePixmapActor> actor2(
+      compositor_->CreateTexturePixmap());
+  compositor_->GetDefaultStage()->AddActor(actor2.get());
+
+  const int kSrcX = 0;
+  const int kDestX = 500;
+  const int kAnimMs = 100;
+  const int kDelayMs = 20;
+
+  actor1->Move(kSrcX, 0, 0);
+  actor2->Move(kSrcX, 0, 0);
+
+  // Animate the first actor to a new X position.
+  actor1->Move(kDestX, 0, kAnimMs);
+
+  // Animate the second actor's X position to the same spot as the first, over
+  // the same amount of time, but pretend like a bit of time passed between when
+  // the two animations were created.
+  now += kDelayMs;
+  SetMonotonicTimeForTest(CreateTimeTicksFromMs(now));
+  actor2->Move(kDestX, 0, kAnimMs);
+
+  // After drawing, both animations should've proceeded in lockstep despite the
+  // earlier delay.
+  now += (kAnimMs - kDelayMs);
+  SetMonotonicTimeForTest(CreateTimeTicksFromMs(now));
+  Draw();
+  EXPECT_EQ(kDestX, actor1->GetX());
+  EXPECT_EQ(kDestX, actor2->GetX());
+
+  // Now move the actors back to their starting position to check that we reset
+  // the animation start time after drawing a frame.
+  actor1->Move(kSrcX, 0, kAnimMs);
+  actor2->Move(kSrcX, 0, kAnimMs);
+  now += kAnimMs;
+  SetMonotonicTimeForTest(CreateTimeTicksFromMs(now));
+  Draw();
+  EXPECT_EQ(kSrcX, actor1->GetX());
+  EXPECT_EQ(kSrcX, actor2->GetX());
+}
+
 }  // namespace window_manager
 
 int main(int argc, char** argv) {

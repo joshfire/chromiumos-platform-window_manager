@@ -353,7 +353,8 @@ template<class T> void RealCompositor::Actor::AnimateField(
     return;
 
   if (duration.InMilliseconds() > 0) {
-    shared_ptr<Animation> animation(new Animation(*field, GetMonotonicTime()));
+    shared_ptr<Animation> animation(
+        new Animation(*field, compositor_->GetMonotonicTimeForAnimation()));
     animation->AppendKeyframe(value, duration);
     if (iterator != animation_map->end()) {
       iterator->second = animation;
@@ -374,7 +375,7 @@ template<class T> void RealCompositor::Actor::AnimateField(
 template<class T> Animation* RealCompositor::Actor::CreateAnimationForField(
     T* field) {
   DCHECK(field);
-  return new Animation(*field, GetMonotonicTime());
+  return new Animation(*field, compositor_->GetMonotonicTimeForAnimation());
 }
 
 template<class T> void RealCompositor::Actor::SetAnimationForField(
@@ -919,6 +920,10 @@ void RealCompositor::Draw() {
   }
   if (num_animations_ == 0)
     DisableDrawTimeout();
+
+  // Reset the cached timestamp used for new animations.
+  monotonic_time_for_animation_ = TimeTicks();
+
   PROFILER_MARKER_END(RealCompositor_Draw);
 }
 
@@ -943,6 +948,12 @@ void RealCompositor::DisableDrawTimeout() {
     event_loop_->SuspendTimeout(draw_timeout_id_);
     draw_timeout_enabled_ = false;
   }
+}
+
+TimeTicks RealCompositor::GetMonotonicTimeForAnimation() {
+  if (monotonic_time_for_animation_.is_null())
+    monotonic_time_for_animation_ = GetMonotonicTime();
+  return monotonic_time_for_animation_;
 }
 
 }  // namespace window_manager
