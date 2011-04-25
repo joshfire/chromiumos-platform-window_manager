@@ -12,7 +12,6 @@
 
 #include "base/basictypes.h"
 #include "base/scoped_ptr.h"
-#include "window_manager/compositor/compositor.h"
 #include "window_manager/geometry.h"
 #include "window_manager/motion_event_coalescer.h"
 #include "window_manager/stacking_manager.h"
@@ -23,6 +22,7 @@ namespace window_manager {
 
 class EventConsumerRegistrar;
 class PanelManager;
+class ResizeBox;
 class TransientWindowCollection;
 class WindowManager;
 class XConnection;
@@ -247,7 +247,7 @@ class Panel {
   StackingManager::Layer stacking_layer_;
 
   // Translucent resize box used when opaque resizing is disabled.
-  scoped_ptr<Compositor::ColoredBoxActor> resize_actor_;
+  scoped_ptr<ResizeBox> resize_box_;
 
   // Batches motion events for resized panels so that we can rate-limit the
   // frequency of their processing.

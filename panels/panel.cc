@@ -16,9 +16,11 @@ extern "C" {
 
 #include "cros/chromeos_wm_ipc_enums.h"
 #include "window_manager/atom_cache.h"
+#include "window_manager/compositor/compositor.h"
 #include "window_manager/event_consumer_registrar.h"
 #include "window_manager/focus_manager.h"
 #include "window_manager/panels/panel_manager.h"
+#include "window_manager/resize_box.h"
 #include "window_manager/shadow.h"
 #include "window_manager/transient_window_collection.h"
 #include "window_manager/util.h"
@@ -56,16 +58,12 @@ void InitCursors(window_manager::XConnection* xconn) {
 
 namespace window_manager {
 
-// Amount of time to take to fade in the actor used for non-opaque resizes.
-static const int kResizeActorOpacityAnimMs = 150;
+// Opacity of the box that's displayed while a panel is being resized.
+static const double kResizeBoxOpacity = 0.4;
 
 // Frequency with which we should update the size of panels as they're
 // being resized.
 static const int kResizeUpdateMs = 25;
-
-// Appearance of the box used for non-opaque resizing.
-static const char* kResizeBoxBgColor = "#4181f5";
-static const double kResizeBoxOpacity = 0.3;
 
 const int Panel::kResizeBorderWidth = 3;
 const int Panel::kResizeCornerSize = 20;
@@ -80,7 +78,6 @@ Panel::Panel(PanelManager* panel_manager,
       is_expanded_(is_expanded),
       is_fullscreen_(false),
       is_urgent_(content_win->wm_hint_urgent()),
-      resize_actor_(NULL),
       resize_event_coalescer_(
           wm()->event_loop(),
           NewPermanentCallback(this, &Panel::ApplyResize),
@@ -290,17 +287,15 @@ void Panel::HandleInputWindowButtonPress(
   resize_event_coalescer_.Start();
 
   if (!FLAGS_panel_opaque_resize) {
-    DCHECK(!resize_actor_.get());
-    resize_actor_.reset(wm()->compositor()->CreateColoredBox(
-                            content_width(), total_height(),
-                            Compositor::Color(kResizeBoxBgColor)));
-    wm()->stage()->AddActor(resize_actor_.get());
-    resize_actor_->Move(titlebar_x(), titlebar_y(), 0);
-    resize_actor_->SetOpacity(0, 0);
-    resize_actor_->SetOpacity(kResizeBoxOpacity, kResizeActorOpacityAnimMs);
+    DCHECK(!resize_box_.get());
+    resize_box_.reset(new ResizeBox(wm()->compositor()));
+    resize_box_->SetBounds(
+        Rect(titlebar_x(), titlebar_y(), content_width(), total_height()), 0);
+    wm()->stage()->AddActor(resize_box_->actor());
+    resize_box_->actor()->SetOpacity(kResizeBoxOpacity, 0);
     wm()->stacking_manager()->StackActorAtTopOfLayer(
-        resize_actor_.get(), StackingManager::LAYER_DRAGGED_PANEL);
-    resize_actor_->Show();
+        resize_box_->actor(), StackingManager::LAYER_DRAGGED_PANEL);
+    resize_box_->actor()->Show();
   }
 }
 
@@ -327,8 +322,8 @@ void Panel::HandleInputWindowButtonRelease(
   if (FLAGS_panel_opaque_resize) {
     ConfigureInputWindows();
   } else {
-    DCHECK(resize_actor_.get());
-    resize_actor_.reset(NULL);
+    DCHECK(resize_box_.get());
+    resize_box_.reset(NULL);
     ResizeContent(resize_drag_last_width_, resize_drag_last_height_,
                   resize_drag_gravity_, true);
   }
@@ -751,7 +746,7 @@ void Panel::ApplyResize() {
     ResizeContent(resize_drag_last_width_, resize_drag_last_height_,
                   resize_drag_gravity_, false);
   } else {
-    if (resize_actor_.get()) {
+    if (resize_box_.get()) {
       int actor_x = titlebar_x();
       if (resize_drag_gravity_ == GRAVITY_SOUTHEAST ||
           resize_drag_gravity_ == GRAVITY_NORTHEAST) {
@@ -762,10 +757,10 @@ void Panel::ApplyResize() {
           resize_drag_gravity_ == GRAVITY_SOUTHEAST) {
         actor_y -= (resize_drag_last_height_ - resize_drag_orig_height_);
       }
-      resize_actor_->Move(actor_x, actor_y, 0);
-      resize_actor_->SetSize(
-          resize_drag_last_width_,
-          resize_drag_last_height_ + titlebar_height());
+
+      Rect bounds(actor_x, actor_y, resize_drag_last_width_,
+                  resize_drag_last_height_ + titlebar_height());
+      resize_box_->SetBounds(bounds, 0);
     }
   }
 }

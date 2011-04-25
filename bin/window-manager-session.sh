@@ -35,6 +35,7 @@ exec "${WM}"                                                            \
   --profile_dir="${PROFILE_DIR}"                                        \
   --rectangular_shadow_image_dir="${IMAGES}/rectangular_shadow"         \
   --report_metrics                                                      \
+  --resize_box_image_dir="${IMAGES}/resize_box"                         \
   --separator_image="${IMAGES}/separator.png"                           \
   --unaccelerated_graphics_image="${IMAGES}/unaccelerated_graphics.png" \
   --unredirect_fullscreen_window=true                                   \

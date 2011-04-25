@@ -112,6 +112,7 @@ srcs = Split('''\
   pointer_position_watcher.cc
   profiler.cc
   real_dbus_interface.cc
+  resize_box.cc
   screen_locker_handler.cc
   shadow.cc
   stacking_manager.cc
