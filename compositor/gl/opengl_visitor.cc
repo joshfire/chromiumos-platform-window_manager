@@ -294,6 +294,7 @@ OpenGlDrawVisitor::OpenGlDrawVisitor(GLInterface* gl_interface,
       context_(0),
       ancestor_opacity_(1.0f),
       num_frames_drawn_(0),
+      using_passthrough_projection_(false),
       has_fullscreen_actor_(false) {
   CHECK(gl_interface_);
   context_ = gl_interface_->CreateGlxContext();
@@ -462,7 +463,8 @@ void OpenGlDrawVisitor::DrawNeedle() {
 }
 
 void OpenGlDrawVisitor::VisitStage(RealCompositor::StageActor* actor) {
-  if (!actor->IsVisible()) return;
+  if (!actor->IsVisible())
+    return;
 
   PROFILER_MARKER_BEGIN(VisitStage);
   stage_ = actor;
@@ -489,6 +491,8 @@ void OpenGlDrawVisitor::VisitStage(RealCompositor::StageActor* actor) {
   // No need to clear color buffer if something will cover up the screen.
   if (!has_fullscreen_actor_)
     gl_interface_->Clear(GL_COLOR_BUFFER_BIT);
+
+  using_passthrough_projection_ = actor->using_passthrough_projection();
 
   gl_interface_->MatrixMode(GL_PROJECTION);
   gl_interface_->LoadIdentity();
@@ -653,6 +657,9 @@ void OpenGlDrawVisitor::VisitQuad(RealCompositor::QuadActor* actor) {
   float red = actor->color().red;
   float green = actor->color().green;
   float blue = actor->color().blue;
+  const bool quad_is_screen_aligned =
+    !actor->IsTransformed() &&
+    using_passthrough_projection_;
   DCHECK_LE(actor_opacity, 1.f);
   DCHECK_GE(actor_opacity, 0.f);
   DCHECK_LE(dimmed_transparency_begin, 1.f);
@@ -708,6 +715,21 @@ void OpenGlDrawVisitor::VisitQuad(RealCompositor::QuadActor* actor) {
     gl_interface_->Enable(GL_TEXTURE_2D);
     gl_interface_->BindTexture(GL_TEXTURE_2D,
                                actor->texture_data()->texture());
+    if (quad_is_screen_aligned) {
+      gl_interface_->TexParameteri(GL_TEXTURE_2D,
+                                   GL_TEXTURE_MIN_FILTER,
+                                   GL_NEAREST);
+      gl_interface_->TexParameteri(GL_TEXTURE_2D,
+                                   GL_TEXTURE_MAG_FILTER,
+                                   GL_NEAREST);
+    } else {
+      gl_interface_->TexParameteri(GL_TEXTURE_2D,
+                                   GL_TEXTURE_MIN_FILTER,
+                                   GL_LINEAR);
+      gl_interface_->TexParameteri(GL_TEXTURE_2D,
+                                   GL_TEXTURE_MAG_FILTER,
+                                   GL_LINEAR);
+    }
   } else {
     // Actor has no texture.
     gl_interface_->Disable(GL_TEXTURE_2D);

@@ -180,6 +180,13 @@ class OpenGlDrawVisitor : virtual public RealCompositor::ActorVisitor {
   // This information allows the draw visitor to perform partial updates.
   Rect damaged_region_;
 
+  // Used to track whether the current projection matrix is a pass-through
+  // matrix.  Pass-through means the output of the model view transform will
+  // map directly to window coordinates, e.g, if the model view transform
+  // yields the point [4, 4], a vertex will be placed at pixel [4, 4] in the
+  // window.
+  bool using_passthrough_projection_;
+
   // This is used to indicate whether the entire screen will be covered by an
   // actor so we can optimize by not clearing the COLOR_BUFFER_BIT.
   bool has_fullscreen_actor_;
