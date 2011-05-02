@@ -192,14 +192,14 @@ void PanelBar::AddPanel(Panel* panel, PanelSource source) {
   switch (source) {
     case PANEL_SOURCE_NEW:
       // Make newly-created panels slide in from the bottom of the screen.
-      panel->Move(info->desired_right, wm()->height(), 0);
+      panel->Move(Point(info->desired_right, wm()->height()), 0);
       panel->MoveY(final_y, kPanelStateAnimMs);
       break;
     case PANEL_SOURCE_DRAGGED:
       panel->MoveY(final_y, 0);
       break;
     case PANEL_SOURCE_DROPPED:
-      panel->Move(info->desired_right, final_y, kDroppedPanelAnimMs);
+      panel->Move(Point(info->desired_right, final_y), kDroppedPanelAnimMs);
       break;
     default:
       NOTREACHED() << "Unknown panel source " << source;
@@ -275,15 +275,14 @@ void PanelBar::RemovePanel(Panel* panel) {
 }
 
 bool PanelBar::ShouldAddDraggedPanel(const Panel* panel,
-                                     int drag_x,
-                                     int drag_y) {
-  return drag_y + panel->total_height() >
+                                     const Point& drag_pos) {
+  return drag_pos.y + panel->total_height() >
          wm()->height() - kPanelAttachThresholdPixels;
 }
 
 void PanelBar::HandleInputWindowButtonPress(XWindow xid,
-                                            int x, int y,
-                                            int x_root, int y_root,
+                                            const Point& relative_pos,
+                                            const Point& absolute_pos,
                                             int button,
                                             XTime timestamp) {
   if (wm()->IsModalWindowFocused())
@@ -304,12 +303,12 @@ void PanelBar::HandleInputWindowButtonPress(XWindow xid,
 }
 
 void PanelBar::HandleInputWindowPointerEnter(XWindow xid,
-                                             int x, int y,
-                                             int x_root, int y_root,
+                                             const Point& relative_pos,
+                                             const Point& absolute_pos,
                                              XTime timestamp) {
   if (xid == show_collapsed_panels_input_xid_) {
     DLOG(INFO) << "Got mouse enter in show-collapsed-panels window";
-    if (x_root >= wm()->width() - packed_panel_width_) {
+    if (absolute_pos.x >= wm()->width() - packed_panel_width_) {
       // If the user moves the pointer down quickly to the bottom of the
       // screen, it's possible that it could end up below a collapsed panel
       // without us having received an enter event in the panel's titlebar.
@@ -333,8 +332,8 @@ void PanelBar::HandleInputWindowPointerEnter(XWindow xid,
 }
 
 void PanelBar::HandleInputWindowPointerLeave(XWindow xid,
-                                             int x, int y,
-                                             int x_root, int y_root,
+                                             const Point& relative_pos,
+                                             const Point& absolute_pos,
                                              XTime timestamp) {
   if (xid == show_collapsed_panels_input_xid_) {
     DLOG(INFO) << "Got mouse leave in show-collapsed-panels window";
@@ -345,8 +344,9 @@ void PanelBar::HandleInputWindowPointerLeave(XWindow xid,
   }
 }
 
-void PanelBar::HandlePanelButtonPress(
-    Panel* panel, int button, XTime timestamp) {
+void PanelBar::HandlePanelButtonPress(Panel* panel,
+                                      int button,
+                                      XTime timestamp) {
   if (wm()->IsModalWindowFocused())
     return;
   DCHECK(panel);
@@ -376,16 +376,15 @@ void PanelBar::HandleSetPanelStateMessage(Panel* panel, bool expand) {
 }
 
 bool PanelBar::HandleNotifyPanelDraggedMessage(Panel* panel,
-                                               int drag_x,
-                                               int drag_y) {
+                                               const Point& drag_pos) {
   DCHECK(panel);
   DLOG(INFO) << "Notified about drag of panel " << panel->xid_str()
-             << " to (" << drag_x << ", " << drag_y << ")";
+             << " to " << drag_pos;
 
   if (FLAGS_allow_panels_to_be_detached) {
     const int y_threshold =
         wm()->height() - panel->total_height() - kPanelDetachThresholdPixels;
-    if (drag_y <= y_threshold)
+    if (drag_pos.y <= y_threshold)
       return false;
   }
 
@@ -399,12 +398,13 @@ bool PanelBar::HandleNotifyPanelDraggedMessage(Panel* panel,
     DLOG(INFO) << "Starting drag of panel " << panel->xid_str();
     dragged_panel_ = panel;
     dragging_panel_horizontally_ =
-        (abs(drag_x - panel->right()) > abs(drag_y - panel->titlebar_y()));
+        (abs(drag_pos.x - panel->right()) >
+         abs(drag_pos.y - panel->titlebar_y()));
     panel->StackAtTopOfLayer(StackingManager::LAYER_DRAGGED_PANEL);
   }
 
   if (dragging_panel_horizontally_) {
-    panel->MoveX(drag_x, 0);
+    panel->MoveX(drag_pos.x, 0);
     PanelInfo* info = GetPanelInfoOrDie(panel);
 
     // Make sure that the panel is in the correct vector (floating vs.
@@ -427,9 +427,9 @@ bool PanelBar::HandleNotifyPanelDraggedMessage(Panel* panel,
         kFloatingPanelThresholdPixels;
 
     bool moved_to_other_vector = false;
-    if (drag_x < floating_threshold) {
+    if (drag_pos.x < floating_threshold) {
       moved_to_other_vector = MovePanelToFloatingVector(panel, info);
-      info->desired_right = drag_x;
+      info->desired_right = drag_pos.x;
       ArrangePanels(false, NULL);
     } else {
       moved_to_other_vector = MovePanelToPackedVector(panel, info);
@@ -449,7 +449,7 @@ bool PanelBar::HandleNotifyPanelDraggedMessage(Panel* panel,
     // If we're dragging vertically, cap the Y value between the lowest and
     // highest positions that the panel can take while in the bar.
     const int capped_y =
-        max(min(drag_y, wm()->height() - panel->titlebar_height()),
+        max(min(drag_pos.y, wm()->height() - panel->titlebar_height()),
             wm()->height() - panel->total_height());
     panel->MoveY(capped_y, 0);
   }
@@ -469,9 +469,9 @@ void PanelBar::HandleFocusPanelMessage(Panel* panel, XTime timestamp) {
 }
 
 void PanelBar::HandlePanelResizeRequest(Panel* panel,
-                                        int req_width, int req_height) {
+                                        const Size& requested_size) {
   DCHECK(panel);
-  panel->ResizeContent(req_width, req_height, GRAVITY_SOUTHEAST, true);
+  panel->ResizeContent(requested_size, GRAVITY_SOUTHEAST, true);
   ArrangePanels(true, NULL);
 }
 
@@ -883,15 +883,16 @@ void PanelBar::CreateAnchor(Panel* panel) {
   Point pointer_pos;
   wm()->xconn()->QueryPointerPosition(&pointer_pos);
 
-  const int width = anchor_actor_->GetWidth();
-  const int height = anchor_actor_->GetHeight();
-  const int x = min(max(static_cast<int>(pointer_pos.x - 0.5 * width), 0),
-                    wm()->width() - width);
-  const int y = wm()->height() - height;
-
-  wm()->ConfigureInputWindow(anchor_input_xid_, Rect(x, y, width, height));
+  const Rect anchor_bounds(
+      min(max(static_cast<int>(pointer_pos.x - 0.5 * anchor_actor_->GetWidth()),
+              0),
+          wm()->width() - anchor_actor_->GetWidth()),
+      wm()->height() - anchor_actor_->GetHeight(),
+      anchor_actor_->GetWidth(),
+      anchor_actor_->GetHeight());
+  wm()->ConfigureInputWindow(anchor_input_xid_, anchor_bounds);
   anchor_panel_ = panel;
-  anchor_actor_->Move(x, y, 0);
+  anchor_actor_->Move(anchor_bounds.x, anchor_bounds.y, 0);
   anchor_actor_->SetOpacity(1, kAnchorFadeAnimMs);
 
   // We might not get a LeaveNotify event*, so we also poll the pointer
@@ -908,7 +909,7 @@ void PanelBar::CreateAnchor(Panel* panel) {
           wm()->xconn(),
           NewPermanentCallback(this, &PanelBar::DestroyAnchor),
           false,  // watch_for_entering_target=false
-          x, y, width, height));
+          anchor_bounds));
 }
 
 void PanelBar::DestroyAnchor() {
@@ -966,8 +967,8 @@ void PanelBar::StartHideCollapsedPanelsWatcher() {
           wm()->xconn(),
           NewPermanentCallback(this, &PanelBar::HideCollapsedPanels),
           false,  // watch_for_entering_target=false
-          0, wm()->height() - kHideCollapsedPanelsDistancePixels,
-          wm()->width(), kHideCollapsedPanelsDistancePixels));
+          Rect(0, wm()->height() - kHideCollapsedPanelsDistancePixels,
+               wm()->width(), kHideCollapsedPanelsDistancePixels)));
 }
 
 void PanelBar::ShowCollapsedPanels() {

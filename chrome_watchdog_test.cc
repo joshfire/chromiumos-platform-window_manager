@@ -60,14 +60,14 @@ TEST_F(ChromeWatchdogTest, Basic) {
 
   // We should also fail if we only have a Chrome window that doesn't
   // support _NET_WM_PING...
-  XWindow non_ping_xid = CreateToplevelWindow(2, 0, 0, 0, 640, 480);
+  XWindow non_ping_xid = CreateToplevelWindow(2, 0, Rect(0, 0, 640, 480));
   xconn_->SetIntProperty(non_ping_xid, kPidAtom, kCardinalAtom, kPid);
   xconn_->SetStringProperty(non_ping_xid, kClientMachineAtom, GetHostname());
   SendInitialEventsForWindow(non_ping_xid);
   EXPECT_FALSE(watchdog->SendPingToChrome(kTimestamp, kTimeoutMs));
 
   // ... or that's running on a different host...
-  XWindow other_host_xid = CreateToplevelWindow(2, 0, 0, 0, 640, 480);
+  XWindow other_host_xid = CreateToplevelWindow(2, 0, Rect(0, 0, 640, 480));
   AppendAtomToProperty(other_host_xid, kProtocolsAtom, kPingAtom);
   xconn_->SetIntProperty(other_host_xid, kPidAtom, kCardinalAtom, kPid);
   xconn_->SetStringProperty(other_host_xid, kClientMachineAtom, "bogus123");
@@ -75,7 +75,7 @@ TEST_F(ChromeWatchdogTest, Basic) {
   EXPECT_FALSE(watchdog->SendPingToChrome(kTimestamp, kTimeoutMs));
 
   // ... or that didn't supply its PID.
-  XWindow no_pid_xid = CreateToplevelWindow(2, 0, 0, 0, 640, 480);
+  XWindow no_pid_xid = CreateToplevelWindow(2, 0, Rect(0, 0, 640, 480));
   AppendAtomToProperty(no_pid_xid, kProtocolsAtom, kPingAtom);
   xconn_->SetStringProperty(no_pid_xid, kClientMachineAtom, GetHostname());
   SendInitialEventsForWindow(no_pid_xid);
@@ -84,7 +84,7 @@ TEST_F(ChromeWatchdogTest, Basic) {
   // Now create a Chrome window that supports _NET_WM_PING and has supplied
   // a PID and is running on the local host, and check that it receives a
   // message.
-  XWindow toplevel_xid = CreateToplevelWindow(2, 0, 0, 0, 640, 480);
+  XWindow toplevel_xid = CreateToplevelWindow(2, 0, Rect(0, 0, 640, 480));
   AppendAtomToProperty(toplevel_xid, kProtocolsAtom, kPingAtom);
   xconn_->SetIntProperty(toplevel_xid, kPidAtom, kCardinalAtom, kPid);
   xconn_->SetStringProperty(toplevel_xid, kClientMachineAtom, GetHostname());

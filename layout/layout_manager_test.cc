@@ -711,11 +711,11 @@ TEST_F(LayoutManagerTest, ConfigureToplevel) {
 }
 
 TEST_F(LayoutManagerTest, ChangeCurrentSnapshot) {
-  XWindow toplevel1_xid = CreateToplevelWindow(2, 0, 0, 0, 640, 480);
+  XWindow toplevel1_xid = CreateToplevelWindow(2, 0, Rect(0, 0, 640, 480));
   SendInitialEventsForWindow(toplevel1_xid);
   MockXConnection::WindowInfo* info1 =
       xconn_->GetWindowInfoOrDie(toplevel1_xid);
-  XWindow toplevel2_xid = CreateToplevelWindow(2, 0, 0, 0, 640, 480);
+  XWindow toplevel2_xid = CreateToplevelWindow(2, 0, Rect(0, 0, 640, 480));
   SendInitialEventsForWindow(toplevel2_xid);
   MockXConnection::WindowInfo* info2 =
       xconn_->GetWindowInfoOrDie(toplevel2_xid);
@@ -869,7 +869,7 @@ TEST_F(LayoutManagerTest, ChangeCurrentSnapshot) {
 
 TEST_F(LayoutManagerTest, OverviewFocus) {
   // Create and map a toplevel window.
-  XWindow toplevel_xid = CreateToplevelWindow(2, 0, 0, 0, 640, 480);
+  XWindow toplevel_xid = CreateToplevelWindow(2, 0, Rect(0, 0, 640, 480));
   SendInitialEventsForWindow(toplevel_xid);
   MockXConnection::WindowInfo* toplevel_info =
       xconn_->GetWindowInfoOrDie(toplevel_xid);
@@ -954,13 +954,13 @@ TEST_F(LayoutManagerTest, OverviewSpacing) {
   lm_->SetBackground(background);
 
   // Create and map a toplevel window.
-  XWindow toplevel_xid = CreateToplevelWindow(2, 0, 0, 0,
-                                              window_width, window_height);
+  XWindow toplevel_xid =
+      CreateToplevelWindow(2, 0, Rect(0, 0, window_width, window_height));
   SendInitialEventsForWindow(toplevel_xid);
 
   // Create and map a second toplevel window.
-  XWindow toplevel_xid2 = CreateToplevelWindow(1, 0, 0, 0,
-                                               window_width, window_height);
+  XWindow toplevel_xid2 =
+      CreateToplevelWindow(1, 0, Rect(0, 0, window_width, window_height));
   SendInitialEventsForWindow(toplevel_xid2);
 
   // Create an associated snapshot window with some "realistic"
@@ -968,12 +968,14 @@ TEST_F(LayoutManagerTest, OverviewSpacing) {
   // is using to make the snapshots, they're just reasonable values.)
   const int snapshot_height = MockXConnection::kDisplayHeight / 2;
   const int snapshot_width = snapshot_height * 1024 / 1280;
-  XWindow snapshot = CreateSnapshotWindow(toplevel_xid, 0, 0, 0,
-                                          snapshot_width, snapshot_height);
+  XWindow snapshot =
+      CreateSnapshotWindow(
+          toplevel_xid, 0, Rect(0, 0, snapshot_width, snapshot_height));
   SendInitialEventsForWindow(snapshot);
-  XWindow snapshot_title = CreateTitleWindow(snapshot, snapshot_width, 16);
+  XWindow snapshot_title =
+      CreateTitleWindow(snapshot, Size(snapshot_width, 16));
   SendInitialEventsForWindow(snapshot_title);
-  XWindow snapshot_fav_icon = CreateFavIconWindow(snapshot, 16, 16);
+  XWindow snapshot_fav_icon = CreateFavIconWindow(snapshot, Size(16, 16));
   SendInitialEventsForWindow(snapshot_fav_icon);
 
   // This is the vertical offset to center the background.
@@ -989,24 +991,28 @@ TEST_F(LayoutManagerTest, OverviewSpacing) {
   lm_->SetMode(LayoutManager::MODE_OVERVIEW);
 
   // Now create and map a second snapshot window.
-  XWindow snapshot2 = CreateSnapshotWindow(toplevel_xid, 1, 0, 0,
-                                           snapshot_width, snapshot_height);
+  XWindow snapshot2 =
+      CreateSnapshotWindow(
+          toplevel_xid, 1, Rect(0, 0, snapshot_width, snapshot_height));
   SendInitialEventsForWindow(snapshot2);
-  XWindow snapshot2_title = CreateTitleWindow(snapshot2, snapshot_width, 16);
+  XWindow snapshot2_title =
+      CreateTitleWindow(snapshot2, Size(snapshot_width, 16));
   SendInitialEventsForWindow(snapshot2_title);
-  XWindow snapshot2_fav_icon = CreateFavIconWindow(snapshot2, 16, 16);
+  XWindow snapshot2_fav_icon = CreateFavIconWindow(snapshot2, Size(16, 16));
   SendInitialEventsForWindow(snapshot2_fav_icon);
   ChangeTabInfo(toplevel_xid, 2, 1, wm_->GetCurrentTimeFromServer());
   SendWindowTypeEvent(toplevel_xid);
 
   // Now create and map a third snapshot window, with the second
   // toplevel as its parent.
-  XWindow snapshot3 = CreateSnapshotWindow(toplevel_xid2, 0, 0, 0,
-                                           snapshot_width, snapshot_height);
+  XWindow snapshot3 =
+      CreateSnapshotWindow(
+          toplevel_xid2, 0, Rect(0, 0, snapshot_width, snapshot_height));
   SendInitialEventsForWindow(snapshot3);
-  XWindow snapshot3_title = CreateTitleWindow(snapshot3, snapshot_width, 16);
+  XWindow snapshot3_title =
+      CreateTitleWindow(snapshot3, Size(snapshot_width, 16));
   SendInitialEventsForWindow(snapshot3_title);
-  XWindow snapshot3_fav_icon = CreateFavIconWindow(snapshot3, 16, 16);
+  XWindow snapshot3_fav_icon = CreateFavIconWindow(snapshot3, Size(16, 16));
   SendInitialEventsForWindow(snapshot3_fav_icon);
   ChangeTabInfo(toplevel_xid2, 1, 0, wm_->GetCurrentTimeFromServer());
   SendWindowTypeEvent(toplevel_xid2);
@@ -1304,7 +1310,7 @@ TEST_F(LayoutManagerTest, AvoidMovingCurrentWindow) {
 TEST_F(LayoutManagerTest, ResizeWindowsBeforeMapping) {
   // Create a small non-Chrome window and check that it gets resized to the
   // layout manager's dimensions on MapRequest.
-  const XWindow nonchrome_xid = CreateBasicWindow(0, 0, 50, 40);
+  const XWindow nonchrome_xid = CreateBasicWindow(Rect(0, 0, 50, 40));
   MockXConnection::WindowInfo* nonchrome_info =
       xconn_->GetWindowInfoOrDie(nonchrome_xid);
   XEvent event;
@@ -1316,7 +1322,8 @@ TEST_F(LayoutManagerTest, ResizeWindowsBeforeMapping) {
   EXPECT_EQ(lm_->height(), nonchrome_info->bounds.height);
 
   // We should do the same thing with toplevel Chrome windows.
-  const XWindow toplevel_xid = CreateToplevelWindow(1, 0, 0, 0, 50, 40);
+  const XWindow toplevel_xid =
+      CreateToplevelWindow(1, 0, Rect(0, 0, 50, 40));
   MockXConnection::WindowInfo* toplevel_info =
       xconn_->GetWindowInfoOrDie(toplevel_xid);
   xconn_->InitCreateWindowEvent(&event, toplevel_xid);
@@ -1329,7 +1336,8 @@ TEST_F(LayoutManagerTest, ResizeWindowsBeforeMapping) {
   // Snapshot windows should retain their original dimensions.
   const int orig_width = 50, orig_height = 40;
   const XWindow snapshot_xid =
-      CreateSnapshotWindow(toplevel_xid, 0, 0, 0, orig_width, orig_height);
+      CreateSnapshotWindow(
+          toplevel_xid, 0, Rect(0, 0, orig_width, orig_height));
   MockXConnection::WindowInfo* snapshot_info =
       xconn_->GetWindowInfoOrDie(snapshot_xid);
   xconn_->InitCreateWindowEvent(&event, snapshot_xid);
@@ -1341,7 +1349,7 @@ TEST_F(LayoutManagerTest, ResizeWindowsBeforeMapping) {
 
   // Transient windows should, too.
   const XWindow transient_xid =
-      CreateBasicWindow(0, 0, orig_width, orig_height);
+      CreateBasicWindow(Rect(0, 0, orig_width, orig_height));
   MockXConnection::WindowInfo* transient_info =
       xconn_->GetWindowInfoOrDie(transient_xid);
   transient_info->transient_for = toplevel_xid;
@@ -1366,7 +1374,7 @@ TEST_F(LayoutManagerTest, NestedTransients) {
   // Create a transient window.
   const int initial_width = 300, initial_height = 200;
   XWindow transient_xid =
-      CreateBasicWindow(0, 0, initial_width, initial_height);
+      CreateBasicWindow(Rect(0, 0, initial_width, initial_height));
   MockXConnection::WindowInfo* transient_info =
       xconn_->GetWindowInfoOrDie(transient_xid);
   transient_info->transient_for = toplevel_xid;
@@ -1381,7 +1389,7 @@ TEST_F(LayoutManagerTest, NestedTransients) {
   // Now create a second transient window that says it's transient for the
   // first transient window.
   XWindow nested_transient_xid =
-      CreateBasicWindow(0, 0, initial_width, initial_height);
+      CreateBasicWindow(Rect(0, 0, initial_width, initial_height));
   MockXConnection::WindowInfo* nested_transient_info =
       xconn_->GetWindowInfoOrDie(nested_transient_xid);
   nested_transient_info->transient_for = transient_xid;
@@ -1398,7 +1406,7 @@ TEST_F(LayoutManagerTest, NestedTransients) {
   // For good measure, do it all again with another transient window nested
   // one level deeper.
   XWindow another_transient_xid =
-      CreateBasicWindow(0, 0, initial_width, initial_height);
+      CreateBasicWindow(Rect(0, 0, initial_width, initial_height));
   MockXConnection::WindowInfo* another_transient_info =
       xconn_->GetWindowInfoOrDie(another_transient_xid);
   another_transient_info->transient_for = nested_transient_xid;
@@ -1413,7 +1421,8 @@ TEST_F(LayoutManagerTest, NestedTransients) {
 // instead of sliding in from the side.
 TEST_F(LayoutManagerTest, NoSlideForInitialWindow) {
   // Create a window and check that it's in the expected location.
-  XWindow xid = CreateToplevelWindow(0, 0, 0, 0, 640, 480);
+  XWindow xid =
+      CreateToplevelWindow(0, 0, Rect(0, 0, 640, 480));
   SendInitialEventsForWindow(xid);
   Window* win = wm_->GetWindowOrDie(xid);
   EXPECT_EQ(0, win->client_x());
@@ -1427,7 +1436,8 @@ TEST_F(LayoutManagerTest, NoSlideForInitialWindow) {
   EXPECT_FALSE(actor->position_was_animated());
 
   // Now create a second window and check that it *does* get animated.
-  XWindow xid2 = CreateToplevelWindow(0, 0, 0, 0, 640, 480);
+  XWindow xid2 =
+      CreateToplevelWindow(0, 0, Rect(0, 0, 640, 480));
   SendInitialEventsForWindow(xid2);
   Window* win2 = wm_->GetWindowOrDie(xid2);
   EXPECT_EQ(0, win2->client_x());
@@ -1507,7 +1517,7 @@ TEST_F(LayoutManagerTest, Fullscreen) {
   EXPECT_TRUE(win->wm_state_fullscreen());
   EXPECT_TRUE(WindowIsInLayer(win, StackingManager::LAYER_FULLSCREEN_WINDOW));
 
-  XWindow transient_xid = CreateBasicWindow(0, 0, 300, 300);
+  XWindow transient_xid = CreateBasicWindow(Rect(0, 0, 300, 300));
   MockXConnection::WindowInfo* transient_info =
       xconn_->GetWindowInfoOrDie(transient_xid);
   transient_info->transient_for = xid;
@@ -1632,7 +1642,8 @@ TEST_F(LayoutManagerTest, ChangeBackgroundsAfterInitialWindow) {
 
   // After the first Chrome window gets mapped, we should show the layout
   // manager background.
-  XWindow toplevel_xid = CreateToplevelWindow(2, 0, 0, 0, 640, 480);
+  XWindow toplevel_xid =
+      CreateToplevelWindow(2, 0, Rect(0, 0, 640, 480));
   SendInitialEventsForWindow(toplevel_xid);
   ASSERT_TRUE(lm_->background_.get() != NULL);
   EXPECT_TRUE(cast_lm_background->is_shown());
@@ -1663,7 +1674,8 @@ TEST_F(LayoutManagerTest, DontGrabBackAndForwardKeysInActiveMode) {
 // Check that shadows only get displayed for transient windows.
 TEST_F(LayoutManagerTest, Shadows) {
   // Chrome toplevel windows shouldn't have shadows.
-  XWindow toplevel_xid = CreateToplevelWindow(2, 0, 0, 0, 200, 200);
+  XWindow toplevel_xid =
+      CreateToplevelWindow(2, 0, Rect(0, 0, 200, 200));
   SendInitialEventsForWindow(toplevel_xid);
   EXPECT_TRUE(wm_->GetWindowOrDie(toplevel_xid)->shadow() == NULL);
 
@@ -1677,11 +1689,11 @@ TEST_F(LayoutManagerTest, Shadows) {
   SendInitialEventsForWindow(snapshot_xid);
   EXPECT_TRUE(wm_->GetWindowOrDie(snapshot_xid)->shadow() == NULL);
 
-  XWindow title_xid = CreateTitleWindow(snapshot_xid, 200, 16);
+  XWindow title_xid = CreateTitleWindow(snapshot_xid, Size(200, 16));
   SendInitialEventsForWindow(title_xid);
   EXPECT_TRUE(wm_->GetWindowOrDie(title_xid)->shadow() == NULL);
 
-  XWindow fav_icon_xid = CreateFavIconWindow(snapshot_xid, 16, 16);
+  XWindow fav_icon_xid = CreateFavIconWindow(snapshot_xid, Size(16, 16));
   SendInitialEventsForWindow(fav_icon_xid);
   EXPECT_TRUE(wm_->GetWindowOrDie(fav_icon_xid)->shadow() == NULL);
 
@@ -1716,9 +1728,11 @@ TEST_F(LayoutManagerTest, Shadows) {
 TEST_F(LayoutManagerTest, DeferAnimationsUntilPainted) {
   // Create and map two windows.  Make the second one say that it supports
   // the _NET_WM_SYNC_REQUEST protocol.
-  XWindow xid1 = CreateToplevelWindow(2, 0, 0, 0, 200, 200);
+  XWindow xid1 =
+      CreateToplevelWindow(2, 0, Rect(0, 0, 200, 200));
   SendInitialEventsForWindow(xid1);
-  XWindow xid2 = CreateToplevelWindow(2, 0, 0, 0, 200, 200);
+  XWindow xid2 =
+      CreateToplevelWindow(2, 0, Rect(0, 0, 200, 200));
   ConfigureWindowForSyncRequestProtocol(xid2);
   SendInitialEventsForWindow(xid2);
 
@@ -1742,9 +1756,11 @@ TEST_F(LayoutManagerTest, DeferAnimationsUntilPainted) {
 // transient window.
 TEST_F(LayoutManagerTest, SwitchToToplevelWithModalTransient) {
   // Create two toplevel windows.
-  XWindow xid1 = CreateToplevelWindow(2, 0, 0, 0, 200, 200);
+  XWindow xid1 =
+      CreateToplevelWindow(2, 0, Rect(0, 0, 200, 200));
   SendInitialEventsForWindow(xid1);
-  XWindow xid2 = CreateToplevelWindow(2, 0, 0, 0, 200, 200);
+  XWindow xid2 =
+      CreateToplevelWindow(2, 0, Rect(0, 0, 200, 200));
   SendInitialEventsForWindow(xid2);
 
   // The second toplevel should be focused initially.
@@ -1898,7 +1914,8 @@ TEST_F(LayoutManagerTest, TransientOwnedByChildWindow) {
 
 // Test that we close transient windows when their owners are unmapped.
 TEST_F(LayoutManagerTest, CloseTransientWindowsWhenOwnerIsUnmapped) {
-  XWindow owner_xid = CreateToplevelWindow(1, 0, 0, 0, 640, 480);
+  XWindow owner_xid =
+      CreateToplevelWindow(1, 0, Rect(0, 0, 640, 480));
   SendInitialEventsForWindow(owner_xid);
 
   XWindow transient_xid = CreateSimpleWindow();

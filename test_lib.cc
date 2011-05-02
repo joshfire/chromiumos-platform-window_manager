@@ -167,14 +167,13 @@ void BasicWindowManagerTest::CreateAndInitNewWm() {
 }
 
 XWindow BasicWindowManagerTest::CreateSimpleWindow() {
-  return CreateBasicWindow(0, 0, 640, 480);
+  return CreateBasicWindow(Rect(0, 0, 640, 480));
 }
 
-XWindow BasicWindowManagerTest::CreateBasicWindow(int x, int y,
-                                                  int width, int height) {
+XWindow BasicWindowManagerTest::CreateBasicWindow(const Rect& bounds) {
   return xconn_->CreateWindow(
       xconn_->GetRootWindow(),
-      Rect(x, y, width, height),
+      bounds,
       false,  // override redirect
       false,  // input only
       0, 0);  // event mask, visual
@@ -182,9 +181,8 @@ XWindow BasicWindowManagerTest::CreateBasicWindow(int x, int y,
 
 XWindow BasicWindowManagerTest::CreateToplevelWindow(int tab_count,
                                                      int selected_tab,
-                                                     int x, int y,
-                                                     int width, int height) {
-  XWindow xid = CreateBasicWindow(x, y, width, height);
+                                                     const Rect& bounds) {
+  XWindow xid = CreateBasicWindow(bounds);
   ChangeTabInfo(xid, tab_count, selected_tab, wm_->GetCurrentTimeFromServer());
   return xid;
 }
@@ -202,24 +200,24 @@ void BasicWindowManagerTest::ChangeTabInfo(XWindow toplevel_xid,
 }
 
 XWindow BasicWindowManagerTest::CreateFavIconWindow(XWindow snapshot_xid,
-                                                    int width, int height) {
+                                                    const Size& size) {
   return CreateDecorationWindow(snapshot_xid,
                                 chromeos::WM_IPC_WINDOW_CHROME_TAB_FAV_ICON,
-                                width, height);
+                                size);
 }
 
 XWindow BasicWindowManagerTest::CreateTitleWindow(XWindow snapshot_xid,
-                                                  int width, int height) {
+                                                  const Size& size) {
   return CreateDecorationWindow(snapshot_xid,
                                 chromeos::WM_IPC_WINDOW_CHROME_TAB_TITLE,
-                                width, height);
+                                size);
 }
 
 XWindow BasicWindowManagerTest::CreateDecorationWindow(
     XWindow snapshot_xid,
     chromeos::WmIpcWindowType type,
-    int width, int height) {
-  XWindow xid = CreateBasicWindow(0, 0, width, height);
+    const Size& size) {
+  XWindow xid = CreateBasicWindow(Rect(Point(0, 0), size));
   std::vector<int> params;
   params.push_back(snapshot_xid);
   wm_->wm_ipc()->SetWindowType(xid, type, &params);
@@ -229,9 +227,8 @@ XWindow BasicWindowManagerTest::CreateDecorationWindow(
 
 XWindow BasicWindowManagerTest::CreateSnapshotWindow(XWindow parent_xid,
                                                      int index,
-                                                     int x, int y,
-                                                     int width, int height) {
-  XWindow xid = CreateBasicWindow(x, y, width, height);
+                                                     const Rect& bounds) {
+  XWindow xid = CreateBasicWindow(bounds);
   std::vector<int> params;
   params.push_back(parent_xid);
   params.push_back(index);
@@ -243,20 +240,19 @@ XWindow BasicWindowManagerTest::CreateSnapshotWindow(XWindow parent_xid,
 
 XWindow BasicWindowManagerTest::CreateSimpleSnapshotWindow(XWindow parent_xid,
                                                            int index) {
-  return CreateSnapshotWindow(parent_xid, index, 0, 0, 320, 240);
+  return CreateSnapshotWindow(parent_xid, index, Rect(0, 0, 320, 240));
 }
 
-XWindow BasicWindowManagerTest::CreatePanelTitlebarWindow(
-    int width, int height) {
-  XWindow xid = CreateBasicWindow(0, 0, width, height);
+XWindow BasicWindowManagerTest::CreatePanelTitlebarWindow(const Size& size) {
+  XWindow xid = CreateBasicWindow(Rect(Point(0, 0), size));
   wm_->wm_ipc()->SetWindowType(
       xid, chromeos::WM_IPC_WINDOW_CHROME_PANEL_TITLEBAR, NULL);
   return xid;
 }
 
-XWindow BasicWindowManagerTest::CreatePanelContentWindow(
-    int width, int height, XWindow titlebar_xid) {
-  XWindow xid = CreateBasicWindow(0, 0, width, height);
+XWindow BasicWindowManagerTest::CreatePanelContentWindow(const Size& size,
+                                                         XWindow titlebar_xid) {
+  XWindow xid = CreateBasicWindow(Rect(Point(0, 0), size));
   std::vector<int> params;
   params.push_back(titlebar_xid);
   params.push_back(new_panels_should_be_expanded_ ? 1 : 0);
@@ -270,10 +266,11 @@ XWindow BasicWindowManagerTest::CreatePanelContentWindow(
 
 Panel* BasicWindowManagerTest::CreatePanel(
     int width, int titlebar_height, int content_height) {
-  XWindow titlebar_xid = CreatePanelTitlebarWindow(width, titlebar_height);
+  XWindow titlebar_xid =
+      CreatePanelTitlebarWindow(Size(width, titlebar_height));
   SendInitialEventsForWindow(titlebar_xid);
-  XWindow content_xid = CreatePanelContentWindow(
-      width, content_height, titlebar_xid);
+  XWindow content_xid =
+      CreatePanelContentWindow(Size(width, content_height), titlebar_xid);
   SendInitialEventsForWindow(content_xid);
   Panel* panel = wm_->panel_manager_->panel_bar_->GetPanelByWindow(
       *(wm_->GetWindow(content_xid)));
@@ -293,8 +290,7 @@ void BasicWindowManagerTest::SendInitialEventsForWindow(XWindow xid) {
   int initial_num_configures = info->num_configures;
   wm_->HandleEvent(&event);
   if (info->num_configures != initial_num_configures) {
-    xconn_->InitConfigureNotifyEvent(&event, xid);
-    wm_->HandleEvent(&event);
+    SendConfigureNotifyEvent(xid);
     initial_num_configures = info->num_configures;
   }
 
@@ -304,8 +300,7 @@ void BasicWindowManagerTest::SendInitialEventsForWindow(XWindow xid) {
     EXPECT_TRUE(info->mapped);
 
     if (info->num_configures != initial_num_configures) {
-      xconn_->InitConfigureNotifyEvent(&event, xid);
-      wm_->HandleEvent(&event);
+      SendConfigureNotifyEvent(xid);
       initial_num_configures = info->num_configures;
     }
   }
@@ -314,8 +309,7 @@ void BasicWindowManagerTest::SendInitialEventsForWindow(XWindow xid) {
     xconn_->InitMapEvent(&event, xid);
     wm_->HandleEvent(&event);
     if (info->num_configures != initial_num_configures) {
-      xconn_->InitConfigureNotifyEvent(&event, xid);
-      wm_->HandleEvent(&event);
+      SendConfigureNotifyEvent(xid);
       initial_num_configures = info->num_configures;
     }
   }
@@ -407,8 +401,14 @@ void BasicWindowManagerTest::SendActiveWindowMessage(XWindow xid) {
   wm_->HandleEvent(&event);
 }
 
-void BasicWindowManagerTest::NotifyWindowAboutSize(Window* win) {
-  win->HandleConfigureNotify(win->client_width(), win->client_height());
+void BasicWindowManagerTest::SendConfigureNotifyEvent(XWindow xid) {
+  XEvent event;
+  xconn_->InitConfigureNotifyEvent(&event, xid);
+  if (xconn_->stacked_xids().Contains(xid)) {
+    const XWindow* above_xid = xconn_->stacked_xids().GetUnder(xid);
+    event.xconfigure.above = above_xid ? *above_xid : 0;
+  }
+  wm_->HandleEvent(&event);
 }
 
 void BasicWindowManagerTest::SetLoggedInState(bool logged_in) {

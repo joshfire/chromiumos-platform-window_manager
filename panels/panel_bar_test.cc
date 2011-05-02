@@ -51,7 +51,7 @@ TEST_F(PanelBarTest, Basic) {
   // Now create a panel titlebar, and then the content window.
   const int initial_titlebar_height = 16;
   XWindow titlebar_xid =
-      CreatePanelTitlebarWindow(100, initial_titlebar_height);
+      CreatePanelTitlebarWindow(Size(100, initial_titlebar_height));
   MockXConnection::WindowInfo* titlebar_info =
       xconn_->GetWindowInfoOrDie(titlebar_xid);
   SendInitialEventsForWindow(titlebar_xid);
@@ -59,7 +59,7 @@ TEST_F(PanelBarTest, Basic) {
   const int initial_content_width = 250;
   const int initial_content_height = 400;
   XWindow content_xid = CreatePanelContentWindow(
-      initial_content_width, initial_content_height, titlebar_xid);
+      Size(initial_content_width, initial_content_height), titlebar_xid);
   MockXConnection::WindowInfo* content_info =
       xconn_->GetWindowInfoOrDie(content_xid);
   SendInitialEventsForWindow(content_xid);

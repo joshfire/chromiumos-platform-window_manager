@@ -7,6 +7,7 @@
 
 #include "base/scoped_ptr.h"
 #include "window_manager/callback.h"
+#include "window_manager/geometry.h"
 
 namespace window_manager {
 
@@ -36,7 +37,7 @@ class PointerPositionWatcher {
       XConnection* xconn,
       Closure* cb,
       bool watch_for_entering_target,  // as opposed to leaving it
-      int target_x, int target_y, int target_width, int target_height);
+      const Rect& target_bounds);
   ~PointerPositionWatcher();
 
   // Useful for testing.
@@ -66,10 +67,7 @@ class PointerPositionWatcher {
   bool watch_for_entering_target_;
 
   // Target rectangle.
-  int target_x_;
-  int target_y_;
-  int target_width_;
-  int target_height_;
+  Rect target_bounds_;
 
   // Timeout ID, or -1 if the timeout isn't active.
   int timeout_id_;

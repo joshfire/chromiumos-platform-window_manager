@@ -208,8 +208,6 @@ WindowManager::WindowManager(EventLoop* event_loop,
       compositor_(compositor),
       dbus_(dbus),
       root_(0),
-      width_(0),
-      height_(0),
       wm_xid_(0),
       stage_(NULL),
       stage_xid_(0),
@@ -324,8 +322,7 @@ void WindowManager::HandleTopFullscreenActorChange(
   }
 
   if (!was_compositing && should_composite) {
-    xconn_->SetWindowBoundingRegionToRect(overlay_xid_,
-                                          Rect(0, 0, width_, height_));
+    xconn_->SetWindowBoundingRegionToRect(overlay_xid_, root_bounds_);
     DLOG(INFO) << "Turned compositing on";
     compositor_->set_should_draw_frame(true);
   }
@@ -338,8 +335,7 @@ bool WindowManager::Init() {
   xconn_->SelectInputOnWindow(root_, StructureNotifyMask, true);
   XConnection::WindowGeometry root_geometry;
   CHECK(xconn_->GetWindowGeometry(root_, &root_geometry));
-  width_ = root_geometry.bounds.width;
-  height_ = root_geometry.bounds.height;
+  root_bounds_ = root_geometry.bounds;
   root_depth_ = root_geometry.depth;
 
   if (FLAGS_unredirect_fullscreen_window) {
@@ -367,7 +363,7 @@ bool WindowManager::Init() {
   stage_ = compositor_->GetDefaultStage();
   stage_xid_ = stage_->GetStageXWindow();
   stage_->SetName("stage");
-  stage_->SetSize(width_, height_);
+  stage_->SetSize(root_bounds_.width, root_bounds_.height);
   stage_->SetStageColor(Compositor::Color(FLAGS_background_color));
   stage_->Show();
 
@@ -1051,8 +1047,8 @@ bool WindowManager::SetEwmhSizeProperties() {
 
   // We don't use pseudo-large desktops, so this is just the screen size.
   vector<int> geometry;
-  geometry.push_back(width_);
-  geometry.push_back(height_);
+  geometry.push_back(root_bounds_.width);
+  geometry.push_back(root_bounds_.height);
   success &= xconn_->SetIntArrayProperty(
       root_, GetXAtom(ATOM_NET_DESKTOP_GEOMETRY), XA_CARDINAL, geometry);
 
@@ -1082,8 +1078,10 @@ bool WindowManager::SetEwmhWorkareaProperty() {
   workarea.push_back(panel_manager_left_width);  // x
   workarea.push_back(0);  // y
   workarea.push_back(
-      width_ - panel_manager_left_width - panel_manager_right_width);
-  workarea.push_back(height_);
+      root_bounds_.width -
+      panel_manager_left_width -
+      panel_manager_right_width);
+  workarea.push_back(root_bounds_.height);
   return xconn_->SetIntArrayProperty(
       root_, GetXAtom(ATOM_NET_WORKAREA), XA_CARDINAL, workarea);
 }
@@ -1252,8 +1250,6 @@ void WindowManager::HandleMappedWindow(Window* win) {
         }
       }
     }
-
-    win->ShowComposited();
     return;
   }
 
@@ -1270,11 +1266,11 @@ void WindowManager::HandleMappedWindow(Window* win) {
   SetWmStateProperty(win->xid(), 1);  // NormalState
 }
 
-void WindowManager::HandleScreenResize(int new_width, int new_height) {
+void WindowManager::HandleScreenResize(const Size& new_size) {
   // We move windows offscreen to prevent them from receiving input.
   // Check that the screen doesn't get so huge that they end up onscreen.
-  DCHECK_LE(new_width, Window::kOffscreenX);
-  DCHECK_LE(new_height, Window::kOffscreenY);
+  DCHECK_LE(new_size.width, Window::kOffscreenX);
+  DCHECK_LE(new_size.height, Window::kOffscreenY);
 
   // The window manager sometimes tries to fetch an updated
   // pixmap for a resized window while the window is unredirected, resulting
@@ -1283,10 +1279,9 @@ void WindowManager::HandleScreenResize(int new_width, int new_height) {
   scoped_ptr<ScopedCompositingRequest> comp_request(
       CreateScopedCompositingRequest());
 
-  width_ = new_width;
-  height_ = new_height;
+  root_bounds_.resize(new_size, GRAVITY_NORTHWEST);
   SetEwmhSizeProperties();
-  stage_->SetSize(width_, height_);
+  stage_->SetSize(root_bounds_.width, root_bounds_.height);
   FOR_EACH_EVENT_CONSUMER(event_consumers_, HandleScreenResize());
 }
 
@@ -1353,22 +1348,27 @@ void WindowManager::HandleButtonPress(const XButtonEvent& e) {
   if (win)
     focus_manager_->HandleButtonPressInWindow(win, e.time);
 
+  const Point relative_pos(e.x, e.y);
+  const Point absolute_pos(e.x_root, e.y_root);
   FOR_EACH_INTERESTED_EVENT_CONSUMER(
       window_event_consumers_,
       e.window,
-      HandleButtonPress(e.window, e.x, e.y, e.x_root,
-                        e.y_root, e.button, e.time));
+      HandleButtonPress(
+          e.window, relative_pos, absolute_pos, e.button, e.time));
 }
 
 void WindowManager::HandleButtonRelease(const XButtonEvent& e) {
   DLOG(INFO) << "Handling button release in window " << XidStr(e.window)
              << " at relative (" << e.x << ", " << e.y << "), absolute ("
              << e.x_root << ", " << e.y_root << ") with button " << e.button;
+
+  const Point relative_pos(e.x, e.y);
+  const Point absolute_pos(e.x_root, e.y_root);
   FOR_EACH_INTERESTED_EVENT_CONSUMER(
       window_event_consumers_,
       e.window,
-      HandleButtonRelease(e.window, e.x, e.y, e.x_root,
-                          e.y_root, e.button, e.time));
+      HandleButtonRelease(
+          e.window, relative_pos, absolute_pos, e.button, e.time));
 }
 
 void WindowManager::HandleClientMessage(const XClientMessageEvent& e) {
@@ -1419,10 +1419,12 @@ void WindowManager::HandleClientMessage(const XClientMessageEvent& e) {
 }
 
 void WindowManager::HandleConfigureNotify(const XConfigureEvent& e) {
-  if (e.window == root_ && (e.width != width_ || e.height != height_)) {
+  const Rect bounds(e.x, e.y, e.width, e.height);
+
+  if (e.window == root_ && bounds.size() != root_bounds_.size()) {
     DLOG(INFO) << "Got configure notify saying that root window has been "
-               << "resized to " << e.width << "x" << e.height;
-    HandleScreenResize(e.width, e.height);
+               << "resized to " << bounds.size();
+    HandleScreenResize(bounds.size());
     return;
   }
 
@@ -1468,59 +1470,19 @@ void WindowManager::HandleConfigureNotify(const XConfigureEvent& e) {
   Window* win = GetWindow(e.window);
   if (!win)
     return;
-  DLOG(INFO) << "Handling configure notify for " << XidStr(e.window)
-             << " to pos (" << e.x << ", " << e.y << ") and size "
-             << e.width << "x" << e.height << ", above " << XidStr(e.above);
+  DLOG(INFO) << "Handling configure notify for " << win->xid_str()
+             << " to " << bounds << ", above " << XidStr(e.above);
 
-  // There are several cases to consider here:
-  //
-  // - Override-redirect windows' calls to configure themselves are honored
-  //   by the X server without any intervention on our part, so we only
-  //   need to update their composited positions here.
-  // - Regular non-override-redirect windows' configuration calls are
-  //   passed to us as ConfigureRequest events, so we would've already
-  //   updated both their X and composited configuration in
-  //   HandleConfigureRequest().  We don't need to do anything here.
-  // - For both types of window, we may have decided to move or resize the
-  //   window ourselves earlier through a direct call to Window::Move() or
-  //   Resize().  In that case, we would've already updated their
-  //   composited position (or at least started the animation) then.
+  // Notify the window so it can reset its pixmap if the size changed, or update
+  // its actor's position and stacking if it's an override-redirect window.
+  win->HandleConfigureNotify(bounds, e.above);
 
-  if (win->override_redirect()) {
-    win->MoveComposited(e.x, e.y, 0);
-    win->SaveClientPosition(e.x, e.y);
-    win->SaveClientSize(e.width, e.height);
-
-    // When we see a stacking change for an override-redirect window, we
-    // attempt to restack its actor correspondingly.  If we don't have an
-    // actor for the X window directly under it, we walk down the stack
-    // until we find one.
-    XWindow above_xid = e.above;
-    while (above_xid) {
-      Window* above_win = GetWindow(above_xid);
-      Compositor::Actor* above_actor =
-          above_win ? above_win->actor() :
-          stacking_manager_->GetActorIfLayerXid(above_xid);
-
-      if (above_actor) {
-        DLOG(INFO) << "Stacking override-redirect window " << win->xid_str()
-                   << "'s actor above window " << XidStr(above_xid) << "'s";
-        win->StackCompositedAbove(above_actor, NULL, false);
-        break;
-      }
-      const XWindow* above_ptr = stacked_xids_->GetUnder(above_xid);
-      above_xid = above_ptr ? *above_ptr : 0;
-    }
-  } else {
-    if (restacked) {
-      // _NET_CLIENT_LIST_STACKING only includes managed (i.e.
-      // non-override-redirect) windows, so we only update it when a
-      // managed window's stacking position changed.
-      UpdateClientListStackingProperty();
-    }
+  if (!win->override_redirect() && restacked) {
+    // _NET_CLIENT_LIST_STACKING only includes managed (i.e.
+    // non-override-redirect) windows, so we only update it when a
+    // managed window's stacking position changed.
+    UpdateClientListStackingProperty();
   }
-
-  win->HandleConfigureNotify(e.width, e.height);
 }
 
 void WindowManager::HandleConfigureRequest(const XConfigureRequestEvent& e) {
@@ -1545,35 +1507,34 @@ void WindowManager::HandleConfigureRequest(const XConfigureRequestEvent& e) {
                  << "window " << win->xid_str();
   }
 
-  const int req_x = (e.value_mask & CWX) ? e.x : win->client_x();
-  const int req_y = (e.value_mask & CWY) ? e.y : win->client_y();
-  const int req_width =
-      (e.value_mask & CWWidth) ? e.width : win->client_width();
-  const int req_height =
-      (e.value_mask & CWHeight) ? e.height : win->client_height();
+  const Rect requested_bounds(
+      (e.value_mask & CWX) ? e.x : win->client_x(),
+      (e.value_mask & CWY) ? e.y : win->client_y(),
+      (e.value_mask & CWWidth) ? e.width : win->client_width(),
+      (e.value_mask & CWHeight) ? e.height : win->client_height());
 
   // The X server should reject bogus requests before they get to us, but
   // just in case...
-  if (req_width <= 0 || req_height <= 0) {
+  if (requested_bounds.width <= 0 || requested_bounds.height <= 0) {
     LOG(WARNING) << "Ignoring request to resize window " << win->xid_str()
-                 << " to " << req_width << "x" << req_height;
+                 << " to " << requested_bounds.size();
     return;
   }
 
   if (!win->mapped()) {
     // If the window is unmapped, it's unlikely that any event consumers
     // will know what to do with it.  Do whatever we were asked to do.
-    if (req_x != win->client_x() || req_y != win->client_y()) {
-      win->MoveClient(req_x, req_y);
-      win->MoveComposited(req_x, req_y, 0);
+    if (requested_bounds.position() != win->client_origin()) {
+      win->MoveClient(requested_bounds.x, requested_bounds.y);
+      win->MoveComposited(requested_bounds.x, requested_bounds.y, 0);
     }
-    if (req_width != win->client_width() || req_height != win->client_height())
-      win->ResizeClient(req_width, req_height, GRAVITY_NORTHWEST);
+    if (requested_bounds.size() != win->client_size())
+      win->Resize(requested_bounds.size(), GRAVITY_NORTHWEST);
   } else {
     FOR_EACH_INTERESTED_EVENT_CONSUMER(
         window_event_consumers_,
         e.window,
-        HandleWindowConfigureRequest(win, req_x, req_y, req_width, req_height));
+        HandleWindowConfigureRequest(win, requested_bounds));
   }
 }
 
@@ -1670,10 +1631,12 @@ void WindowManager::HandleDestroyNotify(const XDestroyWindowEvent& e) {
 
 void WindowManager::HandleEnterNotify(const XEnterWindowEvent& e) {
   DLOG(INFO) << "Handling enter notify for " << XidStr(e.window);
+  const Point relative_pos(e.x, e.y);
+  const Point absolute_pos(e.x_root, e.y_root);
   FOR_EACH_INTERESTED_EVENT_CONSUMER(
       window_event_consumers_,
       e.window,
-      HandlePointerEnter(e.window, e.x, e.y, e.x_root, e.y_root, e.time));
+      HandlePointerEnter(e.window, relative_pos, absolute_pos, e.time));
 }
 
 void WindowManager::HandleKeyPress(const XKeyEvent& e) {
@@ -1692,10 +1655,12 @@ void WindowManager::HandleKeyRelease(const XKeyEvent& e) {
 
 void WindowManager::HandleLeaveNotify(const XLeaveWindowEvent& e) {
   DLOG(INFO) << "Handling leave notify for " << XidStr(e.window);
+  const Point relative_pos(e.x, e.y);
+  const Point absolute_pos(e.x_root, e.y_root);
   FOR_EACH_INTERESTED_EVENT_CONSUMER(
       window_event_consumers_,
       e.window,
-      HandlePointerLeave(e.window, e.x, e.y, e.x_root, e.y_root, e.time));
+      HandlePointerLeave(e.window, relative_pos, absolute_pos, e.time));
 }
 
 void WindowManager::HandleMapNotify(const XMapEvent& e) {
@@ -1758,10 +1723,12 @@ void WindowManager::HandleMappingNotify(const XMappingEvent& e) {
 }
 
 void WindowManager::HandleMotionNotify(const XMotionEvent& e) {
+  const Point relative_pos(e.x, e.y);
+  const Point absolute_pos(e.x_root, e.y_root);
   FOR_EACH_INTERESTED_EVENT_CONSUMER(
       window_event_consumers_,
       e.window,
-      HandlePointerMotion(e.window, e.x, e.y, e.x_root, e.y_root, e.time));
+      HandlePointerMotion(e.window, relative_pos, absolute_pos, e.time));
 }
 
 void WindowManager::HandlePropertyNotify(const XPropertyEvent& e) {
@@ -1917,21 +1884,18 @@ void WindowManager::HandleUnmapNotify(const XUnmapEvent& e) {
   win->HandleUnmapNotify();
   FOR_EACH_EVENT_CONSUMER(event_consumers_, HandleWindowUnmap(win));
 
-  if (win->override_redirect()) {
-    win->HideComposited();
-    return;
-  }
+  if (!win->override_redirect()) {
+    SetWmStateProperty(e.window, 0);  // WithdrawnState
 
-  SetWmStateProperty(e.window, 0);  // WithdrawnState
+    // Notify the focus manager last in case any event consumers need to do
+    // something special when they see the focused window getting unmapped.
+    focus_manager_->HandleWindowUnmap(win);
 
-  // Notify the focus manager last in case any event consumers need to do
-  // something special when they see the focused window getting unmapped.
-  focus_manager_->HandleWindowUnmap(win);
-
-  if (mapped_xids_->Contains(win->xid())) {
-    mapped_xids_->Remove(win->xid());
-    UpdateClientListProperty();
-    UpdateClientListStackingProperty();
+    if (mapped_xids_->Contains(win->xid())) {
+      mapped_xids_->Remove(win->xid());
+      UpdateClientListProperty();
+      UpdateClientListStackingProperty();
+    }
   }
 }
 
@@ -1978,12 +1942,12 @@ void WindowManager::TakeScreenshot(bool use_active_window) {
 
 void WindowManager::CreateStartupBackground() {
   startup_pixmap_ =
-      xconn_->CreatePixmap(root_, Size(width_, height_), root_depth_);
+      xconn_->CreatePixmap(root_, root_bounds_.size(), root_depth_);
   xconn_->CopyArea(root_,            // src
                    startup_pixmap_,  // dest
                    Point(0, 0),      // src_pos
                    Point(0, 0),      // dest_pos
-                   Size(width_, height_));
+                   root_bounds_.size());
   Compositor::TexturePixmapActor* pixmap_actor =
       compositor_->CreateTexturePixmap();
   pixmap_actor->SetPixmap(startup_pixmap_);

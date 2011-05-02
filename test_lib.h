@@ -83,32 +83,31 @@ class BasicWindowManagerTest : public ::testing::Test {
   void CreateAndInitNewWm();
 
   // Create a basic window with no special type.
-  XWindow CreateBasicWindow(int x, int y, int width, int height);
+  XWindow CreateBasicWindow(const Rect& bounds);
 
   // Create a toplevel client window with the passed-in position and
   // dimensions.  It has type WINDOW_TYPE_CHROME_TOPLEVEL.
-  XWindow CreateToplevelWindow(int tab_count, int selected_tab,
-                               int x, int y, int width, int height);
+  XWindow CreateToplevelWindow(int tab_count,
+                               int selected_tab,
+                               const Rect& bounds);
 
   // Create a snapshot client window with the passed-in position and
   // dimensions and associated parent toplevel window.
-  XWindow CreateSnapshotWindow(XWindow parent_xid, int index,
-                               int x, int y,
-                               int width, int height);
+  XWindow CreateSnapshotWindow(XWindow parent_xid,
+                               int index,
+                               const Rect& bounds);
 
   // Creates a fav icon window for the associated snapshot.
-  XWindow CreateFavIconWindow(XWindow snapshot_xid,
-                              int width, int height);
+  XWindow CreateFavIconWindow(XWindow snapshot_xid, const Size& size);
 
   // Creates a title window for the associated snapshot.
-  XWindow CreateTitleWindow(XWindow snapshot_xid,
-                            int width, int height);
+  XWindow CreateTitleWindow(XWindow snapshot_xid, const Size& size);
 
   // Creates a decoration window (favicon or title) for the associated
   // snapshot window.
   XWindow CreateDecorationWindow(XWindow snapshot_xid,
                                  chromeos::WmIpcWindowType type,
-                                 int width, int height);
+                                 const Size& size);
 
   // Creates a toplevel client window with an arbitrary size.
   XWindow CreateSimpleWindow();
@@ -121,8 +120,8 @@ class BasicWindowManagerTest : public ::testing::Test {
 
   // Create a panel titlebar or content window.  Muck around with the
   // |*new_panel*| members below to change content window parameters.
-  XWindow CreatePanelTitlebarWindow(int width, int height);
-  XWindow CreatePanelContentWindow(int width, int height, XWindow titlebar_xid);
+  XWindow CreatePanelTitlebarWindow(const Size& size);
+  XWindow CreatePanelContentWindow(const Size& size, XWindow titlebar_xid);
 
   // Create titlebar and content windows for a panel, show them, and return
   // a pointer to the Panel object.
@@ -177,11 +176,9 @@ class BasicWindowManagerTest : public ::testing::Test {
   // window.
   void SendActiveWindowMessage(XWindow xid);
 
-  // Invoke Window::HandleConfigureNotify() using the client window's size.
-  // The Window class defers resizing its actor until it sees a
-  // ConfigureNotify event; this can be used to make sure that the actor's
-  // size matches the current client size.
-  void NotifyWindowAboutSize(Window* win);
+  // Initialize a ConfigureNotify event for |xid|'s current bounds and stacking
+  // and pass it to WindowManager::HandleEvent().
+  void SendConfigureNotifyEvent(XWindow xid);
 
   // Set the _CHROME_LOGGED_IN property on the root window to describe
   // whether Chrome is logged in or not, and send a PropertyNotify event to
@@ -391,31 +388,30 @@ class TestEventConsumer : public EventConsumer {
     num_fetched_pixmaps_++;
   }
   virtual void HandleWindowConfigureRequest(Window* win,
-                                            int req_x, int req_y,
-                                            int req_width, int req_height) {}
+                                            const Rect& requested_bounds) {}
   virtual void HandleButtonPress(XWindow xid,
-                                 int x, int y,
-                                 int x_root, int y_root,
+                                 const Point& relative_pos,
+                                 const Point& absolute_pos,
                                  int button,
                                  XTime timestamp) {
     num_button_presses_++;
   }
   virtual void HandleButtonRelease(XWindow xid,
-                                   int x, int y,
-                                   int x_root, int y_root,
+                                   const Point& relative_pos,
+                                   const Point& absolute_pos,
                                    int button,
                                    XTime timestamp) {}
   virtual void HandlePointerEnter(XWindow xid,
-                                  int x, int y,
-                                  int x_root, int y_root,
+                                  const Point& relative_pos,
+                                  const Point& absolute_pos,
                                   XTime timestamp) {}
   virtual void HandlePointerLeave(XWindow xid,
-                                  int x, int y,
-                                  int x_root, int y_root,
+                                  const Point& relative_pos,
+                                  const Point& absolute_pos,
                                   XTime timestamp) {}
   virtual void HandlePointerMotion(XWindow xid,
-                                   int x, int y,
-                                   int x_root, int y_root,
+                                   const Point& relative_pos,
+                                   const Point& absolute_pos,
                                    XTime timestamp) {}
   virtual void HandleChromeMessage(const WmIpc::Message& msg) {
     chrome_messages_.push_back(msg);

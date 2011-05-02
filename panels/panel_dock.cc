@@ -124,15 +124,14 @@ void PanelDock::AddPanel(Panel* panel, PanelSource source) {
         StackingManager::LAYER_DRAGGED_PANEL :
         StackingManager::LAYER_PACKED_PANEL_IN_DOCK);
 
+  int panel_x = (type_ == DOCK_TYPE_RIGHT) ? x_ + width_ : x_ + panel->width();
   // Try to make the panel fit vertically within our dimensions.
   int panel_y = panel->titlebar_y();
   if (panel_y + panel->total_height() > y_ + height_)
     panel_y = y_ + height_ - panel->total_height();
   if (panel_y < y_)
     panel_y = y_;
-  panel->Move(type_ == DOCK_TYPE_RIGHT ? x_ + width_ : x_ + panel->width(),
-              panel_y,
-              0);
+  panel->Move(Point(panel_x, panel_y), 0);
   // TODO: Ideally, we would resize the panel here to match our width, but
   // that messes up the subsequent notification messages about the panel
   // being dragged -- some of them will be with regard to the panel's old
@@ -162,11 +161,10 @@ void PanelDock::RemovePanel(Panel* panel) {
 }
 
 bool PanelDock::ShouldAddDraggedPanel(const Panel* panel,
-                                      int drag_x,
-                                      int drag_y) {
+                                      const Point& drag_pos) {
   return (type_ == DOCK_TYPE_RIGHT) ?
-         drag_x >= x_ + width_ - kAttachThresholdPixels :
-         drag_x - panel->content_width() <= x_ + kAttachThresholdPixels;
+         drag_pos.x >= x_ + width_ - kAttachThresholdPixels :
+         drag_pos.x - panel->content_width() <= x_ + kAttachThresholdPixels;
 }
 
 void PanelDock::HandlePanelButtonPress(Panel* panel,
@@ -181,13 +179,12 @@ void PanelDock::HandleSetPanelStateMessage(Panel* panel, bool expand) {
 }
 
 bool PanelDock::HandleNotifyPanelDraggedMessage(Panel* panel,
-                                                int drag_x,
-                                                int drag_y) {
+                                                const Point& drag_pos) {
   if (type_ == DOCK_TYPE_RIGHT) {
-    if (drag_x <= x_ + width_ - kDetachThresholdPixels)
+    if (drag_pos.x <= x_ + width_ - kDetachThresholdPixels)
       return false;
   } else {
-    if (drag_x - panel->content_width() >= x_ + kDetachThresholdPixels)
+    if (drag_pos.x - panel->content_width() >= x_ + kDetachThresholdPixels)
       return false;
   }
 
@@ -198,12 +195,13 @@ bool PanelDock::HandleNotifyPanelDraggedMessage(Panel* panel,
   }
 
   // Cap the drag position within the Y bounds of the dock.
-  if (drag_y + panel->total_height() > y_ + height_)
-    drag_y = y_ + height_ - panel->total_height();
-  if (drag_y < y_)
-    drag_y = y_;
+  Point capped_pos = drag_pos;
+  if (capped_pos.y + panel->total_height() > y_ + height_)
+    capped_pos.y = y_ + height_ - panel->total_height();
+  if (capped_pos.y < y_)
+    capped_pos.y = y_;
 
-  panel->MoveY(drag_y, 0);
+  panel->MoveY(capped_pos.y, 0);
   ReorderPanel(panel);
   return true;
 }
@@ -212,10 +210,10 @@ void PanelDock::HandleNotifyPanelDragCompleteMessage(Panel* panel) {
   if (dragged_panel_ != panel)
     return;
   // Move client windows.
-  panel->Move(panel->right(), panel->titlebar_y(), 0);
+  panel->Move(Point(panel->right(), panel->titlebar_y()), 0);
   if (panel->width() != width_) {
     panel->ResizeContent(
-        width_, panel->content_height(),
+        Size(width_, panel->content_height()),
         type_ == DOCK_TYPE_RIGHT ?  GRAVITY_NORTHEAST : GRAVITY_NORTHWEST,
         true);
   }
@@ -231,19 +229,20 @@ void PanelDock::HandleFocusPanelMessage(Panel* panel, XTime timestamp) {
 }
 
 void PanelDock::HandlePanelResizeRequest(Panel* panel,
-                                         int req_width, int req_height) {
+                                         const Size& requested_size) {
 
   DCHECK(panel);
 
+  Size adjusted_size = requested_size;
+
   // We ignore requests to change the panel's width.
-  if (req_width != panel->content_width()) {
+  if (requested_size.width != panel->content_width()) {
     LOG(WARNING) << "Ignoring width resize request for docked panel "
-                 << panel->xid_str() << " (orig was " << panel->content_width()
-                 << "x" << panel->content_height() << "), new is " << req_width
-                 << "x" << req_height << ")";
-    req_width = panel->content_width();
+                 << panel->xid_str() << " (orig was " << panel->content_size()
+                 << ", new is " << requested_size << ")";
+    adjusted_size.width = panel->content_width();
   }
-  panel->ResizeContent(req_width, req_height, GRAVITY_NORTHWEST, true);
+  panel->ResizeContent(adjusted_size, GRAVITY_NORTHWEST, true);
   PackPanels(dragged_panel_);
 }
 

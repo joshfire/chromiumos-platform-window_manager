@@ -30,12 +30,9 @@ static int64_t current_time_ms_for_test = -1;
 // GetMonotonicTimeMs().
 static TimeTicks monotonic_time_for_test;
 
-ByteMap::ByteMap(int width, int height)
-    : width_(width),
-      height_(height) {
-  CHECK(width > 0);
-  CHECK(height > 0);
-  bytes_ = new unsigned char[width * height];
+ByteMap::ByteMap(const Size& size) : size_(size) {
+  CHECK(!size_.empty());
+  bytes_ = new unsigned char[size_.area()];
   Clear(0);
 }
 
@@ -45,34 +42,34 @@ ByteMap::~ByteMap() {
 }
 
 void ByteMap::Copy(const ByteMap& other) {
-  CHECK(width_ == other.width_);
-  CHECK(height_ == other.height_);
-  memcpy(bytes_, other.bytes_, width_ * height_);
+  CHECK(size_ == other.size_);
+  memcpy(bytes_, other.bytes_, size_.area());
 }
 
 void ByteMap::Clear(unsigned char value) {
-  memset(bytes_, value, width_ * height_);
+  memset(bytes_, value, size_.width * size_.height);
 }
 
-void ByteMap::SetRectangle(int rect_x, int rect_y,
-                           int rect_width, int rect_height,
-                           unsigned char value) {
-  const int limit_x = min(rect_x + rect_width, width_);
-  const int limit_y = min(rect_y + rect_height, height_);
-  rect_x = max(rect_x, 0);
-  rect_y = max(rect_y, 0);
-
-  if (rect_x >= limit_x)
+void ByteMap::SetRectangle(const Rect& rect, unsigned char value) {
+  if (rect.empty())
     return;
 
-  for (int y = rect_y; y < limit_y; ++y)
-    memset(bytes_ + y * width_ + rect_x, value, limit_x - rect_x);
+  const int limit_x = min(rect.x + rect.width, size_.width);
+  const int limit_y = min(rect.y + rect.height, size_.height);
+  const int capped_x = max(rect.x, 0);
+  const int capped_y = max(rect.y, 0);
+
+  if (capped_x >= limit_x)
+    return;
+
+  for (int y = capped_y; y < limit_y; ++y)
+    memset(bytes_ + y * size_.width + capped_x, value, limit_x - capped_x);
 }
 
 bool ByteMap::operator==(const ByteMap& other) {
-  if (width_ != other.width_ || height_ != other.height_)
+  if (size_ != other.size_)
     return false;
-  return memcmp(bytes_, other.bytes_, width_ * height_) == 0;
+  return memcmp(bytes_, other.bytes_, size_.area()) == 0;
 }
 
 

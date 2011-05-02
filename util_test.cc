@@ -81,60 +81,59 @@ TEST_F(UtilTest, Stacker) {
 }
 
 TEST_F(UtilTest, ByteMap) {
-  int width = 4, height = 3;
-  ByteMap bytemap(width, height);
-  EXPECT_EQ(width, bytemap.width());
-  EXPECT_EQ(height, bytemap.height());
+  Size size(4, 3);
+  ByteMap bytemap(size);
+  EXPECT_EQ(size, bytemap.size());
   EXPECT_PRED_FORMAT3(
       BytesAreEqual,
       reinterpret_cast<unsigned const char*>("\x00\x00\x00\x00"
                                              "\x00\x00\x00\x00"
                                              "\x00\x00\x00\x00"),
       bytemap.bytes(),
-      width * height);
+      size.area());
 
   // Set a few rectangles that are bogus or fall entirely outside of the
   // region.
-  bytemap.SetRectangle(-width, 0, width, height, 0xff);
-  bytemap.SetRectangle(width, 0, width, height, 0xff);
-  bytemap.SetRectangle(0, -height, width, height, 0xff);
-  bytemap.SetRectangle(0, height, width, height, 0xff);
-  bytemap.SetRectangle(0, 0, width, -1, 0xff);
-  bytemap.SetRectangle(0, 0, -1, height, 0xff);
+  bytemap.SetRectangle(Rect(-size.width, 0, size.width, size.height), 0xff);
+  bytemap.SetRectangle(Rect(size.width, 0, size.width, size.height), 0xff);
+  bytemap.SetRectangle(Rect(0, -size.height, size.width, size.height), 0xff);
+  bytemap.SetRectangle(Rect(0, size.height, size.width, size.height), 0xff);
+  bytemap.SetRectangle(Rect(0, 0, size.width, -1), 0xff);
+  bytemap.SetRectangle(Rect(0, 0, -1, size.height), 0xff);
   EXPECT_PRED_FORMAT3(
       BytesAreEqual,
       reinterpret_cast<unsigned const char*>("\x00\x00\x00\x00"
                                              "\x00\x00\x00\x00"
                                              "\x00\x00\x00\x00"),
       bytemap.bytes(),
-      width * height);
+      size.area());
 
   // Set a few rectangles that partially cover the region and then one
   // that matches its size.
-  bytemap.SetRectangle(-2, -3, 3, 4, 0xf0);
+  bytemap.SetRectangle(Rect(-2, -3, 3, 4), 0xf0);
   EXPECT_PRED_FORMAT3(
       BytesAreEqual,
       reinterpret_cast<unsigned const char*>("\xf0\x00\x00\x00"
                                              "\x00\x00\x00\x00"
                                              "\x00\x00\x00\x00"),
       bytemap.bytes(),
-      width * height);
-  bytemap.SetRectangle(width - 3, height - 1, 10, 10, 0xff);
+      size.area());
+  bytemap.SetRectangle(Rect(size.width - 3, size.height - 1, 10, 10), 0xff);
   EXPECT_PRED_FORMAT3(
       BytesAreEqual,
       reinterpret_cast<unsigned const char*>("\xf0\x00\x00\x00"
                                              "\x00\x00\x00\x00"
                                              "\x00\xff\xff\xff"),
       bytemap.bytes(),
-      width * height);
-  bytemap.SetRectangle(0, 0, width, height, 0xaa);
+      size.area());
+  bytemap.SetRectangle(Rect(0, 0, size.width, size.height), 0xaa);
   EXPECT_PRED_FORMAT3(
       BytesAreEqual,
       reinterpret_cast<unsigned const char*>("\xaa\xaa\xaa\xaa"
                                              "\xaa\xaa\xaa\xaa"
                                              "\xaa\xaa\xaa\xaa"),
       bytemap.bytes(),
-      width * height);
+      size.area());
 
   // Now clear the map to a particular value.
   bytemap.Clear(0x01);
@@ -144,7 +143,7 @@ TEST_F(UtilTest, ByteMap) {
                                              "\x01\x01\x01\x01"
                                              "\x01\x01\x01\x01"),
       bytemap.bytes(),
-      width * height);
+      size.area());
 }
 
 }  // namespace window_manager

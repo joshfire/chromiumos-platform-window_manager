@@ -15,6 +15,7 @@
 #include "base/hash_tables.h"
 #include "base/logging.h"
 #include "base/time.h"
+#include "window_manager/geometry.h"
 
 namespace window_manager {
 
@@ -151,11 +152,10 @@ class Stacker {
 // ByteMap unions rectangles into a 2-D array of bytes.  That's it. :-P
 class ByteMap {
  public:
-  ByteMap(int width, int height);
+  ByteMap(const Size& size);
   ~ByteMap();
 
-  int width() const { return width_; }
-  int height() const { return height_; }
+  const Size& size() const { return size_; }
   const unsigned char* bytes() const { return bytes_; }
 
   // Copy the bytes from |other|, which must have the same dimensions as
@@ -166,16 +166,13 @@ class ByteMap {
   void Clear(unsigned char value);
 
   // Set the bytes covered by the passed-in rectangle.
-  void SetRectangle(int rect_x, int rect_y,
-                    int rect_width, int rect_height,
-                    unsigned char value);
+  void SetRectangle(const Rect& rect, unsigned char value);
 
   // Check if the bytes from |other| match the bytes from this.
   bool operator==(const ByteMap& other);
 
  private:
-  int width_;
-  int height_;
+  Size size_;
   unsigned char* bytes_;
 
   DISALLOW_COPY_AND_ASSIGN(ByteMap);

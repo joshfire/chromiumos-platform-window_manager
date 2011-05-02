@@ -67,29 +67,28 @@ class LayoutManager : public EventConsumer,
   virtual void HandleWindowUnmap(Window* win);
   virtual void HandleWindowPixmapFetch(Window* win);
   virtual void HandleWindowConfigureRequest(Window* win,
-                                            int req_x, int req_y,
-                                            int req_width, int req_height);
+                                            const Rect& requested_bounds);
   virtual void HandleButtonPress(XWindow xid,
-                                 int x, int y,
-                                 int x_root, int y_root,
+                                 const Point& relative_pos,
+                                 const Point& absolute_pos,
                                  int button,
                                  XTime timestamp);
   virtual void HandleButtonRelease(XWindow xid,
-                                   int x, int y,
-                                   int x_root, int y_root,
+                                   const Point& relative_pos,
+                                   const Point& absolute_pos,
                                    int button,
                                    XTime timestamp);
   virtual void HandlePointerEnter(XWindow xid,
-                                  int x, int y,
-                                  int x_root, int y_root,
+                                  const Point& relative_pos,
+                                  const Point& absolute_pos,
                                   XTime timestamp) {}
   virtual void HandlePointerLeave(XWindow xid,
-                                  int x, int y,
-                                  int x_root, int y_root,
+                                  const Point& relative_pos,
+                                  const Point& absolute_pos,
                                   XTime timestamp) {}
   virtual void HandlePointerMotion(XWindow xid,
-                                   int x, int y,
-                                   int x_root, int y_root,
+                                   const Point& relative_pos,
+                                   const Point& absolute_pos,
                                    XTime timestamp);
   virtual void HandleChromeMessage(const WmIpc::Message& msg);
   virtual void HandleClientMessage(XWindow xid,

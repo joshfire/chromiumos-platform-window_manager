@@ -84,8 +84,7 @@ class LayoutManager::ToplevelWindow {
 
   // Handle a ConfigureRequest event about one of our transient windows.
   void HandleTransientWindowConfigureRequest(
-      Window* transient_win,
-      int req_x, int req_y, int req_width, int req_height);
+      Window* transient_win, const Rect& requested_bounds);
 
   // Handle one of this toplevel's windows (either the toplevel window
   // itself or one of its transients) getting a button press.  We remove

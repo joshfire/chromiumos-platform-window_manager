@@ -39,12 +39,12 @@ TEST_F(MotionEventCoalescerTest, InitialValues) {
 
   // We used to initialize the positions to (0, 0) instead of (-1, -1), so
   // we'd incorrectly ignore initial (0, 0) values.
-  coalescer.StorePosition(0, 0);
+  coalescer.StorePosition(Point(0, 0));
   EXPECT_EQ(1, counter.num_calls());
   EXPECT_EQ(0, coalescer.x());
   EXPECT_EQ(0, coalescer.y());
 
-  coalescer.StorePosition(200, 300);
+  coalescer.StorePosition(Point(200, 300));
   EXPECT_EQ(2, counter.num_calls());
   EXPECT_EQ(200, coalescer.x());
   EXPECT_EQ(300, coalescer.y());
@@ -57,7 +57,7 @@ TEST_F(MotionEventCoalescerTest, InitialValues) {
 
   // We should still notify if the first values that we receive after
   // restarting matched the last ones that we saw before.
-  coalescer.StorePosition(200, 300);
+  coalescer.StorePosition(Point(200, 300));
   EXPECT_EQ(3, counter.num_calls());
   EXPECT_EQ(200, coalescer.x());
   EXPECT_EQ(300, coalescer.y());

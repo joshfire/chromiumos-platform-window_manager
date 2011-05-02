@@ -276,7 +276,7 @@ TEST_F(PanelManagerTest, Fullscreen) {
       1,  // add
       fullscreen_atom, 0, 0, 0);
   wm_->HandleEvent(&fullscreen_event);
-  NotifyWindowAboutSize(panel2->content_win());
+  SendConfigureNotifyEvent(panel2->content_xid());
 
   // Check that the second panel is focused automatically, covering the
   // whole screen, and stacked above the other panels.
@@ -292,8 +292,8 @@ TEST_F(PanelManagerTest, Fullscreen) {
   // second panel should be made non-fullscreen.
   fullscreen_event.xclient.window = panel3->content_xid();
   wm_->HandleEvent(&fullscreen_event);
-  NotifyWindowAboutSize(panel2->content_win());
-  NotifyWindowAboutSize(panel3->content_win());
+  SendConfigureNotifyEvent(panel2->content_xid());
+  SendConfigureNotifyEvent(panel3->content_xid());
 
   EXPECT_TRUE(panel3->is_fullscreen());
   EXPECT_EQ(panel3->content_xid(), xconn_->focused_xid());
@@ -331,7 +331,7 @@ TEST_F(PanelManagerTest, Fullscreen) {
   // keep the focus.
   fullscreen_event.xclient.data.l[0] = 0;  // remove
   wm_->HandleEvent(&fullscreen_event);
-  NotifyWindowAboutSize(panel3->content_win());
+  SendConfigureNotifyEvent(panel3->content_xid());
   EXPECT_FALSE(panel3->is_fullscreen());
   EXPECT_EQ(panel3->content_xid(), xconn_->focused_xid());
   TestPanelContentBounds(panel3,
@@ -493,8 +493,9 @@ TEST_F(PanelManagerTest, TransientWindows) {
   // Create a transient window owned by the panel.
   const int transient_x = 30, transient_y = 40;
   const int transient_width = 300, transient_height = 200;
-  XWindow transient_xid = CreateBasicWindow(transient_x, transient_y,
-                                            transient_width, transient_height);
+  XWindow transient_xid =
+      CreateBasicWindow(
+          Rect(transient_x, transient_y, transient_width, transient_height));
   // Say that we support the WM_DELETE_WINDOW protocol so that the window
   // manager will try to close us when needed.
   AppendAtomToProperty(transient_xid,
@@ -558,7 +559,7 @@ TEST_F(PanelManagerTest, TransientWindows) {
   wm_->HandleEvent(&event);
 
   // Now create a toplevel window, which should get focused.
-  XWindow toplevel_xid = CreateToplevelWindow(1, 0, 0, 0, 1024, 768);
+  XWindow toplevel_xid = CreateToplevelWindow(1, 0, Rect(0, 0, 1024, 768));
   SendInitialEventsForWindow(toplevel_xid);
   ASSERT_EQ(toplevel_xid, xconn_->focused_xid());
   ASSERT_EQ(toplevel_xid, GetActiveWindowProperty());
@@ -568,7 +569,7 @@ TEST_F(PanelManagerTest, TransientWindows) {
   const int infobubble_x = 40, infobubble_y = 50;
   const int infobubble_width = 200, infobubble_height = 20;
   XWindow infobubble_xid = CreateBasicWindow(
-      infobubble_x, infobubble_y, infobubble_width, infobubble_height);
+      Rect(infobubble_x, infobubble_y, infobubble_width, infobubble_height));
   MockXConnection::WindowInfo* infobubble_info =
       xconn_->GetWindowInfoOrDie(infobubble_xid);
   wm_->wm_ipc()->SetWindowType(

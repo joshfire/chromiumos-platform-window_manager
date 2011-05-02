@@ -17,15 +17,12 @@ PointerPositionWatcher::PointerPositionWatcher(
     XConnection* xconn,
     Closure* cb,
     bool watch_for_entering_target,
-    int target_x, int target_y, int target_width, int target_height)
+    const Rect& target_bounds)
     : event_loop_(event_loop),
       xconn_(xconn),
       cb_(cb),
       watch_for_entering_target_(watch_for_entering_target),
-      target_x_(target_x),
-      target_y_(target_y),
-      target_width_(target_width),
-      target_height_(target_height),
+      target_bounds_(target_bounds),
       timeout_id_(-1) {
   DCHECK(event_loop);
   DCHECK(xconn);
@@ -57,10 +54,7 @@ void PointerPositionWatcher::HandleTimeout() {
     return;
 
   // Bail out if we're not in the desired state yet.
-  bool in_target = pointer_pos.x >= target_x_ &&
-                   pointer_pos.x < target_x_ + target_width_ &&
-                   pointer_pos.y >= target_y_ &&
-                   pointer_pos.y < target_y_ + target_height_;
+  const bool in_target = target_bounds_.contains_point(pointer_pos);
   if ((watch_for_entering_target_ && !in_target) ||
       (!watch_for_entering_target_ && in_target))
     return;

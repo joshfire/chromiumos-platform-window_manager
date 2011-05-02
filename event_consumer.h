@@ -5,6 +5,7 @@
 #ifndef WINDOW_MANAGER_EVENT_CONSUMER_H_
 #define WINDOW_MANAGER_EVENT_CONSUMER_H_
 
+#include "window_manager/geometry.h"
 #include "window_manager/wm_ipc.h"  // for WmIpc::Message
 #include "window_manager/x11/x_types.h"
 
@@ -85,42 +86,40 @@ class EventConsumer {
   virtual void HandleWindowPixmapFetch(Window* win) = 0;
 
   // Handle a mapped window's request to be configured (unmapped windows'
-  // requests are applied automatically).  If the consumer wants to
-  // configure the window (possibly with different parameters than the
-  // requested ones), it should call Window::MoveClient() and
-  // ResizeClient().  Otherwise, if the consumer is managing the window but
-  // chooses not to make any changes to it in response to the request, it
-  // should call Window::SendSyntheticConfigureNotify().
+  // requests are applied automatically).  If the consumer wants to configure
+  // the window (possibly with different parameters than the requested ones), it
+  // should call Window::Move() and Resize().  Otherwise, if the consumer is
+  // managing the window but chooses not to make any changes to it in response
+  // to the request, it should call Window::SendSyntheticConfigureNotify().
   virtual void HandleWindowConfigureRequest(Window* win,
-                                            int req_x, int req_y,
-                                            int req_width, int req_height) = 0;
+                                            const Rect& requested_bounds) = 0;
 
   // Handle a button press or release on a window.  The first position is
   // relative to the upper-left corner of the window, while the second is
   // absolute.
   virtual void HandleButtonPress(XWindow xid,
-                                 int x, int y,
-                                 int x_root, int y_root,
+                                 const Point& relative_pos,
+                                 const Point& absolute_pos,
                                  int button,
                                  XTime timestamp) = 0;
   virtual void HandleButtonRelease(XWindow xid,
-                                   int x, int y,
-                                   int x_root, int y_root,
+                                   const Point& relative_pos,
+                                   const Point& absolute_pos,
                                    int button,
                                    XTime timestamp) = 0;
 
   // Handle the pointer entering, leaving, or moving within an input window.
   virtual void HandlePointerEnter(XWindow xid,
-                                  int x, int y,
-                                  int x_root, int y_root,
+                                  const Point& relative_pos,
+                                  const Point& absolute_pos,
                                   XTime timestamp) = 0;
   virtual void HandlePointerLeave(XWindow xid,
-                                  int x, int y,
-                                  int x_root, int y_root,
+                                  const Point& relative_pos,
+                                  const Point& absolute_pos,
                                   XTime timestamp) = 0;
   virtual void HandlePointerMotion(XWindow xid,
-                                   int x, int y,
-                                   int x_root, int y_root,
+                                   const Point& relative_pos,
+                                   const Point& absolute_pos,
                                    XTime timestamp) = 0;
 
   // Handle a Chrome-specific message sent by a client app.  Messages are

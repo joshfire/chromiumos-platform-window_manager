@@ -85,8 +85,7 @@ class PanelManager : public EventConsumer, public FocusChangeListener {
   virtual void HandleWindowPixmapFetch(Window* win) {}
 
   virtual void HandleWindowConfigureRequest(Window* win,
-                                            int req_x, int req_y,
-                                            int req_width, int req_height);
+                                            const Rect& requested_bounds);
 
   // Handle events for windows.  If the event occurred in an input window,
   // it is passed through to the Panel or PanelContainer that owns the
@@ -95,26 +94,26 @@ class PanelManager : public EventConsumer, public FocusChangeListener {
   // currently contains the panel via
   // PanelContainer::HandlePanelButtonPress().
   virtual void HandleButtonPress(XWindow xid,
-                                 int x, int y,
-                                 int x_root, int y_root,
+                                 const Point& relative_pos,
+                                 const Point& absolute_pos,
                                  int button,
                                  XTime timestamp);
   virtual void HandleButtonRelease(XWindow xid,
-                                   int x, int y,
-                                   int x_root, int y_root,
+                                   const Point& relative_pos,
+                                   const Point& absolute_pos,
                                    int button,
                                    XTime timestamp);
   virtual void HandlePointerEnter(XWindow xid,
-                                  int x, int y,
-                                  int x_root, int y_root,
+                                  const Point& relative_pos,
+                                  const Point& absolute_pos,
                                   XTime timestamp);
   virtual void HandlePointerLeave(XWindow xid,
-                                  int x, int y,
-                                  int x_root, int y_root,
+                                  const Point& relative_pos,
+                                  const Point& absolute_pos,
                                   XTime timestamp);
   virtual void HandlePointerMotion(XWindow xid,
-                                   int x, int y,
-                                   int x_root, int y_root,
+                                   const Point& relative_pos,
+                                   const Point& absolute_pos,
                                    XTime timestamp);
 
   virtual void HandleChromeMessage(const WmIpc::Message& msg);

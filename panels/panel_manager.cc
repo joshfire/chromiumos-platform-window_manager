@@ -242,11 +242,10 @@ void PanelManager::HandleWindowUnmap(Window* win) {
   CHECK(panels_.erase(panel->content_xid()) == 1);
 }
 
-void PanelManager::HandleWindowConfigureRequest(
-    Window* win, int req_x, int req_y, int req_width, int req_height) {
+void PanelManager::HandleWindowConfigureRequest(Window* win,
+                                                const Rect& requested_bounds) {
   if (Panel* owner_panel = GetPanelOwningTransientWindow(*win)) {
-    owner_panel->HandleTransientWindowConfigureRequest(
-        win, req_x, req_y, req_width, req_height);
+    owner_panel->HandleTransientWindowConfigureRequest(win, requested_bounds);
     return;
   }
 
@@ -272,31 +271,29 @@ void PanelManager::HandleWindowConfigureRequest(
     return;
   }
 
-  if (req_width != panel->content_width() ||
-      req_height != panel->content_height()) {
-    container->HandlePanelResizeRequest(panel, req_width, req_height);
-  } else {
+  if (requested_bounds.size() != panel->content_size())
+    container->HandlePanelResizeRequest(panel, requested_bounds.size());
+  else
     win->SendSyntheticConfigureNotify();
-  }
 }
 
 void PanelManager::HandleButtonPress(XWindow xid,
-                                     int x, int y,
-                                     int x_root, int y_root,
+                                     const Point& relative_pos,
+                                     const Point& absolute_pos,
                                      int button,
                                      XTime timestamp) {
   // If this is a container's input window, notify the container.
   PanelContainer* container = GetContainerOwningInputWindow(xid);
   if (container) {
     container->HandleInputWindowButtonPress(
-        xid, x, y, x_root, y_root, button, timestamp);
+        xid, relative_pos, absolute_pos, button, timestamp);
     return;
   }
 
   // If this is a panel's input window, notify the panel.
   Panel* panel = GetPanelOwningInputWindow(xid);
   if (panel) {
-    panel->HandleInputWindowButtonPress(xid, x, y, button, timestamp);
+    panel->HandleInputWindowButtonPress(xid, relative_pos, button, timestamp);
     return;
   }
 
@@ -321,8 +318,8 @@ void PanelManager::HandleButtonPress(XWindow xid,
 }
 
 void PanelManager::HandleButtonRelease(XWindow xid,
-                                       int x, int y,
-                                       int x_root, int y_root,
+                                       const Point& relative_pos,
+                                       const Point& absolute_pos,
                                        int button,
                                        XTime timestamp) {
   // We only care if button releases happened in container or panel input
@@ -331,25 +328,25 @@ void PanelManager::HandleButtonRelease(XWindow xid,
   PanelContainer* container = GetContainerOwningInputWindow(xid);
   if (container) {
     container->HandleInputWindowButtonRelease(
-        xid, x, y, x_root, y_root, button, timestamp);
+        xid, relative_pos, absolute_pos, button, timestamp);
     return;
   }
 
   Panel* panel = GetPanelOwningInputWindow(xid);
   if (panel) {
-    panel->HandleInputWindowButtonRelease(xid, x, y, button, timestamp);
+    panel->HandleInputWindowButtonRelease(xid, relative_pos, button, timestamp);
     return;
   }
 }
 
 void PanelManager::HandlePointerEnter(XWindow xid,
-                                      int x, int y,
-                                      int x_root, int y_root,
+                                      const Point& relative_pos,
+                                      const Point& absolute_pos,
                                       XTime timestamp) {
   PanelContainer* container = GetContainerOwningInputWindow(xid);
   if (container) {
     container->HandleInputWindowPointerEnter(
-        xid, x, y, x_root, y_root, timestamp);
+        xid, relative_pos, absolute_pos, timestamp);
     return;
   }
 
@@ -367,22 +364,22 @@ void PanelManager::HandlePointerEnter(XWindow xid,
 }
 
 void PanelManager::HandlePointerLeave(XWindow xid,
-                                      int x, int y,
-                                      int x_root, int y_root,
+                                      const Point& relative_pos,
+                                      const Point& absolute_pos,
                                       XTime timestamp) {
   PanelContainer* container = GetContainerOwningInputWindow(xid);
   if (container)
     container->HandleInputWindowPointerLeave(
-        xid, x, y, x_root, y_root, timestamp);
+        xid, relative_pos, absolute_pos, timestamp);
 }
 
 void PanelManager::HandlePointerMotion(XWindow xid,
-                                       int x, int y,
-                                       int x_root, int y_root,
+                                       const Point& relative_pos,
+                                       const Point& absolute_pos,
                                        XTime timestamp) {
   Panel* panel = GetPanelOwningInputWindow(xid);
   if (panel)
-    panel->HandleInputWindowPointerMotion(xid, x, y);
+    panel->HandleInputWindowPointerMotion(xid, relative_pos);
 }
 
 void PanelManager::HandleChromeMessage(const WmIpc::Message& msg) {
@@ -418,10 +415,11 @@ void PanelManager::HandleChromeMessage(const WmIpc::Message& msg) {
         dragged_panel_event_coalescer_->Start();
       // We want the right edge of the panel, but pre-IPC-version-1 Chrome
       // sends us the left edge of the titlebar instead.
-      int drag_x = (wm()->wm_ipc_version() >= 1) ?
-                   msg.param(1) : msg.param(1) + panel->titlebar_width();
-      int drag_y = msg.param(2);
-      dragged_panel_event_coalescer_->StorePosition(drag_x, drag_y);
+      Point drag_pos(
+          (wm()->wm_ipc_version() >= 1) ?
+            msg.param(1) : msg.param(1) + panel->titlebar_width(),
+          msg.param(2));
+      dragged_panel_event_coalescer_->StorePosition(drag_pos);
       break;
     }
     case chromeos::WM_IPC_MESSAGE_WM_NOTIFY_PANEL_DRAG_COMPLETE: {
@@ -607,19 +605,17 @@ void PanelManager::HandlePeriodicPanelDragMotion() {
   if (!dragged_panel_)
     return;
 
-  const int x = dragged_panel_event_coalescer_->x();
-  const int y = dragged_panel_event_coalescer_->y();
+  const Point pos = dragged_panel_event_coalescer_->position();
 
   bool container_handled_drag = false;
   bool panel_was_detached = false;
   PanelContainer* container = GetContainerForPanel(*dragged_panel_);
   if (container) {
-    if (container->HandleNotifyPanelDraggedMessage(dragged_panel_, x, y)) {
+    if (container->HandleNotifyPanelDraggedMessage(dragged_panel_, pos)) {
       container_handled_drag = true;
     } else {
       DLOG(INFO) << "Container " << container << " told us to detach panel "
-                 << dragged_panel_->xid_str()
-                 << " at (" << x << ", " << y << ")";
+                 << dragged_panel_->xid_str() << " at " << pos;
       RemovePanelFromContainer(dragged_panel_, container);
       panel_was_detached = true;
     }
@@ -636,21 +632,19 @@ void PanelManager::HandlePeriodicPanelDragMotion() {
     bool panel_was_reattached = false;
     for (vector<PanelContainer*>::iterator it = containers_.begin();
          it != containers_.end(); ++it) {
-      if ((*it)->ShouldAddDraggedPanel(dragged_panel_, x, y)) {
+      if ((*it)->ShouldAddDraggedPanel(dragged_panel_, pos)) {
         DLOG(INFO) << "Container " << *it << " told us to attach panel "
-                   << dragged_panel_->xid_str()
-                   << " at (" << x << ", " << y << ")";
+                   << dragged_panel_->xid_str() << " at " << pos;
         AddPanelToContainer(dragged_panel_,
                             *it,
                             PanelContainer::PANEL_SOURCE_DRAGGED);
-        CHECK((*it)->HandleNotifyPanelDraggedMessage(dragged_panel_, x, y));
+        CHECK((*it)->HandleNotifyPanelDraggedMessage(dragged_panel_, pos));
         panel_was_reattached = true;
         break;
       }
     }
     if (!panel_was_reattached) {
-      dragged_panel_->Move(
-          x, y, panel_was_detached ? kDetachPanelAnimMs : 0);
+      dragged_panel_->Move(pos, panel_was_detached ? kDetachPanelAnimMs : 0);
     }
   }
 }

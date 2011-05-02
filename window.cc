@@ -80,15 +80,11 @@ Window::Window(WindowManager* wm,
       type_(chromeos::WM_IPC_WINDOW_UNKNOWN),
       visibility_(VISIBILITY_UNSET),
       update_client_position_for_moves_(true),
-      client_x_(geometry.bounds.x),
-      client_y_(geometry.bounds.y),
-      client_width_(geometry.bounds.width),
-      client_height_(geometry.bounds.height),
+      client_bounds_(geometry.bounds),
       client_depth_(geometry.depth),
       client_opacity_(1.0),
       composited_shown_(false),
-      composited_x_(geometry.bounds.x),
-      composited_y_(geometry.bounds.y),
+      composited_origin_(geometry.bounds.position()),
       composited_scale_x_(1.0),
       composited_scale_y_(1.0),
       composited_opacity_(1.0),
@@ -131,7 +127,7 @@ Window::Window(WindowManager* wm,
   damage_ = wm_->xconn()->CreateDamage(
       xid_, XConnection::DAMAGE_REPORT_LEVEL_BOUNDING_BOX);
 
-  actor_->Move(composited_x_, composited_y_, 0);
+  actor_->Move(composited_x(), composited_y(), 0);
   actor_->Hide();
   // TODO(derat): Move this stuff to WindowManager::TrackWindow() instead.
   wm_->stage()->AddActor(actor_.get());
@@ -205,8 +201,7 @@ bool Window::FetchAndApplySizeHints() {
   // position, aspect ratio, etc. hints for now.
   if (!mapped_ && !override_redirect_ &&
       (size_hints_.size.width > 0 && size_hints_.size.height > 0)) {
-    ResizeClient(size_hints_.size.width, size_hints_.size.height,
-                 GRAVITY_NORTHWEST);
+    Resize(size_hints_.size, GRAVITY_NORTHWEST);
   }
 
   return true;
@@ -447,11 +442,11 @@ void Window::FetchAndApplyShape() {
     shaped_ = true;
 
     if (FLAGS_load_window_shapes) {
-      ByteMap bytemap(client_width_, client_height_);
+      ByteMap bytemap(client_size());
       if (wm_->xconn()->GetWindowBoundingRegion(xid_, &bytemap)) {
         DLOG(INFO) << "Got shape for " << xid_str();
         actor_->SetAlphaMask(
-            bytemap.bytes(), bytemap.width(), bytemap.height());
+            bytemap.bytes(), bytemap.size().width, bytemap.size().height);
       } else {
         shaped_ = false;
       }
@@ -591,49 +586,47 @@ bool Window::RemoveButtonGrab() {
   return wm_->xconn()->RemoveButtonGrabOnWindow(xid_, AnyButton);
 }
 
-void Window::GetMaxSize(int desired_width, int desired_height,
-                        int* width_out, int* height_out) const {
-  CHECK(desired_width > 0);
-  CHECK(desired_height > 0);
+void Window::GetMaxSize(const Size& desired_size, Size* size_out) const {
+  CHECK(!desired_size.empty());
+  Size capped_size = desired_size;
 
   if (size_hints_.max_size.width > 0)
-    desired_width = min(size_hints_.max_size.width, desired_width);
+    capped_size.width = min(size_hints_.max_size.width, capped_size.width);
   if (size_hints_.min_size.width > 0)
-    desired_width = max(size_hints_.min_size.width, desired_width);
+    capped_size.width = max(size_hints_.min_size.width, capped_size.width);
+
+  if (size_hints_.max_size.height > 0)
+    capped_size.height = min(size_hints_.max_size.height, capped_size.height);
+  if (size_hints_.min_size.height > 0)
+    capped_size.height = max(size_hints_.min_size.height, capped_size.height);
 
   if (size_hints_.size_increment.width > 0) {
-    int base_width =
+    const int base_width =
         (size_hints_.base_size.width > 0) ? size_hints_.base_size.width :
         (size_hints_.min_size.width > 0) ? size_hints_.min_size.width :
         0;
-    *width_out = base_width +
-        ((desired_width - base_width) / size_hints_.size_increment.width) *
+    size_out->width = base_width +
+        ((capped_size.width - base_width) / size_hints_.size_increment.width) *
         size_hints_.size_increment.width;
   } else {
-    *width_out = desired_width;
+    size_out->width = capped_size.width;
   }
 
-  if (size_hints_.max_size.height > 0)
-    desired_height = min(size_hints_.max_size.height, desired_height);
-  if (size_hints_.min_size.height > 0)
-    desired_height = max(size_hints_.min_size.height, desired_height);
-
   if (size_hints_.size_increment.height > 0) {
-    int base_height =
+    const int base_height =
         (size_hints_.base_size.height > 0) ? size_hints_.base_size.height :
         (size_hints_.min_size.height > 0) ? size_hints_.min_size.height :
         0;
-    *height_out = base_height +
-        ((desired_height - base_height) / size_hints_.size_increment.height) *
+    size_out->height = base_height +
+        ((capped_size.height - base_height) /
+         size_hints_.size_increment.height) *
         size_hints_.size_increment.height;
   } else {
-    *height_out = desired_height;
+    size_out->height = capped_size.height;
   }
 
-  DLOG(INFO) << "Max size for " << xid_str() << " is "
-             << *width_out << "x" << *height_out
-             << " (desired was " << desired_width << "x"
-             << desired_height << ")";
+  DLOG(INFO) << "Max size for " << xid_str() << " is " << *size_out
+             << " (desired was " << desired_size << ")";
 }
 
 bool Window::MapClient() {
@@ -719,52 +712,51 @@ bool Window::MoveClientOffscreen() {
 }
 
 bool Window::MoveClientToComposited() {
-  return MoveClient(composited_x_, composited_y_);
+  return MoveClient(composited_x(), composited_y());
 }
 
 bool Window::CenterClientOverWindow(Window* win) {
   CHECK(win);
   int center_x = win->client_x() + 0.5 * win->client_width();
   int center_y = win->client_y() + 0.5 * win->client_height();
-  return MoveClient(center_x - 0.5 * client_width_,
-                    center_y - 0.5 * client_height_);
+  return MoveClient(center_x - 0.5 * client_width(),
+                    center_y - 0.5 * client_height());
 }
 
-bool Window::ResizeClient(int width, int height, Gravity gravity) {
+bool Window::Resize(const Size& new_size, Gravity gravity) {
   DCHECK(xid_);
 
   // Bail out early if this is a no-op.  (No-op resizes won't generate
   // ConfigureNotify events, which means that the client won't know to
   // redraw and update the _NET_WM_SYNC_REQUEST counter.)
-  if (width == client_width_ && height == client_height_)
+  if (new_size == client_size())
     return true;
 
   SendWmSyncRequestMessage();
 
   int dx = (gravity == GRAVITY_NORTHEAST || gravity == GRAVITY_SOUTHEAST) ?
-      width - client_width_ : 0;
+      new_size.width - client_width() : 0;
   int dy = (gravity == GRAVITY_SOUTHWEST || gravity == GRAVITY_SOUTHEAST) ?
-      height - client_height_ : 0;
+      new_size.height - client_height() : 0;
 
-  DLOG(INFO) << "Resizing " << xid_str() << "'s client window to "
-             << width << "x" << height;
+  DLOG(INFO) << "Resizing " << xid_str() << "'s client window to " << new_size;
   if (dx || dy) {
     // If we need to move the window as well due to gravity, do it all in
     // one ConfigureWindow request to the server.
     if (!wm_->xconn()->ConfigureWindow(
-            xid_, Rect(client_x_ - dx, client_y_ - dy, width, height))) {
+            xid_, Rect(Point(client_x() - dx, client_y() - dy), new_size))) {
       return false;
     }
-    SaveClientPosition(client_x_ - dx, client_y_ - dy);
-    composited_x_ -= dx * composited_scale_x_;
-    composited_y_ -= dy * composited_scale_y_;
+    client_bounds_.move(client_x() - dx, client_y() - dy);
+    composited_origin_.x -= dx * composited_scale_x_;
+    composited_origin_.y -= dy * composited_scale_y_;
   } else  {
-    if (!wm_->xconn()->ResizeWindow(xid_, Size(width, height)))
+    if (!wm_->xconn()->ResizeWindow(xid_, new_size))
       return false;
   }
 
   actor_gravity_ = gravity;
-  SaveClientSize(width, height);
+  client_bounds_.resize(new_size, GRAVITY_NORTHWEST);
   return true;
 }
 
@@ -798,7 +790,7 @@ void Window::MoveCompositedY(int y, int anim_ms) {
 }
 
 void Window::MoveCompositedToClient() {
-  MoveComposited(client_x_, client_y_, 0);
+  MoveComposited(client_x(), client_y(), 0);
 }
 
 void Window::ShowComposited() {
@@ -854,7 +846,8 @@ void Window::ScaleComposited(double scale_x, double scale_y, int anim_ms) {
 
   actor_->Scale(scale_x, scale_y, anim_ms);
   if (shadow_.get())
-    shadow_->Resize(scale_x * client_width_, scale_y * client_height_, anim_ms);
+    shadow_->Resize(scale_x * client_width(), scale_y * client_height(),
+                    anim_ms);
 
   // When the window's scale changes, we may need to move the client window
   // offscreen or back onscreen.
@@ -874,11 +867,12 @@ AnimationPair* Window::CreateMoveCompositedAnimation() {
 void Window::SetMoveCompositedAnimation(AnimationPair* animations) {
   DCHECK(animations);
   DCHECK(actor_.get());
-  composited_x_ = animations->first_animation().GetEndValue();
-  composited_y_ = animations->second_animation().GetEndValue();
+  composited_origin_.reset(
+      animations->first_animation().GetEndValue(),
+      animations->second_animation().GetEndValue());
   DLOG(INFO) << "Setting custom animation to eventually move " << xid_str()
-             << "'s composited window to (" << composited_x_ << "x"
-             << composited_y_ << ")";
+             << "'s composited window to (" << composited_x() << "x"
+             << composited_y() << ")";
   actor_->SetMoveAnimation(animations);
 
   // Make sure that the client window is in the right position.
@@ -886,7 +880,7 @@ void Window::SetMoveCompositedAnimation(AnimationPair* animations) {
     UpdateClientWindowPosition();
 
   if (damage_debug_group_.get())
-    damage_debug_group_->Move(composited_x_, composited_y_, 0);
+    damage_debug_group_->Move(composited_x(), composited_y(), 0);
 }
 
 void Window::HandleMapRequested() {
@@ -918,11 +912,18 @@ void Window::HandleMapNotify() {
   // composite new windows until clients have painted them.
   if (able_to_reset_pixmap())
     ResetPixmap();
+
+  if (override_redirect_)
+    SetVisibility(VISIBILITY_SHOWN);
 }
 
 void Window::HandleUnmapNotify() {
   DCHECK(xid_);
   mapped_ = false;
+
+  if (override_redirect_)
+    SetVisibility(VISIBILITY_HIDDEN);
+
   // We could potentially show a window onscreen even after it's been
   // unmapped, so we avoid hiding the shadow here.
 }
@@ -948,16 +949,43 @@ void Window::HandleRedirect() {
                          Size(wm_->width(), wm_->height()));
 }
 
-void Window::HandleConfigureNotify(int width, int height) {
+void Window::HandleConfigureNotify(const Rect& bounds, XWindow above_xid) {
   DCHECK(actor_.get());
-  const bool size_changed =
-      actor_->GetWidth() != width || actor_->GetHeight() != height;
+  const bool size_changed = actor_->GetBounds().size() != bounds.size();
   // Hold off on grabbing the window's contents if we haven't received
   // notification that the client has drawn to the new pixmap yet.
   if (size_changed) {
     need_to_reset_pixmap_ = true;
     if (able_to_reset_pixmap())
       ResetPixmap();
+  }
+
+  // If this is an override-redirect window (i.e. we didn't initiate the change
+  // ourselves), save the updated bounds and make sure that the actor is in the
+  // right place.
+  if (override_redirect_) {
+    client_bounds_ = bounds;
+    MoveCompositedInternal(bounds.position(), MOVE_DIMENSIONS_X_AND_Y, 0);
+
+    // When we see a stacking change, we attempt to restack our actor
+    // correspondingly.  If we don't have an actor for the X window directly
+    // under us, we walk down the stack until we find one.
+    while (above_xid) {
+      Window* above_win = wm_->GetWindow(above_xid);
+      Compositor::Actor* above_actor =
+          above_win ?
+          above_win->GetTopActor() :
+          wm_->stacking_manager()->GetActorIfLayerXid(above_xid);
+
+      if (above_actor) {
+        DLOG(INFO) << "Stacking override-redirect window " << xid_str()
+                   << "'s actor above window " << XidStr(above_xid) << "'s";
+        StackCompositedAbove(above_actor, NULL, false);
+        break;
+      }
+      const XWindow* above_ptr = wm_->stacked_xids().GetUnder(above_xid);
+      above_xid = above_ptr ? *above_ptr : 0;
+    }
   }
 }
 
@@ -1015,7 +1043,7 @@ void Window::SetShadowType(Shadow::Type type) {
   shadow_->group()->SetName(string("shadow group for window " + xid_str()));
   wm_->stage()->AddActor(shadow_->group());
   shadow_->group()->Lower(actor_.get());
-  shadow_->Move(composited_x_, composited_y_, 0);
+  shadow_->Move(composited_x(), composited_y(), 0);
   shadow_->SetOpacity(combined_opacity() * shadow_opacity_, 0);
   shadow_->Resize(composited_scale_x_ * actor_->GetWidth(),
                   composited_scale_y_ * actor_->GetHeight(), 0);
@@ -1082,10 +1110,7 @@ Compositor::Actor* Window::GetBottomActor() {
 
 void Window::CopyClientBoundsToRect(Rect* rect) const {
   DCHECK(rect);
-  rect->x = client_x_;
-  rect->y = client_y_;
-  rect->width = client_width_;
-  rect->height = client_height_;
+  *rect = client_bounds_;
 }
 
 void Window::HandleSyncAlarmNotify(XID alarm_id, int64_t value) {
@@ -1109,20 +1134,19 @@ void Window::HandleSyncAlarmNotify(XID alarm_id, int64_t value) {
 void Window::SendSyntheticConfigureNotify() {
   const XWindow* xid_under_us_ptr = wm_->stacked_xids().GetUnder(xid_);
   const XWindow xid_under_us = xid_under_us_ptr ? *xid_under_us_ptr : 0;
-  Rect rect(client_x_, client_y_, client_width_, client_height_);
   DLOG(INFO) << "Sending synthetic configure notify for " << xid_str() << ": "
-             << rect << ", above " << XidStr(xid_under_us);
+             << client_bounds_ << ", above " << XidStr(xid_under_us);
   wm_->xconn()->SendConfigureNotifyEvent(
       xid_,
-      rect,
+      client_bounds_,
       0,  // border_width
       xid_under_us,
       false);  // override_redirect
 }
 
 bool Window::IsClientWindowOffscreen() const {
-  return (client_x_ >= wm_->width() || client_x_ + client_width_ < 0 ||
-          client_y_ >= wm_->height() || client_y_ + client_height_ < 0);
+  return (client_x() >= wm_->width() || client_x() + client_width() < 0 ||
+          client_y() >= wm_->height() || client_y() + client_height() < 0);
 }
 
 void Window::SetWmStateInternal(int action, bool* value) const {
@@ -1147,7 +1171,7 @@ bool Window::MoveClientInternal(const Point& origin) {
   DCHECK(xid_);
   if (!wm_->xconn()->MoveWindow(xid_, origin))
     return false;
-  SaveClientPosition(origin.x, origin.y);
+  client_bounds_.move(origin);
   return true;
 }
 
@@ -1158,18 +1182,17 @@ void Window::MoveCompositedInternal(const Point& origin,
     case MOVE_DIMENSIONS_X_AND_Y:
       DLOG(INFO) << "Moving " << xid_str() << "'s composited window to "
                  << origin << " over " << anim_ms << " ms";
-      composited_x_ = origin.x;
-      composited_y_ = origin.y;
+      composited_origin_ = origin;
       break;
     case MOVE_DIMENSIONS_X_ONLY:
       DLOG(INFO) << "Moving " << xid_str() << "'s composited window's X "
                  << "position to " << origin.x << " over " << anim_ms << " ms";
-      composited_x_ = origin.x;
+      composited_origin_.x = origin.x;
       break;
     case MOVE_DIMENSIONS_Y_ONLY:
       DLOG(INFO) << "Moving " << xid_str() << "'s composited window's Y "
                  << "position to " << origin.y << " over " << anim_ms << " ms";
-      composited_y_ = origin.y;
+      composited_origin_.y = origin.y;
       break;
     default:
       NOTREACHED() << "Unknown move dimensions " << dimensions;
@@ -1188,19 +1211,17 @@ void Window::UpdateClientWindowPosition() {
   // receive input.
   const bool should_be_onscreen =
       visibility_ == VISIBILITY_SHOWN &&
-      composited_width() == client_width_ &&
-      composited_height() == client_height_ &&
+      composited_size() == client_size() &&
       combined_opacity() > 0.0;
 
-  Point cur_pos(client_x_, client_y_);
-  Point new_pos = cur_pos;
+  Point new_origin = client_origin();
   if (should_be_onscreen)
-    new_pos.reset(composited_x_, composited_y_);
+    new_origin.reset(composited_x(), composited_y());
   else
-    new_pos.reset(kOffscreenX, kOffscreenY);
+    new_origin.reset(kOffscreenX, kOffscreenY);
 
-  if (new_pos != cur_pos)
-    MoveClientInternal(new_pos);
+  if (new_origin != client_origin())
+    MoveClientInternal(new_origin);
 }
 
 bool Window::UpdateWmStateProperty() {
@@ -1261,9 +1282,9 @@ void Window::MoveActorToAdjustedPosition(MoveDimensions dimensions,
 
   // Get the region that would be occupied by the actor if it were the same
   // size as the client window.
-  Rect scaled_rect(composited_x_, composited_y_,
-                   client_width_ * composited_scale_x_,
-                   client_height_ * composited_scale_y_);
+  Rect scaled_rect(composited_x(), composited_y(),
+                   client_width() * composited_scale_x_,
+                   client_height() * composited_scale_y_);
 
   // Now resize that region accordingly for the actor's actual size and its
   // gravity.
@@ -1371,7 +1392,7 @@ void Window::UpdateDamageDebugging(const Rect& bounding_box) {
   if (!damage_debug_group_.get()) {
     damage_debug_group_.reset(wm_->compositor()->CreateGroup());
     damage_debug_group_->SetName("damage debug group for window " + xid_str_);
-    damage_debug_group_->Move(composited_x_, composited_y_, 0);
+    damage_debug_group_->Move(composited_x(), composited_y(), 0);
     damage_debug_group_->Scale(composited_scale_x_, composited_scale_y_, 0);
     damage_debug_group_->SetOpacity(combined_opacity(), 0);
     if (actor_is_shown())

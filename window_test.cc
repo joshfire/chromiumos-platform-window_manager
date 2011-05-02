@@ -77,7 +77,7 @@ TEST_F(WindowTest, WindowType) {
 }
 
 TEST_F(WindowTest, ChangeClient) {
-  XWindow xid = CreateBasicWindow(10, 20, 30, 40);
+  XWindow xid = CreateBasicWindow(Rect(10, 20, 30, 40));
   MockXConnection::WindowInfo* info = xconn_->GetWindowInfoOrDie(xid);
   XConnection::WindowGeometry geometry;
   ASSERT_TRUE(xconn_->GetWindowGeometry(xid, &geometry));
@@ -102,25 +102,15 @@ TEST_F(WindowTest, ChangeClient) {
   EXPECT_EQ(200, window.client_y());
 
   // Resize the window.
-  EXPECT_TRUE(window.ResizeClient(300, 400, GRAVITY_NORTHWEST));
+  EXPECT_TRUE(window.Resize(Size(300, 400), GRAVITY_NORTHWEST));
   EXPECT_EQ(300, info->bounds.width);
   EXPECT_EQ(400, info->bounds.height);
   EXPECT_EQ(300, window.client_width());
   EXPECT_EQ(400, window.client_height());
-
-  // We need to be able to update windows' local geometry variables in
-  // response to ConfigureNotify events to be able to handle
-  // override-redirect windows, so make sure that that works correctly.
-  window.SaveClientPosition(50, 60);
-  window.SaveClientSize(70, 80);
-  EXPECT_EQ(50, window.client_x());
-  EXPECT_EQ(60, window.client_y());
-  EXPECT_EQ(70, window.client_width());
-  EXPECT_EQ(80, window.client_height());
 }
 
 TEST_F(WindowTest, ChangeComposited) {
-  XWindow xid = CreateBasicWindow(10, 20, 30, 40);
+  XWindow xid = CreateBasicWindow(Rect(10, 20, 30, 40));
   XConnection::WindowGeometry geometry;
   ASSERT_TRUE(xconn_->GetWindowGeometry(xid, &geometry));
   Window window(wm_.get(), xid, false, geometry);
@@ -174,7 +164,7 @@ TEST_F(WindowTest, TransientFor) {
 }
 
 TEST_F(WindowTest, GetMaxSize) {
-  XWindow xid = CreateBasicWindow(10, 20, 30, 40);
+  XWindow xid = CreateBasicWindow(Rect(10, 20, 30, 40));
 
   MockXConnection::WindowInfo* info = xconn_->GetWindowInfoOrDie(xid);
   info->size_hints.min_size.reset(400, 300);
@@ -186,24 +176,21 @@ TEST_F(WindowTest, GetMaxSize) {
   ASSERT_TRUE(xconn_->GetWindowGeometry(xid, &geometry));
   Window win(wm_.get(), xid, false, geometry);
   ASSERT_TRUE(win.FetchAndApplySizeHints());
-  int width = 0, height = 0;
+  Size size;
 
   // We should get the minimum size if we request a size smaller than it.
-  win.GetMaxSize(300, 200, &width, &height);
-  EXPECT_EQ(400, width);
-  EXPECT_EQ(300, height);
+  win.GetMaxSize(Size(300, 200), &size);
+  EXPECT_EQ(Size(400, 300), size);
 
   // And the maximum size if we request one larger than it.
-  win.GetMaxSize(1000, 800, &width, &height);
-  EXPECT_EQ(800, width);
-  EXPECT_EQ(600, height);
+  win.GetMaxSize(Size(1000, 800), &size);
+  EXPECT_EQ(Size(800, 600), size);
 
   // Test that the size increment hints are honored when we request a size
   // that's not equal to the base size plus some multiple of the size
   // increments.
-  win.GetMaxSize(609, 409, &width, &height);
-  EXPECT_EQ(600, width);
-  EXPECT_EQ(405, height);
+  win.GetMaxSize(Size(609, 409), &size);
+  EXPECT_EQ(Size(600, 405), size);
 }
 
 // Test WM_DELETE_WINDOW and WM_TAKE_FOCUS from ICCCM's WM_PROTOCOLS.
@@ -430,11 +417,11 @@ TEST_F(WindowTest, Shape) {
   // Create a shaped window.
   int width = 10;
   int height = 5;
-  XWindow xid = CreateBasicWindow(10, 20, width, height);
+  XWindow xid = CreateBasicWindow(Rect(10, 20, width, height));
   MockXConnection::WindowInfo* info = xconn_->GetWindowInfoOrDie(xid);
-  info->shape.reset(new ByteMap(width, height));
+  info->shape.reset(new ByteMap(Size(width, height)));
   info->shape->Clear(0xff);
-  info->shape->SetRectangle(0, 0, 3, 3, 0x0);
+  info->shape->SetRectangle(Rect(0, 0, 3, 3), 0x0);
 
   XConnection::WindowGeometry geometry;
   ASSERT_TRUE(xconn_->GetWindowGeometry(xid, &geometry));
@@ -465,7 +452,7 @@ TEST_F(WindowTest, Shape) {
 
   // Change the shape and check that the window updates its actor.
   info->shape->Clear(0xff);
-  info->shape->SetRectangle(width - 3, height - 3, 3, 3, 0x0);
+  info->shape->SetRectangle(Rect(width - 3, height - 3, 3, 3), 0x0);
   win.FetchAndApplyShape();
   EXPECT_TRUE(win.shaped());
   EXPECT_FALSE(win.shadow()->is_shown());
@@ -517,8 +504,8 @@ TEST_F(WindowTest, RemoveBorder) {
 // end up with the previous contents being scaled to fit the new size --
 // see http://crosbug.com/1279.
 TEST_F(WindowTest, DeferResizingActor) {
-  const int orig_width = 300, orig_height = 200;
-  XWindow xid = CreateToplevelWindow(2, 0, 0, 0, orig_width, orig_height);
+  const Rect kOrigBounds(0, 0, 300, 200);
+  XWindow xid = CreateToplevelWindow(2, 0, kOrigBounds);
   XConnection::WindowGeometry geometry;
   ASSERT_TRUE(xconn_->GetWindowGeometry(xid, &geometry));
   Window win(wm_.get(), xid, false, geometry);
@@ -526,28 +513,25 @@ TEST_F(WindowTest, DeferResizingActor) {
   win.HandleMapNotify();
 
   // Check that the actor's initial dimensions match that of the client window.
-  EXPECT_EQ(orig_width, win.actor()->GetWidth());
-  EXPECT_EQ(orig_height, win.actor()->GetHeight());
+  EXPECT_EQ(kOrigBounds.size(), win.actor()->GetBounds().size());
 
   // After resizing the client window, the actor should still still be
   // using the original dimensions.
-  const int new_width = 600, new_height = 400;
-  win.ResizeClient(new_width, new_height, GRAVITY_NORTHWEST);
-  EXPECT_EQ(orig_width, win.actor()->GetWidth());
-  EXPECT_EQ(orig_height, win.actor()->GetHeight());
+  const Rect kNewBounds(0, 0, 600, 400);
+  win.Resize(kNewBounds.size(), GRAVITY_NORTHWEST);
+  EXPECT_EQ(kOrigBounds.size(), win.actor()->GetBounds().size());
 
   // Now let the window know that we've seen a ConfigureNotify event with
   // the new dimensions and check that the actor is resized.
-  win.HandleConfigureNotify(new_width, new_height);
-  EXPECT_EQ(new_width, win.actor()->GetWidth());
-  EXPECT_EQ(new_height, win.actor()->GetHeight());
+  win.HandleConfigureNotify(kNewBounds, 0);
+  EXPECT_EQ(kNewBounds.size(), win.actor()->GetBounds().size());
 }
 
 // Test that pixmap actor and shadow sizes get updated correctly in
 // response to ConfigureNotify events.
 TEST_F(WindowTest, UpdatePixmapAndShadowSizes) {
   const int orig_width = 300, orig_height = 200;
-  XWindow xid = CreateToplevelWindow(2, 0, 0, 0, orig_width, orig_height);
+  XWindow xid = CreateToplevelWindow(2, 0, Rect(0, 0, orig_width, orig_height));
   MockXConnection::WindowInfo* info = xconn_->GetWindowInfoOrDie(xid);
   XConnection::WindowGeometry geometry;
   ASSERT_TRUE(xconn_->GetWindowGeometry(xid, &geometry));
@@ -558,7 +542,7 @@ TEST_F(WindowTest, UpdatePixmapAndShadowSizes) {
   // the updated size later after the window is mapped.
   const int second_width = orig_width + 10, second_height = orig_height + 10;
   ASSERT_TRUE(xconn_->ResizeWindow(xid, Size(second_width, second_height)));
-  win.HandleConfigureNotify(info->bounds.width, info->bounds.height);
+  win.HandleConfigureNotify(info->bounds, 0);
 
   // Now map the window and check that everything starts out at the right size.
   ASSERT_TRUE(xconn_->MapWindow(xid));
@@ -573,7 +557,7 @@ TEST_F(WindowTest, UpdatePixmapAndShadowSizes) {
   // ConfigureNotify event (like what we'll receive whenever the window
   // gets moved).
   XID prev_pixmap = actor->pixmap();
-  win.HandleConfigureNotify(info->bounds.width, info->bounds.height);
+  win.HandleConfigureNotify(info->bounds, 0);
   EXPECT_EQ(prev_pixmap, actor->pixmap());
 
   // Now act as if the window gets resized two more times, but the second
@@ -582,7 +566,8 @@ TEST_F(WindowTest, UpdatePixmapAndShadowSizes) {
   const int third_width = second_width + 10, third_height = second_height + 10;
   const int fourth_width = third_width + 10, fourth_height = third_height + 10;
   xconn_->ResizeWindow(xid, Size(fourth_width, fourth_height));
-  win.HandleConfigureNotify(third_width, third_height);
+  win.HandleConfigureNotify(
+      Rect(info->bounds.x, info->bounds.y, third_width, third_height), 0);
 
   // We should load the pixmap now and resize the shadow to the dimensions
   // from the final pixmap instead of the ones supplied in the event.
@@ -592,7 +577,7 @@ TEST_F(WindowTest, UpdatePixmapAndShadowSizes) {
   EXPECT_EQ(fourth_height, win.shadow()->height());
 
   // Nothing should change after we get the second ConfigureNotify.
-  win.HandleConfigureNotify(fourth_width, fourth_height);
+  win.HandleConfigureNotify(info->bounds, 0);
   EXPECT_EQ(fourth_width, actor->GetWidth());
   EXPECT_EQ(fourth_height, actor->GetHeight());
   EXPECT_EQ(fourth_width, win.shadow()->width());
@@ -645,17 +630,16 @@ TEST_F(WindowTest, SyncRequest) {
   MockCompositor::TexturePixmapActor* actor = GetMockActorForWindow(&win);
 
   EXPECT_TRUE(win.client_has_redrawn_after_last_resize_);
-  EXPECT_EQ(geometry.bounds.width, actor->GetWidth());
-  EXPECT_EQ(geometry.bounds.height, actor->GetHeight());
+  EXPECT_EQ(geometry.bounds.size(), actor->GetBounds().size());
 
   // If the client doesn't support the sync request protocol, we should
   // just pretend like it's always redrawn the window immediately after a
   // resize.
-  win.ResizeClient(500, 500, GRAVITY_NORTHWEST);
+  Size kFirstSize(500, 500);
+  win.Resize(kFirstSize, GRAVITY_NORTHWEST);
   EXPECT_TRUE(win.client_has_redrawn_after_last_resize_);
-  win.HandleConfigureNotify(500, 500);
-  EXPECT_EQ(500, actor->GetWidth());
-  EXPECT_EQ(500, actor->GetHeight());
+  win.HandleConfigureNotify(Rect(geometry.bounds.position(), kFirstSize), 0);
+  EXPECT_EQ(kFirstSize, actor->GetBounds().size());
 
   // Add the hint saying that the window supports the sync request
   // protocol, but don't actually set the property saying which counter
@@ -694,14 +678,14 @@ TEST_F(WindowTest, SyncRequest) {
   // be redrawn.
   MockXConnection::WindowInfo* info = xconn_->GetWindowInfoOrDie(xid);
   info->client_messages.clear();
-  win.ResizeClient(600, 600, GRAVITY_NORTHWEST);
+  Size kSecondSize(600, 600);
+  win.Resize(kSecondSize, GRAVITY_NORTHWEST);
   EXPECT_FALSE(win.client_has_redrawn_after_last_resize_);
 
   // We should also abstain from getting a new pixmap in response to
   // ConfigureNotify events...
-  win.HandleConfigureNotify(600, 600);
-  EXPECT_EQ(500, actor->GetWidth());
-  EXPECT_EQ(500, actor->GetHeight());
+  win.HandleConfigureNotify(Rect(info->bounds.position(), kSecondSize), 0);
+  EXPECT_EQ(kFirstSize, actor->GetBounds().size());
 
   // ... and we should send the client a message telling it to increment the
   // counter when it's done redrawing.
@@ -730,16 +714,15 @@ TEST_F(WindowTest, SyncRequest) {
   // we should consider the window to be redrawn and fetch an updated pixmap.
   win.HandleSyncAlarmNotify(win.wm_sync_request_alarm_, next_counter_value);
   EXPECT_TRUE(win.client_has_redrawn_after_last_resize_);
-  EXPECT_EQ(600, actor->GetWidth());
-  EXPECT_EQ(600, actor->GetHeight());
+  EXPECT_EQ(kSecondSize, actor->GetBounds().size());
 
   // If we somehow get notified that the window has been redrawn before we
   // get the ConfigureNotify, reset the pixmap immediately.
-  win.ResizeClient(700, 700, GRAVITY_NORTHWEST);
+  Size kThirdSize(700, 700);
+  win.Resize(kThirdSize, GRAVITY_NORTHWEST);
   win.HandleSyncAlarmNotify(win.wm_sync_request_alarm_,
                             win.current_wm_sync_num_);
-  EXPECT_EQ(700, actor->GetWidth());
-  EXPECT_EQ(700, actor->GetHeight());
+  EXPECT_EQ(kThirdSize, actor->GetBounds().size());
 }
 
 // Test that we wait to fetch pixmaps for newly-created windows until the
@@ -907,7 +890,7 @@ TEST_F(WindowTest, ShadowSizeRace) {
   EXPECT_EQ(kNewSize, win.shadow()->bounds().size());
 
   // Now send the ConfigureNotify and check that nothing changes.
-  win.HandleConfigureNotify(kNewSize.width, kNewSize.height);
+  win.HandleConfigureNotify(Rect(Point(0, 0), kNewSize), 0);
   EXPECT_EQ(kNewSize, win.actor()->GetBounds().size());
 }
 
@@ -942,7 +925,7 @@ TEST_F(WindowTest, SimultaneousMoveAndResize) {
   // Now make the window 50 pixels wider and taller with southeast gravity.
   // In other words, its origin should also move 50 pixels up and to the left.
   const Rect kNewBounds(50, 100, 350, 300);
-  win.ResizeClient(kNewBounds.width, kNewBounds.height, GRAVITY_SOUTHEAST);
+  win.Resize(kNewBounds.size(), GRAVITY_SOUTHEAST);
 
   // A request should've been sent to the X server asking for the new bounds, so
   // the client window should be resized.  The actor should still be at the old
@@ -955,7 +938,7 @@ TEST_F(WindowTest, SimultaneousMoveAndResize) {
 
   // After we've received notification that the new pixmap is available, the
   // actor should be both resized and moved to the requested position.
-  win.HandleConfigureNotify(kNewBounds.width, kNewBounds.height);
+  win.HandleConfigureNotify(kNewBounds, 0);
   EXPECT_EQ(kNewBounds, actor->GetBounds());
   EXPECT_EQ(kNewBounds.x, win.composited_x());
   EXPECT_EQ(kNewBounds.y, win.composited_y());
@@ -970,7 +953,7 @@ TEST_F(WindowTest, SimultaneousMoveAndResize) {
   // Now resize the window back to its old size, again with southeast gravity.
   // The actor shouldn't move, but we should update the |composited_x| and
   // |composited_y| fields.
-  win.ResizeClient(kOrigBounds.width, kOrigBounds.height, GRAVITY_SOUTHEAST);
+  win.Resize(kOrigBounds.size(), GRAVITY_SOUTHEAST);
   EXPECT_EQ(kOrigBounds, info->bounds);
   EXPECT_EQ(Rect(kCompositedPosition, kNewBounds.size()), actor->GetBounds());
   const Point kOffsetCompositedPosition(
@@ -981,7 +964,7 @@ TEST_F(WindowTest, SimultaneousMoveAndResize) {
 
   // After getting notification about the pixmap, the actor should be resized
   // and moved to the new position.
-  win.HandleConfigureNotify(kOrigBounds.width, kOrigBounds.height);
+  win.HandleConfigureNotify(kOrigBounds, 0);
   EXPECT_EQ(Rect(kOffsetCompositedPosition, kOrigBounds.size()),
             actor->GetBounds());
 
@@ -993,14 +976,14 @@ TEST_F(WindowTest, SimultaneousMoveAndResize) {
 
   // Resize the client again.  The amount that the composited window is moved
   // should be scaled by its scaling factor.
-  win.ResizeClient(kNewBounds.width, kNewBounds.height, GRAVITY_SOUTHEAST);
+  win.Resize(kNewBounds.size(), GRAVITY_SOUTHEAST);
   const Point kScaledCompositedPosition(
       kOrigBounds.x + kCompositedScale * (kNewBounds.x - kOrigBounds.x),
       kOrigBounds.y + kCompositedScale * (kNewBounds.y - kOrigBounds.y));
   EXPECT_EQ(kScaledCompositedPosition.x, win.composited_x());
   EXPECT_EQ(kScaledCompositedPosition.y, win.composited_y());
 
-  win.HandleConfigureNotify(kNewBounds.width, kNewBounds.height);
+  win.HandleConfigureNotify(kNewBounds, 0);
   EXPECT_EQ(Rect(kScaledCompositedPosition, kNewBounds.size()),
             actor->GetBounds());
 }

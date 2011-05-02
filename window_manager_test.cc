@@ -398,7 +398,7 @@ TEST_F(WindowManagerTest, Reparent) {
   EXPECT_FALSE(info->redirected);
 }
 
-TEST_F(WindowManagerTest, RestackOverrideRedirectWindows) {
+TEST_F(WindowManagerTest, OverrideRedirectConfigureNotify) {
   MockCompositor::StageActor* stage = compositor_->GetDefaultStage();
   XEvent event;
 
@@ -453,6 +453,14 @@ TEST_F(WindowManagerTest, RestackOverrideRedirectWindows) {
             stage->GetStackingIndex(win2->actor()));
   EXPECT_LT(stage->GetStackingIndex(win2->actor()),
             stage->GetStackingIndex(win2->shadow()->group()));
+
+  // Move and resize the first window and check that its actor is updated
+  // correspondingly.
+  const Rect kNewBounds(300, 400, 60, 70);
+  xconn_->ConfigureWindow(xid, kNewBounds);
+  xconn_->InitConfigureNotifyEvent(&event, xid);
+  wm_->HandleEvent(&event);
+  EXPECT_EQ(kNewBounds, win->actor()->GetBounds());
 }
 
 TEST_F(WindowManagerTest, StackOverrideRedirectWindowsAboveLayers) {
@@ -1050,7 +1058,6 @@ TEST_F(WindowManagerTest, OverrideRedirectShadows) {
   ASSERT_TRUE(xconn_->MapWindow(xid1));
   SendInitialEventsForWindow(xid1);
   Window* win1 = wm_->GetWindowOrDie(xid1);
-  EXPECT_TRUE(win1->composited_shown());
   EXPECT_TRUE(win1->shadow() == NULL);
 
   // _NET_WM_WINDOW_TYPE_MENU (or several other menu-related types) should
@@ -1094,7 +1101,6 @@ TEST_F(WindowManagerTest, OverrideRedirectShadows) {
   ASSERT_TRUE(xconn_->MapWindow(rgba_xid));
   SendInitialEventsForWindow(rgba_xid);
   Window* rgba_win = wm_->GetWindowOrDie(rgba_xid);
-  EXPECT_TRUE(rgba_win->composited_shown());
   EXPECT_TRUE(rgba_win->shadow() == NULL);
 }
 
@@ -1252,9 +1258,9 @@ TEST_F(WindowManagerTest, HandleTopFullscreenActorChange) {
   MockXConnection::WindowInfo* overlay_info =
     xconn_->GetWindowInfoOrDie(wm_->overlay_xid_);
   scoped_ptr<ByteMap> expected_overlay(
-      new ByteMap(overlay_info->bounds.width, overlay_info->bounds.height));
+      new ByteMap(overlay_info->bounds.size()));
   scoped_ptr<ByteMap> actual_overlay(
-      new ByteMap(overlay_info->bounds.width, overlay_info->bounds.height));
+      new ByteMap(overlay_info->bounds.size()));
 
   // Make sure no window is unredirected.
   FLAGS_unredirect_fullscreen_window = true;
@@ -1381,7 +1387,7 @@ TEST_F(WindowManagerTest, NotifyAboutInitialPixmap) {
 
   // Resize the window and mimic the client syncing with the window manager
   // again, and check that we notify the event consumer about the new pixmap.
-  sync_win->ResizeClient(600, 500, GRAVITY_NORTHWEST);
+  sync_win->Resize(Size(600, 500), GRAVITY_NORTHWEST);
   SendSyncRequestProtocolAlarm(sync_xid);
   EXPECT_TRUE(sync_win->has_initial_pixmap());
   EXPECT_EQ(2, ec.num_fetched_pixmaps());
@@ -1462,7 +1468,7 @@ TEST_F(WindowManagerTest, ForceCompositing) {
   MockCompositor::TexturePixmapActor* actor = GetMockActorForWindow(win);
 
   // Resize it to cover the whole screen.
-  win->ResizeClient(wm_->width(), wm_->height(), GRAVITY_NORTHWEST);
+  win->Resize(wm_->root_size(), GRAVITY_NORTHWEST);
   SendSyncRequestProtocolAlarm(xid);
 
   // Tell the WM that the window is covering the screen and check that we
@@ -1485,7 +1491,7 @@ TEST_F(WindowManagerTest, ForceCompositing) {
   // Resize the window and remove the compositing request.  Since we're waiting
   // for the window to be repainted after the resize, we should continue
   // compositing.
-  win->ResizeClient(wm_->width() / 2, wm_->height() / 2, GRAVITY_NORTHWEST);
+  win->Resize(Size(wm_->width() / 2, wm_->height() / 2), GRAVITY_NORTHWEST);
   wm_->DecrementCompositingRequests();
   wm_->HandleTopFullscreenActorChange(actor);
   EXPECT_EQ(static_cast<XWindow>(0), wm_->unredirected_fullscreen_xid_);

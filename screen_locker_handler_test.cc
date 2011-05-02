@@ -110,7 +110,7 @@ TEST_F(ScreenLockerHandlerTest, BasicLock) {
 
   // Now create a screen locker window.
   XWindow screen_locker_xid =
-      CreateBasicWindow(5, 5, wm_->width() - 5, wm_->height() - 5);
+      CreateBasicWindow(Rect(5, 5, wm_->width() - 5, wm_->height() - 5));
   MockXConnection::WindowInfo* screen_locker_info =
       xconn_->GetWindowInfoOrDie(screen_locker_xid);
   wm_->wm_ipc()->SetWindowType(

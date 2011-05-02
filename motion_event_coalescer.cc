@@ -16,8 +16,7 @@ MotionEventCoalescer::MotionEventCoalescer(EventLoop* event_loop,
       timeout_id_(-1),
       timeout_ms_(timeout_ms),
       have_queued_position_(false),
-      x_(-1),
-      y_(-1),
+      position_(-1, -1),
       cb_(cb),
       synchronous_(false) {
   CHECK(cb);
@@ -41,8 +40,7 @@ void MotionEventCoalescer::Start() {
         0, timeout_ms_);
   }
   have_queued_position_ = false;
-  x_ = -1;
-  y_ = -1;
+  position_.reset(-1, -1);
 }
 
 void MotionEventCoalescer::Stop() {
@@ -50,11 +48,10 @@ void MotionEventCoalescer::Stop() {
     StopInternal(true);
 }
 
-void MotionEventCoalescer::StorePosition(int x, int y) {
-  if (x == x_ && y == y_)
+void MotionEventCoalescer::StorePosition(const Point& pos) {
+  if (pos == position_)
     return;
-  x_ = x;
-  y_ = y;
+  position_ = pos;
   have_queued_position_ = true;
   if (synchronous_)
     HandleTimeout();

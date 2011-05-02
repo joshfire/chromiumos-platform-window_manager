@@ -98,7 +98,7 @@ void ScreenLockerHandler::HandleScreenResize() {
     // TODO: The override-redirect check can be removed once Chrome is
     // using regular windows for the screen locker.
     if (!win->override_redirect())
-      win->ResizeClient(wm_->width(), wm_->height(), GRAVITY_NORTHWEST);
+      win->Resize(wm_->root_size(), GRAVITY_NORTHWEST);
   }
 }
 
@@ -109,7 +109,7 @@ bool ScreenLockerHandler::HandleWindowMapRequest(Window* win) {
 
   win->SetVisibility(Window::VISIBILITY_SHOWN);
   win->Move(Point(0, 0), 0);
-  win->ResizeClient(wm_->width(), wm_->height(), GRAVITY_NORTHWEST);
+  win->Resize(wm_->root_size(), GRAVITY_NORTHWEST);
   wm_->stacking_manager()->StackWindowAtTopOfLayer(
       win,
       StackingManager::LAYER_SCREEN_LOCKER,

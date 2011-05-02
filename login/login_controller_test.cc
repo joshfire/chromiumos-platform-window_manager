@@ -85,7 +85,7 @@ class LoginControllerTest : public BasicWindowManagerTest {
     CHECK(num_entries == 0 || num_entries >= 2);
 
     if (!background_xid_) {
-      background_xid_ = CreateBasicWindow(0, 0, wm_->width(), wm_->height());
+      background_xid_ = CreateBasicWindow(wm_->root_bounds());
       vector<int> background_params;
       background_params.push_back(background_is_ready ? 1 : 0);
       wm_->wm_ipc()->SetWindowType(background_xid_,
@@ -102,8 +102,8 @@ class LoginControllerTest : public BasicWindowManagerTest {
     // LoginController sees the wizard window get mapped, it won't know whether
     // it should display it immediately or wait for entries to show up.
     if (create_wizard_window) {
-      wizard_xid_ = CreateBasicWindow(0, 0,
-                                      wm_->width() / 2, wm_->height() / 2);
+      wizard_xid_ =
+          CreateBasicWindow(Rect(0, 0, wm_->width() / 2, wm_->height() / 2));
       wm_->wm_ipc()->SetWindowType(wizard_xid_,
                                    chromeos::WM_IPC_WINDOW_LOGIN_GUEST,
                                    NULL);
@@ -124,14 +124,19 @@ class LoginControllerTest : public BasicWindowManagerTest {
 
   EntryWindows CreateLoginEntry(int num_entries, int i) {
     EntryWindows entry;
-    entry.border_xid = CreateBasicWindow(0, 0,
-        kImageSize + 2 * kGapBetweenImageAndControls,
-        kImageSize + kControlsSize + 3 * kGapBetweenImageAndControls);
-    entry.image_xid = CreateBasicWindow(0, 0, kImageSize, kImageSize);
-    entry.controls_xid = CreateBasicWindow(0, 0, kImageSize, kControlsSize);
-    entry.label_xid = CreateBasicWindow(0, 0, kImageSize, kControlsSize);
-    entry.unselected_label_xid = CreateBasicWindow(0, 0, kImageSize,
-                                                   kControlsSize);
+    entry.border_xid =
+        CreateBasicWindow(
+            Rect(0, 0,
+                 kImageSize + 2 * kGapBetweenImageAndControls,
+                 kImageSize + kControlsSize + 3 * kGapBetweenImageAndControls));
+    entry.image_xid =
+        CreateBasicWindow(Rect(0, 0, kImageSize, kImageSize));
+    entry.controls_xid =
+        CreateBasicWindow(Rect(0, 0, kImageSize, kControlsSize));
+    entry.label_xid =
+        CreateBasicWindow(Rect(0, 0, kImageSize, kControlsSize));
+    entry.unselected_label_xid =
+        CreateBasicWindow(Rect(0, 0, kImageSize, kControlsSize));
 
     vector<int> params;
     params.push_back(i);  // entry index
@@ -342,7 +347,8 @@ TEST_F(LoginControllerTest, OtherWindows) {
 
   const int initial_width = 300;
   const int initial_height = 200;
-  const XWindow xid = CreateBasicWindow(0, 0, initial_width, initial_height);
+  const XWindow xid =
+      CreateBasicWindow(Rect(0, 0, initial_width, initial_height));
   MockXConnection::WindowInfo* info = xconn_->GetWindowInfoOrDie(xid);
   info->transient_for = background_xid_;
   ASSERT_FALSE(info->mapped);
@@ -616,8 +622,7 @@ TEST_F(LoginControllerTest, HideAfterLogin) {
   EXPECT_FALSE(WindowIsOffscreen(background_xid_));
 
   // But we should hide them after the first Chrome window is created.
-  XWindow xid = CreateToplevelWindow(1, 0,  // tab_count, selected_tab
-                                     0, 0, 200, 200);  // position and size
+  XWindow xid = CreateToplevelWindow(1, 0, Rect(0, 0, 200, 200));
   SendInitialEventsForWindow(xid);
   EXPECT_TRUE(WindowIsOffscreen(background_xid_));
 }
@@ -648,8 +653,7 @@ TEST_F(LoginControllerTest, ShowDestroyedWindows) {
 
   // After the initial browser window gets mapped (but not yet painted), we
   // should still show the background.
-  XWindow xid = CreateToplevelWindow(1, 0,  // tab_count, selected_tab
-                                     0, 0, 200, 200);  // position and size
+  XWindow xid = CreateToplevelWindow(1, 0, Rect(0, 0, 200, 200));
   ConfigureWindowForSyncRequestProtocol(xid);
   SendInitialEventsForWindow(xid);
   EXPECT_TRUE(stage->stacked_children()->Contains(background_actor));
@@ -689,7 +693,8 @@ TEST_F(LoginControllerTest, SelectGuest) {
   EXPECT_EQ(entries_[1].controls_xid, GetActiveWindowProperty());
 
   // Create wizard window.
-  wizard_xid_ = CreateBasicWindow(0, 0, wm_->width() / 2, wm_->height() / 2);
+  wizard_xid_ =
+      CreateBasicWindow(Rect(0, 0, wm_->width() / 2, wm_->height() / 2));
   wm_->wm_ipc()->SetWindowType(wizard_xid_,
                                chromeos::WM_IPC_WINDOW_LOGIN_GUEST,
                                NULL);
@@ -717,7 +722,8 @@ TEST_F(LoginControllerTest, RemoveUser) {
   EXPECT_EQ(entries_[0].controls_xid, GetActiveWindowProperty());
 
   // Create wizard window.
-  wizard_xid_ = CreateBasicWindow(0, 0, wm_->width() / 2, wm_->height() / 2);
+  wizard_xid_ =
+      CreateBasicWindow(Rect(0, 0, wm_->width() / 2, wm_->height() / 2));
   wm_->wm_ipc()->SetWindowType(wizard_xid_,
                                chromeos::WM_IPC_WINDOW_LOGIN_GUEST,
                                NULL);
@@ -857,8 +863,7 @@ TEST_F(LoginControllerTest, ClientOnOffScreen) {
   // Now check that for both entries windows are hidden when login succeeded
   // and the first Chrome window is shown.
   SetLoggedInState(true);
-  XWindow xid = CreateToplevelWindow(1, 0,  // tab_count, selected_tab
-                                     0, 0, 200, 200);  // position and size
+  XWindow xid = CreateToplevelWindow(1, 0, Rect(0, 0, 200, 200));
   SendInitialEventsForWindow(xid);
 
   EXPECT_TRUE(WindowIsOffscreen(entries_[0].border_xid));
@@ -1220,9 +1225,10 @@ TEST_F(LoginControllerTest, FocusFirstControlsWindowImmediately) {
 
   // Create a border window for the first entry.
   XWindow border_xid =
-      CreateBasicWindow(0, 0,
-      kImageSize + 2 * kGapBetweenImageAndControls,
-      kImageSize + kControlsSize + 3 * kGapBetweenImageAndControls);
+      CreateBasicWindow(
+          Rect(0, 0,
+               kImageSize + 2 * kGapBetweenImageAndControls,
+               kImageSize + kControlsSize + 3 * kGapBetweenImageAndControls));
   vector<int> params;
   params.push_back(0);  // entry index
   params.push_back(1);  // num entries
@@ -1235,7 +1241,8 @@ TEST_F(LoginControllerTest, FocusFirstControlsWindowImmediately) {
   SendInitialEventsForWindow(border_xid);
 
   // Now create a controls window for the entry.  Don't map it yet.
-  XWindow controls_xid = CreateBasicWindow(0, 0, kImageSize, kControlsSize);
+  XWindow controls_xid =
+      CreateBasicWindow(Rect(0, 0, kImageSize, kControlsSize));
   ConfigureWindowForSyncRequestProtocol(controls_xid);
   params.clear();
   params.push_back(0);  // entry index
@@ -1263,7 +1270,7 @@ TEST_F(LoginControllerTest, UnhideCursorOnLeave) {
   ASSERT_TRUE(hide_mouse_cursor_xid != 0);
   MockXConnection::WindowInfo* info =
       xconn_->GetWindowInfoOrDie(hide_mouse_cursor_xid);
-  EXPECT_EQ(wm_->bounds(), info->bounds);
+  EXPECT_EQ(wm_->root_bounds(), info->bounds);
   EXPECT_TRUE(info->input_only);
   EXPECT_TRUE(info->mapped);
 
@@ -1295,8 +1302,7 @@ TEST_F(LoginControllerTest, UnhideCursorOnBrowserWindowVisible) {
 
   // ... and after the first browser window is mapped.
   XWindow browser_xid =
-      CreateToplevelWindow(1, 0,  // tab_count, selected_tab
-                           0, 0, 200, 200);  // position and size
+      CreateToplevelWindow(1, 0, Rect(0, 0, 200, 200));
   ConfigureWindowForSyncRequestProtocol(browser_xid);
   SendInitialEventsForWindow(browser_xid);
   EXPECT_FALSE(xconn_->cursor_shown());

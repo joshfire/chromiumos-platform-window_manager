@@ -705,8 +705,9 @@ bool RealXConnection::GetWindowBoundingRegion(XWindow xid, ByteMap* bytemap) {
   }
   bytemap->Clear(0x0);
   for (int i = 0; i < count; ++i) {
-    const XRectangle& rect = rects[i];
-    bytemap->SetRectangle(rect.x, rect.y, rect.width, rect.height, 0xff);
+    const XRectangle& xrect = rects[i];
+    const Rect rect(xrect.x, xrect.y, xrect.width, xrect.height);
+    bytemap->SetRectangle(rect, 0xff);
   }
   XFree(rects);
 
@@ -732,8 +733,9 @@ bool RealXConnection::GetWindowBoundingRegion(XWindow xid, ByteMap* bytemap) {
       xcb_shape_get_rectangles_rectangles(reply.get());
   int num_rectangles = xcb_shape_get_rectangles_rectangles_length(reply.get());
   for (int i = 0; i < num_rectangles; ++i) {
-    const xcb_rectangle_t& rect = rectangles[i];
-    bytemap->SetRectangle(rect.x, rect.y, rect.width, rect.height, 0xff);
+    const xcb_rectangle_t& xrect = rectangles[i];
+    const Rect rect(xrect.x, xrect.y, xrect.width, xrect.height);
+    bytemap->SetRectangle(rect, 0xff);
   }
 #endif
 
@@ -1082,7 +1084,7 @@ bool RealXConnection::GetImage(XID drawable,
 
   const size_t data_size = image->bytes_per_line * image->height;
   const int format_bpp = GetBitsPerPixelInImageFormat(*format_out);
-  const size_t expected_size = bounds.width * bounds.height * format_bpp / 8;
+  const size_t expected_size = bounds.size().area() * format_bpp / 8;
   if (data_size != expected_size) {
     DLOG(WARNING) << "Expected " << expected_size << " bytes in image from "
                   << XidStr(drawable) << " (" << bounds.size() << " at "
@@ -1367,14 +1369,14 @@ XPicture RealXConnection::RenderCreatePicture(XDrawable drawable, int depth) {
 XPixmap RealXConnection::CreatePixmapFromContainer(
     const ImageContainer& container) {
   Size size = container.size();
-  int data_size = size.width * size.height * 4;
+  int data_size = size.area() * 4;
 
   // XDestroyImage will free() this.
   char* pixmap_data = static_cast<char*>(malloc(data_size));
 
   // Premultiply the RGB channels.
   memcpy(pixmap_data, container.data(), data_size);
-  for (int i = 0; i < size.width * size.height; i++) {
+  for (int i = 0; i < size.area(); i++) {
      pixmap_data[i*4+0] = pixmap_data[i*4+0] * pixmap_data[i*4+3] / 255;
      pixmap_data[i*4+1] = pixmap_data[i*4+1] * pixmap_data[i*4+3] / 255;
      pixmap_data[i*4+2] = pixmap_data[i*4+2] * pixmap_data[i*4+3] / 255;

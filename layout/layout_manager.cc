@@ -130,7 +130,7 @@ LayoutManager::LayoutManager(WindowManager* wm, PanelManager* panel_manager)
           new KeyBindingsGroup(wm->key_bindings())),
       post_toplevel_key_bindings_group_(
           new KeyBindingsGroup(wm->key_bindings())),
-      background_xid_(wm_->CreateInputWindow(wm_->bounds(), 0)),
+      background_xid_(wm_->CreateInputWindow(wm_->root_bounds(), 0)),
       should_layout_windows_after_initial_pixmap_(false),
       should_animate_after_initial_pixmap_(false) {
   wm_->focus_manager()->RegisterFocusChangeListener(this);
@@ -342,8 +342,7 @@ void LayoutManager::HandleScreenResize() {
   MoveAndResizeForAvailableArea();
   ConfigureBackground(wm_->width(), wm_->height());
   if (background_xid_)
-    wm_->xconn()->ResizeWindow(background_xid_,
-                               Size(wm_->width(), wm_->height()));
+    wm_->xconn()->ResizeWindow(background_xid_, wm_->root_size());
 }
 
 bool LayoutManager::HandleWindowMapRequest(Window* win) {
@@ -371,7 +370,7 @@ bool LayoutManager::HandleWindowMapRequest(Window* win) {
     if ((win->type() == chromeos::WM_IPC_WINDOW_CHROME_TOPLEVEL ||
          win->type() == chromeos::WM_IPC_WINDOW_UNKNOWN) &&
         !win->transient_for_xid()) {
-      win->ResizeClient(width_, height_, GRAVITY_NORTHWEST);
+      win->Resize(Size(width_, height_), GRAVITY_NORTHWEST);
     }
   }
   return true;
@@ -599,13 +598,12 @@ void LayoutManager::HandleWindowPixmapFetch(Window* win) {
 }
 
 void LayoutManager::HandleWindowConfigureRequest(
-    Window* win, int req_x, int req_y, int req_width, int req_height) {
+    Window* win, const Rect& requested_bounds) {
   if (win->type() == chromeos::WM_IPC_WINDOW_CHROME_TAB_SNAPSHOT) {
     SnapshotWindow* snapshot = GetSnapshotWindowByWindow(*win);
     if (snapshot) {
-      if (req_width != win->client_width() ||
-          req_height != win->client_height()) {
-        win->ResizeClient(req_width, req_height, GRAVITY_NORTHWEST);
+      if (requested_bounds.size() != win->client_size()) {
+        win->Resize(requested_bounds.size(), GRAVITY_NORTHWEST);
         LayoutWindows(false);
       } else {
         win->SendSyntheticConfigureNotify();
@@ -617,7 +615,7 @@ void LayoutManager::HandleWindowConfigureRequest(
   ToplevelWindow* toplevel_owner = GetToplevelWindowOwningTransientWindow(*win);
   if (toplevel_owner) {
     toplevel_owner->HandleTransientWindowConfigureRequest(
-        win, req_x, req_y, req_width, req_height);
+        win, requested_bounds);
     return;
   }
 
@@ -631,12 +629,12 @@ void LayoutManager::HandleWindowConfigureRequest(
 }
 
 void LayoutManager::HandleButtonPress(XWindow xid,
-                                      int x, int y,
-                                      int x_root, int y_root,
+                                      const Point& relative_pos,
+                                      const Point& absolute_pos,
                                       int button,
                                       XTime timestamp) {
   if (xid == background_xid_ && button == 1) {
-    overview_drag_last_x_ = x;
+    overview_drag_last_x_ = relative_pos.x;
     overview_background_event_coalescer_->Start();
     return;
   }
@@ -655,8 +653,8 @@ void LayoutManager::HandleButtonPress(XWindow xid,
 }
 
 void LayoutManager::HandleButtonRelease(XWindow xid,
-                                        int x, int y,
-                                        int x_root, int y_root,
+                                        const Point& relative_pos,
+                                        const Point& absolute_pos,
                                         int button,
                                         XTime timestamp) {
   SnapshotWindow* snapshot = GetSnapshotWindowByInputXid(xid);
@@ -666,7 +664,8 @@ void LayoutManager::HandleButtonRelease(XWindow xid,
           << "Got a click in input window " << XidStr(xid)
           << " for snapshot window " << snapshot->win()->xid_str()
           << " while not in overview mode";
-      snapshot->HandleButtonRelease(timestamp, x_root - x_, y_root - y_);
+      snapshot->HandleButtonRelease(
+          timestamp, absolute_pos.x - x_, absolute_pos.y - y_);
     }
     return;
   }
@@ -686,11 +685,11 @@ void LayoutManager::HandleButtonRelease(XWindow xid,
 }
 
 void LayoutManager::HandlePointerMotion(XWindow xid,
-                                        int x, int y,
-                                        int x_root, int y_root,
+                                        const Point& relative_pos,
+                                        const Point& absolute_pos,
                                         XTime timestamp) {
   if (xid == background_xid_)
-    overview_background_event_coalescer_->StorePosition(x, y);
+    overview_background_event_coalescer_->StorePosition(relative_pos);
 }
 
 void LayoutManager::HandleChromeMessage(const WmIpc::Message& message) {
@@ -1157,10 +1156,9 @@ void LayoutManager::MoveAndResizeForAvailableArea() {
   for (ToplevelWindows::iterator it = toplevels_.begin();
        it != toplevels_.end(); ++it) {
     if (it->get() == fullscreen_toplevel_) {
-      (*it)->win()->ResizeClient(wm_->width(), wm_->height(),
-                                 GRAVITY_NORTHWEST);
+      (*it)->win()->Resize(wm_->root_size(), GRAVITY_NORTHWEST);
     } else {
-      (*it)->win()->ResizeClient(width_, height_, resize_gravity);
+      (*it)->win()->Resize(Size(width_, height_), resize_gravity);
     }
   }
 

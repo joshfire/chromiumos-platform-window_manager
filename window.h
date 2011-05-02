@@ -106,23 +106,27 @@ class Window {
     return client_has_redrawn_after_last_resize_;
   }
 
-  int client_x() const { return client_x_; }
-  int client_y() const { return client_y_; }
-  int client_width() const { return client_width_; }
-  int client_height() const { return client_height_; }
+  int client_x() const { return client_bounds_.x; }
+  int client_y() const { return client_bounds_.y; }
+  int client_width() const { return client_bounds_.width; }
+  int client_height() const { return client_bounds_.height; }
   int client_depth() const { return client_depth_; }
-  Rect client_bounds() const {
-    return Rect(client_x_, client_y_, client_width_, client_height_);
-  }
+  Point client_origin() const { return client_bounds_.position(); }
+  Size client_size() const { return client_bounds_.size(); }
+  const Rect& client_bounds() const { return client_bounds_; }
 
   bool composited_shown() const { return composited_shown_; }
-  int composited_x() const { return composited_x_; }
-  int composited_y() const { return composited_y_; }
+  int composited_x() const { return composited_origin_.x; }
+  int composited_y() const { return composited_origin_.y; }
+  const Point& composited_origin() const { return composited_origin_; }
   int composited_width() const {
-    return static_cast<int>(round(client_width_ * composited_scale_x_));
+    return static_cast<int>(round(client_width() * composited_scale_x_));
   }
   int composited_height() const {
-    return static_cast<int>(round(client_height_ * composited_scale_y_));
+    return static_cast<int>(round(client_height() * composited_scale_y_));
+  }
+  Size composited_size() const {
+    return Size(composited_width(), composited_height());
   }
   double composited_scale_x() const { return composited_scale_x_; }
   double composited_scale_y() const { return composited_scale_y_; }
@@ -269,26 +273,11 @@ class Window {
   // Get the largest possible size for this window smaller than or equal to
   // the passed-in desired dimensions (while respecting any sizing hints it
   // supplied via the WM_NORMAL_HINTS property).
-  void GetMaxSize(int desired_width, int desired_height,
-                  int* width_out, int* height_out) const;
+  void GetMaxSize(const Size& desired_size, Size* size_out) const;
 
   // Tell the X server to map or unmap this window.
   bool MapClient();
   bool UnmapClient();
-
-  // Update our internal copy of the client window's position or size.
-  // External callers should only use these methods to record position and
-  // size changes that they hear about for override-redirect windows;
-  // non-override-redirect windows can be moved or resized using
-  // MoveClient() and ResizeClient().
-  void SaveClientPosition(int x, int y) {
-    client_x_ = x;
-    client_y_ = y;
-  }
-  void SaveClientSize(int width, int height) {
-    client_width_ = width;
-    client_height_ = height;
-  }
 
   // Set the window's visibility and input policy.  Once this method has been
   // called, the Move() method (as opposed to MoveClient() / MoveComposited())
@@ -333,7 +322,7 @@ class Window {
   // Resize the client window.  A southeast gravity means that the
   // bottom-right corner of the window will remain fixed while the
   // upper-left corner will move to accomodate the new size.
-  bool ResizeClient(int width, int height, Gravity gravity);
+  bool Resize(const Size& new_size, Gravity gravity);
 
   // Stack the client window directly above or below another window.
   bool StackClientAbove(XWindow sibling_xid);
@@ -398,9 +387,9 @@ class Window {
   void HandleRedirect();
 
   // Handle a ConfigureNotify event about this window.
-  // Currently, we just pass the window's width and height so we can resize
-  // the actor if needed.
-  void HandleConfigureNotify(int width, int height);
+  // We fetch a new pixmap for the window if its size has changed and
+  // update its composited position if it's an override-redirect window.
+  void HandleConfigureNotify(const Rect& bounds, XWindow above_xid);
 
   // Handle the window's contents being changed.
   void HandleDamageNotify(const Rect& bounding_box);
@@ -562,21 +551,21 @@ class Window {
   // tricky for compositing window managers.  Suppose that we have a 20x20
   // window located at (10, 10) and we want to make it bigger so that its
   // upper-left corner goes to (5, 10) while the right edge remains fixed,
-  // resulting in a 25x20 window.  ResizeClient() asks the X server to
-  // atomically move and resize the window to the new bounds, but the window
-  // can't be drawn at the new size until the client has received the
-  // ConfigureNotify event and finished painting the new pixmap.  If we move the
-  // actor to (5, 10) immediately and then update its pixmap later, the window
-  // will initially appear to jump to the left by 5 pixels; once we get the new
-  // pixmap, the right edge will expand by 5 pixels.
+  // resulting in a 25x20 window.  Resize() asks the X server to atomically move
+  // and resize the window to the new bounds, but the window can't be drawn at
+  // the new size until the client has received the ConfigureNotify event and
+  // finished painting the new pixmap.  If we move the actor to (5, 10)
+  // immediately and then update its pixmap later, the window will initially
+  // appear to jump to the left by 5 pixels; once we get the new pixmap, the
+  // right edge will expand by 5 pixels.
   //
   // To avoid this jank, we update |composited_x_| and |composited_y_|
-  // immediately in ResizeClient() if the window's origin moved due to the
-  // resize gravity but hold off on actually moving the actor until its size
-  // changes.  Similarly, methods like MoveComposited() may not actually move
-  // the actor to the requested position immediately -- if we're waiting for the
-  // pixmap to be resized, we take the difference between its current size and
-  // the newly-requested size into account.
+  // immediately in Resize() if the window's origin moved due to the resize
+  // gravity but hold off on actually moving the actor until its size changes.
+  // Similarly, methods like MoveComposited() may not actually move the actor to
+  // the requested position immediately -- if we're waiting for the pixmap to be
+  // resized, we take the difference between its current size and the
+  // newly-requested size into account.
   void MoveActorToAdjustedPosition(MoveDimensions dimensions, int anim_ms);
 
   // Free |pixmap_|, store a new offscreen pixmap containing the window's
@@ -642,10 +631,7 @@ class Window {
   bool update_client_position_for_moves_;
 
   // Position and size of the client window.
-  int client_x_;
-  int client_y_;
-  int client_width_;
-  int client_height_;
+  Rect client_bounds_;
 
   // Bit depth of the client window.
   int client_depth_;
@@ -654,8 +640,7 @@ class Window {
   double client_opacity_;
 
   bool composited_shown_;
-  int composited_x_;
-  int composited_y_;
+  Point composited_origin_;
   double composited_scale_x_;
   double composited_scale_y_;
   double composited_opacity_;

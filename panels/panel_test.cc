@@ -38,14 +38,14 @@ class PanelTest : public BasicWindowManagerTest {
 };
 
 TEST_F(PanelTest, InputWindows) {
-  XWindow titlebar_xid = CreatePanelTitlebarWindow(200, 20);
+  XWindow titlebar_xid = CreatePanelTitlebarWindow(Size(200, 20));
   XConnection::WindowGeometry geometry;
   ASSERT_TRUE(xconn_->GetWindowGeometry(titlebar_xid, &geometry));
   Window titlebar_win(wm_.get(), titlebar_xid, false, geometry);
   MockXConnection::WindowInfo* titlebar_info =
       xconn_->GetWindowInfoOrDie(titlebar_xid);
 
-  XWindow content_xid = CreatePanelContentWindow(200, 400, titlebar_xid);
+  XWindow content_xid = CreatePanelContentWindow(Size(200, 400), titlebar_xid);
   ASSERT_TRUE(xconn_->GetWindowGeometry(content_xid, &geometry));
   Window content_win(wm_.get(), content_xid, false, geometry);
   MockXConnection::WindowInfo* content_info =
@@ -54,7 +54,7 @@ TEST_F(PanelTest, InputWindows) {
   // Create a panel.
   Panel panel(panel_manager_, &content_win, &titlebar_win, true);
   panel.SetResizable(true);
-  panel.Move(0, 0, 0);
+  panel.Move(Point(0, 0), 0);
 
   // Restack the panel and check that its titlebar is stacked above the
   // content window, and that the content window is above all of the input
@@ -155,7 +155,7 @@ TEST_F(PanelTest, Resize) {
   int orig_width = 200;
   int orig_titlebar_height = 20;
   XWindow titlebar_xid =
-      CreatePanelTitlebarWindow(orig_width, orig_titlebar_height);
+      CreatePanelTitlebarWindow(Size(orig_width, orig_titlebar_height));
   XConnection::WindowGeometry geometry;
   ASSERT_TRUE(xconn_->GetWindowGeometry(titlebar_xid, &geometry));
   Window titlebar_win(wm_.get(), titlebar_xid, false, geometry);
@@ -164,7 +164,7 @@ TEST_F(PanelTest, Resize) {
 
   int orig_content_height = 400;
   XWindow content_xid = CreatePanelContentWindow(
-      orig_width, orig_content_height, titlebar_xid);
+      Size(orig_width, orig_content_height), titlebar_xid);
   ASSERT_TRUE(xconn_->GetWindowGeometry(content_xid, &geometry));
   Window content_win(wm_.get(), content_xid, false, geometry);
   MockXConnection::WindowInfo* content_info =
@@ -173,7 +173,7 @@ TEST_F(PanelTest, Resize) {
   // Create a panel.
   Panel panel(panel_manager_, &content_win, &titlebar_win, true);
   panel.SetResizable(true);
-  panel.Move(0, 0, 0);
+  panel.Move(Point(0, 0), 0);
 
   // Check that one of the panel's resize handles has an asynchronous grab
   // installed on the first mouse button.
@@ -188,24 +188,21 @@ TEST_F(PanelTest, Resize) {
   // automatically installed.
   xconn_->set_pointer_grab_xid(panel.top_left_input_xid_);
   panel.HandleInputWindowButtonPress(
-      panel.top_left_input_xid_,
-      0, 0,  // relative x, y
-      1,     // button
-      CurrentTime);
+      panel.top_left_input_xid_, Point(0, 0), 1, CurrentTime);
 
   // Pretend like the second button is pressed and the first button is
   // released.  We should explicitly ungrab the pointer when we see the
   // first button get released; X will only automatically remove the
   // pointer grab when *all* buttons are released.
   panel.HandleInputWindowButtonPress(
-      panel.top_left_input_xid_, 0, 0, 2, CurrentTime);
+      panel.top_left_input_xid_, Point(0, 0), 2, CurrentTime);
   panel.HandleInputWindowButtonRelease(
-      panel.top_left_input_xid_, 0, 0, 1, CurrentTime);
+      panel.top_left_input_xid_, Point(0, 0), 1, CurrentTime);
   EXPECT_EQ(0, xconn_->pointer_grab_xid());
 
   // Release the second button too, not that it really matters to us.
   panel.HandleInputWindowButtonRelease(
-      panel.top_left_input_xid_, 0, 0, 2, CurrentTime);
+      panel.top_left_input_xid_, Point(0, 0), 2, CurrentTime);
 
   // Check that the panel's dimensions are unchanged.
   EXPECT_EQ(orig_width, titlebar_info->bounds.width);
@@ -223,12 +220,13 @@ TEST_F(PanelTest, Resize) {
   // pixels up and to the left and then let go of the button.
   xconn_->set_pointer_grab_xid(panel.top_left_input_xid_);
   panel.HandleInputWindowButtonPress(
-      panel.top_left_input_xid_, 0, 0, 1, CurrentTime);
+      panel.top_left_input_xid_, Point(0, 0), 1, CurrentTime);
   EXPECT_EQ(panel.top_left_input_xid_, xconn_->pointer_grab_xid());
-  panel.HandleInputWindowPointerMotion(panel.top_left_input_xid_, -2, -4);
+  panel.HandleInputWindowPointerMotion(
+      panel.top_left_input_xid_, Point(-2, -4));
   xconn_->set_pointer_grab_xid(None);
   panel.HandleInputWindowButtonRelease(
-      panel.top_left_input_xid_, -5, -6, 1, CurrentTime);
+      panel.top_left_input_xid_, Point(-5, -6), 1, CurrentTime);
 
   // The titlebar should be offset by the drag and made a bit wider.
   EXPECT_EQ(initial_x - 5, titlebar_info->bounds.x);
@@ -252,19 +250,19 @@ TEST_F(PanelTest, ChromeState) {
   XAtom collapsed_atom = xconn_->GetAtomOrDie("_CHROME_STATE_COLLAPSED_PANEL");
 
   // Create a collapsed panel.
-  XWindow titlebar_xid = CreatePanelTitlebarWindow(200, 20);
+  XWindow titlebar_xid = CreatePanelTitlebarWindow(Size(200, 20));
   XConnection::WindowGeometry geometry;
   ASSERT_TRUE(xconn_->GetWindowGeometry(titlebar_xid, &geometry));
   Window titlebar_win(wm_.get(), titlebar_xid, false, geometry);
   new_panels_should_be_expanded_ = false;
   new_panels_should_take_focus_ = false;
-  XWindow content_xid = CreatePanelContentWindow(200, 400, titlebar_xid);
+  XWindow content_xid = CreatePanelContentWindow(Size(200, 400), titlebar_xid);
   MockXConnection::WindowInfo* content_info =
       xconn_->GetWindowInfoOrDie(content_xid);
   ASSERT_TRUE(xconn_->GetWindowGeometry(content_xid, &geometry));
   Window content_win(wm_.get(), content_xid, false, geometry);
   Panel panel(panel_manager_, &content_win, &titlebar_win, false);
-  panel.Move(0, 0, 0);
+  panel.Move(Point(0, 0), 0);
 
   // The panel's content window should have have a collapsed state in
   // _CHROME_STATE initially (since we told it to start collapsed).
@@ -309,7 +307,7 @@ TEST_F(PanelTest, ChromeState) {
 // Test that we're able to hide panels' shadows.
 TEST_F(PanelTest, Shadows) {
   // Create a collapsed panel.
-  XWindow titlebar_xid = CreatePanelTitlebarWindow(200, 20);
+  XWindow titlebar_xid = CreatePanelTitlebarWindow(Size(200, 20));
   ASSERT_TRUE(xconn_->MapWindow(titlebar_xid));
   XConnection::WindowGeometry geometry;
   ASSERT_TRUE(xconn_->GetWindowGeometry(titlebar_xid, &geometry));
@@ -318,14 +316,14 @@ TEST_F(PanelTest, Shadows) {
 
   new_panels_should_be_expanded_ = false;
   new_panels_should_take_focus_ = false;
-  XWindow content_xid = CreatePanelContentWindow(200, 400, titlebar_xid);
+  XWindow content_xid = CreatePanelContentWindow(Size(200, 400), titlebar_xid);
   ASSERT_TRUE(xconn_->MapWindow(content_xid));
   ASSERT_TRUE(xconn_->GetWindowGeometry(content_xid, &geometry));
   Window content_win(wm_.get(), content_xid, false, geometry);
   content_win.HandleMapNotify();
 
   Panel panel(panel_manager_, &content_win, &titlebar_win, true);
-  panel.Move(0, 0, 0);
+  panel.Move(Point(0, 0), 0);
 
   // Check that Panel's constructor enabled shadows for both windows.
   ASSERT_TRUE(titlebar_win.shadow() != NULL);
@@ -349,11 +347,11 @@ TEST_F(PanelTest, Shadows) {
 // Test that we don't let panels get smaller than the minimal allowed size.
 TEST_F(PanelTest, SizeLimits) {
   // Create a panel with a really small (20x20) content window.
-  XWindow titlebar_xid = CreatePanelTitlebarWindow(200, 20);
+  XWindow titlebar_xid = CreatePanelTitlebarWindow(Size(200, 20));
   XConnection::WindowGeometry geometry;
   ASSERT_TRUE(xconn_->GetWindowGeometry(titlebar_xid, &geometry));
   Window titlebar_win(wm_.get(), titlebar_xid, false, geometry);
-  XWindow content_xid = CreatePanelContentWindow(20, 20, titlebar_xid);
+  XWindow content_xid = CreatePanelContentWindow(Size(20, 20), titlebar_xid);
   MockXConnection::WindowInfo* content_info =
       xconn_->GetWindowInfoOrDie(content_xid);
   content_info->size_hints.min_size.reset(150, 100);
@@ -371,11 +369,11 @@ TEST_F(PanelTest, SizeLimits) {
   // Drag the upper-left resize handle down and to the right.
   xconn_->set_pointer_grab_xid(panel.top_left_input_xid_);
   panel.HandleInputWindowButtonPress(
-      panel.top_left_input_xid_, 0, 0, 1, CurrentTime);
-  panel.HandleInputWindowPointerMotion(panel.top_left_input_xid_, 5, 5);
+      panel.top_left_input_xid_, Point(0, 0), 1, CurrentTime);
+  panel.HandleInputWindowPointerMotion(panel.top_left_input_xid_, Point(5, 5));
   xconn_->set_pointer_grab_xid(None);
   panel.HandleInputWindowButtonRelease(
-      panel.top_left_input_xid_, 5, 5, 1, CurrentTime);
+      panel.top_left_input_xid_, Point(5, 5), 1, CurrentTime);
 
   // The content window size should be unchanged, since we tried to make it
   // smaller while it was already at the minimum.
@@ -388,11 +386,12 @@ TEST_F(PanelTest, SizeLimits) {
   // content window to the max size.
   xconn_->set_pointer_grab_xid(panel.top_left_input_xid_);
   panel.HandleInputWindowButtonPress(
-      panel.top_left_input_xid_, 0, 0, 1, CurrentTime);
-  panel.HandleInputWindowPointerMotion(panel.top_left_input_xid_, -300, -300);
+      panel.top_left_input_xid_, Point(0, 0), 1, CurrentTime);
+  panel.HandleInputWindowPointerMotion(
+      panel.top_left_input_xid_, Point(-300, -300));
   xconn_->set_pointer_grab_xid(None);
   panel.HandleInputWindowButtonRelease(
-      panel.top_left_input_xid_, -300, -300, 1, CurrentTime);
+      panel.top_left_input_xid_, Point(-300, -300), 1, CurrentTime);
   EXPECT_EQ(content_info->size_hints.max_size.width,
             content_win.client_width());
   EXPECT_EQ(content_info->size_hints.max_size.height,
@@ -401,12 +400,12 @@ TEST_F(PanelTest, SizeLimits) {
   // Now tell the panel to make the content window bigger or smaller (this
   // is the path that gets taken when we get a ConfigureRequest).  These
   // requests should be capped as well.
-  panel.ResizeContent(500, 500, GRAVITY_SOUTHEAST, true);
+  panel.ResizeContent(Size(500, 500), GRAVITY_SOUTHEAST, true);
   EXPECT_EQ(content_info->size_hints.max_size.width,
             content_win.client_width());
   EXPECT_EQ(content_info->size_hints.max_size.height,
             content_win.client_height());
-  panel.ResizeContent(50, 50, GRAVITY_SOUTHEAST, true);
+  panel.ResizeContent(Size(50, 50), GRAVITY_SOUTHEAST, true);
   EXPECT_EQ(content_info->size_hints.min_size.width,
             content_win.client_width());
   EXPECT_EQ(content_info->size_hints.min_size.height,
@@ -480,7 +479,7 @@ TEST_F(PanelTest, SeparatorShadow) {
 
   // Check that the separator shadow is scaled across the top of the
   // content window.
-  panel->Move(0, 0, 0);
+  panel->Move(Point(0, 0), 0);
   EXPECT_EQ(panel->content_win_->composited_x(),
             panel->separator_shadow_->x());
   EXPECT_EQ(panel->content_win_->composited_y(),
@@ -490,7 +489,7 @@ TEST_F(PanelTest, SeparatorShadow) {
   EXPECT_EQ(0, panel->separator_shadow_->height());
 
   // When we move the panel, the shadow should get moved along with it.
-  panel->Move(50, 100, 0);
+  panel->Move(Point(50, 100), 0);
   EXPECT_EQ(panel->content_win_->composited_x(),
             panel->separator_shadow_->x());
   EXPECT_EQ(panel->content_win_->composited_y(),
@@ -517,7 +516,7 @@ TEST_F(PanelTest, SeparatorShadow) {
   // Check that the shadow is moved correctly in response to resizes where
   // a corner other than the top left one is fixed.
   int new_width = 100;
-  panel->ResizeContent(new_width, 200, GRAVITY_SOUTHEAST, true);
+  panel->ResizeContent(Size(new_width, 200), GRAVITY_SOUTHEAST, true);
   EXPECT_EQ(panel->content_win_->composited_x(),
             panel->separator_shadow_->x());
   EXPECT_EQ(panel->content_win_->composited_y(),
@@ -530,7 +529,7 @@ TEST_F(PanelTest, SeparatorShadow) {
   // the requested position and apply it after the panel is unfullscreened.
   // Check that the shadow gets moved to the stored position too.
   panel->SetFullscreenState(true);
-  panel->Move(20, 30, 0);
+  panel->Move(Point(20, 30), 0);
   panel->SetFullscreenState(false);
 
   // First double-check that the content window got moved to the requested
@@ -596,7 +595,7 @@ TEST_F(PanelTest, TransientWindowsAreConstrainedOnscreen) {
   static const int kTransientWidth = 400;
   static const int kTransientHeight = 300;
   XWindow transient_xid =
-      CreateBasicWindow(0, 0, kTransientWidth, kTransientHeight);
+      CreateBasicWindow(Rect(0, 0, kTransientWidth, kTransientHeight));
   xconn_->GetWindowInfoOrDie(transient_xid)->transient_for =
       panel->content_xid();
   SendInitialEventsForWindow(transient_xid);

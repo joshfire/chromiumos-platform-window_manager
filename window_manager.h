@@ -98,16 +98,17 @@ class WindowManager : public PanelManagerAreaChangeListener,
   ModalityHandler* modality_handler() { return modality_handler_.get(); }
 
   XWindow root() const { return root_; }
+  const Rect& root_bounds() const { return root_bounds_; }
+  Size root_size() const { return root_bounds_.size(); }
+  int root_depth() const { return root_depth_; }
+  int width() const { return root_bounds_.width; }
+  int height() const { return root_bounds_.height; }
+
   const Stacker<XWindow>& stacked_xids() const {
     return *(stacked_xids_.get());
   }
 
   Compositor::StageActor* stage() { return stage_; }
-
-  int width() const { return width_; }
-  int height() const { return height_; }
-  int root_depth() const { return root_depth_; }
-  Rect bounds() const { return Rect(0, 0, width_, height_); }
 
   XWindow wm_xid() const { return wm_xid_; }
   XWindow active_window_xid() const { return active_window_xid_; }
@@ -357,10 +358,9 @@ class WindowManager : public PanelManagerAreaChangeListener,
   // specified in the Extended Window Manager Hints.
   bool SetEwmhGeneralProperties();
 
-  // Set EWMH properties on the root window relating to the current screen
-  // size (as stored in |width_| and |height_|): _NET_DESKTOP_GEOMETRY,
-  // _NET_DESKTOP_VIEWPORT, and _NET_WORKAREA (by way of calling
-  // SetEwmhWorkareaProperty()).
+  // Set EWMH properties on the root window relating to the current screen size:
+  // _NET_DESKTOP_GEOMETRY, _NET_DESKTOP_VIEWPORT, and _NET_WORKAREA (by way of
+  // calling SetEwmhWorkareaProperty()).
   bool SetEwmhSizeProperties();
 
   // Set the _NET_WORKAREA property on the root window to the screen area
@@ -388,7 +388,7 @@ class WindowManager : public PanelManagerAreaChangeListener,
   void HandleMappedWindow(Window* win);
 
   // Handle the screen being resized.
-  void HandleScreenResize(int new_width, int new_height);
+  void HandleScreenResize(const Size& new_size);
 
   // Set the WM_STATE property on a window.  Per ICCCM 4.1.3.1, |state| can
   // be 0 (WithdrawnState), 1 (NormalState), or 3 (IconicState).  Per
@@ -466,9 +466,8 @@ class WindowManager : public PanelManagerAreaChangeListener,
 
   XWindow root_;
 
-  // Root window dimensions and depth.
-  int width_;
-  int height_;
+  // Root window bounds and depth.
+  Rect root_bounds_;
   int root_depth_;
 
   // Offscreen window that we just use for registering as the WM.

@@ -56,24 +56,24 @@ class PanelDock : public PanelContainer {
   virtual void AddPanel(Panel* panel, PanelSource source);
   virtual void RemovePanel(Panel* panel);
   virtual bool ShouldAddDraggedPanel(const Panel* panel,
-                                     int drag_x, int drag_y);
+                                     const Point& drag_pos);
   virtual void HandleInputWindowButtonPress(XWindow xid,
-                                            int x, int y,
-                                            int x_root, int y_root,
+                                            const Point& relative_pos,
+                                            const Point& absolute_pos,
                                             int button,
                                             XTime timestamp) {}
   virtual void HandleInputWindowButtonRelease(XWindow xid,
-                                              int x, int y,
-                                              int x_root, int y_root,
+                                              const Point& relative_pos,
+                                              const Point& absolute_pos,
                                               int button,
                                               XTime timestamp) {}
   virtual void HandleInputWindowPointerEnter(XWindow xid,
-                                             int x, int y,
-                                             int x_root, int y_root,
+                                             const Point& relative_pos,
+                                             const Point& absolute_pos,
                                              XTime timestamp) {}
   virtual void HandleInputWindowPointerLeave(XWindow xid,
-                                             int x, int y,
-                                             int x_root, int y_root,
+                                             const Point& relative_pos,
+                                             const Point& absolute_pos,
                                              XTime timestamp) {}
   virtual void HandlePanelButtonPress(Panel* panel,
                                       int button,
@@ -81,11 +81,11 @@ class PanelDock : public PanelContainer {
   virtual void HandlePanelTitlebarPointerEnter(Panel* panel, XTime timestamp) {}
   virtual void HandleSetPanelStateMessage(Panel* panel, bool expand);
   virtual bool HandleNotifyPanelDraggedMessage(Panel* panel,
-                                               int drag_x, int drag_y);
+                                               const Point& drag_pos);
   virtual void HandleNotifyPanelDragCompleteMessage(Panel* panel);
   virtual void HandleFocusPanelMessage(Panel* panel, XTime timestamp);
   virtual void HandlePanelResizeRequest(Panel* panel,
-                                        int req_width, int req_height);
+                                        const Size& requested_size);
   virtual void HandlePanelResizeByUser(Panel* panel) { NOTREACHED(); }
   virtual void HandleScreenResize();
   virtual void HandlePanelUrgencyChange(Panel* panel) {}

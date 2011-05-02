@@ -42,9 +42,8 @@ TEST_F(PointerPositionWatcherTest, Basic) {
           &event_loop,
           &xconn,
           NewPermanentCallback(&counter, &TestCallbackCounter::Increment),
-          true,      // watch_for_entering_target
-          50, 100,   // x, y
-          20, 30));  // width, height
+          true,  // watch_for_entering_target
+          Rect(50, 100, 20, 30)));
   EXPECT_GE(watcher->timeout_id(), 0);
 
   // Check that the callback doesn't get run and the timer stays active as
@@ -72,9 +71,8 @@ TEST_F(PointerPositionWatcherTest, Basic) {
           &event_loop,
           &xconn,
           NewPermanentCallback(&counter, &TestCallbackCounter::Increment),
-          false,     // watch_for_entering_target=false
-          50, 100,   // x, y
-          20, 30));  // width, height
+          false,  // watch_for_entering_target=false
+          Rect(50, 100, 20, 30)));
   EXPECT_GE(watcher->timeout_id(), 0);
   counter.Reset();
 
@@ -110,8 +108,7 @@ TEST_F(PointerPositionWatcherTest, DeleteFromCallback) {
               &WatcherContainer::set_watcher,
               static_cast<PointerPositionWatcher*>(NULL)),
           true,      // watch_for_entering_target
-          0, 0,      // x, y
-          10, 10));  // width, height
+          Rect(0, 0, 10, 10)));
 
   container.watcher->TriggerTimeout();
   EXPECT_TRUE(container.watcher.get() == NULL);

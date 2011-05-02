@@ -82,8 +82,7 @@ class TransientWindowCollection {
 
   // Handle a ConfigureRequest event about one of our transient windows.
   void HandleConfigureRequest(Window* transient_win,
-                              int req_x, int req_y,
-                              int req_width, int req_height);
+                              const Rect& requested_bounds);
 
   // Close all transient windows (which should eventually result in the
   // owner receiving a bunch of UnmapNotify events and calling

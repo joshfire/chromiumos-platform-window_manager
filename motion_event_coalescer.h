@@ -7,6 +7,7 @@
 
 #include "base/scoped_ptr.h"
 #include "window_manager/callback.h"
+#include "window_manager/geometry.h"
 
 namespace window_manager {
 
@@ -21,8 +22,9 @@ class MotionEventCoalescer {
   MotionEventCoalescer(EventLoop* event_loop, Closure* cb, int timeout_ms);
   ~MotionEventCoalescer();
 
-  int x() const { return x_; }
-  int y() const { return y_; }
+  const Point& position() const { return position_; }
+  int x() const { return position_.x; }
+  int y() const { return position_.y; }
 
   void set_synchronous(bool synchronous) {
     synchronous_ = synchronous;
@@ -39,7 +41,7 @@ class MotionEventCoalescer {
 
   // Store a position.  This should be called in response to each motion
   // event.
-  void StorePosition(int x, int y);
+  void StorePosition(const Point& pos);
 
  private:
   // Invoked by Stop() and by the destructor to remove the timer.  If
@@ -66,8 +68,7 @@ class MotionEventCoalescer {
   bool have_queued_position_;
 
   // The most-recently-received position.
-  int x_;
-  int y_;
+  Point position_;
 
   // Callback that gets periodically invoked when there's a new position to
   // handle.

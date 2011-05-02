@@ -82,7 +82,7 @@ LayoutManager::ToplevelWindow::ToplevelWindow(Window* win,
 
   int width = layout_manager_->width();
   int height = layout_manager_->height();
-  win->ResizeClient(width, height, GRAVITY_NORTHWEST);
+  win->Resize(Size(width, height), GRAVITY_NORTHWEST);
 
   // Let the window know that it's maximized.
   map<XAtom, bool> wm_state;
@@ -240,7 +240,7 @@ void LayoutManager::ToplevelWindow::SetFullscreenState(bool fullscreen) {
         win_,
         StackingManager::LAYER_FULLSCREEN_WINDOW,
         StackingManager::SHADOW_AT_BOTTOM_OF_LAYER);
-    win_->ResizeClient(wm()->width(), wm()->height(), GRAVITY_NORTHWEST);
+    win_->Resize(wm()->root_size(), GRAVITY_NORTHWEST);
     win_->MoveClient(0, 0);
     win_->MoveCompositedToClient();
     // If a window has its fullscreen hint set when it's first mapped,
@@ -252,8 +252,8 @@ void LayoutManager::ToplevelWindow::SetFullscreenState(bool fullscreen) {
         win_,
         StackingManager::LAYER_TOPLEVEL_WINDOW,
         StackingManager::SHADOW_AT_BOTTOM_OF_LAYER);
-    win_->ResizeClient(layout_manager_->width(), layout_manager_->height(),
-                       GRAVITY_NORTHWEST);
+    win_->Resize(Size(layout_manager_->width(), layout_manager_->height()),
+                 GRAVITY_NORTHWEST);
     win_->MoveClient(layout_manager_->x(), layout_manager_->y());
     win_->MoveCompositedToClient();
   }
@@ -497,10 +497,8 @@ void LayoutManager::ToplevelWindow::HandleTransientWindowUnmap(
 }
 
 void LayoutManager::ToplevelWindow::HandleTransientWindowConfigureRequest(
-    Window* transient_win,
-    int req_x, int req_y, int req_width, int req_height) {
-  transients_->HandleConfigureRequest(transient_win, req_x, req_y,
-                                      req_width, req_height);
+    Window* transient_win, const Rect& requested_bounds) {
+  transients_->HandleConfigureRequest(transient_win, requested_bounds);
 }
 
 void LayoutManager::ToplevelWindow::HandleButtonPress(

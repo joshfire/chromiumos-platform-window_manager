@@ -54,27 +54,26 @@ class PanelContainer {
   // Is the passed-in panel (which isn't currently in any container) being
   // dragged to a position such that it should be added to this container?
   virtual bool ShouldAddDraggedPanel(const Panel* panel,
-                                     int drag_x,
-                                     int drag_y) = 0;
+                                     const Point& drag_pos) = 0;
 
   // Handle pointer events occurring in the container's input windows.
   virtual void HandleInputWindowButtonPress(XWindow xid,
-                                            int x, int y,
-                                            int x_root, int y_root,
+                                            const Point& relative_pos,
+                                            const Point& absolute_pos,
                                             int button,
                                             XTime timestamp) = 0;
   virtual void HandleInputWindowButtonRelease(XWindow xid,
-                                              int x, int y,
-                                              int x_root, int y_root,
+                                              const Point& relative_pos,
+                                              const Point& absolute_pos,
                                               int button,
                                               XTime timestamp) = 0;
   virtual void HandleInputWindowPointerEnter(XWindow xid,
-                                             int x, int y,
-                                             int x_root, int y_root,
+                                             const Point& relative_pos,
+                                             const Point& absolute_pos,
                                              XTime timestamp) = 0;
   virtual void HandleInputWindowPointerLeave(XWindow xid,
-                                             int x, int y,
-                                             int x_root, int y_root,
+                                             const Point& relative_pos,
+                                             const Point& absolute_pos,
                                              XTime timestamp) = 0;
 
   // Handle a button press or pointer enter in a panel.
@@ -93,8 +92,7 @@ class PanelContainer {
   // too far away) -- the container's RemovePanel() method will be invoked
   // to accomplish this.
   virtual bool HandleNotifyPanelDraggedMessage(Panel* panel,
-                                               int drag_x,
-                                               int drag_y) = 0;
+                                               const Point& drag_pos) = 0;
 
   // Handle a message from Chrome telling us that a panel drag is complete.
   virtual void HandleNotifyPanelDragCompleteMessage(Panel* panel) = 0;
@@ -105,7 +103,7 @@ class PanelContainer {
   // Handle a ConfigureRequest event that asks for a panel's content window
   // to be resized.
   virtual void HandlePanelResizeRequest(Panel* panel,
-                                        int req_width, int req_height) = 0;
+                                        const Size& requested_size) = 0;
 
   // Handle the user resizing the panel by dragging one of its resize
   // borders.  This method is invoked at the end of the resize.

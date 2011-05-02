@@ -105,9 +105,7 @@ void TransientWindowCollection::AddWindow(
     transient->centered = false;
   } else {
     transient->UpdateOffsetsToCenterOverWindow(
-        owner_win_,
-        Rect(0, 0, wm()->width(), wm()->height()),
-        constrain_onscreen_);
+        owner_win_, wm()->root_bounds(), constrain_onscreen_);
     transient->centered = true;
   }
 
@@ -187,30 +185,26 @@ void TransientWindowCollection::ApplyStackingForAllWindows(
 }
 
 void TransientWindowCollection::HandleConfigureRequest(
-    Window* transient_win,
-    int req_x, int req_y,
-    int req_width, int req_height) {
+    Window* transient_win, const Rect& requested_bounds) {
   CHECK(transient_win);
   TransientWindow* transient = GetTransientWindow(*transient_win);
   CHECK(transient);
 
-  Rect orig_client_bounds = transient_win->client_bounds();
+  const Rect orig_client_bounds = transient_win->client_bounds();
 
   // Move and resize the transient window as requested (only let info bubbles
   // move themselves).
   if (transient_win->type() == chromeos::WM_IPC_WINDOW_CHROME_INFO_BUBBLE) {
-    transient->SaveOffsetsRelativeToWindow(owner_win_, Point(req_x, req_y));
+    transient->SaveOffsetsRelativeToWindow(
+        owner_win_, requested_bounds.position());
     transient->centered = false;
   }
 
-  if (req_width != transient_win->client_width() ||
-      req_height != transient_win->client_height()) {
-    transient_win->ResizeClient(req_width, req_height, GRAVITY_NORTHWEST);
+  if (requested_bounds.size() != transient_win->client_size()) {
+    transient_win->Resize(requested_bounds.size(), GRAVITY_NORTHWEST);
     if (transient->centered) {
       transient->UpdateOffsetsToCenterOverWindow(
-          owner_win_,
-          Rect(0, 0, wm()->width(), wm()->height()),
-          constrain_onscreen_);
+          owner_win_, wm()->root_bounds(), constrain_onscreen_);
     }
   }
 

@@ -56,6 +56,9 @@ struct Size {
     height = new_height;
   }
 
+  bool empty() const { return width <= 0 || height <= 0; }
+  int area() const { return empty() ? 0 : width * height; }
+
   bool operator==(const Size& o) const {
     return width == o.width && height == o.height;
   }
@@ -133,6 +136,13 @@ struct Rect {
     int max_y = std::min(y + height, other.y + other.height);
     y = std::max(y, other.y);
     height = std::max(0, max_y - y);
+  }
+
+  bool contains_point(const Point& point) const {
+    return point.x >= x &&
+           point.x < x + width &&
+           point.y >= y &&
+           point.y < y + height;
   }
 
   bool operator==(const Rect& o) const {

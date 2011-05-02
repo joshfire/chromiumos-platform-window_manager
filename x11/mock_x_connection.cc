@@ -427,7 +427,8 @@ bool MockXConnection::GetWindowBoundingRegion(XWindow xid, ByteMap* bytemap) {
   if (info->shape.get())
     bytemap->Copy(*(info->shape.get()));
   else
-    bytemap->SetRectangle(0, 0, info->bounds.width, info->bounds.height, 0xff);
+    bytemap->SetRectangle(
+        Rect(0, 0, info->bounds.width, info->bounds.height), 0xff);
   return true;
 }
 
@@ -442,10 +443,9 @@ bool MockXConnection::SetWindowBoundingRegionToRect(XWindow xid,
     info->shape.reset(NULL);
   } else {
     if (info->shape.get() == NULL)
-      info->shape.reset(new ByteMap(info->bounds.width, info->bounds.height));
+      info->shape.reset(new ByteMap(info->bounds.size()));
     info->shape->Clear(0);
-    info->shape->SetRectangle(
-        region.x, region.y, region.width, region.height, 0xff);
+    info->shape->SetRectangle(region, 0xff);
   }
   return true;
 }
@@ -455,7 +455,7 @@ bool MockXConnection::RemoveWindowBoundingRegion(XWindow xid) {
   if (!info)
     return false;
   if (info->shape.get() == NULL)
-    info->shape.reset(new ByteMap(info->bounds.width, info->bounds.height));
+    info->shape.reset(new ByteMap(info->bounds.size()));
   info->shape->Clear(0);
   return true;
 }

@@ -99,12 +99,6 @@ Panel::Panel(PanelManager* panel_manager,
       composited_windows_set_up_(false),
       being_dragged_to_new_position_(false),
       resize_drag_xid_(0),
-      resize_drag_start_x_(0),
-      resize_drag_start_y_(0),
-      resize_drag_orig_width_(1),
-      resize_drag_orig_height_(1),
-      resize_drag_last_width_(1),
-      resize_drag_last_height_(1),
       event_consumer_registrar_(
           new EventConsumerRegistrar(wm(), panel_manager)),
       transients_(
@@ -158,16 +152,13 @@ Panel::Panel(PanelManager* panel_manager,
 
   // Make sure that the content window's size is within the allowable range.
   UpdateContentWindowSizeLimits();
-  const int capped_width =
+  const Size capped_size(
       min(max(content_win_->client_width(), min_content_width_),
-          max_content_width_);
-  const int capped_height =
+          max_content_width_),
       min(max(content_win_->client_height(), min_content_height_),
-          max_content_height_);
-  if (capped_width != content_win_->client_width() ||
-      capped_height != content_win_->client_height()) {
-    content_win_->ResizeClient(capped_width, capped_height, GRAVITY_NORTHWEST);
-  }
+          max_content_height_));
+  if (capped_size != content_win_->client_size())
+    content_win_->Resize(capped_size, GRAVITY_NORTHWEST);
 
   content_win_->CopyClientBoundsToRect(&content_bounds_);
   titlebar_win_->CopyClientBoundsToRect(&titlebar_bounds_);
@@ -270,7 +261,7 @@ void Panel::GetInputWindows(vector<XWindow>* windows_out) {
 }
 
 void Panel::HandleInputWindowButtonPress(
-    XWindow xid, int x, int y, int button, XTime timestamp) {
+    XWindow xid, const Point& relative_pos, int button, XTime timestamp) {
   if (wm()->IsModalWindowFocused())
     return;
   if (button != 1)
@@ -280,10 +271,9 @@ void Panel::HandleInputWindowButtonPress(
       << " but already has resize drag XID " << XidStr(resize_drag_xid_);
 
   resize_drag_xid_ = xid;
-  resize_drag_start_x_ = x;
-  resize_drag_start_y_ = y;
-  resize_drag_orig_width_ = resize_drag_last_width_ = content_width();
-  resize_drag_orig_height_ = resize_drag_last_height_ = content_height();
+  resize_drag_start_pos_ = relative_pos;
+  resize_drag_orig_size_ = content_size();
+  resize_drag_last_size_ = content_size();
   resize_event_coalescer_.Start();
 
   if (!FLAGS_panel_opaque_resize) {
@@ -300,7 +290,7 @@ void Panel::HandleInputWindowButtonPress(
 }
 
 void Panel::HandleInputWindowButtonRelease(
-    XWindow xid, int x, int y, int button, XTime timestamp) {
+    XWindow xid, const Point& relative_pos, int button, XTime timestamp) {
   if (button != 1)
     return;
   if (xid != resize_drag_xid_) {
@@ -315,7 +305,7 @@ void Panel::HandleInputWindowButtonRelease(
   // user from essentially transferring the grab from one button to
   // another: see http://crosbug.com/4267.
   wm()->xconn()->UngrabPointer(false, timestamp);
-  resize_event_coalescer_.StorePosition(x, y);
+  resize_event_coalescer_.StorePosition(relative_pos);
   resize_event_coalescer_.Stop();
   resize_drag_xid_ = 0;
 
@@ -324,29 +314,29 @@ void Panel::HandleInputWindowButtonRelease(
   } else {
     DCHECK(resize_box_.get());
     resize_box_.reset(NULL);
-    ResizeContent(resize_drag_last_width_, resize_drag_last_height_,
-                  resize_drag_gravity_, true);
+    ResizeContent(resize_drag_last_size_, resize_drag_gravity_, true);
   }
 
   // Let the container know about the resize.
   panel_manager_->HandlePanelResizeByUser(this);
 }
 
-void Panel::HandleInputWindowPointerMotion(XWindow xid, int x, int y) {
+void Panel::HandleInputWindowPointerMotion(XWindow xid,
+                                           const Point& relative_pos) {
   if (xid != resize_drag_xid_) {
     LOG(WARNING) << "Ignoring motion event for unexpected input window "
                  << XidStr(xid) << " (currently in resize drag initiated by "
                  << XidStr(resize_drag_xid_) << ")";
     return;
   }
-  resize_event_coalescer_.StorePosition(x, y);
+  resize_event_coalescer_.StorePosition(relative_pos);
 }
 
-void Panel::Move(int right, int y, int anim_ms) {
-  titlebar_bounds_.x = right - titlebar_bounds_.width;
-  titlebar_bounds_.y = y;
-  content_bounds_.x = right - content_bounds_.width;
-  content_bounds_.y = y + titlebar_bounds_.height;
+void Panel::Move(const Point& top_right_origin, int anim_ms) {
+  titlebar_bounds_.x = top_right_origin.x - titlebar_bounds_.width;
+  titlebar_bounds_.y = top_right_origin.y;
+  content_bounds_.x = top_right_origin.x - content_bounds_.width;
+  content_bounds_.y = top_right_origin.y + titlebar_bounds_.height;
 
   transients_->CloseAllWindows();
 
@@ -403,8 +393,8 @@ void Panel::SetTitlebarWidth(int width) {
   CHECK(width > 0);
   titlebar_bounds_.resize(width, titlebar_bounds_.height, GRAVITY_NORTHEAST);
   if (can_configure_windows()) {
-    titlebar_win_->ResizeClient(
-        width, titlebar_win_->client_height(), GRAVITY_NORTHEAST);
+    titlebar_win_->Resize(
+        Size(width, titlebar_win_->client_height()), GRAVITY_NORTHEAST);
   }
 }
 
@@ -461,40 +451,36 @@ void Panel::TakeFocus(XTime timestamp) {
   wm()->FocusWindow(content_win_, timestamp);
 }
 
-void Panel::ResizeContent(int width, int height,
+void Panel::ResizeContent(const Size& size,
                           Gravity gravity,
                           bool configure_input_windows) {
-  DCHECK_GT(width, 0);
-  DCHECK_GT(height, 0);
+  DCHECK(!size.empty());
 
-  const int capped_width =
-      min(max(width, min_content_width_), max_content_width_);
-  const int capped_height =
-      min(max(height, min_content_height_), max_content_height_);
+  const Size capped_size(
+      min(max(size.width, min_content_width_), max_content_width_),
+      min(max(size.height, min_content_height_), max_content_height_));
 
-  if (capped_width != width || capped_height != height) {
+  if (capped_size != size) {
     LOG(WARNING) << "Capped resize of panel " << xid_str() << " to "
-                 << capped_width << "x" << capped_height
-                 << " (request was for " << width << "x" << height << ")";
-    width = capped_width;
-    height = capped_height;
+                 << capped_size << " (request was for " << size << ")";
   }
 
-  if (width == content_bounds_.width && height == content_bounds_.height)
+  if (capped_size == content_bounds_.size())
     return;
 
-  bool changing_height = (height != content_bounds_.height);
+  bool changing_height = (capped_size.height != content_bounds_.height);
 
-  content_bounds_.resize(width, height, gravity);
-  titlebar_bounds_.resize(width, titlebar_bounds_.height, gravity);
+  content_bounds_.resize(capped_size, gravity);
+  titlebar_bounds_.resize(capped_size.width, titlebar_bounds_.height, gravity);
   if (changing_height)
     titlebar_bounds_.y = content_bounds_.y - titlebar_bounds_.height;
 
   transients_->CloseAllWindows();
 
   if (can_configure_windows()) {
-    content_win_->ResizeClient(width, height, gravity);
-    titlebar_win_->ResizeClient(width, titlebar_bounds_.height, gravity);
+    content_win_->Resize(capped_size, gravity);
+    titlebar_win_->Resize(Size(capped_size.width, titlebar_bounds_.height),
+                          gravity);
     separator_shadow_->Move(content_x(), content_y(), 0);
     separator_shadow_->Resize(content_width(), 0, 0);
 
@@ -530,19 +516,16 @@ void Panel::SetFullscreenState(bool fullscreen) {
         StackingManager::LAYER_FULLSCREEN_WINDOW,
         StackingManager::SHADOW_AT_BOTTOM_OF_LAYER);
     content_win_->Move(Point(0, 0), 0);
-    content_win_->ResizeClient(
-        wm()->width(), wm()->height(), GRAVITY_NORTHWEST);
+    content_win_->Resize(wm()->root_size(), GRAVITY_NORTHWEST);
     if (!content_win_->IsFocused()) {
       LOG(WARNING) << "Fullscreening unfocused panel " << xid_str()
                    << ", so automatically giving it the focus";
       wm()->FocusWindow(content_win_, wm()->GetCurrentTimeFromServer());
     }
   } else {
-    content_win_->ResizeClient(
-        content_bounds_.width, content_bounds_.height, GRAVITY_NORTHWEST);
+    content_win_->Resize(content_bounds_.size(), GRAVITY_NORTHWEST);
     content_win_->Move(content_bounds_.position(), 0);
-    titlebar_win_->ResizeClient(
-        titlebar_bounds_.width, titlebar_bounds_.height, GRAVITY_NORTHWEST);
+    titlebar_win_->Resize(titlebar_bounds_.size(), GRAVITY_NORTHWEST);
     titlebar_win_->Move(titlebar_bounds_.position(), 0);
     separator_shadow_->Move(content_x(), content_y(), 0);
     separator_shadow_->Resize(content_width(), 0, 0);
@@ -552,10 +535,9 @@ void Panel::SetFullscreenState(bool fullscreen) {
 
 void Panel::HandleScreenResize() {
   if (is_fullscreen_) {
-    DLOG(INFO) << "Resizing fullscreen panel to " << wm()->width()
-               << "x" << wm()->height() << " in response to screen resize";
-    content_win_->ResizeClient(
-        wm()->width(), wm()->height(), GRAVITY_NORTHWEST);
+    DLOG(INFO) << "Resizing fullscreen panel to " << wm()->root_size()
+               << " in response to screen resize";
+    content_win_->Resize(wm()->root_size(), GRAVITY_NORTHWEST);
   }
 }
 
@@ -624,11 +606,10 @@ void Panel::HandleTransientWindowClientMessage(
 }
 
 void Panel::HandleTransientWindowConfigureRequest(
-    Window* win, int req_x, int req_y, int req_width, int req_height) {
+    Window* win, const Rect& requested_bounds) {
   DCHECK(win);
   DCHECK(transients_->ContainsWindow(*win));
-  transients_->HandleConfigureRequest(
-      win, req_x, req_y, req_width, req_height);
+  transients_->HandleConfigureRequest(win, requested_bounds);
 }
 
 void Panel::ConfigureInputWindows() {
@@ -708,8 +689,8 @@ void Panel::StackInputWindows() {
 }
 
 void Panel::ApplyResize() {
-  int dx = resize_event_coalescer_.x() - resize_drag_start_x_;
-  int dy = resize_event_coalescer_.y() - resize_drag_start_y_;
+  int dx = resize_event_coalescer_.x() - resize_drag_start_pos_.x;
+  int dy = resize_event_coalescer_.y() - resize_drag_start_pos_.y;
   resize_drag_gravity_ = GRAVITY_NORTHWEST;
 
   if (resize_drag_xid_ == top_input_xid_) {
@@ -732,34 +713,35 @@ void Panel::ApplyResize() {
     dy = 0;
   }
 
-  resize_drag_last_width_ =
-      min(max(resize_drag_orig_width_ + dx, min_content_width_),
-          max_content_width_);
-  resize_drag_last_height_ =
-      min(max(resize_drag_orig_height_ + dy, min_content_height_),
-          max_content_height_);
+  resize_drag_last_size_.reset(
+      min(max(resize_drag_orig_size_.width + dx, min_content_width_),
+          max_content_width_),
+      min(max(resize_drag_orig_size_.height + dy, min_content_height_),
+          max_content_height_));
 
   if (FLAGS_panel_opaque_resize) {
     // Avoid reconfiguring the input windows until the end of the resize; moving
     // them now would affect the positions of subsequent motion events from the
     // drag.
-    ResizeContent(resize_drag_last_width_, resize_drag_last_height_,
-                  resize_drag_gravity_, false);
+    ResizeContent(resize_drag_last_size_, resize_drag_gravity_, false);
   } else {
     if (resize_box_.get()) {
       int actor_x = titlebar_x();
       if (resize_drag_gravity_ == GRAVITY_SOUTHEAST ||
           resize_drag_gravity_ == GRAVITY_NORTHEAST) {
-        actor_x -= (resize_drag_last_width_ - resize_drag_orig_width_);
+        actor_x -= (resize_drag_last_size_.width -
+                    resize_drag_orig_size_.width);
       }
       int actor_y = titlebar_y();
       if (resize_drag_gravity_ == GRAVITY_SOUTHWEST ||
           resize_drag_gravity_ == GRAVITY_SOUTHEAST) {
-        actor_y -= (resize_drag_last_height_ - resize_drag_orig_height_);
+        actor_y -= (resize_drag_last_size_.height -
+                    resize_drag_orig_size_.height);
       }
 
-      Rect bounds(actor_x, actor_y, resize_drag_last_width_,
-                  resize_drag_last_height_ + titlebar_height());
+      Rect bounds(actor_x, actor_y,
+                  resize_drag_last_size_.width,
+                  resize_drag_last_size_.height + titlebar_height());
       resize_box_->SetBounds(bounds, 0);
     }
   }

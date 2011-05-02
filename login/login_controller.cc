@@ -126,7 +126,8 @@ LoginController::LoginController(WindowManager* wm)
   wm_->xconn()->HideCursor();
   hide_mouse_cursor_xid_ =
       wm_->CreateInputWindow(
-          wm_->bounds(), PointerMotionMask | LeaveWindowMask | ButtonPressMask);
+          wm_->root_bounds(),
+          PointerMotionMask | LeaveWindowMask | ButtonPressMask);
   registrar_.RegisterForWindowEvents(hide_mouse_cursor_xid_);
   wm_->xconn()->RaiseWindow(hide_mouse_cursor_xid_);
 #endif
@@ -146,8 +147,7 @@ void LoginController::HandleScreenResize() {
     return;
 
   if (background_window_)
-    background_window_->ResizeClient(wm_->width(), wm_->height(),
-                                     GRAVITY_NORTHWEST);
+    background_window_->Resize(wm_->root_size(), GRAVITY_NORTHWEST);
 
   if (all_windows_are_ready_ &&
       is_entry_selection_enabled_ &&
@@ -451,29 +451,26 @@ void LoginController::HandleWindowPixmapFetch(Window* win) {
   }
 }
 
-void LoginController::HandleWindowConfigureRequest(Window* win,
-                                                   int req_x,
-                                                   int req_y,
-                                                   int req_width,
-                                                   int req_height) {
+void LoginController::HandleWindowConfigureRequest(
+    Window* win, const Rect& requested_bounds) {
   if (requested_destruction_)
     return;
 
   if (IsLoginWindow(win)) {
     // We manage the x/y, but let Chrome manage the width/height.
-    win->ResizeClient(req_width, req_height, GRAVITY_NORTHWEST);
+    win->Resize(requested_bounds.size(), GRAVITY_NORTHWEST);
   } else if (non_login_xids_.count(win->xid())) {
     // If this is a non-login window that we're managing, just make
     // whatever changes the client asked for.
-    win->MoveClient(req_x, req_y);
+    win->MoveClient(requested_bounds.x, requested_bounds.y);
     win->MoveCompositedToClient();
-    win->ResizeClient(req_width, req_height, GRAVITY_NORTHWEST);
+    win->Resize(requested_bounds.size(), GRAVITY_NORTHWEST);
   }
 }
 
 void LoginController::HandleButtonPress(XWindow xid,
-                                        int x, int y,
-                                        int x_root, int y_root,
+                                        const Point& relative_pos,
+                                        const Point& absolute_pos,
                                         int button,
                                         XTime timestamp) {
   if (requested_destruction_)
@@ -509,8 +506,8 @@ void LoginController::HandleButtonPress(XWindow xid,
 }
 
 void LoginController::HandlePointerLeave(XWindow xid,
-                                         int x, int y,
-                                         int x_root, int y_root,
+                                         const Point& relative_pos,
+                                         const Point& absolute_pos,
                                          XTime timestamp) {
   // We'll get a LeaveNotify event when the pointer is grabbed.  We need to show
   // the mouse cursor in response to this since we won't get any MotionNotify
@@ -522,8 +519,8 @@ void LoginController::HandlePointerLeave(XWindow xid,
 }
 
 void LoginController::HandlePointerMotion(XWindow xid,
-                                          int x, int y,
-                                          int x_root, int y_root,
+                                          const Point& relative_pos,
+                                          const Point& absolute_pos,
                                           XTime timestamp) {
   if (hide_mouse_cursor_xid_)
     ShowMouseCursor();

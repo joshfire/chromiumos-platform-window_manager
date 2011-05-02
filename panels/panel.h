@@ -73,6 +73,9 @@ class Panel {
   int titlebar_y() const { return titlebar_bounds_.y; }
   int content_y() const { return content_bounds_.y; }
 
+  Size content_size() const { return content_bounds_.size(); }
+  Size titlebar_size() const { return titlebar_bounds_.size(); }
+
   // TODO: Remove content and titlebar width.
   int content_width() const { return content_bounds_.width; }
   int titlebar_width() const { return titlebar_bounds_.width; }
@@ -92,21 +95,22 @@ class Panel {
   void GetInputWindows(std::vector<XWindow>* windows_out);
 
   // Handle events occurring in one of our input windows.
+  // Positions are relative to the window's origin.
   void HandleInputWindowButtonPress(
-      XWindow xid, int x, int y, int button, XTime timestamp);
+      XWindow xid, const Point& relative_pos, int button, XTime timestamp);
   void HandleInputWindowButtonRelease(
-      XWindow xid, int x, int y, int button, XTime timestamp);
-  void HandleInputWindowPointerMotion(XWindow xid, int x, int y);
+      XWindow xid, const Point& relative_pos, int button, XTime timestamp);
+  void HandleInputWindowPointerMotion(XWindow xid, const Point& relative_pos);
 
-  // Move the panel.  |right| is given in terms of one pixel beyond
-  // the panel's right edge (since content and titlebar windows share a
-  // common right edge), while |y| is the top of the titlebar window.
-  // For example, to place the left column of a 10-pixel-wide panel at
-  // X-coordinate 0 and the right column at 9, pass 10 for |right|.
+  // Move the panel.  The X coordinate is given in terms of one pixel beyond the
+  // panel's right edge (since content and titlebar windows share a common right
+  // edge), while the Y coordinate is the top of the titlebar window.  For
+  // example, to place the left column of a 10-pixel-wide panel at X coordinate
+  // 0 and the right column at 9, pass 10 for for the X coordinate.
   //
   // Note: Move() must be called initially to configure the windows (see
   // the constructor's comment).
-  void Move(int right, int y, int anim_ms);
+  void Move(const Point& top_right_origin, int anim_ms);
   void MoveX(int right, int anim_ms);
   void MoveY(int y, int anim_ms);
 
@@ -137,7 +141,7 @@ class Panel {
   // window is moved above the content window if necessary and resized to
   // match the content window's width.  The input windows are optionally
   // configured.
-  void ResizeContent(int width, int height,
+  void ResizeContent(const Size& size,
                      Gravity gravity,
                      bool configure_input_windows);
 
@@ -176,7 +180,7 @@ class Panel {
   void HandleTransientWindowClientMessage(
       Window* win, XAtom message_type, const long data[5]);
   void HandleTransientWindowConfigureRequest(
-      Window* win, int req_x, int req_y, int req_width, int req_height);
+      Window* win, const Rect& requested_bounds);
 
  private:
   FRIEND_TEST(PanelBarTest, PackPanelsAfterPanelResize);
@@ -312,16 +316,13 @@ class Panel {
   Gravity resize_drag_gravity_;
 
   // Pointer coordinates where the resize drag started.
-  int resize_drag_start_x_;
-  int resize_drag_start_y_;
+  Point resize_drag_start_pos_;
 
   // Initial content window size at the start of the resize.
-  int resize_drag_orig_width_;
-  int resize_drag_orig_height_;
+  Size resize_drag_orig_size_;
 
   // Most-recent content window size during a resize.
-  int resize_drag_last_width_;
-  int resize_drag_last_height_;
+  Size resize_drag_last_size_;
 
   // PanelManager event registrations related to this panel's windows.
   scoped_ptr<EventConsumerRegistrar> event_consumer_registrar_;
