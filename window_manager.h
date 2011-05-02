@@ -95,6 +95,7 @@ class WindowManager : public PanelManagerAreaChangeListener,
   DBusInterface* dbus() { return dbus_; }
   StackingManager* stacking_manager() { return stacking_manager_.get(); }
   FocusManager* focus_manager() { return focus_manager_.get(); }
+  ModalityHandler* modality_handler() { return modality_handler_.get(); }
 
   XWindow root() const { return root_; }
   const Stacker<XWindow>& stacked_xids() const {

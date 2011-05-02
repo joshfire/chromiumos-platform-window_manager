@@ -10,6 +10,7 @@
 #include "window_manager/window.h"
 #include "window_manager/window_manager.h"
 
+using std::set;
 using window_manager::util::XidStr;
 
 namespace window_manager {
@@ -66,10 +67,24 @@ void ModalityHandler::HandleFocusChange() {
   HandlePossibleModalityChange();
 }
 
+void ModalityHandler::RegisterModalityChangeListener(
+    ModalityChangeListener* listener) {
+  DCHECK(listener);
+  bool added = modality_change_listeners_.insert(listener).second;
+  DCHECK(added) << "Listener " << listener << " was already registered";
+}
+
+void ModalityHandler::UnregisterModalityChangeListener(
+    ModalityChangeListener* listener) {
+  int num_removed = modality_change_listeners_.erase(listener);
+  DCHECK_EQ(num_removed, 1) << "Listener " << listener << " wasn't registered";
+}
+
 void ModalityHandler::HandlePossibleModalityChange() {
   Window* focused_win = wm_->focus_manager()->focused_win();
   bool focused_win_is_modal = focused_win && focused_win->wm_state_modal();
 
+  bool changed = false;
   if (focused_win_is_modal) {
     wm_->stacking_manager()->StackActorRelativeToOtherActor(
         dimming_actor_.get(),
@@ -78,11 +93,21 @@ void ModalityHandler::HandlePossibleModalityChange() {
     if (!modal_window_is_focused_) {
       modal_window_is_focused_ = true;
       dimming_actor_->SetOpacity(kDimmingOpacity, kDimmingFadeMs);
+      changed = true;
     }
   } else {
     if (modal_window_is_focused_) {
       modal_window_is_focused_ = false;
       dimming_actor_->SetOpacity(0, kDimmingFadeMs);
+      changed = true;
+    }
+  }
+
+  if (changed) {
+    for (set<ModalityChangeListener*>::const_iterator it =
+           modality_change_listeners_.begin();
+         it != modality_change_listeners_.end(); ++it) {
+      (*it)->HandleModalityChange();
     }
   }
 }

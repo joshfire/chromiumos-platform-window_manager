@@ -425,13 +425,13 @@ bool WindowManager::Init() {
       new KeyBindingsActionRegistrar(key_bindings_.get()));
   RegisterKeyBindings();
 
+  modality_handler_.reset(new ModalityHandler(this));
+  event_consumers_.insert(modality_handler_.get());
+
   SetLoggedInState(logged_in_, true);  // initial=true
 
   screen_locker_handler_.reset(new ScreenLockerHandler(this));
   event_consumers_.insert(screen_locker_handler_.get());
-
-  modality_handler_.reset(new ModalityHandler(this));
-  event_consumers_.insert(modality_handler_.get());
 
   chrome_watchdog_.reset(new ChromeWatchdog(this));
   event_consumers_.insert(chrome_watchdog_.get());

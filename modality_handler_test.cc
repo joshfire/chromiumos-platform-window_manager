@@ -7,6 +7,7 @@
 
 #include "base/logging.h"
 #include "window_manager/compositor/compositor.h"
+#include "window_manager/focus_manager.h"
 #include "window_manager/modality_handler.h"
 #include "window_manager/test_lib.h"
 #include "window_manager/window.h"
@@ -29,6 +30,17 @@ class ModalityHandlerTest : public BasicWindowManagerTest {
   }
 
   ModalityHandler* handler_;
+};
+
+// Simple implementation of ModalityChangeListener used by NotifyListener test.
+class TestListener : public ModalityChangeListener {
+ public:
+  TestListener() : num_modality_changes_(0) {}
+  int num_modality_changes() const { return num_modality_changes_; }
+  virtual void HandleModalityChange() { num_modality_changes_++; }
+
+ private:
+  int num_modality_changes_;
 };
 
 TEST_F(ModalityHandlerTest, Basic) {
@@ -94,6 +106,31 @@ TEST_F(ModalityHandlerTest, Basic) {
   wm_->HandleEvent(&event);
   EXPECT_FALSE(handler_->modal_window_is_focused());
   EXPECT_DOUBLE_EQ(0, dimming_actor->opacity());
+}
+
+TEST_F(ModalityHandlerTest, NotifyListener) {
+  TestListener listener;
+  handler_->RegisterModalityChangeListener(&listener);
+
+  // Create a modal window, make sure that it's focused, and check that the
+  // listener was notified about the change.
+  XWindow modal_xid = CreateSimpleWindow();
+  const XAtom kStateAtom = xconn_->GetAtomOrDie("_NET_WM_STATE");
+  const XAtom kModalAtom = xconn_->GetAtomOrDie("_NET_WM_STATE_MODAL");
+  AppendAtomToProperty(modal_xid, kStateAtom, kModalAtom);
+  SendInitialEventsForWindow(modal_xid);
+  ASSERT_EQ(modal_xid, xconn_->focused_xid());
+  EXPECT_EQ(1, listener.num_modality_changes());
+  EXPECT_TRUE(handler_->modal_window_is_focused());
+
+  // Now unmap the modal window and check that the listener is notified again.
+  XEvent event;
+  xconn_->InitUnmapEvent(&event, modal_xid);
+  wm_->HandleEvent(&event);
+  EXPECT_EQ(2, listener.num_modality_changes());
+  EXPECT_FALSE(handler_->modal_window_is_focused());
+
+  handler_->UnregisterModalityChangeListener(&listener);
 }
 
 }  // namespace window_manager

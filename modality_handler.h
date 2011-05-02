@@ -5,7 +5,7 @@
 #ifndef WINDOW_MANAGER_MODALITY_HANDLER_H_
 #define WINDOW_MANAGER_MODALITY_HANDLER_H_
 
-#include <tr1/unordered_set>
+#include <set>
 
 #include <gtest/gtest_prod.h>  // for FRIEND_TEST() macro
 
@@ -20,6 +20,16 @@ namespace window_manager {
 class EventConsumerRegistrar;
 class Window;
 class WindowManager;
+
+class ModalityChangeListener {
+ public:
+  // Invoked on a transition from not having a modal window focused to having
+  // one focused, or vice versa.
+  virtual void HandleModalityChange() = 0;
+
+ protected:
+  virtual ~ModalityChangeListener() {}
+};
 
 class ModalityHandler : public EventConsumer,
                         public FocusChangeListener {
@@ -73,6 +83,11 @@ class ModalityHandler : public EventConsumer,
   // FocusChangeListener implementation.
   virtual void HandleFocusChange();
 
+  // Register or unregister a listener that will be notified after a change in
+  // modality.
+  void RegisterModalityChangeListener(ModalityChangeListener* listener);
+  void UnregisterModalityChangeListener(ModalityChangeListener* listener);
+
  private:
   FRIEND_TEST(ModalityHandlerTest, Basic);
   FRIEND_TEST(PanelBarTest, ModalDimming);
@@ -91,6 +106,9 @@ class ModalityHandler : public EventConsumer,
   // Partially-transparent black rectangle that we display beneath a modal
   // transient window to emphasize it.
   scoped_ptr<Compositor::ColoredBoxActor> dimming_actor_;
+
+  // Listeners that will be notified when modality changes.
+  std::set<ModalityChangeListener*> modality_change_listeners_;  // not owned
 
   DISALLOW_COPY_AND_ASSIGN(ModalityHandler);
 };
