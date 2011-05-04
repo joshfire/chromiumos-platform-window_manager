@@ -68,6 +68,7 @@ static const AtomInfo kAtomInfos[] = {
   { ATOM_NET_WM_WINDOW_TYPE_MENU,      "_NET_WM_WINDOW_TYPE_MENU" },
   { ATOM_NET_WM_WINDOW_TYPE_POPUP_MENU,
                                        "_NET_WM_WINDOW_TYPE_POPUP_MENU" },
+  { ATOM_NET_WM_WINDOW_TYPE_TOOLTIP,   "_NET_WM_WINDOW_TYPE_TOOLTIP" },
   { ATOM_NET_WORKAREA,                 "_NET_WORKAREA" },
   { ATOM_PRIMARY,                      "PRIMARY" },
   { ATOM_WM_CLIENT_MACHINE,            "WM_CLIENT_MACHINE" },

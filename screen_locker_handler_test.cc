@@ -444,8 +444,8 @@ TEST_F(ScreenLockerHandlerTest, DeferLockUntilWindowIsVisible) {
 }
 
 // Check that when we see an override-redirect info bubble window that asks to
-// remain visible while the screen is locked, we add it to the screen locker
-// visibility group.
+// remain visible while the screen is locked or a tooltip, we add it to the
+// screen locker visibility group.
 TEST_F(ScreenLockerHandlerTest, ShowSomeOtherWindowsWhileLocked) {
   XWindow info_bubble_xid = CreateSimpleWindow();
   xconn_->GetWindowInfoOrDie(info_bubble_xid)->override_redirect = true;
@@ -467,6 +467,20 @@ TEST_F(ScreenLockerHandlerTest, ShowSomeOtherWindowsWhileLocked) {
   wm_->HandleEvent(&event);
   EXPECT_FALSE(info_bubble_actor->visibility_groups().count(
                  WindowManager::VISIBILITY_GROUP_SCREEN_LOCKER));
+
+  // Check that we treat tooltip windows the same way.
+  XWindow tooltip_xid = CreateSimpleWindow();
+  xconn_->GetWindowInfoOrDie(tooltip_xid)->override_redirect = true;
+  xconn_->SetIntProperty(tooltip_xid,
+                         xconn_->GetAtomOrDie("_NET_WM_WINDOW_TYPE"),
+                         xconn_->GetAtomOrDie("ATOM"),
+                         xconn_->GetAtomOrDie("_NET_WM_WINDOW_TYPE_TOOLTIP"));
+  xconn_->MapWindow(tooltip_xid);
+  SendInitialEventsForWindow(tooltip_xid);
+  MockCompositor::TexturePixmapActor* tooltip_actor =
+      GetMockActorForWindow(wm_->GetWindowOrDie(tooltip_xid));
+  EXPECT_TRUE(tooltip_actor->visibility_groups().count(
+                WindowManager::VISIBILITY_GROUP_SCREEN_LOCKER));
 }
 
 // Test that we handle messages from Chrome notifying us that the user is

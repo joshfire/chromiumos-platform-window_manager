@@ -4,11 +4,13 @@
 
 #include "window_manager/screen_locker_handler.h"
 
+#include <algorithm>
 #include <cmath>
 #include <tr1/unordered_set>
 
 #include "base/logging.h"
 #include "cros/chromeos_wm_ipc_enums.h"
+#include "window_manager/atom_cache.h"
 #include "window_manager/callback.h"
 #include "window_manager/event_consumer_registrar.h"
 #include "window_manager/event_loop.h"
@@ -19,6 +21,7 @@
 #include "window_manager/window_manager.h"
 #include "window_manager/wm_ipc.h"
 
+using std::find;
 using std::set;
 using std::tr1::unordered_set;
 using window_manager::util::XidStr;
@@ -119,16 +122,25 @@ bool ScreenLockerHandler::HandleWindowMapRequest(Window* win) {
 
 void ScreenLockerHandler::HandleWindowMap(Window* win) {
   DCHECK(win);
-  // If we see an override-redirect info bubble that's asking to be displayed
-  // while the screen is locked, add it to the screen locker visibility group.
-  if (win->type() == chromeos::WM_IPC_WINDOW_CHROME_INFO_BUBBLE &&
-      win->override_redirect() &&
-      !win->type_params().empty() &&
-      win->type_params()[0]) {
-    other_xids_to_show_while_locked_.insert(win->xid());
-    win->actor()->AddToVisibilityGroup(
-        WindowManager::VISIBILITY_GROUP_SCREEN_LOCKER);
-    return;
+  if (win->override_redirect()) {
+    // If we see an override-redirect info bubble that's asking to be displayed
+    // while the screen is locked or a tooltip, add it to the screen locker
+    // visibility group.
+    const bool is_shown_info_bubble =
+        win->type() == chromeos::WM_IPC_WINDOW_CHROME_INFO_BUBBLE &&
+        !win->type_params().empty() &&
+        win->type_params()[0];
+    const bool is_tooltip =
+        find(win->wm_window_type_xatoms().begin(),
+             win->wm_window_type_xatoms().end(),
+             wm_->GetXAtom(ATOM_NET_WM_WINDOW_TYPE_TOOLTIP)) !=
+        win->wm_window_type_xatoms().end();
+    if (is_tooltip || is_shown_info_bubble) {
+      other_xids_to_show_while_locked_.insert(win->xid());
+      win->actor()->AddToVisibilityGroup(
+          WindowManager::VISIBILITY_GROUP_SCREEN_LOCKER);
+      return;
+    }
   }
 
   if (win->type() != chromeos::WM_IPC_WINDOW_CHROME_SCREEN_LOCKER)
