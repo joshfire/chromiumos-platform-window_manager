@@ -30,10 +30,8 @@ static int64_t current_time_ms_for_test = -1;
 // GetMonotonicTimeMs().
 static TimeTicks monotonic_time_for_test;
 
-ByteMap::ByteMap(const Size& size) : size_(size) {
-  CHECK(!size_.empty());
-  bytes_ = new unsigned char[size_.area()];
-  Clear(0);
+ByteMap::ByteMap(const Size& size) : bytes_(NULL) {
+  Resize(size);
 }
 
 ByteMap::~ByteMap() {
@@ -41,17 +39,38 @@ ByteMap::~ByteMap() {
   bytes_ = NULL;
 }
 
+void ByteMap::Resize(const Size& new_size) {
+  size_ = new_size;
+  delete[] bytes_;
+  bytes_ = size_.empty() ? NULL : new unsigned char[size_.area()];
+  Clear(0);
+}
+
 void ByteMap::Copy(const ByteMap& other) {
-  CHECK(size_ == other.size_);
-  memcpy(bytes_, other.bytes_, size_.area());
+  if (size_.empty() || other.size_.empty())
+    return;
+
+  if (size_ == other.size_) {
+    memcpy(bytes_, other.bytes_, size_.area());
+  } else {
+    const int copy_width = min(size_.width, other.size_.width);
+    const int copy_height = min(size_.height, other.size_.height);
+    for (int y = 0; y < copy_height; ++y) {
+      memcpy(bytes_ + y * size_.width,
+             other.bytes_ + y * other.size_.width,
+             copy_width);
+    }
+  }
 }
 
 void ByteMap::Clear(unsigned char value) {
-  memset(bytes_, value, size_.width * size_.height);
+  if (size_.empty())
+    return;
+  memset(bytes_, value, size_.area());
 }
 
 void ByteMap::SetRectangle(const Rect& rect, unsigned char value) {
-  if (rect.empty())
+  if (rect.empty() || size_.empty())
     return;
 
   const int limit_x = min(rect.x + rect.width, size_.width);
@@ -69,6 +88,8 @@ void ByteMap::SetRectangle(const Rect& rect, unsigned char value) {
 bool ByteMap::operator==(const ByteMap& other) {
   if (size_ != other.size_)
     return false;
+  if (size_.empty())
+    return true;
   return memcmp(bytes_, other.bytes_, size_.area()) == 0;
 }
 

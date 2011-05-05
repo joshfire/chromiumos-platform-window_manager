@@ -158,7 +158,10 @@ class ByteMap {
   const Size& size() const { return size_; }
   const unsigned char* bytes() const { return bytes_; }
 
-  // Copy the bytes from |other|, which must have the same dimensions as
+  // Resize this bytemap.  Its contents are cleared to 0.
+  void Resize(const Size& new_size);
+
+  // Copy the bytes from |other|, which need not have the same dimensions as
   // this map.
   void Copy(const ByteMap& other);
 

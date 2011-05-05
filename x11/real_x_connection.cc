@@ -761,16 +761,14 @@ bool RealXConnection::SetWindowBoundingRegionToRect(XWindow xid,
   return true;
 }
 
-bool RealXConnection::RemoveWindowBoundingRegion(XWindow xid) {
-  xcb_shape_rectangles(xcb_conn_,
-                       XCB_SHAPE_SO_SET,
-                       XCB_SHAPE_SK_BOUNDING,
-                       0,    // ordering
-                       xid,
-                       0,    // x_offset
-                       0,    // y_offset
-                       0,    // rectangles_len
-                       NULL);
+bool RealXConnection::ResetWindowBoundingRegionToDefault(XWindow xid) {
+  xcb_shape_mask(xcb_conn_,
+                 XCB_SHAPE_SO_SET,
+                 XCB_SHAPE_SK_BOUNDING,
+                 xid,
+                 0,    // x_offset
+                 0,    // y_offset
+                 0);   // pixmap
   return true;
 }
 

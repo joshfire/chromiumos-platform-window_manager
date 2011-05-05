@@ -91,7 +91,7 @@ class RealXConnection : public XConnection {
   virtual bool SelectShapeEventsOnWindow(XWindow xid);
   virtual bool GetWindowBoundingRegion(XWindow xid, ByteMap* bytemap);
   virtual bool SetWindowBoundingRegionToRect(XWindow xid, const Rect& region);
-  virtual bool RemoveWindowBoundingRegion(XWindow xid);
+  virtual bool ResetWindowBoundingRegionToDefault(XWindow xid);
   virtual bool SelectRandREventsOnWindow(XWindow xid);
   virtual bool GetAtoms(const std::vector<std::string>& names,
                         std::vector<XAtom>* atoms_out);

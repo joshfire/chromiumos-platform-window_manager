@@ -339,10 +339,10 @@ class XConnection {
   // Get the rectangles defining a window's bounding region.
   virtual bool GetWindowBoundingRegion(XWindow xid, ByteMap* bytemap) = 0;
 
-  // Set/remove bounding region for a window.
+  // Set or clear a bounding region for a window.
   virtual bool SetWindowBoundingRegionToRect(XWindow xid,
                                              const Rect& region) = 0;
-  virtual bool RemoveWindowBoundingRegion(XWindow xid) = 0;
+  virtual bool ResetWindowBoundingRegionToDefault(XWindow xid) = 0;
 
   // Select RandR events on a window.
   virtual bool SelectRandREventsOnWindow(XWindow xid) = 0;

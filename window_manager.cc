@@ -322,7 +322,7 @@ void WindowManager::HandleTopFullscreenActorChange(
   }
 
   if (!was_compositing && should_composite) {
-    xconn_->SetWindowBoundingRegionToRect(overlay_xid_, root_bounds_);
+    xconn_->ResetWindowBoundingRegionToDefault(overlay_xid_);
     DLOG(INFO) << "Turned compositing on";
     compositor_->set_should_draw_frame(true);
   }
@@ -1999,11 +1999,11 @@ void WindowManager::DisableCompositing() {
   if (!unredirected_fullscreen_xid_)
     return;
 
-  // Make sure to remove window bounding region before unredirect window
-  // because unredirect window will not create exposure events, so we need
-  // to remove bounding region first to let X know that it should refresh
-  // the content, otherwise the content will stay stale.
-  xconn_->RemoveWindowBoundingRegion(overlay_xid_);
+  // Give the overlay window an empty bounding region before unredirection.
+  // Unredirection won't create exposure events, so we need to remove the
+  // bounding region first to let the client know that it should refresh the
+  // content.
+  xconn_->SetWindowBoundingRegionToRect(overlay_xid_, Rect());
   xconn_->UnredirectWindowForCompositing(unredirected_fullscreen_xid_);
   compositor_->set_should_draw_frame(false);
   DLOG(INFO) << "Turned compositing off";

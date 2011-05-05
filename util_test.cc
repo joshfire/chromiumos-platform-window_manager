@@ -144,6 +144,60 @@ TEST_F(UtilTest, ByteMap) {
                                              "\x01\x01\x01\x01"),
       bytemap.bytes(),
       size.area());
+
+  // Copy an equal-sized bytemap.
+  bytemap.Clear(0);
+  ByteMap equal(size);
+  equal.Clear(0x01);
+  bytemap.Copy(equal);
+  EXPECT_PRED_FORMAT3(
+      BytesAreEqual,
+      reinterpret_cast<unsigned const char*>("\x01\x01\x01\x01"
+                                             "\x01\x01\x01\x01"
+                                             "\x01\x01\x01\x01"),
+      bytemap.bytes(),
+      size.area());
+
+  // Copy a smaller bytemap.
+  bytemap.Clear(0);
+  ByteMap smaller(Size(3, 2));
+  smaller.Clear(0x01);
+  bytemap.Copy(smaller);
+  EXPECT_PRED_FORMAT3(
+      BytesAreEqual,
+      reinterpret_cast<unsigned const char*>("\x01\x01\x01\x00"
+                                             "\x01\x01\x01\x00"
+                                             "\x00\x00\x00\x00"),
+      bytemap.bytes(),
+      size.area());
+
+  // Copy a larger bytemap.
+  bytemap.Clear(0);
+  ByteMap larger(Size(5, 5));
+  larger.Clear(0x01);
+  bytemap.Copy(larger);
+  EXPECT_PRED_FORMAT3(
+      BytesAreEqual,
+      reinterpret_cast<unsigned const char*>("\x01\x01\x01\x01"
+                                             "\x01\x01\x01\x01"
+                                             "\x01\x01\x01\x01"),
+      bytemap.bytes(),
+      size.area());
+
+  // Resize the bytemap.
+  Size new_size(3, 2);
+  bytemap.Resize(new_size);
+  bytemap.Clear(0x01);
+  EXPECT_PRED_FORMAT3(
+      BytesAreEqual,
+      reinterpret_cast<unsigned const char*>("\x01\x01\x01"
+                                             "\x01\x01\x01"),
+      bytemap.bytes(),
+      new_size.area());
+
+  // Try to copy an empty bytemap to it and check that we don't crash.
+  ByteMap empty(Size(0, 0));
+  bytemap.Copy(empty);
 }
 
 }  // namespace window_manager

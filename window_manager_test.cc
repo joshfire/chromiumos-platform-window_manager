@@ -590,10 +590,10 @@ TEST_F(WindowManagerTest, ResizeScreen) {
   // Resize the root and compositing overlay windows to half their size.
   root_info->bounds.width = new_width;
   root_info->bounds.height = new_height;
-  MockXConnection::WindowInfo* composite_info =
+  MockXConnection::WindowInfo* overlay_info =
       xconn_->GetWindowInfoOrDie(xconn_->GetCompositingOverlayWindow(root_xid));
-  composite_info->bounds.width = new_width;
-  composite_info->bounds.height = new_height;
+  overlay_info->bounds.width = new_width;
+  overlay_info->bounds.height = new_height;
 
   // Send the WM an event saying that the screen has been resized.
   XEvent event;
@@ -1221,6 +1221,9 @@ TEST_F(WindowManagerTest, VideoTimeProperty) {
 // Test the unredirect fullscreen window optimization.  Check the windows
 // get properly directed/unredirected when the fullscreen actor changes.
 TEST_F(WindowManagerTest, HandleTopFullscreenActorChange) {
+  AutoReset<bool> unredirect_flag_resetter(
+      &FLAGS_unredirect_fullscreen_window, true);
+
   XWindow xwin1 = xconn_->CreateWindow(
         xconn_->GetRootWindow(),
         Rect(0, 0, wm_->width(), wm_->height()),
@@ -1256,14 +1259,13 @@ TEST_F(WindowManagerTest, HandleTopFullscreenActorChange) {
 
   // Set up overlay regions for comparison.
   MockXConnection::WindowInfo* overlay_info =
-    xconn_->GetWindowInfoOrDie(wm_->overlay_xid_);
+      xconn_->GetWindowInfoOrDie(wm_->overlay_xid_);
   scoped_ptr<ByteMap> expected_overlay(
       new ByteMap(overlay_info->bounds.size()));
   scoped_ptr<ByteMap> actual_overlay(
       new ByteMap(overlay_info->bounds.size()));
 
   // Make sure no window is unredirected.
-  FLAGS_unredirect_fullscreen_window = true;
   EXPECT_EQ(static_cast<XWindow>(0), wm_->unredirected_fullscreen_xid_);
   EXPECT_TRUE(info1->redirected);
   EXPECT_TRUE(info2->redirected);
@@ -1459,6 +1461,9 @@ TEST_F(WindowManagerTest, WindowDestroyedWhileBeingMapped) {
 // Test that the IncrementCompositingRequests() method, used to force
 // compositing, works as expected.
 TEST_F(WindowManagerTest, ForceCompositing) {
+  AutoReset<bool> unredirect_flag_resetter(
+      &FLAGS_unredirect_fullscreen_window, true);
+
   // Create a window.
   XWindow xid = CreateSimpleWindow();
   ConfigureWindowForSyncRequestProtocol(xid);
@@ -1524,6 +1529,55 @@ TEST_F(WindowManagerTest, MissingUnmapNotify) {
   // FocusManager access |xid|'s now-destroyed Window object).
   XWindow xid2 = CreateSimpleWindow();
   SendInitialEventsForWindow(xid2);
+}
+
+// Check that we don't mask out any parts of the compositing overlay window when
+// the screen size gets increased while we're compositing.  See
+// http://crosbug.com/14951.
+TEST_F(WindowManagerTest, ResizeScreenWhileCompositing) {
+  AutoReset<bool> unredirect_flag_resetter(
+      &FLAGS_unredirect_fullscreen_window, true);
+
+  // Create a fullscreen window and check that we disable compositing.
+  XWindow xid = CreateSimpleWindow();
+  SendInitialEventsForWindow(xid);
+  Window* win = wm_->GetWindowOrDie(xid);
+  win->Resize(wm_->root_size(), GRAVITY_NORTHWEST);
+  MockCompositor::TexturePixmapActor* actor = GetMockActorForWindow(win);
+  wm_->HandleTopFullscreenActorChange(actor);
+  ASSERT_EQ(xid, wm_->unredirected_fullscreen_xid_);
+  ASSERT_TRUE(wm_->disable_compositing_task_is_pending_);
+  wm_->DisableCompositing();
+
+  // Now force compositing back on.  Previously, this would've had the effect of
+  // making us use the shape extension to make the bounds of the compositing
+  // overlay window match the screen size.
+  wm_->IncrementCompositingRequests();
+  wm_->HandleTopFullscreenActorChange(actor);
+  ASSERT_EQ(0, wm_->unredirected_fullscreen_xid_);
+
+  XWindow root_xid = xconn_->GetRootWindow();
+  MockXConnection::WindowInfo* root_info = xconn_->GetWindowInfoOrDie(root_xid);
+  XWindow overlay_xid = xconn_->GetCompositingOverlayWindow(root_xid);
+  MockXConnection::WindowInfo* overlay_info =
+      xconn_->GetWindowInfoOrDie(overlay_xid);
+
+  // Tell the window manager that the screen has gotten bigger.
+  Size kNewSize(root_info->bounds.width * 2, root_info->bounds.height * 2);
+  root_info->bounds.resize(kNewSize, GRAVITY_NORTHWEST);
+  overlay_info->bounds.resize(kNewSize, GRAVITY_NORTHWEST);
+  XEvent event;
+  xconn_->InitConfigureNotifyEvent(&event, root_xid);
+  wm_->HandleEvent(&event);
+
+  // Check that we're not masking any of the overlay window's new area.
+  scoped_ptr<ByteMap> expected_overlay(
+      new ByteMap(overlay_info->bounds.size()));
+  scoped_ptr<ByteMap> actual_overlay(
+      new ByteMap(overlay_info->bounds.size()));
+  expected_overlay->Clear(0xff);
+  xconn_->GetWindowBoundingRegion(overlay_xid, actual_overlay.get());
+  EXPECT_TRUE(*expected_overlay.get() == *actual_overlay.get());
 }
 
 }  // namespace window_manager

@@ -325,6 +325,7 @@ class WindowManager : public PanelManagerAreaChangeListener,
   FRIEND_TEST(WindowManagerTest, VideoTimeProperty);
   FRIEND_TEST(WindowManagerTest, HandleTopFullscreenActorChange);
   FRIEND_TEST(WindowManagerTest, ForceCompositing);
+  FRIEND_TEST(WindowManagerTest, ResizeScreenWhileCompositing);
 
   typedef std::map<XWindow, std::set<EventConsumer*> > WindowEventConsumerMap;
   typedef std::map<std::pair<XWindow, XAtom>, std::set<EventConsumer*> >
