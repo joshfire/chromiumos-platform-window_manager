@@ -131,7 +131,8 @@ void TransientWindowCollection::AddWindow(
     stacked_transients_->AddOnBottom(transient.get());
 
   SetPreferredWindowToFocus(transient_win);
-  wm()->focus_manager()->UseClickToFocusForWindow(transient_win);
+  wm()->focus_manager()->UseClickToFocusForWindow(
+      transient_win, FocusManager::PASS_CLICKS_THROUGH);
 
   transient_win->SetVisibility(shown_ ?
                                Window::VISIBILITY_SHOWN :

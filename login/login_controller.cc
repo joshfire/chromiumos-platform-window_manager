@@ -246,7 +246,8 @@ void LoginController::HandleWindowMap(Window* win) {
       if (wizard_window_)
         LOG(WARNING) << "Two wizard windows encountered";
       wizard_window_ = win;
-      wm_->focus_manager()->UseClickToFocusForWindow(wizard_window_);
+      wm_->focus_manager()->UseClickToFocusForWindow(
+          wizard_window_, FocusManager::PASS_CLICKS_THROUGH);
       registrar_.RegisterForWindowEvents(wizard_window_->xid());
       break;
     }
@@ -279,7 +280,8 @@ void LoginController::HandleWindowMap(Window* win) {
       if (background_window_)
         LOG(WARNING) << "Two background windows encountered";
       background_window_ = win;
-      wm_->focus_manager()->UseClickToFocusForWindow(background_window_);
+      wm_->focus_manager()->UseClickToFocusForWindow(
+          background_window_, FocusManager::PASS_CLICKS_THROUGH);
       registrar_.RegisterForWindowEvents(background_window_->xid());
       break;
     }
@@ -287,7 +289,8 @@ void LoginController::HandleWindowMap(Window* win) {
       if (webui_window_)
         LOG(WARNING) << "Two webui browser windows encountered";
       webui_window_ = win;
-      wm_->focus_manager()->UseClickToFocusForWindow(webui_window_);
+      wm_->focus_manager()->UseClickToFocusForWindow(
+          webui_window_, FocusManager::PASS_CLICKS_THROUGH);
       registrar_.RegisterForWindowEvents(webui_window_->xid());
       break;
     }
@@ -319,7 +322,8 @@ void LoginController::HandleWindowMap(Window* win) {
           win->SetShadowType(Shadow::TYPE_RECTANGULAR);
       }
 
-      wm_->focus_manager()->UseClickToFocusForWindow(win);
+      wm_->focus_manager()->UseClickToFocusForWindow(
+          win, FocusManager::PASS_CLICKS_THROUGH);
       wm_->FocusWindow(win, wm_->GetCurrentTimeFromServer());
       win->MoveCompositedToClient();
       win->ShowComposited();

@@ -1,10 +1,11 @@
-// Copyright (c) 2010 The Chromium OS Authors. All rights reserved.
+// Copyright (c) 2011 The Chromium OS Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef WINDOW_MANAGER_FOCUS_MANAGER_H_
 #define WINDOW_MANAGER_FOCUS_MANAGER_H_
 
+#include <map>
 #include <set>
 
 #include "base/basictypes.h"
@@ -29,6 +30,14 @@ class FocusChangeListener {
 // This class is used to assign the input focus to windows.
 class FocusManager {
  public:
+  enum ClickToFocusPolicy {
+    // Pass the click that focuses the window through to the window itself.
+    PASS_CLICKS_THROUGH = 0,
+
+    // Drop the click so that the window never sees it.
+    DROP_CLICKS,
+  };
+
   explicit FocusManager(WindowManager* wm);
   ~FocusManager();
 
@@ -47,7 +56,7 @@ class FocusManager {
   // focus the window by calling FocusWindow(); we just handle adding and
   // removing the button grab as needed when the window loses or gains the
   // focus.  This is reset when the window gets unmapped.
-  void UseClickToFocusForWindow(Window* win);
+  void UseClickToFocusForWindow(Window* win, ClickToFocusPolicy policy);
 
   // Handle a window being unmapped.  Called by WindowManager.
   void HandleWindowUnmap(Window* win);
@@ -70,8 +79,8 @@ class FocusManager {
   // The currently-focused window, or NULL if no window is focused.
   Window* focused_win_;  // not owned
 
-  // Windows using click-to-focus.
-  std::set<Window*> click_to_focus_windows_;  // not owned
+  // Windows using click-to-focus.  We don't own the Window objects.
+  std::map<Window*, ClickToFocusPolicy> click_to_focus_windows_;
 
   // Listeners that will be notified when the focus changes.
   std::set<FocusChangeListener*> focus_change_listeners_;  // not owned

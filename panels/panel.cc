@@ -188,7 +188,8 @@ Panel::Panel(PanelManager* panel_manager,
   wm()->SetNamePropertiesForXid(
       right_input_xid_, string("right input window for panel ") + xid_str());
 
-  wm()->focus_manager()->UseClickToFocusForWindow(content_win_);
+  wm()->focus_manager()->UseClickToFocusForWindow(
+      content_win_, FocusManager::PASS_CLICKS_THROUGH);
 
   if (content_win_->type_params().size() >= 5) {
     chromeos::WmIpcPanelUserResizeType resize_type =

@@ -80,7 +80,8 @@ void LoginEntry::SetControlsWindow(Window* win) {
     LOG(WARNING) << "two controls at index " << GetUserIndex(win);
   HandleWindowUnmap(controls_window_);
   controls_window_ = win;
-  wm_->focus_manager()->UseClickToFocusForWindow(win);
+  wm_->focus_manager()->UseClickToFocusForWindow(
+      win, FocusManager::PASS_CLICKS_THROUGH);
   registrar_->RegisterForWindowEvents(win->xid());
   if (has_all_windows())
     InitSizes();

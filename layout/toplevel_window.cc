@@ -104,7 +104,8 @@ LayoutManager::ToplevelWindow::ToplevelWindow(Window* win,
   win->ShowComposited();
 
   // Make sure that we hear about button presses on this window.
-  wm()->focus_manager()->UseClickToFocusForWindow(win);
+  wm()->focus_manager()->UseClickToFocusForWindow(
+      win, FocusManager::PASS_CLICKS_THROUGH);
 }
 
 LayoutManager::ToplevelWindow::~ToplevelWindow() {

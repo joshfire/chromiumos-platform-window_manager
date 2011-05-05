@@ -4,10 +4,14 @@
 
 #include "window_manager/focus_manager.h"
 
+#include <utility>
+
 #include "window_manager/window.h"
 #include "window_manager/window_manager.h"
 #include "window_manager/x11/x_connection.h"
 
+using std::make_pair;
+using std::map;
 using std::set;
 
 namespace window_manager {
@@ -57,18 +61,24 @@ void FocusManager::FocusWindow(Window* win, XTime timestamp) {
   }
 }
 
-void FocusManager::UseClickToFocusForWindow(Window* win) {
+void FocusManager::UseClickToFocusForWindow(Window* win,
+                                            ClickToFocusPolicy policy) {
   DCHECK(win);
-  if (!click_to_focus_windows_.insert(win).second)
-    return;
-
-  if (focused_win_ != win)
-    win->AddButtonGrab();
+  map<Window*, ClickToFocusPolicy>::iterator it =
+      click_to_focus_windows_.find(win);
+  if (it != click_to_focus_windows_.end()) {
+    it->second = policy;
+  } else {
+    click_to_focus_windows_.insert(make_pair(win, policy));
+    if (focused_win_ != win)
+      win->AddButtonGrab();
+  }
 }
 
 void FocusManager::HandleWindowUnmap(Window* win) {
   DCHECK(win);
-  set<Window*>::iterator it = click_to_focus_windows_.find(win);
+  map<Window*, ClickToFocusPolicy>::iterator it =
+      click_to_focus_windows_.find(win);
   if (it != click_to_focus_windows_.end()) {
     win->RemoveButtonGrab();
     click_to_focus_windows_.erase(it);
@@ -80,8 +90,12 @@ void FocusManager::HandleWindowUnmap(Window* win) {
 
 void FocusManager::HandleButtonPressInWindow(Window* win, XTime timestamp) {
   DCHECK(win);
-  if (click_to_focus_windows_.count(win)) {
-    bool replay_events = !focused_win_ || !focused_win_->wm_state_modal();
+  map<Window*, ClickToFocusPolicy>::iterator it =
+      click_to_focus_windows_.find(win);
+  if (it != click_to_focus_windows_.end()) {
+    const bool replay_events =
+        it->second == PASS_CLICKS_THROUGH &&
+        (!focused_win_ || !focused_win_->wm_state_modal());
     wm_->xconn()->UngrabPointer(replay_events, timestamp);
   }
 }

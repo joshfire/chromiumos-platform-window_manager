@@ -78,7 +78,8 @@ TEST_F(FocusManagerTest, ClickToFocus) {
 
   // After we tell the focus manager that we want to use click-to-focus, it
   // should install a button grab on the window.
-  focus_manager_->UseClickToFocusForWindow(&win);
+  focus_manager_->UseClickToFocusForWindow(
+      &win, FocusManager::PASS_CLICKS_THROUGH);
   EXPECT_TRUE(info->button_is_grabbed(0));
 
   // Grab the pointer as if a button had been pressed and then make sure
@@ -98,7 +99,8 @@ TEST_F(FocusManagerTest, ClickToFocus) {
   // The focus manager shouldn't install a button grab when enabling
   // click-to-focus for the second window, since it currently has the
   // focus.
-  focus_manager_->UseClickToFocusForWindow(&win2);
+  focus_manager_->UseClickToFocusForWindow(
+      &win2, FocusManager::PASS_CLICKS_THROUGH);
   EXPECT_FALSE(info2->button_is_grabbed(0));
 
   // If we focus the first window, its button grab should be removed and
@@ -175,7 +177,8 @@ TEST_F(FocusManagerTest, Modality) {
   XConnection::WindowGeometry geometry;
   ASSERT_TRUE(xconn_->GetWindowGeometry(xid, &geometry));
   Window win(wm_.get(), xid, false, geometry);
-  focus_manager_->UseClickToFocusForWindow(&win);
+  focus_manager_->UseClickToFocusForWindow(
+      &win, FocusManager::PASS_CLICKS_THROUGH);
   win.wm_state_modal_ = true;
   focus_manager_->FocusWindow(&win, timestamp++);
   ASSERT_EQ(xid, xconn_->focused_xid());
@@ -184,7 +187,8 @@ TEST_F(FocusManagerTest, Modality) {
   XWindow xid2 = CreateSimpleWindow();
   ASSERT_TRUE(xconn_->GetWindowGeometry(xid2, &geometry));
   Window win2(wm_.get(), xid2, false, geometry);
-  focus_manager_->UseClickToFocusForWindow(&win2);
+  focus_manager_->UseClickToFocusForWindow(
+      &win2, FocusManager::PASS_CLICKS_THROUGH);
 
   // When the focus manager sees a button press in the second window, it
   // should avoid replaying the event.
