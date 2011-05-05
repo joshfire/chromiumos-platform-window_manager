@@ -1227,7 +1227,9 @@ Window* WindowManager::TrackWindow(XWindow xid,
 }
 
 void WindowManager::HandleMappedWindow(Window* win) {
-  // We need to get a new pixmap for the window.
+  CHECK(win);
+  CHECK(!win->mapped()) << "Window " << win->xid_str() << " is already mapped";
+
   win->HandleMapNotify();
   FOR_EACH_EVENT_CONSUMER(event_consumers_, HandleWindowMap(win));
 
@@ -1264,6 +1266,28 @@ void WindowManager::HandleMappedWindow(Window* win) {
   }
 
   SetWmStateProperty(win->xid(), 1);  // NormalState
+}
+
+void WindowManager::HandleUnmappedWindow(Window* win) {
+  CHECK(win);
+  CHECK(win->mapped()) << "Window " << win->xid_str() << " isn't mapped";
+
+  win->HandleUnmapNotify();
+  FOR_EACH_EVENT_CONSUMER(event_consumers_, HandleWindowUnmap(win));
+
+  // Notify the focus manager last in case any event consumers need to do
+  // something special when they see the focused window getting unmapped.
+  focus_manager_->HandleWindowUnmap(win);
+
+  if (!win->override_redirect()) {
+    SetWmStateProperty(win->xid(), 0);  // WithdrawnState
+
+    if (mapped_xids_->Contains(win->xid())) {
+      mapped_xids_->Remove(win->xid());
+      UpdateClientListProperty();
+      UpdateClientListStackingProperty();
+    }
+  }
 }
 
 void WindowManager::HandleScreenResize(const Size& new_size) {
@@ -1598,6 +1622,18 @@ void WindowManager::HandleDamageNotify(const XDamageNotifyEvent& e) {
 void WindowManager::HandleDestroyNotify(const XDestroyWindowEvent& e) {
   DLOG(INFO) << "Handling destroy notify for " << XidStr(e.window);
 
+  Window* win = GetWindow(e.window);
+
+  // Horrible things will happen if we never got an UnmapNotify about the
+  // window, since EventConsumers will still be holding references to it.
+  // This shouldn't happen, but seems like it might sometimes
+  // (http://crosbug.com/13792), so try to handle it as well as we can.
+  if (win && win->mapped()) {
+    LOG(WARNING) << "Got destroy notify for window " << win->xid_str()
+                 << " while it's still mapped";
+    HandleUnmappedWindow(win);
+  }
+
   DCHECK(window_event_consumers_.find(e.window) ==
          window_event_consumers_.end())
       << "One or more event consumers are still registered for destroyed "
@@ -1608,7 +1644,6 @@ void WindowManager::HandleDestroyNotify(const XDestroyWindowEvent& e) {
 
   // Don't bother doing anything else for windows which aren't direct
   // children of the root window.
-  Window* win = GetWindow(e.window);
   if (!win)
     return;
 
@@ -1626,7 +1661,7 @@ void WindowManager::HandleDestroyNotify(const XDestroyWindowEvent& e) {
   }
 
   client_windows_.erase(e.window);
-  win = NULL;  // erasing from client_windows_ deletes window.
+  win = NULL;  // Erasing from |client_windows_| deletes |window|.
 }
 
 void WindowManager::HandleEnterNotify(const XEnterWindowEvent& e) {
@@ -1878,25 +1913,14 @@ void WindowManager::HandleSyncAlarmNotify(const XSyncAlarmNotifyEvent& e) {
 void WindowManager::HandleUnmapNotify(const XUnmapEvent& e) {
   DLOG(INFO) << "Handling unmap notify for " << XidStr(e.window);
   Window* win = GetWindow(e.window);
-  if (!win || !win->mapped())
+  if (!win)
     return;
-
-  win->HandleUnmapNotify();
-  FOR_EACH_EVENT_CONSUMER(event_consumers_, HandleWindowUnmap(win));
-
-  if (!win->override_redirect()) {
-    SetWmStateProperty(e.window, 0);  // WithdrawnState
-
-    // Notify the focus manager last in case any event consumers need to do
-    // something special when they see the focused window getting unmapped.
-    focus_manager_->HandleWindowUnmap(win);
-
-    if (mapped_xids_->Contains(win->xid())) {
-      mapped_xids_->Remove(win->xid());
-      UpdateClientListProperty();
-      UpdateClientListStackingProperty();
-    }
+  if (!win->mapped()) {
+    LOG(WARNING) << "Ignoring unmap notify for non-mapped window "
+                 << win->xid_str();
+    return;
   }
+  HandleUnmappedWindow(win);
 }
 
 XWindow WindowManager::GetArbitraryChromeWindow() {

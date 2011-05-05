@@ -387,6 +387,12 @@ class WindowManager : public PanelManagerAreaChangeListener,
   // were already mapped when the WM started.
   void HandleMappedWindow(Window* win);
 
+  // Handle a window getting mapped.  This is primarily used by
+  // HandleUnmapNotify(), but is abstracted out into a separate method so we can
+  // call it if we see a DestroyNotify event about a still-mapped window (which
+  // doesn't seem like it should ever happen, but see http://crosbug.com/13792).
+  void HandleUnmappedWindow(Window* win);
+
   // Handle the screen being resized.
   void HandleScreenResize(const Size& new_size);
 

@@ -1507,6 +1507,25 @@ TEST_F(WindowManagerTest, ForceCompositing) {
   EXPECT_FALSE(wm_->disable_compositing_task_is_pending_);
 }
 
+// Test that we don't crash if we get a DestroyNotify event for a still-mapped
+// window.  See http://crosbug.com/13792.
+TEST_F(WindowManagerTest, MissingUnmapNotify) {
+  // Map a window.
+  XWindow xid = CreateSimpleWindow();
+  SendInitialEventsForWindow(xid);
+
+  // Send notification about the window's destruction without saying anything
+  // about it getting unmapped first.
+  XEvent event;
+  xconn_->InitDestroyWindowEvent(&event, xid);
+  wm_->HandleEvent(&event);
+
+  // Map a second window (in the bug linked above, this appeared to make
+  // FocusManager access |xid|'s now-destroyed Window object).
+  XWindow xid2 = CreateSimpleWindow();
+  SendInitialEventsForWindow(xid2);
+}
+
 }  // namespace window_manager
 
 int main(int argc, char** argv) {
