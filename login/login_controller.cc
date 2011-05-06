@@ -160,6 +160,11 @@ void LoginController::HandleScreenResize() {
       entries_[i]->UpdatePositionAndScale(
           origins[i], i == selected_entry_index_, 0);
     }
+  } else if (entries_.empty() && wizard_window_) {
+    wizard_window_->MoveClient(
+        (wm_->width() - wizard_window_->client_width()) / 2,
+        (wm_->height() - wizard_window_->client_height()) / 2);
+    wizard_window_->MoveCompositedToClient();
   }
 }
 

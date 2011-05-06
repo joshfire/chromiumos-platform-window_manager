@@ -1105,6 +1105,25 @@ TEST_F(LoginControllerTest, Resize) {
   EXPECT_LT(first_image_info->bounds.y, first_image_bounds.y);
   EXPECT_LT(second_image_info->bounds.x, second_image_bounds.x);
   EXPECT_LT(second_image_info->bounds.y, second_image_bounds.y);
+
+  // Unmap all of the entries and create a wizard window.  It should be
+  // centered.
+  while (!entries_.empty())
+    UnmapLoginEntry(0);
+  CreateLoginWindows(0, true, true, true);
+  MockXConnection::WindowInfo* wizard_info =
+      xconn_->GetWindowInfoOrDie(wizard_xid_);
+  EXPECT_EQ(Point((small_bounds.width - wizard_info->bounds.width) / 2,
+                  (small_bounds.height - wizard_info->bounds.height) / 2),
+            wizard_info->bounds.position());
+
+  // Now resize the screen and check that the wizard window is recentered.
+  xconn_->ResizeWindow(root_xid, large_bounds.size());
+  xconn_->InitConfigureNotifyEvent(&event, root_xid);
+  wm_->HandleEvent(&event);
+  EXPECT_EQ(Point((large_bounds.width - wizard_info->bounds.width) / 2,
+                  (large_bounds.height - wizard_info->bounds.height) / 2),
+            wizard_info->bounds.position());
 }
 
 TEST_F(LoginControllerTest, LoginEntryStackOrder) {
