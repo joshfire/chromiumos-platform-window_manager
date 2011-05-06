@@ -293,6 +293,13 @@ class Window {
   // previously called.
   void SetUpdateClientPositionForMoves(bool update);
 
+  // Move and/or resize the window to fill |bounds| over |anim_ms| milliseconds.
+  // At present, this is essentially the same as calling Move() and Resize()
+  // individually (although it also makes a weak effort to choose a smart
+  // |gravity| parameter for Resize() in the case where doing so can avoid
+  // jank).
+  void SetBounds(const Rect& bounds, int anim_ms);
+
   // Move the window to |origin| over |anim_ms| milliseconds.
   // This method moves both the composited and client windows, but it can only
   // be used if the window's visibility has been set via SetVisibility().

@@ -681,6 +681,41 @@ void Window::SetUpdateClientPositionForMoves(bool update) {
     UpdateClientWindowPosition();
 }
 
+void Window::SetBounds(const Rect& bounds, int anim_ms) {
+  DCHECK_NE(visibility_, VISIBILITY_UNSET) << " xid=" << xid_str_;
+
+  if (bounds.size() == client_size()) {
+    Move(bounds.position(), anim_ms);
+  } else {
+    // If we're resizing the window and its right and/or bottom edge is supposed
+    // to remain in the same spot, choose a resize gravity that will make things
+    // look less janky.
+    // TODO(derat): Also hide jank when we move and resize a window
+    // simultaneously in more complicated ways.  For example, if we go from
+    // (20, 20) 30x30 to (10, 10) 60x60, we should avoid moving the actor at all
+    // until we've fetched the 60x60 pixmap.
+    const bool right_is_fixed =
+        bounds.x + bounds.width == client_bounds_.x + client_bounds_.width;
+    const bool bottom_is_fixed =
+        bounds.y + bounds.height == client_bounds_.y + client_bounds_.height;
+    const Gravity resize_gravity =
+        right_is_fixed ?
+        (bottom_is_fixed ? GRAVITY_SOUTHEAST : GRAVITY_NORTHEAST) :
+        (bottom_is_fixed ? GRAVITY_SOUTHWEST : GRAVITY_NORTHWEST);
+
+    Resize(bounds.size(), resize_gravity);
+
+    // If we used a non-northwest gravity for the resize, then the resize
+    // already took care of at least one dimension of movement for us.
+    if (resize_gravity == GRAVITY_NORTHWEST)
+      Move(bounds.position(), anim_ms);
+    else if (resize_gravity == GRAVITY_NORTHEAST)
+      MoveY(bounds.y, anim_ms);
+    else if (resize_gravity == GRAVITY_SOUTHWEST)
+      MoveX(bounds.x, anim_ms);
+  }
+}
+
 void Window::Move(const Point& origin, int anim_ms) {
   DCHECK_NE(visibility_, VISIBILITY_UNSET) << " xid=" << xid_str_;
   MoveCompositedInternal(origin, MOVE_DIMENSIONS_X_AND_Y, anim_ms);
