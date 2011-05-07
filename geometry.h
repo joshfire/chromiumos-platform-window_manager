@@ -156,6 +156,7 @@ struct Rect {
   int top() const { return y; }
   int right() const { return x + width; }
   int bottom() const { return y + height; }
+  int area() const { return width * height; }
 
   int x;
   int y;

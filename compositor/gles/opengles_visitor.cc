@@ -208,7 +208,6 @@ void OpenGlesDrawVisitor::VisitStage(RealCompositor::StageActor* actor) {
 
   if (partial_update_possible) {
     unsigned int half_stage_area = actor->width() * actor->height() / 2;
-    unsigned int damaged_area = damaged_region_.width * damaged_region_.height;
 
     // Only use partial updates if the damaged region covers less than
     // half the the screen.  The theory here is a full update will be
@@ -217,7 +216,7 @@ void OpenGlesDrawVisitor::VisitStage(RealCompositor::StageActor* actor) {
     // implement eglSwapBuffers().  An improvement to this algorithm
     // could first attempt to detect whether buffer flipping is being
     // used by performing a series of swaps and readbacks.
-    if (damaged_area < half_stage_area) {
+    if (damaged_region_.area() < half_stage_area) {
       do_partial_update = true;
 
       PushScissorRect(damaged_region_);

@@ -482,10 +482,28 @@ void OpenGlDrawVisitor::VisitStage(RealCompositor::StageActor* actor) {
 
   state_cache_.Invalidate();
 
-  if (gl_interface_->IsCapableOfPartialUpdates() && !damaged_region_.empty()) {
-    gl_interface_->Enable(GL_SCISSOR_TEST);
-    gl_interface_->Scissor(damaged_region_.x, damaged_region_.y,
-                           damaged_region_.width, damaged_region_.height);
+  const bool partial_update_possible =
+      gl_interface_->IsCapableOfPartialUpdates() && !damaged_region_.empty();
+
+  bool do_partial_update = false;
+
+  if (partial_update_possible) {
+    unsigned int half_stage_area = actor->width() * actor->height() / 2;
+
+    // Only use partial updates if the damaged region covers less than
+    // half the the screen.  The theory here is a full update will be
+    // faster if more than half the screen is going to be redrawn and
+    // the EGL implementation can use buffer flipping/exchange to
+    // implement eglSwapBuffers().  An improvement to this algorithm
+    // could first attempt to detect whether buffer flipping is being
+    // used by performing a series of swaps and readbacks.
+    if (damaged_region_.area() < half_stage_area) {
+      do_partial_update = true;
+
+      gl_interface_->Enable(GL_SCISSOR_TEST);
+      gl_interface_->Scissor(damaged_region_.x, damaged_region_.y,
+                             damaged_region_.width, damaged_region_.height);
+    }
   }
 
   // No need to clear color buffer if something will cover up the screen.
@@ -522,7 +540,7 @@ void OpenGlDrawVisitor::VisitStage(RealCompositor::StageActor* actor) {
     DrawNeedle();
 
   PROFILER_MARKER_BEGIN(Swap_Buffer);
-  if (gl_interface_->IsCapableOfPartialUpdates() && !damaged_region_.empty()) {
+  if (do_partial_update) {
     gl_interface_->Disable(GL_SCISSOR_TEST);
     gl_interface_->CopyGlxSubBuffer(actor->GetStageXWindow(),
                                     damaged_region_.x,
