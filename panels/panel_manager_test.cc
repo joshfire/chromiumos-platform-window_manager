@@ -515,18 +515,11 @@ TEST_F(PanelManagerTest, TransientWindows) {
   EXPECT_EQ(transient_xid, xconn_->focused_xid());
   EXPECT_EQ(transient_xid, GetActiveWindowProperty());
 
-  // We should try to center the transient window over the panel (at least
-  // to the degree that we can while still keeping the transient onscreen).
-  EXPECT_EQ(min(panel->content_x() +
-                  (panel->content_width() - transient_width) / 2,
-                root_geometry.bounds.width - transient_width),
-            transient_info->bounds.x);
-  EXPECT_EQ(min(panel->content_win()->client_y() +
-                  (panel->content_height() - transient_height) / 2,
-                root_geometry.bounds.height - transient_height),
-            transient_info->bounds.y);
-  EXPECT_EQ(transient_width, transient_info->bounds.width);
-  EXPECT_EQ(transient_height, transient_info->bounds.height);
+  // We should try to center the transient window in the middle of the screen.
+  EXPECT_EQ(Rect((root_geometry.bounds.width - transient_width) / 2,
+                 (root_geometry.bounds.height - transient_height) / 2,
+                 transient_width, transient_height),
+            transient_info->bounds);
 
   // Check that the transient is stacked within the same layer as the
   // panel, and that it's stacked above the content window.

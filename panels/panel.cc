@@ -103,7 +103,11 @@ Panel::Panel(PanelManager* panel_manager,
           new EventConsumerRegistrar(wm(), panel_manager)),
       transients_(
           new TransientWindowCollection(
-              content_win_, titlebar_win_, true, panel_manager)),
+              content_win_,   // owner_win
+              titlebar_win_,  // win_to_stack_above
+              TransientWindowCollection::CENTER_ONSCREEN,
+              TransientWindowCollection::KEEP_ONSCREEN_ALWAYS,
+              panel_manager)),
       separator_shadow_(
           Shadow::Create(wm()->compositor(), Shadow::TYPE_PANEL_SEPARATOR)) {
   CHECK(content_win_);

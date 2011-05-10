@@ -138,6 +138,12 @@ struct Rect {
     height = std::max(0, max_y - y);
   }
 
+  bool contains_rect(const Rect& rect) const {
+    return !rect.empty() &&
+           rect.x >= x && rect.right() <= right() &&
+           rect.y >= y && rect.bottom() <= bottom();
+  }
+
   bool contains_point(const Point& point) const {
     return point.x >= x &&
            point.x < x + width &&

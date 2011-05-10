@@ -67,7 +67,12 @@ LayoutManager::ToplevelWindow::ToplevelWindow(Window* win,
       state_(STATE_NEW),
       last_state_(STATE_NEW),
       transients_(
-          new TransientWindowCollection(win, NULL, false, layout_manager)),
+          new TransientWindowCollection(
+              win,   // owner_win
+              NULL,  // win_to_stack_above
+              TransientWindowCollection::CENTER_OVER_OWNER,
+              TransientWindowCollection::KEEP_ONSCREEN_IF_OWNER_IS_ONSCREEN,
+              layout_manager)),
       selected_tab_(-1),
       tab_count_(0),
       last_tab_selected_time_(0),

@@ -584,7 +584,7 @@ TEST_F(PanelTest, ReloadSizeLimits) {
             content_info->bounds.height);
 }
 
-TEST_F(PanelTest, TransientWindowsAreConstrainedOnscreen) {
+TEST_F(PanelTest, TransientWindowsAreCenteredOnscreen) {
   // Create a panel and move it off the left edge of the screen.
   static const int kPanelWidth = 200;
   static const int kTitlebarHeight = 20;
@@ -602,9 +602,10 @@ TEST_F(PanelTest, TransientWindowsAreConstrainedOnscreen) {
 
   MockXConnection::WindowInfo* transient_info =
       xconn_->GetWindowInfoOrDie(transient_xid);
-  EXPECT_EQ(0, transient_info->bounds.x);
-  EXPECT_EQ(wm_->height() - (kContentHeight + kTransientHeight) / 2,
-            transient_info->bounds.y);
+  EXPECT_EQ(Rect((wm_->width() - kTransientWidth) / 2,
+                 (wm_->height() - kTransientHeight) / 2,
+                 kTransientWidth, kTransientHeight),
+            transient_info->bounds);
 }
 
 }  // namespace window_manager

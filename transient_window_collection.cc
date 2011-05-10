@@ -18,7 +18,8 @@ namespace window_manager {
 TransientWindowCollection::TransientWindowCollection(
     Window* owner_win,
     Window* win_to_stack_above,
-    bool constrain_onscreen,
+    CenterPolicy center_policy,
+    KeepOnscreenPolicy keep_onscreen_policy,
     EventConsumer* event_consumer)
     : owner_win_(owner_win),
       win_to_stack_above_(win_to_stack_above ? win_to_stack_above : owner_win),
@@ -26,7 +27,8 @@ TransientWindowCollection::TransientWindowCollection(
       stacked_transients_(new Stacker<TransientWindow*>),
       transient_to_focus_(NULL),
       shown_(true),
-      constrain_onscreen_(constrain_onscreen) {
+      center_policy_(center_policy),
+      keep_onscreen_policy_(keep_onscreen_policy) {
   DCHECK(owner_win_);
   DCHECK(event_consumer);
 }
@@ -99,13 +101,15 @@ void TransientWindowCollection::AddWindow(
 
   // Info bubbles always keep their initial positions.
   if (transient_win->type() == chromeos::WM_IPC_WINDOW_CHROME_INFO_BUBBLE) {
-    transient->SaveOffsetsRelativeToWindow(
-        owner_win_,
+    transient->SaveOffsetsRelativeToRect(
+        owner_win_->client_bounds(),
         Point(transient_win->composited_x(), transient_win->composited_y()));
     transient->centered = false;
   } else {
-    transient->UpdateOffsetsToCenterOverWindow(
-        owner_win_, wm()->root_bounds(), constrain_onscreen_);
+    transient->UpdateOffsetsToCenterOverRect(
+        owner_win_->client_bounds(),
+        wm()->root_bounds(),
+        keep_onscreen_policy_ == KEEP_ONSCREEN_ALWAYS);
     transient->centered = true;
   }
 
@@ -195,16 +199,18 @@ void TransientWindowCollection::HandleConfigureRequest(
   // Move and resize the transient window as requested (only let info bubbles
   // move themselves).
   if (transient_win->type() == chromeos::WM_IPC_WINDOW_CHROME_INFO_BUBBLE) {
-    transient->SaveOffsetsRelativeToWindow(
-        owner_win_, requested_bounds.position());
+    transient->SaveOffsetsRelativeToRect(
+        owner_win_->client_bounds(), requested_bounds.position());
     transient->centered = false;
   }
 
   if (requested_bounds.size() != transient_win->client_size()) {
     transient_win->Resize(requested_bounds.size(), GRAVITY_NORTHWEST);
     if (transient->centered) {
-      transient->UpdateOffsetsToCenterOverWindow(
-          owner_win_, wm()->root_bounds(), constrain_onscreen_);
+      transient->UpdateOffsetsToCenterOverRect(
+          owner_win_->client_bounds(),
+          wm()->root_bounds(),
+          keep_onscreen_policy_ == KEEP_ONSCREEN_ALWAYS);
     }
   }
 
@@ -248,39 +254,30 @@ void TransientWindowCollection::Hide() {
 }
 
 void
-TransientWindowCollection::TransientWindow::UpdateOffsetsToCenterOverWindow(
-    Window* base_win, const Rect& bounding_rect, bool force_constrain) {
-  x_offset = (base_win->client_width() - win->client_width()) / 2;
-  y_offset = (base_win->client_height() - win->client_height()) / 2;
+TransientWindowCollection::TransientWindow::UpdateOffsetsToCenterOverRect(
+    const Rect& center_rect, const Rect& bounding_rect, bool force_constrain) {
+  x_offset = (center_rect.width - win->client_width()) / 2;
+  y_offset = (center_rect.height - win->client_height()) / 2;
 
-  const bool base_within_bounding_rect =
-      !bounding_rect.empty() &&
-      base_win->client_x() >= bounding_rect.left() &&
-      base_win->client_y() >= bounding_rect.top() &&
-      base_win->client_x() + base_win->client_width() <=
-        bounding_rect.right() &&
-      base_win->client_y() + base_win->client_height() <=
-        bounding_rect.bottom();
-
-  // Only honor the bounding rectangle if the base window already falls
+  // Only honor the bounding rectangle if the center rect already falls
   // completely inside of it or if we've been told to do so.
-  if (base_within_bounding_rect || force_constrain) {
-    if (base_win->client_x() + x_offset + win->client_width() >
+  if (bounding_rect.contains_rect(center_rect) || force_constrain) {
+    if (center_rect.x + x_offset + win->client_width() >
         bounding_rect.x + bounding_rect.width) {
       x_offset = bounding_rect.x + bounding_rect.width -
-          win->client_width() - base_win->client_x();
+                 win->client_width() - center_rect.x;
     }
-    if (base_win->client_x() + x_offset < bounding_rect.x) {
-      x_offset = bounding_rect.x - base_win->client_x();
+    if (center_rect.x + x_offset < bounding_rect.x) {
+      x_offset = bounding_rect.x - center_rect.x;
     }
 
-    if (base_win->client_y() + y_offset + win->client_height() >
+    if (center_rect.y + y_offset + win->client_height() >
         bounding_rect.y + bounding_rect.height) {
       y_offset = bounding_rect.y + bounding_rect.height -
-          win->client_height() - base_win->client_y();
+                 win->client_height() - center_rect.y;
     }
-    if (base_win->client_y() + y_offset < bounding_rect.y) {
-      y_offset = bounding_rect.y - base_win->client_y();
+    if (center_rect.y + y_offset < bounding_rect.y) {
+      y_offset = bounding_rect.y - center_rect.y;
     }
   }
 }
@@ -295,18 +292,28 @@ TransientWindowCollection::GetTransientWindow(const Window& win) {
 
 void TransientWindowCollection::ConfigureTransientWindow(
     TransientWindow* transient, int anim_ms) {
-  transient->win->Move(
-      Point(owner_win_->composited_x() +
-                owner_win_->composited_scale_x() * transient->x_offset,
-            owner_win_->composited_y() +
-                owner_win_->composited_scale_y() * transient->y_offset),
-      anim_ms);
-  transient->win->ScaleComposited(
-      owner_win_->composited_scale_x(),
-      owner_win_->composited_scale_y(),
-      anim_ms);
-  transient->win->SetCompositedOpacity(
-      owner_win_->composited_opacity(), anim_ms);
+  if (center_policy_ == CENTER_OVER_OWNER ||
+      transient->win->type() == chromeos::WM_IPC_WINDOW_CHROME_INFO_BUBBLE) {
+    transient->win->Move(
+        Point(owner_win_->composited_x() +
+                  owner_win_->composited_scale_x() * transient->x_offset,
+              owner_win_->composited_y() +
+                  owner_win_->composited_scale_y() * transient->y_offset),
+        anim_ms);
+    transient->win->ScaleComposited(
+        owner_win_->composited_scale_x(),
+        owner_win_->composited_scale_y(),
+        anim_ms);
+    transient->win->SetCompositedOpacity(
+        owner_win_->composited_opacity(), anim_ms);
+  } else if (center_policy_ == CENTER_ONSCREEN) {
+    transient->win->Move(
+        Point((wm()->width() - transient->win->client_width()) / 2,
+              (wm()->height() - transient->win->client_height()) / 2),
+        anim_ms);
+  } else {
+    NOTREACHED() << "Unknown center policy " << center_policy_;
+  }
 }
 
 void TransientWindowCollection::ApplyStackingForTransientWindow(

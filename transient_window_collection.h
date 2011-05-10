@@ -25,17 +25,35 @@ class WindowManager;
 // "owner" window.
 class TransientWindowCollection {
  public:
-  // |owner_win| is the window owning the transients in this collection.
-  // If |win_to_stack_above| is non-NULL, transients are stacked above it
-  // instead of above |owner_win| (this is used for panels, which have titlebar
-  // windows that are stacked above their content windows -- we want the
-  // transient to be above the titlebar in addition to the content).  If
-  // |constrain_onscreen| is true, the transient windows will be kept onscreen
-  // regardless of their owner's position.  |event_consumer| is used to register
-  // interest in events concerning the windows.
+  enum CenterPolicy {
+    // Center transient windows over |owner_win_|.
+    CENTER_OVER_OWNER = 0,
+
+    // Center transient windows in the middle of the screen.
+    CENTER_ONSCREEN,
+  };
+
+  enum KeepOnscreenPolicy {
+    // Always keep transient windows entirely onscreen (if possible).
+    // This isn't meaningful in conjunction with CENTER_ONSCREEN, since we'll
+    // already be attempting to center the windows onscreen.
+    KEEP_ONSCREEN_ALWAYS = 0,
+
+    // Keep transient windows onscreen if their owner is onscreen, but let them
+    // go offscreen if their owner is offscreen.
+    KEEP_ONSCREEN_IF_OWNER_IS_ONSCREEN,
+  };
+
+  // |owner_win| is the window owning the transients in this collection.  If
+  // |win_to_stack_above| is non-NULL, transients are stacked above it instead
+  // of above |owner_win| (this is used for panels, which have titlebar windows
+  // that are stacked above their content windows -- we want the transient to be
+  // above the titlebar in addition to the content).  |event_consumer| is used
+  // to register interest in events concerning the windows.
   TransientWindowCollection(Window* owner_win,
                             Window* win_to_stack_above,
-                            bool constrain_onscreen,
+                            CenterPolicy center_policy,
+                            KeepOnscreenPolicy keep_onscreen_policy,
                             EventConsumer* event_consumer);
   ~TransientWindowCollection();
 
@@ -106,22 +124,21 @@ class TransientWindowCollection {
       win = NULL;
     }
 
-    // Save the transient window's offset from another window (typically its
-    // owner).
-    void SaveOffsetsRelativeToWindow(Window* base_win,
-                                     const Point& transient_pos) {
-      x_offset = transient_pos.x - base_win->client_x();
-      y_offset = transient_pos.y - base_win->client_y();
+    // Save the transient window's offset from |rect| (typically its owner's
+    // bounds).
+    void SaveOffsetsRelativeToRect(const Rect& rect,
+                                   const Point& transient_pos) {
+      x_offset = transient_pos.x - rect.x;
+      y_offset = transient_pos.y - rect.y;
     }
 
-    // Update offsets so the transient will be centered over the passed-in
-    // window.  If |bounding_rect| has a positive width and height, the
-    // transient window's position will be constrained within it if possible
-    // if |base_win| falls entirely within the rect or |force_constrain| is
-    // true.
-    void UpdateOffsetsToCenterOverWindow(Window* base_win,
-                                         const Rect& bounding_rect,
-                                         bool force_constain);
+    // Update offsets so the transient will be centered over |center_rect|.  If
+    // |bounding_rect| is non-empty, the transient window's position will be
+    // constrained within it if possible if |center_rect| falls entirely within
+    // the rect or |force_constrain| is true.
+    void UpdateOffsetsToCenterOverRect(const Rect& center_rect,
+                                       const Rect& bounding_rect,
+                                       bool force_constrain);
 
     // The transient window itself.  Not owned by us.
     Window* win;
@@ -139,7 +156,7 @@ class TransientWindowCollection {
   typedef std::map<XWindow, std::tr1::shared_ptr<TransientWindow> >
       TransientWindowMap;
 
-  WindowManager* wm() { return owner_win_->wm(); }
+  WindowManager* wm() const { return owner_win_->wm(); }
 
   // Get the TransientWindow struct representing the passed-in window.
   TransientWindow* GetTransientWindow(const Window& win);
@@ -194,9 +211,8 @@ class TransientWindowCollection {
   // Are we currently showing all of the windows in this collection?
   bool shown_;
 
-  // Should we try to constrain transient windows' bounds onscreen, regardless
-  // of the position of the owner?
-  bool constrain_onscreen_;
+  CenterPolicy center_policy_;
+  KeepOnscreenPolicy keep_onscreen_policy_;
 
   DISALLOW_COPY_AND_ASSIGN(TransientWindowCollection);
 };
