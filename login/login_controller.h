@@ -74,7 +74,7 @@ class LoginController : public EventConsumer {
 
  private:
   friend class LoginControllerTest;  // runs InitialShow() manually
-  FRIEND_TEST(LoginControllerTest, AllWindowsAreReady);
+  FRIEND_TEST(LoginControllerTest, AreViewsWindowsReady);
   FRIEND_TEST(LoginControllerTest, ClientOnOffScreen);
   FRIEND_TEST(LoginControllerTest, Focus);
   FRIEND_TEST(LoginControllerTest, KeyBindingsDuringStateChange);
@@ -85,6 +85,7 @@ class LoginController : public EventConsumer {
   FRIEND_TEST(LoginControllerTest, ShowEntriesAfterTheyGetPixmaps);
   FRIEND_TEST(LoginControllerTest, UnhideCursorOnBrowserWindowVisible);
   FRIEND_TEST(LoginControllerTest, UnhideCursorOnLeave);
+  FRIEND_TEST(LoginControllerTest, HandleWindowMapRequestsWebUILoginWindow);
 
   // SelectionChangedManager is used to cleanup after the selection changes.
   // When the selection changes |Schedule| is invoked on the
@@ -177,7 +178,7 @@ class LoginController : public EventConsumer {
   void ProcessSelectionChangeCompleted(size_t last_selected_index);
 
   // Have we gotten all the windows we need and are they ready?
-  bool AllWindowsAreReady();
+  bool AreViewsWindowsReady();
 
   // Does initial setup for windows if they have already gotten pixmaps.
   // Invoked when some window gets its pixmap. This may do one of the following:
@@ -188,6 +189,9 @@ class LoginController : public EventConsumer {
 
   // Returns true if the background window is valid and has painted.
   bool IsBackgroundWindowReady();
+
+  // Returns true if the WebUIBrowser window is valid and has painted.
+  bool IsWebUIWindowReady();
 
   // Focus a window and save it to login_window_to_focus_.
   void FocusLoginWindow(Window* win);
@@ -228,8 +232,9 @@ class LoginController : public EventConsumer {
   // the entry.
   Entries entries_;
 
-  // Did we get all the regular login (i.e. non-wizard) windows and show them?
-  bool all_windows_are_ready_;
+  // Did we get all the regular login (i.e. non-wizard, views based) windows and
+  // show them?
+  bool views_windows_are_ready_;
 
   // Index of the selected entry.
   size_t selected_entry_index_;
@@ -243,6 +248,9 @@ class LoginController : public EventConsumer {
 
   // Window placed in the background.
   Window* background_window_;
+
+  // Window that is a WebUI Browser. This is used in WebUI based login.
+  Window* webui_window_;
 
   // The controls or guest window that we've most recently focused.  We
   // track this so that if a transient window takes the focus and then gets

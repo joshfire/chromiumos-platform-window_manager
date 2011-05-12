@@ -101,11 +101,12 @@ void LoginController::SelectionChangedManager::Run() {
 LoginController::LoginController(WindowManager* wm)
     : wm_(wm),
       registrar_(wm, this),
-      all_windows_are_ready_(false),
+      views_windows_are_ready_(false),
       selected_entry_index_(kNoSelection),
       selection_changed_manager_(this),
       wizard_window_(NULL),
       background_window_(NULL),
+      webui_window_(NULL),
       login_window_to_focus_(NULL),
       waiting_for_browser_window_(false),
       requested_destruction_(false),
@@ -149,7 +150,10 @@ void LoginController::HandleScreenResize() {
   if (background_window_)
     background_window_->Resize(wm_->root_size(), GRAVITY_NORTHWEST);
 
-  if (all_windows_are_ready_ &&
+  if (webui_window_)
+    webui_window_->Resize(wm_->root_size(), GRAVITY_NORTHWEST);
+
+  if (views_windows_are_ready_ &&
       is_entry_selection_enabled_ &&
       !waiting_for_browser_window_) {
     vector<Point> origins;
@@ -179,6 +183,7 @@ bool LoginController::HandleWindowMapRequest(Window* win) {
 
   switch (win->type()) {
     case chromeos::WM_IPC_WINDOW_LOGIN_BACKGROUND:
+    case chromeos::WM_IPC_WINDOW_LOGIN_WEBUI:
     case chromeos::WM_IPC_WINDOW_LOGIN_GUEST:
     case chromeos::WM_IPC_WINDOW_LOGIN_BORDER:
     case chromeos::WM_IPC_WINDOW_LOGIN_IMAGE:
@@ -276,6 +281,14 @@ void LoginController::HandleWindowMap(Window* win) {
       background_window_ = win;
       wm_->focus_manager()->UseClickToFocusForWindow(background_window_);
       registrar_.RegisterForWindowEvents(background_window_->xid());
+      break;
+    }
+    case chromeos::WM_IPC_WINDOW_LOGIN_WEBUI: {
+      if (webui_window_)
+        LOG(WARNING) << "Two webui browser windows encountered";
+      webui_window_ = win;
+      wm_->focus_manager()->UseClickToFocusForWindow(webui_window_);
+      registrar_.RegisterForWindowEvents(webui_window_->xid());
       break;
     }
     default:
@@ -383,13 +396,16 @@ void LoginController::HandleWindowUnmap(Window* win) {
   if (win == background_window_) {
     registrar_.UnregisterForWindowEvents(background_window_->xid());
     background_window_ = NULL;
+  } else if (win == webui_window_) {
+    registrar_.UnregisterForWindowEvents(webui_window_->xid());
+    webui_window_ = NULL;
   } else if (win == wizard_window_) {
     registrar_.UnregisterForWindowEvents(wizard_window_->xid());
     wizard_window_ = NULL;
   } else {
     for (Entries::iterator it = entries_.begin(); it < entries_.end(); ++it) {
       if ((*it)->HandleWindowUnmap(win)) {
-        all_windows_are_ready_ = false;
+        views_windows_are_ready_ = false;
         if ((*it)->has_no_windows()) {
           size_t deleted_index = it - entries_.begin();
           size_t active_index = selected_entry_index_;
@@ -399,12 +415,12 @@ void LoginController::HandleWindowUnmap(Window* win) {
           if (!wizard_window_ && !entries_.empty()) {
             // In case only one user pod was removed we should reset our state
             // to ready.
-            all_windows_are_ready_ = AllWindowsAreReady();
+            views_windows_are_ready_ = AreViewsWindowsReady();
 
             // Need to activate next entry only if all remaining entries are
             // ready. If Chrome crashes or destroys all windows one-by-one
             // we don't need to switch active entries.
-            if (!all_windows_are_ready_)
+            if (!views_windows_are_ready_)
               break;
 
             // Update other entries positions on screen.
@@ -445,8 +461,8 @@ void LoginController::HandleWindowPixmapFetch(Window* win) {
     return;
   }
 
-  if (!all_windows_are_ready_) {
-    if (win == background_window_) {
+  if (!views_windows_are_ready_) {
+    if (win == background_window_ || win == webui_window_) {
       DoInitialSetupIfWindowsAreReady();
     } else {
       LoginEntry* entry = GetEntryForWindow(win, false);
@@ -806,7 +822,7 @@ LoginEntry* LoginController::GetEntryForWindow(Window* win,
     entry = new LoginEntry(wm_, &registrar_);
     entries_.insert(entries_.begin() + entry_index, Entries::value_type(entry));
     last_inserted_entry_ = entry_index;
-    all_windows_are_ready_ = false;
+    views_windows_are_ready_ = false;
     if (selected_entry_index_ != kNoSelection &&
         entry_index <= selected_entry_index_)
       selected_entry_index_++;
@@ -818,7 +834,7 @@ LoginEntry* LoginController::GetEntryForWindow(Window* win,
 LoginEntry* LoginController::GetEntryAt(size_t index) {
   while (entries_.size() <= index) {
     entries_.push_back(Entries::value_type(new LoginEntry(wm_, &registrar_)));
-    all_windows_are_ready_ = false;
+    views_windows_are_ready_ = false;
   }
   return entries_[index].get();
 }
@@ -841,7 +857,7 @@ void LoginController::ProcessSelectionChangeCompleted(
   }
 }
 
-bool LoginController::AllWindowsAreReady() {
+bool LoginController::AreViewsWindowsReady() {
   if (!IsBackgroundWindowReady())
     return false;
 
@@ -859,11 +875,11 @@ bool LoginController::AllWindowsAreReady() {
 
 void LoginController::DoInitialSetupIfWindowsAreReady() {
   // Bail if we already handled this.
-  if (all_windows_are_ready_)
+  if (views_windows_are_ready_)
     return;
 
-  if (AllWindowsAreReady()) {
-    all_windows_are_ready_ = true;
+  if (AreViewsWindowsReady()) {
+    views_windows_are_ready_ = true;
     if (last_inserted_entry_ == kNoSelection) {
       ConfigureBackgroundWindow();
       StackWindows();
@@ -911,11 +927,29 @@ void LoginController::DoInitialSetupIfWindowsAreReady() {
     wizard_window_->SetCompositedOpacity(1, kInitialShowAnimationTimeInMs);
     FocusLoginWindow(wizard_window_);
     NotifySessionManager();
+  } else if (IsWebUIWindowReady()) {
+    webui_window_->MoveClient(
+        (wm_->width() - webui_window_->client_width()) / 2,
+        (wm_->height() - webui_window_->client_height()) / 2);
+    webui_window_->MoveCompositedToClient();
+    wm_->stacking_manager()->StackWindowAtTopOfLayer(
+        webui_window_,
+        StackingManager::LAYER_LOGIN_OTHER_WINDOW,
+        StackingManager::SHADOW_DIRECTLY_BELOW_ACTOR);
+    webui_window_->SetCompositedOpacity(0, 0);
+    webui_window_->ShowComposited();
+    webui_window_->SetCompositedOpacity(1, kInitialShowAnimationTimeInMs);
+    FocusLoginWindow(webui_window_);
+    NotifySessionManager();
   }
 }
 
 bool LoginController::IsBackgroundWindowReady() {
   return background_window_ && background_window_->has_initial_pixmap();
+}
+
+bool LoginController::IsWebUIWindowReady() {
+  return webui_window_ && webui_window_->has_initial_pixmap();
 }
 
 void LoginController::FocusLoginWindow(Window* win) {

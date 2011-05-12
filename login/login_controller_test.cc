@@ -75,6 +75,17 @@ class LoginControllerTest : public BasicWindowManagerTest {
 
     background_xid_ = 0;
     wizard_xid_ = 0;
+    webui_window_xid_ = 0;
+  }
+
+  void CreateWebUILoginWindow() {
+    if (!webui_window_xid_) {
+      webui_window_xid_ = CreateBasicWindow(wm_->root_bounds());
+    }
+    wm_->wm_ipc()->SetWindowType(webui_window_xid_,
+                                 chromeos::WM_IPC_WINDOW_LOGIN_WEBUI,
+                                 NULL);
+    SendInitialEventsForWindow(webui_window_xid_);
   }
 
   // Create the set of windows expected by LoginController.
@@ -317,6 +328,7 @@ class LoginControllerTest : public BasicWindowManagerTest {
 
   XWindow background_xid_;
   XWindow wizard_xid_;
+  XWindow webui_window_xid_;
   vector<EntryWindows> entries_;
 };
 
@@ -799,18 +811,18 @@ TEST_F(LoginControllerTest, InsertUser) {
   EXPECT_FALSE(WindowIsOffscreen(entries_[1].unselected_label_xid));
 }
 
-TEST_F(LoginControllerTest, AllWindowsAreReady) {
-  EXPECT_FALSE(login_controller_->all_windows_are_ready_);
+TEST_F(LoginControllerTest, AreViewsWindowsReady) {
+  EXPECT_FALSE(login_controller_->views_windows_are_ready_);
 
   // Create 3 entries for new Chrome.
   CreateLoginWindows(3, true, true, false);
-  EXPECT_TRUE(login_controller_->all_windows_are_ready_);
+  EXPECT_TRUE(login_controller_->views_windows_are_ready_);
 
   // When all windows for one entry are all unmapped, login screen is
   // still considered complete.
   UpdateEntriesCount(2);
   UnmapLoginEntry(1);
-  EXPECT_TRUE(login_controller_->all_windows_are_ready_);
+  EXPECT_TRUE(login_controller_->views_windows_are_ready_);
 
   // If not all entry windows are unmapped yet, login screen is incomplete.
   XEvent event;
@@ -818,7 +830,7 @@ TEST_F(LoginControllerTest, AllWindowsAreReady) {
   xconn_->UnmapWindow(entries_[0].border_xid);
   xconn_->InitUnmapEvent(&event, entries_[0].border_xid);
   wm_->HandleEvent(&event);
-  EXPECT_FALSE(login_controller_->all_windows_are_ready_);
+  EXPECT_FALSE(login_controller_->views_windows_are_ready_);
 }
 
 // Test which windows of selected and unselected entry should be off or on
@@ -1030,7 +1042,7 @@ TEST_F(LoginControllerTest, ShowEntriesAfterTheyGetPixmaps) {
   EXPECT_TRUE(WindowIsOffscreen(background_xid_));
   // Begin sending messages that entry windows get pixmaps.
   for (int i = 0; i < kEntriesCount; ++i) {
-    EXPECT_FALSE(login_controller_->all_windows_are_ready_)
+    EXPECT_FALSE(login_controller_->views_windows_are_ready_)
         << "Entry index " << i;
     EXPECT_TRUE(WindowIsOffscreen(entries_[i].border_xid))
         << "Entry index " << i;
@@ -1046,7 +1058,7 @@ TEST_F(LoginControllerTest, ShowEntriesAfterTheyGetPixmaps) {
     SendInitialPixmapEventForEntry(i);
   }
   // Check that all needed windows are on the screen.
-  EXPECT_TRUE(login_controller_->all_windows_are_ready_);
+  EXPECT_TRUE(login_controller_->views_windows_are_ready_);
   EXPECT_FALSE(WindowIsOffscreen(background_xid_));
   for (int i = 0; i < kEntriesCount; ++i) {
     EXPECT_FALSE(WindowIsOffscreen(entries_[i].image_xid));
@@ -1059,6 +1071,36 @@ TEST_F(LoginControllerTest, ShowEntriesAfterTheyGetPixmaps) {
       EXPECT_FALSE(WindowIsOffscreen(entries_[i].unselected_label_xid));
     }
   }
+}
+
+// Test that the login controller handles screen resizes when we are performing
+// a WebUI based login
+TEST_F(LoginControllerTest, WebUIResize) {
+  const XWindow root_xid = xconn_->GetRootWindow();
+  MockXConnection::WindowInfo* root_info = xconn_->GetWindowInfoOrDie(root_xid);
+
+  Rect small_bounds = root_info->bounds;
+  Rect large_bounds(
+      Point(0, 0), Size(small_bounds.width + 256, small_bounds.height + 256));
+
+  // Create a webui window
+  CreateWebUILoginWindow();
+  MockXConnection::WindowInfo* webui_info =
+      xconn_->GetWindowInfoOrDie(webui_window_xid_);
+  EXPECT_EQ(small_bounds.size(), webui_info->bounds.size());
+
+  // Enlarge the root window and check that the webui window gets resized.
+  xconn_->ResizeWindow(root_xid, large_bounds.size());
+  XEvent event;
+  xconn_->InitConfigureNotifyEvent(&event, root_xid);
+  wm_->HandleEvent(&event);
+  EXPECT_EQ(large_bounds.size(), webui_info->bounds.size());
+
+  // Shrink the root window and check that the webui window gets resized.
+  xconn_->ResizeWindow(root_xid, small_bounds.size());
+  xconn_->InitConfigureNotifyEvent(&event, root_xid);
+  wm_->HandleEvent(&event);
+  EXPECT_EQ(small_bounds.size(), webui_info->bounds.size());
 }
 
 // Test that the login controller handles screen resizes.
@@ -1235,6 +1277,28 @@ TEST_F(LoginControllerTest, NotifySessionManagerWhenReady) {
   EXPECT_EQ(login_manager::kSessionManagerInterface, msg.interface);
   EXPECT_EQ(login_manager::kSessionManagerEmitLoginPromptVisible, msg.method);
 
+}
+
+// Testing that we signal the SessionManager when the WebUI Login window has
+// been created
+TEST_F(LoginControllerTest, NotifySessionManagerWhenWebUIReady) {
+  const size_t kInitialNumDBusMessages = dbus_->sent_messages().size();
+  CreateWebUILoginWindow();
+  ASSERT_EQ(kInitialNumDBusMessages + 1, dbus_->sent_messages().size());
+  const MockDBusInterface::Message& msg = dbus_->sent_messages()[0];
+  EXPECT_EQ(login_manager::kSessionManagerServiceName, msg.target);
+  EXPECT_EQ(login_manager::kSessionManagerServicePath, msg.object);
+  EXPECT_EQ(login_manager::kSessionManagerInterface, msg.interface);
+  EXPECT_EQ(login_manager::kSessionManagerEmitLoginPromptVisible, msg.method);
+}
+
+// Test handling of WindowMapRequests for WebUI Login Window
+TEST_F(LoginControllerTest, HandleWindowMapRequestsWebUILoginWindow) {
+  EXPECT_FALSE(login_controller_->IsWebUIWindowReady());
+  CreateWebUILoginWindow();
+  EXPECT_TRUE(login_controller_->IsWebUIWindowReady());
+  EXPECT_EQ(webui_window_xid_, xconn_->focused_xid());
+  EXPECT_EQ(webui_window_xid_, GetActiveWindowProperty());
 }
 
 // Test that we focus the first controls window as soon as we map it.
