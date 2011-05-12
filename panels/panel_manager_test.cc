@@ -1,4 +1,4 @@
-// Copyright (c) 2010 The Chromium OS Authors. All rights reserved.
+// Copyright (c) 2011 The Chromium OS Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -688,6 +688,42 @@ TEST_F(PanelManagerTest, AvoidMovingXWindowsDuringDrag) {
   EXPECT_EQ(kNewTitlebarBounds, titlebar_info->bounds);
   EXPECT_EQ(kNewContentBounds, content_actor->GetBounds());
   EXPECT_EQ(kNewContentBounds, content_info->bounds);
+}
+
+// Test that we avoid showing a panel until its content window's pixmap has been
+// loaded and that we resize the titlebar window to match the content window's
+// width early on.  Both of these reduce jank when a panel is first created.
+TEST_F(PanelManagerTest, DontShowPanelUntilContentPixmapFetched) {
+  const Size kInitialTitlebarSize(20, 24);
+  XWindow titlebar_xid = CreatePanelTitlebarWindow(kInitialTitlebarSize);
+  SendInitialEventsForWindow(titlebar_xid);
+
+  const Size kInitialContentSize(200, 200);
+  XWindow content_xid =
+      CreatePanelContentWindow(kInitialContentSize, titlebar_xid);
+  ConfigureWindowForSyncRequestProtocol(content_xid);
+  SendInitialEventsForWindow(content_xid);
+
+  // We shouldn't display either window before the content window's initial
+  // pixmap is loaded.
+  Window* titlebar_win = wm_->GetWindowOrDie(titlebar_xid);
+  Window* content_win = wm_->GetWindowOrDie(content_xid);
+  ASSERT_FALSE(content_win->has_initial_pixmap());
+  EXPECT_FALSE(titlebar_win->actor_is_shown());
+  EXPECT_FALSE(content_win->actor_is_shown());
+
+  // We should have already resized the titlebar window to match the content
+  // window's width, though.
+  MockXConnection::WindowInfo* titlebar_info =
+      xconn_->GetWindowInfoOrDie(titlebar_xid);
+  EXPECT_EQ(Size(kInitialContentSize.width, kInitialTitlebarSize.height),
+            titlebar_info->bounds.size());
+
+  // After we get the pixmap, we should display both windows.
+  SendSyncRequestProtocolAlarm(content_xid);
+  ASSERT_TRUE(content_win->has_initial_pixmap());
+  EXPECT_TRUE(titlebar_win->actor_is_shown());
+  EXPECT_TRUE(content_win->actor_is_shown());
 }
 
 }  // namespace window_manager

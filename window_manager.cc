@@ -1,4 +1,4 @@
-// Copyright (c) 2010 The Chromium OS Authors. All rights reserved.
+// Copyright (c) 2011 The Chromium OS Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -131,12 +131,16 @@ const int WindowManager::kVideoTimePropertyUpdateSec = 5;
 // variables), and invoke |function_call| (e.g.
 // "HandleWindowPropertyChange(e.window, e.atom)") on each.  Helper macro
 // used by WindowManager's event-handling methods.
+//
+// We iterate over a copy of the set of consumers so we won't crash if any of
+// the handlers modify the set by registering or unregistering consumers.
 #define FOR_EACH_INTERESTED_EVENT_CONSUMER(consumer_map, key, function_call)   \
   do {                                                                         \
     typeof(consumer_map.begin()) it = consumer_map.find(key);                  \
     if (it != consumer_map.end()) {                                            \
-      for (set<EventConsumer*>::iterator ec_it =                               \
-           it->second.begin(); ec_it != it->second.end(); ++ec_it) {           \
+      set<EventConsumer*> ecs = it->second;                                    \
+      for (set<EventConsumer*>::iterator ec_it = ecs.begin();                  \
+           ec_it != ecs.end(); ++ec_it) {                                      \
         (*ec_it)->function_call;                                               \
       }                                                                        \
     }                                                                          \

@@ -1,4 +1,4 @@
-// Copyright (c) 2010 The Chromium OS Authors. All rights reserved.
+// Copyright (c) 2011 The Chromium OS Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -153,6 +153,13 @@ class Window {
   // Have we received a pixmap for this window yet?  If not, it won't be
   // drawn onscreen.
   bool has_initial_pixmap() const { return pixmap_ != 0; }
+
+  // Are we currently showing the window's actor?
+  bool actor_is_shown() const {
+    return visibility_ == VISIBILITY_SHOWN ||
+           visibility_ == VISIBILITY_SHOWN_NO_INPUT ||
+           (visibility_ == VISIBILITY_UNSET && composited_shown_);
+  }
 
   // Is this window currently focused?  We don't go to the X server for
   // this; we just check with the FocusManager.
@@ -497,13 +504,6 @@ class Window {
     MOVE_DIMENSIONS_X_ONLY,
     MOVE_DIMENSIONS_Y_ONLY,
   };
-
-  // Are we currently showing the window's actor?
-  bool actor_is_shown() const {
-    return visibility_ == VISIBILITY_SHOWN ||
-           visibility_ == VISIBILITY_SHOWN_NO_INPUT ||
-           (visibility_ == VISIBILITY_UNSET && composited_shown_);
-  }
 
   // Are the X window's contents currently in a state where we're able to fetch
   // them as a new pixmap?

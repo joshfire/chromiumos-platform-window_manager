@@ -1,4 +1,4 @@
-// Copyright (c) 2010 The Chromium OS Authors. All rights reserved.
+// Copyright (c) 2011 The Chromium OS Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -138,48 +138,27 @@ void PanelManager::HandleWindowMap(Window* win) {
       break;
 
     case chromeos::WM_IPC_WINDOW_CHROME_PANEL_CONTENT: {
-      if (win->type_params().empty()) {
-        LOG(WARNING) << "Panel " << win->xid_str() << " is missing type "
-                     << "parameter for titlebar window";
-        break;
-      }
-      Window* titlebar_win = wm_->GetWindow(win->type_params().at(0));
-      if (!titlebar_win) {
-        LOG(WARNING) << "Unable to find titlebar "
-                     << XidStr(win->type_params()[0])
-                     << " for panel " << win->xid_str();
-        break;
-      }
-
-      // TODO(derat): Make the second param required after Chrome has been
-      // updated.
-      bool expanded = win->type_params().size() >= 2 ?
-          win->type_params().at(1) : false;
-      DLOG(INFO) << "Adding " << (expanded ? "expanded" : "collapsed")
-                 << " panel with content window " << win->xid_str()
-                 << " and titlebar window " << titlebar_win->xid_str();
-
-      shared_ptr<Panel> panel(new Panel(this, win, titlebar_win, expanded));
-      panel->SetTitlebarWidth(panel->content_width());
-
-      vector<XWindow> input_windows;
-      panel->GetInputWindows(&input_windows);
-      for (vector<XWindow>::const_iterator it = input_windows.begin();
-           it != input_windows.end(); ++it) {
-        CHECK(panel_input_xids_.insert(make_pair(*it, panel.get())).second);
+      // Resize the titlebar to match the content window's current width.
+      // There's a small chance that we'll constrain the content size in the
+      // Panel c'tor, but this lets us get the titlebar to the right size
+      // before we make both windows visible in the common case.
+      if (!win->type_params().empty()) {
+        Window* titlebar_win = wm_->GetWindow(win->type_params().at(0));
+        if (titlebar_win) {
+          titlebar_win->Resize(
+              Size(win->client_width(), titlebar_win->client_height()),
+              GRAVITY_NORTHWEST);
+        }
       }
 
-      CHECK(panels_.insert(make_pair(win->xid(), panel)).second);
-      CHECK(panels_by_titlebar_xid_.insert(
-              make_pair(titlebar_win->xid(), panel.get())).second);
-
-      AddPanelToContainer(panel.get(),
-                          panel_bar_.get(),
-                          PanelContainer::PANEL_SOURCE_NEW);
-
-      if (win->wm_state_fullscreen())
-        MakePanelFullscreen(panel.get());
-
+      if (win->has_initial_pixmap()) {
+        HandleContentWindowInitialPixmapFetch(win);
+      } else {
+        // If we don't have the window's pixmap yet, defer creating the Panel
+        // object and register to get notified after the pixmap is loaded.
+        event_consumer_registrar_->RegisterForWindowEvents(win->xid());
+        content_xids_without_initial_pixmaps_.insert(win->xid());
+      }
       break;
     }
 
@@ -190,6 +169,13 @@ void PanelManager::HandleWindowMap(Window* win) {
 
 void PanelManager::HandleWindowUnmap(Window* win) {
   CHECK(win);
+
+  set<XWindow>::iterator content_it =
+      content_xids_without_initial_pixmaps_.find(win->xid());
+  if (content_it != content_xids_without_initial_pixmaps_.end()) {
+    event_consumer_registrar_->UnregisterForWindowEvents(win->xid());
+    content_xids_without_initial_pixmaps_.erase(content_it);
+  }
 
   Panel* owner_panel = GetPanelOwningTransientWindow(*win);
   if (owner_panel) {
@@ -240,6 +226,16 @@ void PanelManager::HandleWindowUnmap(Window* win) {
 
   CHECK(panels_by_titlebar_xid_.erase(panel->titlebar_xid()) == 1);
   CHECK(panels_.erase(panel->content_xid()) == 1);
+}
+
+void PanelManager::HandleWindowPixmapFetch(Window* win) {
+  set<XWindow>::iterator it =
+      content_xids_without_initial_pixmaps_.find(win->xid());
+  if (it != content_xids_without_initial_pixmaps_.end()) {
+    event_consumer_registrar_->UnregisterForWindowEvents(win->xid());
+    content_xids_without_initial_pixmaps_.erase(it);
+    HandleContentWindowInitialPixmapFetch(win);
+  }
 }
 
 void PanelManager::HandleWindowConfigureRequest(Window* win,
@@ -598,6 +594,50 @@ void PanelManager::RegisterContainer(PanelContainer* container) {
 
 void PanelManager::DoInitialSetupForWindow(Window* win) {
   win->SetVisibility(Window::VISIBILITY_HIDDEN);
+}
+
+void PanelManager::HandleContentWindowInitialPixmapFetch(Window* win) {
+  if (win->type_params().empty()) {
+    LOG(WARNING) << "Panel " << win->xid_str() << " is missing type "
+                 << "parameter for titlebar window";
+    return;
+  }
+  Window* titlebar_win = wm_->GetWindow(win->type_params().at(0));
+  if (!titlebar_win) {
+    LOG(WARNING) << "Unable to find titlebar "
+                 << XidStr(win->type_params()[0])
+                 << " for panel " << win->xid_str();
+    return;
+  }
+
+  // TODO(derat): Make the second param required after Chrome has been
+  // updated.
+  bool expanded = win->type_params().size() >= 2 ?
+      win->type_params().at(1) : false;
+  DLOG(INFO) << "Adding " << (expanded ? "expanded" : "collapsed")
+             << " panel with content window " << win->xid_str()
+             << " and titlebar window " << titlebar_win->xid_str();
+
+  shared_ptr<Panel> panel(new Panel(this, win, titlebar_win, expanded));
+  panel->SetTitlebarWidth(panel->content_width());
+
+  vector<XWindow> input_windows;
+  panel->GetInputWindows(&input_windows);
+  for (vector<XWindow>::const_iterator it = input_windows.begin();
+       it != input_windows.end(); ++it) {
+    CHECK(panel_input_xids_.insert(make_pair(*it, panel.get())).second);
+  }
+
+  CHECK(panels_.insert(make_pair(win->xid(), panel)).second);
+  CHECK(panels_by_titlebar_xid_.insert(
+          make_pair(titlebar_win->xid(), panel.get())).second);
+
+  AddPanelToContainer(panel.get(),
+                      panel_bar_.get(),
+                      PanelContainer::PANEL_SOURCE_NEW);
+
+  if (win->wm_state_fullscreen())
+    MakePanelFullscreen(panel.get());
 }
 
 void PanelManager::HandlePeriodicPanelDragMotion() {

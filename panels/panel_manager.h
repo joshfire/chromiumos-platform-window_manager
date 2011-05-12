@@ -1,4 +1,4 @@
-// Copyright (c) 2010 The Chromium OS Authors. All rights reserved.
+// Copyright (c) 2011 The Chromium OS Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -57,42 +57,16 @@ class PanelManager : public EventConsumer, public FocusChangeListener {
   WindowManager* wm() { return wm_; }
   int num_panels() const { return panels_.size(); }
 
-  // Begin EventConsumer implementation.
-
-  // Checks whether the passed-in window is an input window belonging to
-  // one of our Panels or PanelContainers.
+  // EventConsumer implementation.
   virtual bool IsInputWindow(XWindow xid);
-
   virtual void HandleScreenResize();
   virtual void HandleLoggedInStateChange() {}
-
-  // Handle a window's map request.  If it's a panel content or titlebar
-  // window, move it offscreen, map it, and return true.
   virtual bool HandleWindowMapRequest(Window* win);
-
-  // Handle a window being mapped.  When a content window is mapped, its
-  // titlebar (which must have previously been mapped) is looked up and a
-  // new Panel object is created and added to a container.  Does nothing
-  // when passed non-content windows.
   virtual void HandleWindowMap(Window* win);
-
-  // Handle the removal of a window by removing its panel from its
-  // container and destroying the Panel object.  The window can be either
-  // the panel's content window or its titlebar.  Does nothing when passed
-  // non-panel windows.
   virtual void HandleWindowUnmap(Window* win);
-
-  virtual void HandleWindowPixmapFetch(Window* win) {}
-
+  virtual void HandleWindowPixmapFetch(Window* win);
   virtual void HandleWindowConfigureRequest(Window* win,
                                             const Rect& requested_bounds);
-
-  // Handle events for windows.  If the event occurred in an input window,
-  // it is passed through to the Panel or PanelContainer that owns the
-  // input window.  If a button press occurs in a panel's content or
-  // titlebar window, it just passed directly to the PanelContainer that
-  // currently contains the panel via
-  // PanelContainer::HandlePanelButtonPress().
   virtual void HandleButtonPress(XWindow xid,
                                  const Point& relative_pos,
                                  const Point& absolute_pos,
@@ -124,11 +98,9 @@ class PanelManager : public EventConsumer, public FocusChangeListener {
   virtual void OwnDestroyedWindow(DestroyedWindow* destroyed_win, XWindow xid) {
     NOTREACHED();
   }
-  // End EventConsumer implementation.
 
-  // Begin FocusChangeListener implementation.
+  // FocusChangeListener implementation.
   virtual void HandleFocusChange();
-  // End FocusChangeListener implementation.
 
   // Handle notification from a panel that it's been resized by the user.
   // We just forward this through to its container, if any.
@@ -194,6 +166,12 @@ class PanelManager : public EventConsumer, public FocusChangeListener {
   // Do some initial setup for windows that we're going to manage.
   // This includes moving them offscreen.
   void DoInitialSetupForWindow(Window* win);
+
+  // Handle a panel content window's initial pixmap being fetched.  This is
+  // where the Panel object is created.  We defer creating the Panel until the
+  // pixmap is ready; otherwise there can be a few frames where the titlebar is
+  // visible but the content window isn't.
+  void HandleContentWindowInitialPixmapFetch(Window* win);
 
   // Handle coalesced motion events while a panel is being dragged.
   // Invoked by |dragged_panel_event_coalescer_|.
@@ -270,6 +248,11 @@ class PanelManager : public EventConsumer, public FocusChangeListener {
 
   // Map from transient windows' IDs to the panels that own them.
   std::map<XWindow, Panel*> transient_xids_to_owners_;
+
+  // IDs of panel content windows that have been mapped but whose initial
+  // pixmaps we haven't loaded yet.  Once the pixmaps are loaded,
+  // HandleContentWindowInitialPixmapFetch() is called.
+  std::set<XWindow> content_xids_without_initial_pixmaps_;
 
   DISALLOW_COPY_AND_ASSIGN(PanelManager);
 };
