@@ -7,7 +7,7 @@
 #include <png.h>
 
 #include "base/logging.h"
-#include "base/scoped_ptr.h"
+#include "base/memory/scoped_ptr.h"
 
 using std::string;
 

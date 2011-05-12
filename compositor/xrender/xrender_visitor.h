@@ -6,7 +6,7 @@
 #define WINDOW_MANAGER_COMPOSITOR_XRENDER_XRENDER_VISITOR_H_
 
 #include "base/logging.h"
-#include "base/scoped_ptr.h"
+#include "base/memory/scoped_ptr.h"
 #include "window_manager/compositor/compositor.h"
 #include "window_manager/compositor/real_compositor.h"
 #include "window_manager/compositor/texture_data.h"

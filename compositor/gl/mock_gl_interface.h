@@ -5,7 +5,7 @@
 #ifndef WINDOW_MANAGER_COMPOSITOR_GL_MOCK_GL_INTERFACE_H_
 #define WINDOW_MANAGER_COMPOSITOR_GL_MOCK_GL_INTERFACE_H_
 
-#include "base/scoped_ptr.h"
+#include "base/memory/scoped_ptr.h"
 #include "window_manager/compositor/gl/gl_interface.h"
 #include "window_manager/geometry.h"
 

@@ -13,8 +13,8 @@
 #include <gtest/gtest.h>
 
 #include "base/command_line.h"
-#include "base/scoped_ptr.h"
 #include "base/logging.h"
+#include "base/memory/scoped_ptr.h"
 #include "window_manager/compositor/compositor.h"
 #include "window_manager/compositor/gl/mock_gl_interface.h"
 #include "window_manager/compositor/layer_visitor.h"

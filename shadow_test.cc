@@ -6,7 +6,7 @@
 #include <gtest/gtest.h>
 
 #include "base/logging.h"
-#include "base/scoped_ptr.h"
+#include "base/memory/scoped_ptr.h"
 #include "window_manager/compositor/compositor.h"
 #include "window_manager/image_grid.h"
 #include "window_manager/shadow.h"

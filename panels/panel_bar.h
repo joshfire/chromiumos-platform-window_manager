@@ -13,7 +13,7 @@
 #include <gtest/gtest_prod.h>  // for FRIEND_TEST() macro
 
 #include "base/basictypes.h"
-#include "base/scoped_ptr.h"
+#include "base/memory/scoped_ptr.h"
 #include "window_manager/compositor/compositor.h"
 #include "window_manager/panels/panel_container.h"
 #include "window_manager/x11/x_types.h"

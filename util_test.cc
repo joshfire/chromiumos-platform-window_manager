@@ -8,6 +8,7 @@
 #include <gtest/gtest.h>
 
 #include "base/logging.h"
+#include "base/string_split.h"
 #include "base/string_util.h"
 #include "window_manager/test_lib.h"
 #include "window_manager/util.h"
@@ -15,6 +16,7 @@
 DEFINE_bool(logtostderr, false,
             "Print debugging messages to stderr (suppressed otherwise)");
 
+using base::SplitString;
 using std::list;
 using std::string;
 using std::vector;

@@ -13,8 +13,8 @@ extern "C" {
 }
 
 #include "base/file_path.h"
-#include "base/scoped_ptr.h"
 #include "base/logging.h"
+#include "base/memory/scoped_ptr.h"
 #include "cros/chromeos_wm_ipc_enums.h"
 #include "window_manager/compositor/gl/mock_gl_interface.h"
 #include "window_manager/compositor/mock_compositor.h"

@@ -10,7 +10,7 @@
 #include <vector>
 
 #include "base/logging.h"
-#include "base/scoped_ptr.h"
+#include "base/memory/scoped_ptr.h"
 #include "window_manager/compositor/compositor.h"
 #include "window_manager/compositor/gl/gl_interface.h"
 #include "window_manager/compositor/real_compositor.h"

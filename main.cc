@@ -19,7 +19,7 @@ extern "C" {
 #include "base/file_path.h"
 #include "base/file_util.h"
 #include "base/logging.h"
-#include "base/scoped_ptr.h"
+#include "base/memory/scoped_ptr.h"
 #include "base/string_util.h"
 #include "window_manager/callback.h"
 #include "window_manager/compositor/real_compositor.h"
@@ -98,7 +98,8 @@ int main(int argc, char** argv) {
   logging::InitLogging(NULL,
                        logging::LOG_ONLY_TO_SYSTEM_DEBUG_LOG,
                        logging::DONT_LOCK_LOG_FILE,
-                       logging::APPEND_TO_OLD_LOG_FILE);
+                       logging::APPEND_TO_OLD_LOG_FILE,
+                       logging::DISABLE_DCHECK_FOR_NON_OFFICIAL_RELEASE_BUILDS);
   logging::SetLogItems(false,  // enable_process_id
                        false,  // enable_thread_id
                        true,   // enable_timestamp

@@ -9,7 +9,7 @@
 #include <tr1/memory>
 
 #include "base/basictypes.h"
-#include "base/scoped_ptr.h"
+#include "base/memory/scoped_ptr.h"
 #include "window_manager/geometry.h"
 #include "window_manager/util.h"
 #include "window_manager/window.h"

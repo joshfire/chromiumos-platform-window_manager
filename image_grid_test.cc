@@ -9,7 +9,7 @@
 
 #include "base/file_util.h"
 #include "base/logging.h"
-#include "base/scoped_ptr.h"
+#include "base/memory/scoped_ptr.h"
 #include "window_manager/compositor/compositor.h"
 #include "window_manager/geometry.h"
 #include "window_manager/image_grid.h"

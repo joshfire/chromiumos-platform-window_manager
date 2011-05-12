@@ -9,7 +9,7 @@
 
 #include <gtest/gtest_prod.h>  // for FRIEND_TEST() macro
 
-#include "base/scoped_ptr.h"
+#include "base/memory/scoped_ptr.h"
 #include "window_manager/compositor/compositor.h"
 #include "window_manager/event_consumer.h"
 #include "window_manager/x11/x_types.h"

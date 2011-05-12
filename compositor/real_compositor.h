@@ -17,7 +17,7 @@
 
 #include "base/hash_tables.h"
 #include "base/logging.h"
-#include "base/scoped_ptr.h"
+#include "base/memory/scoped_ptr.h"
 #include "base/time.h"
 #include "window_manager/compositor/animation.h"
 #include "window_manager/compositor/compositor.h"

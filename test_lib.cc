@@ -74,7 +74,8 @@ int InitAndRunTests(int* argc, char** argv, bool* log_to_stderr) {
                          logging::LOG_ONLY_TO_SYSTEM_DEBUG_LOG :
                          logging::LOG_NONE,
                        logging::DONT_LOCK_LOG_FILE,
-                       logging::APPEND_TO_OLD_LOG_FILE);
+                       logging::APPEND_TO_OLD_LOG_FILE,
+                       logging::DISABLE_DCHECK_FOR_NON_OFFICIAL_RELEASE_BUILDS);
   logging::SetLogItems(false,  // enable_process_id
                        false,  // enable_thread_id
                        true,   // enable_timestamp

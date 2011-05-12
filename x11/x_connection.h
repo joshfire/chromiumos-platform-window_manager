@@ -11,7 +11,7 @@
 
 #include "base/basictypes.h"
 #include "base/logging.h"
-#include "base/scoped_ptr.h"
+#include "base/memory/scoped_ptr.h"
 #include "base/time.h"
 #include "window_manager/geometry.h"
 #include "window_manager/image_container.h"

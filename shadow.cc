@@ -8,7 +8,7 @@
 
 #include <gflags/gflags.h>
 
-#include "base/singleton.h"
+#include "base/memory/singleton.h"
 #include "window_manager/image_grid.h"
 
 DEFINE_string(panel_content_shadow_image_dir,
@@ -33,7 +33,7 @@ namespace window_manager {
 
 // static
 Shadow* Shadow::Create(Compositor* compositor, Type type) {
-  return Singleton<Shadow::Factory>::get()->CreateShadow(compositor, type);
+  return Shadow::Factory::GetInstance()->CreateShadow(compositor, type);
 }
 
 Shadow::~Shadow() {}
@@ -126,6 +126,10 @@ Shadow* Shadow::Factory::CreateShadow(Compositor* compositor, Type type) {
   Shadow* shadow = new Shadow(compositor);
   shadow->InitFromExisting(*(it->second.get()));
   return shadow;
+}
+
+Shadow::Factory* Shadow::Factory::GetInstance() {
+  return Singleton<Shadow::Factory>::get();
 }
 
 

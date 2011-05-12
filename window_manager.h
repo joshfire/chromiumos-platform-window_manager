@@ -25,7 +25,7 @@ extern "C" {
 #include <gtest/gtest_prod.h>  // for FRIEND_TEST() macro
 
 #include "base/hash_tables.h"
-#include "base/scoped_ptr.h"
+#include "base/memory/scoped_ptr.h"
 #include "base/time.h"
 #include "cros/chromeos_wm_ipc_enums.h"
 #include "window_manager/atom_cache.h"  // for Atom enum

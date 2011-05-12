@@ -7,7 +7,7 @@
 
 #include <map>
 
-#include "base/scoped_ptr.h"
+#include "base/memory/scoped_ptr.h"
 #include "window_manager/layout/layout_manager.h"
 
 namespace window_manager {

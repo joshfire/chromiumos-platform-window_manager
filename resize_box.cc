@@ -6,7 +6,7 @@
 
 #include <gflags/gflags.h>
 
-#include "base/singleton.h"
+#include "base/memory/singleton.h"
 #include "window_manager/geometry.h"
 #include "window_manager/image_grid.h"
 
@@ -26,19 +26,24 @@ const int kBorderPixels = 2;
 // created).
 struct ResizeBoxPrototype {
  public:
-  ResizeBoxPrototype() {}
   ~ResizeBoxPrototype() {}
+
+  static ResizeBoxPrototype* GetInstance() {
+    return Singleton<ResizeBoxPrototype>::get();
+  }
 
   scoped_ptr<ImageGrid> image_grid;
 
  private:
+  ResizeBoxPrototype() {}
+  friend struct DefaultSingletonTraits<ResizeBoxPrototype>;
   DISALLOW_COPY_AND_ASSIGN(ResizeBoxPrototype);
 };
 
 }  // namespace
 
 ResizeBox::ResizeBox(Compositor* compositor) {
-  ResizeBoxPrototype* proto = Singleton<ResizeBoxPrototype>::get();
+  ResizeBoxPrototype* proto = ResizeBoxPrototype::GetInstance();
   if (!proto->image_grid.get()) {
     proto->image_grid.reset(new ImageGrid(compositor));
     proto->image_grid->InitFromFiles(FLAGS_resize_box_image_dir);

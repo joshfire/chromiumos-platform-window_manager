@@ -13,7 +13,7 @@
 #include <gtest/gtest_prod.h>  // for FRIEND_TEST() macro
 
 #include "base/basictypes.h"
-#include "base/scoped_ptr.h"
+#include "base/memory/scoped_ptr.h"
 #include "window_manager/event_consumer.h"
 #include "window_manager/focus_manager.h"
 #include "window_manager/panels/panel_container.h"  // for PanelSource enum

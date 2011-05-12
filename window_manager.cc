@@ -485,10 +485,12 @@ void WindowManager::SetLoggedInState(bool logged_in, bool initial) {
 
     const string log_path = log_dir + "/" + log_basename;
     LOG(INFO) << "Switching to log " << log_path;
-    logging::InitLogging(log_path.c_str(),
-                         logging::LOG_ONLY_TO_FILE,
-                         logging::DONT_LOCK_LOG_FILE,
-                         logging::APPEND_TO_OLD_LOG_FILE);
+    logging::InitLogging(
+        log_path.c_str(),
+        logging::LOG_ONLY_TO_FILE,
+        logging::DONT_LOCK_LOG_FILE,
+        logging::APPEND_TO_OLD_LOG_FILE,
+        logging::DISABLE_DCHECK_FOR_NON_OFFICIAL_RELEASE_BUILDS);
   }
 
   if (logged_in_) {

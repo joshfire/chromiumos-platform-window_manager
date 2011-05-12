@@ -11,7 +11,7 @@
 #include <gtest/gtest_prod.h>  // for FRIEND_TEST() macro
 
 #include "base/basictypes.h"
-#include "base/scoped_ptr.h"
+#include "base/memory/scoped_ptr.h"
 #include "window_manager/geometry.h"
 #include "window_manager/motion_event_coalescer.h"
 #include "window_manager/stacking_manager.h"

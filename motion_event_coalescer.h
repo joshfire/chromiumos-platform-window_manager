@@ -5,7 +5,7 @@
 #ifndef WINDOW_MANAGER_MOTION_EVENT_COALESCER_H_
 #define WINDOW_MANAGER_MOTION_EVENT_COALESCER_H_
 
-#include "base/scoped_ptr.h"
+#include "base/memory/scoped_ptr.h"
 #include "window_manager/callback.h"
 #include "window_manager/geometry.h"
 

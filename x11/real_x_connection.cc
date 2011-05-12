@@ -23,6 +23,7 @@ extern "C" {
 }
 
 #include "base/string_util.h"
+#include "base/stringprintf.h"
 #include "window_manager/geometry.h"
 #include "window_manager/util.h"
 #include "window_manager/x11/x_connection_internal.h"
@@ -1642,7 +1643,7 @@ bool RealXConnection::CheckForXcbError(
   va_list ap;
   va_start(ap, format);
   string message;
-  StringAppendV(&message, format, ap);
+  base::StringAppendV(&message, format, ap);
   va_end(ap);
 
   LOG(WARNING) << "Got XCB error while " << message << ": "

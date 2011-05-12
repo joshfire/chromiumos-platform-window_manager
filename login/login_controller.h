@@ -12,7 +12,7 @@
 #include <gtest/gtest_prod.h>  // for FRIEND_TEST() macro
 
 #include "base/logging.h"
-#include "base/scoped_ptr.h"
+#include "base/memory/scoped_ptr.h"
 #include "window_manager/event_consumer.h"
 #include "window_manager/event_consumer_registrar.h"
 #include "window_manager/login/login_entry.h"

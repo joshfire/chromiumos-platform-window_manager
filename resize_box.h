@@ -6,7 +6,7 @@
 #define WINDOW_MANAGER_RESIZE_BOX_H_
 
 #include "base/basictypes.h"
-#include "base/scoped_ptr.h"
+#include "base/memory/scoped_ptr.h"
 #include "window_manager/compositor/compositor.h"
 
 namespace window_manager {

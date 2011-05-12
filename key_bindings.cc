@@ -13,8 +13,8 @@ extern "C" {
 }
 #include <gflags/gflags.h>
 
-#include "base/scoped_ptr.h"
 #include "base/logging.h"
+#include "base/memory/scoped_ptr.h"
 #include "window_manager/util.h"
 #include "window_manager/x11/x_connection.h"
 

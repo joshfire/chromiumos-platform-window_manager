@@ -7,8 +7,8 @@
 #include <gflags/gflags.h>
 #include <gtest/gtest.h>
 
-#include "base/scoped_ptr.h"
 #include "base/logging.h"
+#include "base/memory/scoped_ptr.h"
 #include "chromeos/dbus/service_constants.h"
 #include "cros/chromeos_wm_ipc_enums.h"
 #include "window_manager/compositor/compositor.h"

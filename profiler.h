@@ -9,8 +9,8 @@
 #include <stack>
 #include "base/file_path.h"
 #include "base/hash_tables.h"
-#include "base/scoped_ptr.h"
-#include "base/singleton.h"
+#include "base/memory/scoped_ptr.h"
+#include "base/memory/singleton.h"
 #include "window_manager/profiler_data.h"
 
 //
@@ -18,7 +18,7 @@
 // Single instances of the Profiler and DynamicMarker objects are managed by
 // base::Singleton.  For Singleton to work properly, an instance of
 // base::AtExitManager must be created.  Check base/at_exit.h or
-// base/singleton.h for more details.
+// base/memory/singleton.h for more details.
 //
 // PROFILE_BUILD needs to be defined for the profile code to be included.
 //

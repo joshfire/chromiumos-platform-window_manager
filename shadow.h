@@ -12,7 +12,8 @@
 #include <gtest/gtest_prod.h>  // for FRIEND_TEST() macro
 
 #include "base/basictypes.h"
-#include "base/scoped_ptr.h"
+#include "base/memory/scoped_ptr.h"
+#include "base/memory/singleton.h"
 #include "window_manager/compositor/compositor.h"
 #include "window_manager/geometry.h"
 
@@ -90,10 +91,13 @@ class Shadow {
     // first if needed.
     Shadow* CreateShadow(Compositor* compositor, Type type);
 
+    static Factory* GetInstance();
+
    private:
     typedef std::map<Type, std::tr1::shared_ptr<Shadow> > PrototypeMap;
     PrototypeMap prototypes_;
 
+    friend struct DefaultSingletonTraits<Factory>;
     DISALLOW_COPY_AND_ASSIGN(Factory);
   };
 

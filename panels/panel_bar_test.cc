@@ -5,8 +5,8 @@
 #include <gflags/gflags.h>
 #include <gtest/gtest.h>
 
-#include "base/scoped_ptr.h"
 #include "base/logging.h"
+#include "base/memory/scoped_ptr.h"
 #include "window_manager/compositor/compositor.h"
 #include "window_manager/event_loop.h"
 #include "window_manager/modality_handler.h"

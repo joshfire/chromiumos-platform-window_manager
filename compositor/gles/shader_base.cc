@@ -5,7 +5,7 @@
 #include "window_manager/compositor/gles/shader_base.h"
 
 #include "base/logging.h"
-#include "base/scoped_ptr.h"
+#include "base/memory/scoped_ptr.h"
 
 namespace window_manager {
 

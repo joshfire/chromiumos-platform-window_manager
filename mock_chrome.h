@@ -17,7 +17,7 @@ extern "C" {
 }
 
 #include "base/basictypes.h"
-#include "base/scoped_ptr.h"
+#include "base/memory/scoped_ptr.h"
 #include "window_manager/util.h"
 
 // This file implements a small app that displays windows containing Chrome
