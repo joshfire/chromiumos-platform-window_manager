@@ -521,15 +521,9 @@ TEST_F(PanelManagerTest, TransientWindows) {
                  transient_width, transient_height),
             transient_info->bounds);
 
-  // Check that the transient is stacked within the same layer as the
-  // panel, and that it's stacked above the content window.
+  // Check that the transient is stacked above the panel layer.
   EXPECT_TRUE(WindowIsInLayer(transient_win,
-                              StackingManager::LAYER_PACKED_PANEL_IN_BAR));
-  EXPECT_LT(xconn_->stacked_xids().GetIndex(transient_xid),
-            xconn_->stacked_xids().GetIndex(panel->content_xid()));
-  MockCompositor::StageActor* stage = compositor_->GetDefaultStage();
-  EXPECT_LT(stage->GetStackingIndex(transient_win->actor()),
-            stage->GetStackingIndex(panel->content_win()->actor()));
+                              StackingManager::LAYER_ACTIVE_TRANSIENT_WINDOW));
 
   // If we move the panel, the window manager should try to close the
   // transient window.

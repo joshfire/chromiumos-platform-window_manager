@@ -568,7 +568,7 @@ void Panel::HandleDragEnd() {
 
 void Panel::HandleTransientWindowMap(Window* win) {
   DCHECK(win);
-  transients_->AddWindow(win, true);  // stack directly above panel
+  transients_->AddWindow(win, false);  // stack_directly_above_owner=false
   if (content_win_->IsFocused())
     transients_->TakeFocus(wm()->GetCurrentTimeFromServer());
 }

@@ -1,4 +1,4 @@
-// Copyright (c) 2010 The Chromium OS Authors. All rights reserved.
+// Copyright (c) 2011 The Chromium OS Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -556,6 +556,7 @@ class WindowManager : public PanelManagerAreaChangeListener,
 
   scoped_ptr<WmIpc> wm_ipc_;
   scoped_ptr<KeyBindings> key_bindings_;
+  scoped_ptr<ModalityHandler> modality_handler_;
 
   // These aren't initialized until the user has logged in.
   scoped_ptr<PanelManager> panel_manager_;
@@ -567,7 +568,6 @@ class WindowManager : public PanelManagerAreaChangeListener,
   scoped_ptr<LoginController> login_controller_;
 
   scoped_ptr<ScreenLockerHandler> screen_locker_handler_;
-  scoped_ptr<ModalityHandler> modality_handler_;
   scoped_ptr<ChromeWatchdog> chrome_watchdog_;
 
   // ID for the timeout that calls QueryKeyboardState().

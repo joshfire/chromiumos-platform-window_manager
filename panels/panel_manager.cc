@@ -92,7 +92,8 @@ bool PanelManager::HandleWindowMapRequest(Window* win) {
   saw_map_request_ = true;
 
   if (win->type() != chromeos::WM_IPC_WINDOW_CHROME_PANEL_CONTENT &&
-      win->type() != chromeos::WM_IPC_WINDOW_CHROME_PANEL_TITLEBAR)
+      win->type() != chromeos::WM_IPC_WINDOW_CHROME_PANEL_TITLEBAR &&
+      (!win->transient_for_xid() || !GetPanelByXid(win->transient_for_xid())))
     return false;
 
   DoInitialSetupForWindow(win);

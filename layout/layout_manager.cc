@@ -1,4 +1,4 @@
-// Copyright (c) 2010 The Chromium OS Authors. All rights reserved.
+// Copyright (c) 2011 The Chromium OS Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -349,7 +349,9 @@ bool LayoutManager::HandleWindowMapRequest(Window* win) {
   DCHECK(win);
   saw_map_request_ = true;
 
-  if (!IsHandledWindowType(win->type()))
+  if (!IsHandledWindowType(win->type()) &&
+      (!win->transient_for_xid() ||
+       !GetToplevelWindowOwningTransientWindow(*win)))
     return false;
 
   if (win->type() == chromeos::WM_IPC_WINDOW_CHROME_TAB_FAV_ICON ||
@@ -444,6 +446,11 @@ void LayoutManager::HandleWindowMap(Window* win) {
       // FALL THROUGH...
     case chromeos::WM_IPC_WINDOW_CHROME_INFO_BUBBLE:
     case chromeos::WM_IPC_WINDOW_UNKNOWN: {
+      if (win->transient_for_xid()) {
+        HandleTransientWindowMap(win);
+        return;
+      }
+
       // Perform initial setup of windows that were already mapped at startup
       // (so we never saw MapRequest events for them).
       if (!saw_map_request_)
@@ -451,11 +458,6 @@ void LayoutManager::HandleWindowMap(Window* win) {
             win,
             StackingManager::LAYER_TOPLEVEL_WINDOW,
             StackingManager::SHADOW_AT_BOTTOM_OF_LAYER);
-
-      if (win->transient_for_xid()) {
-        HandleTransientWindowMap(win);
-        return;
-      }
 
       if (GetToplevelWindowByWindow(*win)) {
         // WindowManager should already weed out duplicate notifications.
