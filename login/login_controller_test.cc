@@ -194,31 +194,23 @@ class LoginControllerTest : public BasicWindowManagerTest {
 
   void SendInitialPixmapEventForEntry(size_t entry_index) {
     ASSERT_LT(entry_index, entries_.size());
+    const EntryWindows& entry = entries_[entry_index];
+
+    ASSERT_FALSE(wm_->GetWindowOrDie(entry.border_xid)->has_initial_pixmap());
+    SendSyncRequestProtocolAlarm(entry.border_xid);
+
+    ASSERT_FALSE(wm_->GetWindowOrDie(entry.image_xid)->has_initial_pixmap());
+    SendSyncRequestProtocolAlarm(entry.image_xid);
+
+    ASSERT_FALSE(wm_->GetWindowOrDie(entry.controls_xid)->has_initial_pixmap());
+    SendSyncRequestProtocolAlarm(entry.controls_xid);
+
+    ASSERT_FALSE(wm_->GetWindowOrDie(entry.label_xid)->has_initial_pixmap());
+    SendSyncRequestProtocolAlarm(entry.label_xid);
 
     ASSERT_FALSE(
-        wm_->GetWindowOrDie(
-            entries_[entry_index].border_xid)->has_initial_pixmap());
-    SendSyncRequestProtocolAlarm(entries_[entry_index].border_xid);
-
-    ASSERT_FALSE(
-        wm_->GetWindowOrDie(
-            entries_[entry_index].image_xid)->has_initial_pixmap());
-    SendSyncRequestProtocolAlarm(entries_[entry_index].image_xid);
-
-    ASSERT_FALSE(
-        wm_->GetWindowOrDie(
-            entries_[entry_index].controls_xid)->has_initial_pixmap());
-    SendSyncRequestProtocolAlarm(entries_[entry_index].controls_xid);
-
-    ASSERT_FALSE(
-        wm_->GetWindowOrDie(
-            entries_[entry_index].label_xid)->has_initial_pixmap());
-    SendSyncRequestProtocolAlarm(entries_[entry_index].label_xid);
-
-    ASSERT_FALSE(
-        wm_->GetWindowOrDie(
-            entries_[entry_index].unselected_label_xid)->has_initial_pixmap());
-    SendSyncRequestProtocolAlarm(entries_[entry_index].unselected_label_xid);
+        wm_->GetWindowOrDie(entry.unselected_label_xid)->has_initial_pixmap());
+    SendSyncRequestProtocolAlarm(entry.unselected_label_xid);
   }
 
   void UnmapLoginEntry(int i) {
@@ -314,12 +306,12 @@ class LoginControllerTest : public BasicWindowManagerTest {
   std::vector<EntryBounds> GetEntriesBounds() {
     std::vector<EntryBounds> bounds(entries_.size(), EntryBounds());
     for (size_t i = 0; i < entries_.size(); ++i) {
-      GetCompositedWindowBounds(entries_[i].border_xid, &bounds[i].border);
-      GetCompositedWindowBounds(entries_[i].image_xid, &bounds[i].image);
-      GetCompositedWindowBounds(entries_[i].controls_xid, &bounds[i].controls);
-      GetCompositedWindowBounds(entries_[i].label_xid, &bounds[i].label);
-      GetCompositedWindowBounds(entries_[i].unselected_label_xid,
-                                &bounds[i].unselected_label);
+      bounds[i].border = GetCompositedWindowBounds(entries_[i].border_xid);
+      bounds[i].image = GetCompositedWindowBounds(entries_[i].image_xid);
+      bounds[i].controls = GetCompositedWindowBounds(entries_[i].controls_xid);
+      bounds[i].label = GetCompositedWindowBounds(entries_[i].label_xid);
+      bounds[i].unselected_label =
+          GetCompositedWindowBounds(entries_[i].unselected_label_xid);
     }
     return bounds;
   }
@@ -1227,9 +1219,10 @@ TEST_F(LoginControllerTest, LoginEntryRelativePositions) {
   EXPECT_LT(bounds[1].image.right(), bounds[1].border.right());
   EXPECT_GT(bounds[1].image.top(), bounds[1].border.top());
   EXPECT_LT(bounds[1].image.bottom(), bounds[1].border.bottom());
-  // - label should be under border window.
+  // - label should be within border window.
   EXPECT_GE(bounds[1].unselected_label.left(), bounds[1].border.left());
-  EXPECT_GT(bounds[1].unselected_label.top(), bounds[1].border.bottom());
+  EXPECT_GE(bounds[1].unselected_label.top(), bounds[1].border.top());
+  EXPECT_LE(bounds[1].unselected_label.bottom(), bounds[1].border.bottom());
   // - controls window is hidden, so no check here.
 
   // Now select the guest entry.
@@ -1251,9 +1244,10 @@ TEST_F(LoginControllerTest, LoginEntryRelativePositions) {
 
   // Second entry is New User entry and is selected, so:
   // - image window is hidden, so no need to check for it,
-  // - label should be under border window,
+  // - label should be within border window,
   EXPECT_GE(bounds[1].label.left(), bounds[1].border.left());
-  EXPECT_GT(bounds[1].label.top(), bounds[1].border.bottom());
+  EXPECT_GE(bounds[1].label.top(), bounds[1].border.top());
+  EXPECT_LE(bounds[1].label.bottom(), bounds[1].border.bottom());
   // - controls window is should be within border window.
   EXPECT_GT(bounds[1].controls.left(), bounds[1].border.left());
   EXPECT_LT(bounds[1].controls.right(), bounds[1].border.right());

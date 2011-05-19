@@ -337,6 +337,7 @@ class MockXConnection : public XConnection {
   // the counter wasn't created.
   int64_t GetSyncCounterValueOrDie(XID counter_id) const;
 
+  Rect root_bounds() const { return GetWindowInfoOrDie(root_)->bounds; }
   XWindow focused_xid() const { return focused_xid_; }
   XTime last_focus_timestamp() const { return last_focus_timestamp_; }
   XWindow pointer_grab_xid() const { return pointer_grab_xid_; }

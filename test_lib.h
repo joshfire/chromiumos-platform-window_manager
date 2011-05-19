@@ -21,6 +21,7 @@ extern "C" {
 #include "window_manager/compositor/real_compositor.h"
 #include "window_manager/event_consumer.h"
 #include "window_manager/event_loop.h"
+#include "window_manager/geometry.h"
 #include "window_manager/key_bindings.h"
 #include "window_manager/mock_dbus_interface.h"
 #include "window_manager/stacking_manager.h"
@@ -240,9 +241,9 @@ class BasicWindowManagerTest : public ::testing::Test {
   // Get the mock actor for the passed-in window.
   MockCompositor::TexturePixmapActor* GetMockActorForWindow(Window* win);
 
-  // Fills the rect specified with bounds of composited window attached to
-  // specified xid.
-  void GetCompositedWindowBounds(XWindow xid, Rect* bounds) const;
+  // Return a Rect containing the bounds of the composited window associated
+  // with |xid| (which must be currently tracked by the window manager).
+  Rect GetCompositedWindowBounds(XWindow xid);
 
   scoped_ptr<EventLoop> event_loop_;
   scoped_ptr<MockXConnection> xconn_;
