@@ -26,6 +26,8 @@ for key in Split('PKG_CONFIG_LIBDIR PKG_CONFIG_PATH SYSROOT'):
   if os.environ.has_key(key):
     base_env['ENV'][key] = os.environ[key]
 
+pkgconfig = os.environ.get('PKG_CONFIG', 'pkg-config')
+
 base_env.Append(
     CCFLAGS=Split('-Wall -Werror -Wnon-virtual-dtor -Woverloaded-virtual'))
 
@@ -39,12 +41,12 @@ base_env.Append(CPPPATH=['..'])
 # We need glib-2.0 ONLY to satisfy libbase.
 # TODO(derat): Weep.
 base_env.Append(LIBS=Split('base gflags pthread rt'))
-base_env.ParseConfig('pkg-config --cflags --libs glib-2.0 x11')
+base_env.ParseConfig(pkgconfig + ' --cflags --libs glib-2.0 x11')
 
 # Fork off a new environment, add Cairo to it, and build the screenshot
 # program.
 screenshot_env = base_env.Clone()
-screenshot_env.ParseConfig('pkg-config --cflags --libs cairo')
+screenshot_env.ParseConfig(pkgconfig + ' --cflags --libs cairo')
 screenshot_env.Program('screenshot', 'screenshot.cc')
 
 # Check for BACKEND on the build line
@@ -54,7 +56,7 @@ backend = ARGUMENTS.get('BACKEND', 'OPENGL').lower()
 wm_env = base_env.Clone()
 
 wm_env.Append(LIBS=Split('chromeos metrics protobuf'))
-wm_env.ParseConfig('pkg-config --cflags --libs dbus-1 libpcrecpp libpng12 ' +
+wm_env.ParseConfig(pkgconfig + ' --cflags --libs dbus-1 libpcrecpp libpng12 ' +
                    'xcb x11-xcb xcb-composite xcb-randr xcb-shape xcb-damage ' +
                    'xcb-sync xcomposite xdamage xext xrender')
 
@@ -62,7 +64,7 @@ if backend == 'opengl':
   # This is needed so that glext headers include glBindBuffer and
   # related APIs.
   wm_env.Append(CPPDEFINES=['GL_GLEXT_PROTOTYPES'])
-  wm_env.ParseConfig('pkg-config --cflags --libs gl')
+  wm_env.ParseConfig(pkgconfig + ' --cflags --libs gl')
 elif backend == 'opengles':
   # Add builder for .glsl* files, and GLESv2 libraries
   make_shaders.AddBuildRules(wm_env)
@@ -189,7 +191,7 @@ test_env.Alias('tests', tests)
 # target for it if gtkmm is installed so that this SConstruct file can
 # still be parsed in the chroot build environment, which shouldn't contain
 # gtkmm.
-if os.system('pkg-config --exists gtkmm-2.4') == 0:
+if os.system(pkgconfig + ' --exists gtkmm-2.4') == 0:
   mock_chrome_env = wm_env.Clone()
-  mock_chrome_env.ParseConfig('pkg-config --cflags --libs gtkmm-2.4')
+  mock_chrome_env.ParseConfig(pkgconfig + ' --cflags --libs gtkmm-2.4')
   mock_chrome_env.Program('mock_chrome', 'mock_chrome.cc')
