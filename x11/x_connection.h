@@ -446,8 +446,7 @@ class XConnection {
                         scoped_ptr_malloc<uint8_t>* data_out,
                         ImageFormat* format_out) = 0;
 
-  // Change the cursor for a window.  |shape| is a definition from
-  // Xlib's cursorfont.h header.
+  // Change the cursor for a window.
   virtual bool SetWindowCursor(XWindow xid, XID cursor) = 0;
 
   // Create a cursor based in a given standard style.  |shape| is a definition

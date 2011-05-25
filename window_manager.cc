@@ -436,6 +436,17 @@ bool WindowManager::Init() {
   chrome_watchdog_.reset(new ChromeWatchdog(this));
   event_consumers_.insert(chrome_watchdog_.get());
 
+#ifndef TOUCH_UI
+  // Our X server has been modified to clear the cursor on the root window at
+  // startup.  We set it back to the nice (Xcursor-loaded) arrow here so that
+  // other windows won't inherit the empty cursor (but note that if we're not
+  // logged in at this point, LoginController is also using XFixes to hide the
+  // cursor until the user moves the pointer).
+  XID cursor = xconn_->CreateShapedCursor(XC_left_ptr);
+  xconn_->SetWindowCursor(root_, cursor);
+  xconn_->FreeCursor(cursor);
+#endif
+
   chrome_watchdog_timeout_id_ =
       event_loop_->AddTimeout(
           NewPermanentCallback(this, &WindowManager::PingChrome),
