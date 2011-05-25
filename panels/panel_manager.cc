@@ -101,7 +101,8 @@ bool PanelManager::HandleWindowMapRequest(Window* win) {
 }
 
 void PanelManager::HandleWindowMap(Window* win) {
-  CHECK(win);
+  if (win->override_redirect())
+    return;
 
   if (win->type() != chromeos::WM_IPC_WINDOW_CHROME_PANEL_CONTENT &&
       win->type() != chromeos::WM_IPC_WINDOW_CHROME_PANEL_TITLEBAR) {
@@ -169,7 +170,8 @@ void PanelManager::HandleWindowMap(Window* win) {
 }
 
 void PanelManager::HandleWindowUnmap(Window* win) {
-  CHECK(win);
+  if (win->override_redirect())
+    return;
 
   set<XWindow>::iterator content_it =
       content_xids_without_initial_pixmaps_.find(win->xid());

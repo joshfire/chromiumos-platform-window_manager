@@ -121,7 +121,7 @@ Window::Window(WindowManager* wm,
   // confusing (we'd need to include the border when telling the compositor
   // the window's position, but it's not included when telling X to resize
   // the window, etc.).
-  if (geometry.border_width > 0)
+  if (!override_redirect_ && geometry.border_width > 0)
     wm_->xconn()->SetWindowBorderWidth(xid_, 0);
 
   damage_ = wm_->xconn()->CreateDamage(
@@ -131,10 +131,16 @@ Window::Window(WindowManager* wm,
   actor_->Hide();
   // TODO(derat): Move this stuff to WindowManager::TrackWindow() instead.
   wm_->stage()->AddActor(actor_.get());
-  wm_->stacking_manager()->StackWindowAtTopOfLayer(
-      this,
-      StackingManager::LAYER_TOP_CLIENT_WINDOW,
-      StackingManager::SHADOW_DIRECTLY_BELOW_ACTOR);
+  if (!override_redirect_) {
+    wm_->stacking_manager()->StackWindowAtTopOfLayer(
+        this,
+        StackingManager::LAYER_TOP_CLIENT_WINDOW,
+        StackingManager::SHADOW_DIRECTLY_BELOW_ACTOR);
+  } else {
+    wm_->stacking_manager()->StackActorAtTopOfLayer(
+        actor_.get(),
+        StackingManager::LAYER_TOP_CLIENT_WINDOW);
+  }
 
   // Various properties could've been set on this window after it was
   // created but before we selected PropertyChangeMask, so we need to query
@@ -547,9 +553,14 @@ bool Window::TakeFocus(XTime timestamp) {
 bool Window::SendDeleteRequest(XTime timestamp) {
   DLOG(INFO) << "Maybe asking " << xid_str() << " to delete itself with time "
              << timestamp;
+
   DCHECK(xid_);
   if (!supports_wm_delete_window_)
     return false;
+
+  DCHECK(!override_redirect_)
+      << "Attempted to send delete request to override-redirect window "
+      << xid_str_;
 
   long data[5];
   memset(data, 0, sizeof(data));
@@ -760,6 +771,8 @@ bool Window::CenterClientOverWindow(Window* win) {
 
 bool Window::Resize(const Size& new_size, Gravity gravity) {
   DCHECK(xid_);
+  DCHECK(!override_redirect_)
+      << "Attempted to resize override-redirect window " << xid_str_;
 
   // Bail out early if this is a no-op.  (No-op resizes won't generate
   // ConfigureNotify events, which means that the client won't know to
@@ -920,7 +933,8 @@ void Window::SetMoveCompositedAnimation(AnimationPair* animations) {
 
 void Window::HandleMapRequested() {
   DCHECK(xid_);
-  DCHECK(!override_redirect_);
+  DCHECK(!override_redirect_)
+      << "Got map request for override-redirect window " << xid_str_;
 
   // Tell the client to notify us after it's repainted in response to the
   // next ConfigureNotify that it receives, and then send a synthetic
@@ -1204,6 +1218,8 @@ void Window::SetWmStateInternal(int action, bool* value) const {
 bool Window::MoveClientInternal(const Point& origin) {
   DLOG(INFO) << "Moving " << xid_str() << "'s client window to " << origin;
   DCHECK(xid_);
+  DCHECK(!override_redirect_)
+      << "Attempted to move override-redirect window " << xid_str_;
   if (!wm_->xconn()->MoveWindow(xid_, origin))
     return false;
   client_bounds_.move(origin);

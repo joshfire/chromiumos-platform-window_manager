@@ -720,6 +720,38 @@ TEST_F(PanelManagerTest, DontShowPanelUntilContentPixmapFetched) {
   EXPECT_TRUE(content_win->actor_is_shown());
 }
 
+// Check that we don't mess with override-redirect transient windows.
+// See http://crosbug.com/15422.
+TEST_F(PanelManagerTest, OverrideRedirectAndTransient) {
+  Panel* panel = CreatePanel(200, 10, 300);
+
+  // Create an override-redirect window that claims to be transient for the
+  // panel (which seems somewhat pointless for an override-redirect window to
+  // do, but it happens).
+  Rect kBounds(10, 20, 30, 40);
+  XWindow xid = xconn_->CreateWindow(
+        xconn_->GetRootWindow(),
+        kBounds,
+        true,    // override redirect
+        false,   // input only
+        0, 0);   // event mask, visual
+  AppendAtomToProperty(xid,
+                       xconn_->GetAtomOrDie("WM_PROTOCOLS"),
+                       xconn_->GetAtomOrDie("WM_DELETE_WINDOW"));
+  MockXConnection::WindowInfo* info = xconn_->GetWindowInfoOrDie(xid);
+  info->transient_for = panel->content_xid();
+  xconn_->MapWindow(xid);
+
+  // We shouldn't move or resize the window when it's mapped, since it's
+  // override-redirect.
+  SendInitialEventsForWindow(xid);
+  EXPECT_EQ(0, info->num_configures);
+
+  // We also shouldn't try to close it when the panel is dragged.
+  SendPanelDraggedMessage(panel, panel->right() - 2, panel->titlebar_y());
+  EXPECT_EQ(0, GetNumDeleteWindowMessagesForWindow(xid));
+}
+
 }  // namespace window_manager
 
 int main(int argc, char** argv) {
