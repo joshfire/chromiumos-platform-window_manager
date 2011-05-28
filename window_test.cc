@@ -919,6 +919,8 @@ TEST_F(WindowTest, SimultaneousMoveAndResize) {
   EXPECT_EQ(kOrigBounds, info->bounds);
   MockCompositor::TexturePixmapActor* actor = GetMockActorForWindow(&win);
   EXPECT_EQ(kOrigBounds, actor->GetBounds());
+  EXPECT_EQ(kOrigBounds.x, win.composited_x());
+  EXPECT_EQ(kOrigBounds.y, win.composited_y());
 
   // Now make the window 50 pixels wider and taller with southeast gravity.
   // In other words, its origin should also move 50 pixels up and to the left.
@@ -931,16 +933,22 @@ TEST_F(WindowTest, SimultaneousMoveAndResize) {
   // we can make the move and resize happen atomically onscreen later).
   EXPECT_EQ(kNewBounds, info->bounds);
   EXPECT_EQ(kOrigBounds, actor->GetBounds());
+  EXPECT_EQ(kNewBounds.x, win.composited_x());
+  EXPECT_EQ(kNewBounds.y, win.composited_y());
 
   // After we've received notification that the new pixmap is available, the
   // actor should be both resized and moved to the requested position.
   win.HandleConfigureNotify(kNewBounds, 0);
   EXPECT_EQ(kNewBounds, actor->GetBounds());
+  EXPECT_EQ(kNewBounds.x, win.composited_x());
+  EXPECT_EQ(kNewBounds.y, win.composited_y());
 
   // Move the actor to a completely different position.
   const Point kCompositedPosition(500, 600);
   win.MoveComposited(kCompositedPosition.x, kCompositedPosition.y, 0);
   EXPECT_EQ(Rect(kCompositedPosition, kNewBounds.size()), actor->GetBounds());
+  EXPECT_EQ(kCompositedPosition.x, win.composited_x());
+  EXPECT_EQ(kCompositedPosition.y, win.composited_y());
 
   // Now resize the window back to its old size, again with southeast gravity.
   // The actor shouldn't move, but we should update the |composited_x| and
@@ -951,6 +959,8 @@ TEST_F(WindowTest, SimultaneousMoveAndResize) {
   const Point kOffsetCompositedPosition(
       kCompositedPosition.x + (kNewBounds.width - kOrigBounds.width),
       kCompositedPosition.y + (kNewBounds.height - kOrigBounds.height));
+  EXPECT_EQ(kOffsetCompositedPosition.x, win.composited_x());
+  EXPECT_EQ(kOffsetCompositedPosition.y, win.composited_y());
 
   // After getting notification about the pixmap, the actor should be resized
   // and moved to the new position.
@@ -970,6 +980,8 @@ TEST_F(WindowTest, SimultaneousMoveAndResize) {
   const Point kScaledCompositedPosition(
       kOrigBounds.x + kCompositedScale * (kNewBounds.x - kOrigBounds.x),
       kOrigBounds.y + kCompositedScale * (kNewBounds.y - kOrigBounds.y));
+  EXPECT_EQ(kScaledCompositedPosition.x, win.composited_x());
+  EXPECT_EQ(kScaledCompositedPosition.y, win.composited_y());
 
   win.HandleConfigureNotify(kNewBounds, 0);
   EXPECT_EQ(Rect(kScaledCompositedPosition, kNewBounds.size()),
@@ -1154,64 +1166,6 @@ TEST_F(WindowTest, FreezeUpdates) {
   win2.HandleFreezeUpdatesPropertyChange(false);
   EXPECT_NE(0, win2.pixmap_);
   EXPECT_TRUE(win2.has_initial_pixmap());
-}
-
-// Test that we avoid moving a window's actor when the actor's size (which is
-// determined from the pixmap that it's currently displaying) differs from that
-// of the underlying X window.
-TEST_F(WindowTest, AvoidMovingActorDuringResize) {
-  const Rect kInitialBounds(20, 30, 40, 50);
-  XWindow xid = CreateBasicWindow(kInitialBounds);
-  ConfigureWindowForSyncRequestProtocol(xid);
-  XConnection::WindowGeometry geometry;
-  ASSERT_TRUE(xconn_->GetWindowGeometry(xid, &geometry));
-  Window win(wm_.get(), xid, false, geometry);
-
-  win.SetVisibility(Window::VISIBILITY_SHOWN);
-  win.HandleMapRequested();
-  ASSERT_TRUE(xconn_->MapWindow(xid));
-  win.HandleMapNotify();
-  win.HandleSyncAlarmNotify(win.wm_sync_request_alarm_,
-                            win.current_wm_sync_num_);
-
-  MockXConnection::WindowInfo* info = xconn_->GetWindowInfoOrDie(xid);
-  EXPECT_EQ(kInitialBounds, info->bounds);
-  MockCompositor::TexturePixmapActor* actor = GetMockActorForWindow(&win);
-  EXPECT_EQ(kInitialBounds, actor->GetBounds());
-
-  // Move the window without resizing it.  Both the X window and actor should be
-  // moved immediately.
-  const Rect kBounds2(Point(60, 70), kInitialBounds.size());
-  win.SetBounds(kBounds2, 0);
-  EXPECT_EQ(kBounds2, info->bounds);
-  EXPECT_EQ(kBounds2, actor->GetBounds());
-
-  // Simultaneously move and resize the window.  The X window should be updated
-  // but the actor should stay at the previous size and position.
-  const Rect kBounds3(80, 90, 100, 110);
-  win.SetBounds(kBounds3, 0);
-  EXPECT_EQ(kBounds3, info->bounds);
-  EXPECT_EQ(kBounds2, actor->GetBounds());
-
-  // Now move the window again and resize it back to the previous size.  We
-  // should move the actor now since it's at the (formerly stale, now correct)
-  // current size.
-  const Rect kBounds4(Point(150, 160), kBounds2.size());
-  win.SetBounds(kBounds4, 0);
-  EXPECT_EQ(kBounds4, info->bounds);
-  EXPECT_EQ(kBounds4, actor->GetBounds());
-
-  // Move and resize the window yet again.
-  const Rect kBounds5(180, 190, 200, 210);
-  win.SetBounds(kBounds5, 0);
-  EXPECT_EQ(kBounds5, info->bounds);
-  EXPECT_EQ(kBounds4, actor->GetBounds());
-
-  // After we receive notice that the window has been painted, we should fetch a
-  // new pixmap (resulting in a resized actor) and move the actor.
-  win.HandleSyncAlarmNotify(win.wm_sync_request_alarm_,
-                            win.current_wm_sync_num_);
-  EXPECT_EQ(kBounds5, actor->GetBounds());
 }
 
 }  // namespace window_manager

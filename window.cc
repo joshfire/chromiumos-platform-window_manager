@@ -88,6 +88,7 @@ Window::Window(WindowManager* wm,
       composited_scale_x_(1.0),
       composited_scale_y_(1.0),
       composited_opacity_(1.0),
+      actor_gravity_(GRAVITY_NORTHWEST),
       shadow_opacity_(1.0),
       supports_wm_take_focus_(false),
       supports_wm_delete_window_(false),
@@ -99,7 +100,6 @@ Window::Window(WindowManager* wm,
       wm_hint_urgent_(false),
       damage_(0),
       pixmap_(0),
-      need_to_update_actor_position_(false),
       need_to_reset_pixmap_(false),
       wm_sync_request_alarm_(0),
       current_wm_sync_num_(0),
@@ -111,7 +111,7 @@ Window::Window(WindowManager* wm,
   DCHECK(xid_);
   DLOG(INFO) << "Constructing object to track "
              << (override_redirect_ ? "override-redirect " : "")
-             << "window " << xid_str_ << " at " << geometry.bounds;
+             << "window " << xid_str() << " at " << geometry.bounds;
 
   // Listen for property and shape changes on this window.
   wm_->xconn()->SelectInputOnWindow(xid_, PropertyChangeMask, true);
@@ -182,9 +182,9 @@ void Window::FetchAndApplyTitle() {
       xid_, wm_->GetXAtom(ATOM_NET_WM_NAME), &title_);
 
   if (title_.empty())
-    actor_->SetName(string("window ") + xid_str_);
+    actor_->SetName(string("window ") + xid_str());
   else
-    actor_->SetName(string("window '") + title_ + "' (" + xid_str_ + ")");
+    actor_->SetName(string("window '") + title_ + "' (" + xid_str() + ")");
 }
 
 bool Window::FetchAndApplySizeHints() {
@@ -193,7 +193,7 @@ bool Window::FetchAndApplySizeHints() {
     return false;
 
   const XConnection::SizeHints& h = size_hints_;
-  DLOG(INFO) << "Got size hints for " << xid_str_ << ":"
+  DLOG(INFO) << "Got size hints for " << xid_str() << ":"
              << " size=" << h.size
              << " min_size=" << h.min_size
              << " max_size=" << h.max_size
@@ -219,7 +219,7 @@ bool Window::FetchAndApplyTransientHint() {
   if (!wm_->xconn()->GetTransientHintForWindow(xid_, &transient_for_xid_))
     return false;
   if (transient_for_xid_ != prev_transient_for_xid) {
-    DLOG(INFO) << "Window " << xid_str_ << " is transient for "
+    DLOG(INFO) << "Window " << xid_str() << " is transient for "
                << XidStr(transient_for_xid_);
   }
   return true;
@@ -228,7 +228,7 @@ bool Window::FetchAndApplyTransientHint() {
 bool Window::FetchAndApplyWindowType() {
   DCHECK(xid_);
   bool result = wm_->wm_ipc()->GetWindowType(xid_, &type_, &type_params_);
-  DLOG(INFO) << "Window " << xid_str_ << " has type " << type_
+  DLOG(INFO) << "Window " << xid_str() << " has type " << type_
              << " (" << type_str() << ")";
   return result;
 }
@@ -282,16 +282,16 @@ void Window::FetchAndApplyWmProtocols() {
   for (vector<int>::const_iterator it = wm_protocols.begin();
        it != wm_protocols.end(); ++it) {
     if (static_cast<XAtom>(*it) == wm_take_focus) {
-      DLOG(INFO) << "Window " << xid_str_ << " supports WM_TAKE_FOCUS";
+      DLOG(INFO) << "Window " << xid_str() << " supports WM_TAKE_FOCUS";
       supports_wm_take_focus_ = true;
     } else if (static_cast<XAtom>(*it) == wm_delete_window) {
-      DLOG(INFO) << "Window " << xid_str_ << " supports WM_DELETE_WINDOW";
+      DLOG(INFO) << "Window " << xid_str() << " supports WM_DELETE_WINDOW";
       supports_wm_delete_window_ = true;
     } else if (static_cast<XAtom>(*it) == wm_ping) {
-      DLOG(INFO) << "Window " << xid_str_ << " supports _NET_WM_PING";
+      DLOG(INFO) << "Window " << xid_str() << " supports _NET_WM_PING";
       supports_wm_ping_ = true;
     } else if (static_cast<XAtom>(*it) == wm_sync_request) {
-      DLOG(INFO) << "Window " << xid_str_ << " supports _NET_WM_SYNC_REQUEST";
+      DLOG(INFO) << "Window " << xid_str() << " supports _NET_WM_SYNC_REQUEST";
       supports_wm_sync_request = true;
     }
   }
@@ -313,7 +313,7 @@ bool Window::FetchAndApplyWmSyncRequestCounterProperty() {
   if (!wm_->xconn()->GetIntProperty(
           xid_, wm_->GetXAtom(ATOM_NET_WM_SYNC_REQUEST_COUNTER), &counter)) {
     LOG(WARNING) << "Didn't find a _NET_WM_SYNC_REQUEST_COUNTER property on "
-                 << "window " << xid_str_;
+                 << "window " << xid_str();
     return false;
   }
 
@@ -328,7 +328,7 @@ bool Window::FetchAndApplyWmSyncRequestCounterProperty() {
 
   DLOG(INFO) << "Created sync alarm " << XidStr(wm_sync_request_alarm_)
              << " on counter " << XidStr(counter_xid) << " for window "
-             << xid_str_;
+             << xid_str();
   return true;
 }
 
@@ -362,7 +362,7 @@ void Window::FetchAndApplyWmState() {
       wm_state_modal_ = true;
   }
 
-  DLOG(INFO) << "Fetched _NET_WM_STATE for " << xid_str_ << ":"
+  DLOG(INFO) << "Fetched _NET_WM_STATE for " << xid_str() << ":"
              << " fullscreen=" << wm_state_fullscreen_
              << " maximized_horz=" << wm_state_maximized_horz_
              << " maximized_vert=" << wm_state_maximized_vert_
@@ -402,7 +402,7 @@ void Window::FetchAndApplyChromeState() {
     debug_str += wm_->GetXAtomName(static_cast<XAtom>(*it));
   }
   DLOG(INFO) << "Fetched " << wm_->GetXAtomName(state_xatom) << " for "
-             << xid_str_ << ": " << debug_str;
+             << xid_str() << ": " << debug_str;
 }
 
 void Window::FetchAndApplyWmClientMachine() {
@@ -411,7 +411,7 @@ void Window::FetchAndApplyWmClientMachine() {
   wm_->xconn()->GetStringProperty(
       xid_, wm_->GetXAtom(ATOM_WM_CLIENT_MACHINE), &client_hostname_);
   if (!client_hostname_.empty()) {
-    DLOG(INFO) << "Client owning window " << xid_str_ << " is running on "
+    DLOG(INFO) << "Client owning window " << xid_str() << " is running on "
                << "host \"" << client_hostname_ << "\"";
   }
 }
@@ -421,7 +421,7 @@ void Window::FetchAndApplyWmPid() {
   client_pid_ = -1;
   wm_->xconn()->GetIntProperty(
       xid_, wm_->GetXAtom(ATOM_NET_WM_PID), &client_pid_);
-  DLOG(INFO) << "Client owning window " << xid_str_ << " has PID "
+  DLOG(INFO) << "Client owning window " << xid_str() << " has PID "
              << client_pid_;
 }
 
@@ -450,7 +450,7 @@ void Window::FetchAndApplyShape() {
     if (FLAGS_load_window_shapes) {
       ByteMap bytemap(client_size());
       if (wm_->xconn()->GetWindowBoundingRegion(xid_, &bytemap)) {
-        DLOG(INFO) << "Got shape for " << xid_str_;
+        DLOG(INFO) << "Got shape for " << xid_str();
         actor_->SetAlphaMask(
             bytemap.bytes(), bytemap.size().width, bytemap.size().height);
       } else {
@@ -514,7 +514,7 @@ bool Window::ChangeWmState(const map<XAtom, bool>& states) {
       SetWmStateInternal(action, &wm_state_modal_);
     else
       LOG(ERROR) << "Unsupported _NET_WM_STATE " << xatom
-                 << " for " << xid_str_;
+                 << " for " << xid_str();
   }
   return UpdateWmStateProperty();
 }
@@ -532,7 +532,7 @@ bool Window::ChangeChromeState(const map<XAtom, bool>& states) {
 }
 
 bool Window::TakeFocus(XTime timestamp) {
-  DLOG(INFO) << "Focusing " << xid_str_ << " using time " << timestamp;
+  DLOG(INFO) << "Focusing " << xid_str() << " using time " << timestamp;
   DCHECK(xid_);
   if (supports_wm_take_focus_) {
     long data[5];
@@ -551,7 +551,7 @@ bool Window::TakeFocus(XTime timestamp) {
 }
 
 bool Window::SendDeleteRequest(XTime timestamp) {
-  DLOG(INFO) << "Maybe asking " << xid_str_ << " to delete itself with time "
+  DLOG(INFO) << "Maybe asking " << xid_str() << " to delete itself with time "
              << timestamp;
 
   DCHECK(xid_);
@@ -585,14 +585,14 @@ bool Window::SendPing(XTime timestamp) {
 }
 
 bool Window::AddButtonGrab() {
-  DLOG(INFO) << "Adding button grab for " << xid_str_;
+  DLOG(INFO) << "Adding button grab for " << xid_str();
   DCHECK(xid_);
   return wm_->xconn()->AddButtonGrabOnWindow(
       xid_, AnyButton, ButtonPressMask, true);  // synchronous=true
 }
 
 bool Window::RemoveButtonGrab() {
-  DLOG(INFO) << "Removing button grab for " << xid_str_;
+  DLOG(INFO) << "Removing button grab for " << xid_str();
   DCHECK(xid_);
   return wm_->xconn()->RemoveButtonGrabOnWindow(xid_, AnyButton);
 }
@@ -636,12 +636,12 @@ void Window::GetMaxSize(const Size& desired_size, Size* size_out) const {
     size_out->height = capped_size.height;
   }
 
-  DLOG(INFO) << "Max size for " << xid_str_ << " is " << *size_out
+  DLOG(INFO) << "Max size for " << xid_str() << " is " << *size_out
              << " (desired was " << desired_size << ")";
 }
 
 bool Window::MapClient() {
-  DLOG(INFO) << "Mapping " << xid_str_;
+  DLOG(INFO) << "Mapping " << xid_str();
   DCHECK(xid_);
   if (!wm_->xconn()->MapWindow(xid_))
     return false;
@@ -649,7 +649,7 @@ bool Window::MapClient() {
 }
 
 bool Window::UnmapClient() {
-  DLOG(INFO) << "Unmapping " << xid_str_;
+  DLOG(INFO) << "Unmapping " << xid_str();
   DCHECK(xid_);
   if (!wm_->xconn()->UnmapWindow(xid_))
     return false;
@@ -695,10 +695,36 @@ void Window::SetUpdateClientPositionForMoves(bool update) {
 void Window::SetBounds(const Rect& bounds, int anim_ms) {
   DCHECK_NE(visibility_, VISIBILITY_UNSET) << " xid=" << xid_str_;
 
-  if (bounds.size() != client_size())
-    Resize(bounds.size(), GRAVITY_NORTHWEST);
-  if (bounds.position() != client_bounds_.position())
+  if (bounds.size() == client_size()) {
     Move(bounds.position(), anim_ms);
+  } else {
+    // If we're resizing the window and its right and/or bottom edge is supposed
+    // to remain in the same spot, choose a resize gravity that will make things
+    // look less janky.
+    // TODO(derat): Also hide jank when we move and resize a window
+    // simultaneously in more complicated ways.  For example, if we go from
+    // (20, 20) 30x30 to (10, 10) 60x60, we should avoid moving the actor at all
+    // until we've fetched the 60x60 pixmap.
+    const bool right_is_fixed =
+        bounds.x + bounds.width == client_bounds_.x + client_bounds_.width;
+    const bool bottom_is_fixed =
+        bounds.y + bounds.height == client_bounds_.y + client_bounds_.height;
+    const Gravity resize_gravity =
+        right_is_fixed ?
+        (bottom_is_fixed ? GRAVITY_SOUTHEAST : GRAVITY_NORTHEAST) :
+        (bottom_is_fixed ? GRAVITY_SOUTHWEST : GRAVITY_NORTHWEST);
+
+    Resize(bounds.size(), resize_gravity);
+
+    // If we used a non-northwest gravity for the resize, then the resize
+    // already took care of at least one dimension of movement for us.
+    if (resize_gravity == GRAVITY_NORTHWEST)
+      Move(bounds.position(), anim_ms);
+    else if (resize_gravity == GRAVITY_NORTHEAST)
+      MoveY(bounds.y, anim_ms);
+    else if (resize_gravity == GRAVITY_SOUTHWEST)
+      MoveX(bounds.x, anim_ms);
+  }
 }
 
 void Window::Move(const Point& origin, int anim_ms) {
@@ -761,7 +787,7 @@ bool Window::Resize(const Size& new_size, Gravity gravity) {
   int dy = (gravity == GRAVITY_SOUTHWEST || gravity == GRAVITY_SOUTHEAST) ?
       new_size.height - client_height() : 0;
 
-  DLOG(INFO) << "Resizing " << xid_str_ << "'s client window to " << new_size;
+  DLOG(INFO) << "Resizing " << xid_str() << "'s client window to " << new_size;
   if (dx || dy) {
     // If we need to move the window as well due to gravity, do it all in
     // one ConfigureWindow request to the server.
@@ -777,6 +803,7 @@ bool Window::Resize(const Size& new_size, Gravity gravity) {
       return false;
   }
 
+  actor_gravity_ = gravity;
   client_bounds_.resize(new_size, GRAVITY_NORTHWEST);
   return true;
 }
@@ -815,7 +842,7 @@ void Window::MoveCompositedToClient() {
 }
 
 void Window::ShowComposited() {
-  DLOG(INFO) << "Showing " << xid_str_ << "'s composited window";
+  DLOG(INFO) << "Showing " << xid_str() << "'s composited window";
   DCHECK(actor_.get());
   DCHECK_EQ(visibility_, VISIBILITY_UNSET) << " xid=" << xid_str_;
   actor_->Show();
@@ -826,7 +853,7 @@ void Window::ShowComposited() {
 }
 
 void Window::HideComposited() {
-  DLOG(INFO) << "Hiding " << xid_str_ << "'s composited window";
+  DLOG(INFO) << "Hiding " << xid_str() << "'s composited window";
   DCHECK(actor_.get());
   DCHECK_EQ(visibility_, VISIBILITY_UNSET) << " xid=" << xid_str_;
   actor_->Hide();
@@ -838,7 +865,7 @@ void Window::HideComposited() {
 
 void Window::SetCompositedOpacity(double opacity, int anim_ms) {
   composited_opacity_ = opacity;
-  DLOG(INFO) << "Setting " << xid_str_ << "'s composited window opacity to "
+  DLOG(INFO) << "Setting " << xid_str() << "'s composited window opacity to "
              << opacity << " (combined is " << combined_opacity() << ") over "
              << anim_ms << " ms";
   DCHECK(actor_.get());
@@ -857,7 +884,7 @@ void Window::SetCompositedOpacity(double opacity, int anim_ms) {
 }
 
 void Window::ScaleComposited(double scale_x, double scale_y, int anim_ms) {
-  DLOG(INFO) << "Scaling " << xid_str_ << "'s composited window by ("
+  DLOG(INFO) << "Scaling " << xid_str() << "'s composited window by ("
              << scale_x << ", " << scale_y << ") over " << anim_ms << " ms";
   DCHECK(actor_.get());
   DCHECK_GE(composited_scale_x_, 0.0);
@@ -891,7 +918,7 @@ void Window::SetMoveCompositedAnimation(AnimationPair* animations) {
   composited_origin_.reset(
       animations->first_animation().GetEndValue(),
       animations->second_animation().GetEndValue());
-  DLOG(INFO) << "Setting custom animation to eventually move " << xid_str_
+  DLOG(INFO) << "Setting custom animation to eventually move " << xid_str()
              << "'s composited window to (" << composited_x() << "x"
              << composited_y() << ")";
   actor_->SetMoveAnimation(animations);
@@ -1000,7 +1027,7 @@ void Window::HandleConfigureNotify(const Rect& bounds, XWindow above_xid) {
           wm_->stacking_manager()->GetActorIfLayerXid(above_xid);
 
       if (above_actor) {
-        DLOG(INFO) << "Stacking override-redirect window " << xid_str_
+        DLOG(INFO) << "Stacking override-redirect window " << xid_str()
                    << "'s actor above window " << XidStr(above_xid) << "'s";
         StackCompositedAbove(above_actor, NULL, false);
         break;
@@ -1062,7 +1089,7 @@ void Window::SetShadowType(Shadow::Type type) {
   DCHECK(actor_.get());
 
   shadow_.reset(Shadow::Create(wm_->compositor(), type));
-  shadow_->group()->SetName("shadow group for window " + xid_str_);
+  shadow_->group()->SetName(string("shadow group for window " + xid_str()));
   wm_->stage()->AddActor(shadow_->group());
   shadow_->group()->Lower(actor_.get());
   shadow_->Move(composited_x(), composited_y(), 0);
@@ -1077,7 +1104,7 @@ void Window::DisableShadow() {
 }
 
 void Window::SetShadowOpacity(double opacity, int anim_ms) {
-  DLOG(INFO) << "Setting " << xid_str_ << "'s shadow opacity to " << opacity
+  DLOG(INFO) << "Setting " << xid_str() << "'s shadow opacity to " << opacity
              << " over " << anim_ms << " ms";
   shadow_opacity_ = opacity;
   if (shadow_.get())
@@ -1137,12 +1164,12 @@ void Window::CopyClientBoundsToRect(Rect* rect) const {
 
 void Window::HandleSyncAlarmNotify(XID alarm_id, int64_t value) {
   if (alarm_id != wm_sync_request_alarm_) {
-    LOG(WARNING) << "Window " << xid_str_ << " got sync alarm notify for "
+    LOG(WARNING) << "Window " << xid_str() << " got sync alarm notify for "
                  << " unknown alarm " << XidStr(alarm_id);
     return;
   }
 
-  DLOG(INFO) << "Window " << xid_str_ << " handling sync alarm notify with "
+  DLOG(INFO) << "Window " << xid_str() << " handling sync alarm notify with "
              << "value " << value << " (current sync num is "
              << current_wm_sync_num_ << ")";
   if (value != current_wm_sync_num_ || client_has_redrawn_after_last_resize_)
@@ -1156,7 +1183,7 @@ void Window::HandleSyncAlarmNotify(XID alarm_id, int64_t value) {
 void Window::SendSyntheticConfigureNotify() {
   const XWindow* xid_under_us_ptr = wm_->stacked_xids().GetUnder(xid_);
   const XWindow xid_under_us = xid_under_us_ptr ? *xid_under_us_ptr : 0;
-  DLOG(INFO) << "Sending synthetic configure notify for " << xid_str_ << ": "
+  DLOG(INFO) << "Sending synthetic configure notify for " << xid_str() << ": "
              << client_bounds_ << ", above " << XidStr(xid_under_us);
   wm_->xconn()->SendConfigureNotifyEvent(
       xid_,
@@ -1183,13 +1210,13 @@ void Window::SetWmStateInternal(int action, bool* value) const {
       *value = !(*value);
       break;
     default:
-      LOG(WARNING) << "Got _NET_WM_STATE message for " << xid_str_
+      LOG(WARNING) << "Got _NET_WM_STATE message for " << xid_str()
                    << " with invalid action " << action;
   }
 }
 
 bool Window::MoveClientInternal(const Point& origin) {
-  DLOG(INFO) << "Moving " << xid_str_ << "'s client window to " << origin;
+  DLOG(INFO) << "Moving " << xid_str() << "'s client window to " << origin;
   DCHECK(xid_);
   DCHECK(!override_redirect_)
       << "Attempted to move override-redirect window " << xid_str_;
@@ -1204,18 +1231,18 @@ void Window::MoveCompositedInternal(const Point& origin,
                                     int anim_ms) {
   switch (dimensions) {
     case MOVE_DIMENSIONS_X_AND_Y:
-      DLOG(INFO) << "Setting " << xid_str_ << "'s composited position to "
-                 << origin;
+      DLOG(INFO) << "Moving " << xid_str() << "'s composited window to "
+                 << origin << " over " << anim_ms << " ms";
       composited_origin_ = origin;
       break;
     case MOVE_DIMENSIONS_X_ONLY:
-      DLOG(INFO) << "Setting " << xid_str_ << "'s composited X position to "
-                 << origin.x;
+      DLOG(INFO) << "Moving " << xid_str() << "'s composited window's X "
+                 << "position to " << origin.x << " over " << anim_ms << " ms";
       composited_origin_.x = origin.x;
       break;
     case MOVE_DIMENSIONS_Y_ONLY:
-      DLOG(INFO) << "Setting " << xid_str_ << "'s composited Y position to "
-                 << origin.y;
+      DLOG(INFO) << "Moving " << xid_str() << "'s composited window's Y "
+                 << "position to " << origin.y << " over " << anim_ms << " ms";
       composited_origin_.y = origin.y;
       break;
     default:
@@ -1223,12 +1250,7 @@ void Window::MoveCompositedInternal(const Point& origin,
   }
 
   DCHECK(actor_.get());
-  if (actor_->GetBounds().size() == client_bounds_.size() || !pixmap_) {
-    UpdateActorPosition(dimensions, anim_ms);
-    need_to_update_actor_position_ = false;
-  } else {
-    need_to_update_actor_position_ = true;
-  }
+  MoveActorToAdjustedPosition(dimensions, anim_ms);
 }
 
 void Window::UpdateClientWindowPosition() {
@@ -1241,77 +1263,16 @@ void Window::UpdateClientWindowPosition() {
   const bool should_be_onscreen =
       visibility_ == VISIBILITY_SHOWN &&
       composited_size() == client_size() &&
-      composited_opacity_ > 0.0;
+      combined_opacity() > 0.0;
 
-  Point new_origin =
-      should_be_onscreen ?
-      composited_origin_ :
-      Point(kOffscreenX, kOffscreenY);
+  Point new_origin = client_origin();
+  if (should_be_onscreen)
+    new_origin.reset(composited_x(), composited_y());
+  else
+    new_origin.reset(kOffscreenX, kOffscreenY);
+
   if (new_origin != client_origin())
     MoveClientInternal(new_origin);
-}
-
-void Window::UpdateActorPosition(MoveDimensions dimensions, int anim_ms) {
-  DCHECK(actor_.get());
-
-  switch (dimensions) {
-    case MOVE_DIMENSIONS_X_AND_Y:
-      actor_->Move(composited_origin_.x, composited_origin_.y, anim_ms);
-      if (shadow_.get())
-        shadow_->Move(composited_origin_.x, composited_origin_.y, anim_ms);
-      break;
-    case MOVE_DIMENSIONS_X_ONLY:
-      actor_->MoveX(composited_origin_.x, anim_ms);
-      if (shadow_.get())
-        shadow_->MoveX(composited_origin_.x, anim_ms);
-      break;
-    case MOVE_DIMENSIONS_Y_ONLY:
-      actor_->MoveY(composited_origin_.y, anim_ms);
-      if (shadow_.get())
-        shadow_->MoveY(composited_origin_.y, anim_ms);
-      break;
-    default:
-      NOTREACHED() << "Unknown move dimensions " << dimensions;
-  }
-
-  if (damage_debug_group_.get())
-    damage_debug_group_->Move(
-        composited_origin_.x, composited_origin_.y, anim_ms);
-}
-
-void Window::ResetPixmap() {
-  DCHECK(xid_);
-  DCHECK(actor_.get());
-  if (!mapped_)
-    return;
-
-  XID old_pixmap = pixmap_;
-  pixmap_ = wm_->xconn()->GetCompositingPixmapForWindow(xid_);
-  DLOG(INFO) << "Fetched pixmap " << XidStr(pixmap_) << " for " << xid_str_;
-
-  actor_->SetPixmap(pixmap_);
-  if (shadow_.get()) {
-    shadow_->Resize(composited_scale_x_ * actor_->GetWidth(),
-                    composited_scale_y_ * actor_->GetHeight(),
-                    0);  // anim_ms
-  }
-
-  if (need_to_update_actor_position_ &&
-      actor_->GetBounds().size() == client_bounds_.size()) {
-    UpdateActorPosition(MOVE_DIMENSIONS_X_AND_Y, 0);
-    need_to_update_actor_position_ = false;
-  }
-
-  if (old_pixmap) {
-    wm_->xconn()->FreePixmap(old_pixmap);
-  } else {
-    // If we didn't have a pixmap already, then we're showing the window for
-    // the first time and may need to show the shadow as well.
-    UpdateShadowVisibility();
-  }
-
-  need_to_reset_pixmap_ = false;
-  wm_->HandleWindowPixmapFetch(this);
 }
 
 bool Window::UpdateWmStateProperty() {
@@ -1326,7 +1287,7 @@ bool Window::UpdateWmStateProperty() {
   if (wm_state_modal_)
     values.push_back(wm_->GetXAtom(ATOM_NET_WM_STATE_MODAL));
 
-  DLOG(INFO) << "Updating _NET_WM_STATE for " << xid_str_ << ":"
+  DLOG(INFO) << "Updating _NET_WM_STATE for " << xid_str() << ":"
              << " fullscreen=" << wm_state_fullscreen_
              << " maximized_horz=" << wm_state_maximized_horz_
              << " maximized_vert=" << wm_state_maximized_vert_
@@ -1366,6 +1327,81 @@ void Window::DestroyWmSyncRequestAlarm() {
   client_has_redrawn_after_last_resize_ = true;
 }
 
+void Window::MoveActorToAdjustedPosition(MoveDimensions dimensions,
+                                         int anim_ms) {
+  DCHECK(actor_.get());
+
+  // Get the region that would be occupied by the actor if it were the same
+  // size as the client window.
+  Rect scaled_rect(composited_x(), composited_y(),
+                   client_width() * composited_scale_x_,
+                   client_height() * composited_scale_y_);
+
+  // Now resize that region accordingly for the actor's actual size and its
+  // gravity.
+  scaled_rect.resize(actor_->GetWidth() * composited_scale_x_,
+                     actor_->GetHeight() * composited_scale_y_,
+                     actor_gravity_);
+
+  switch (dimensions) {
+    case MOVE_DIMENSIONS_X_AND_Y:
+      actor_->Move(scaled_rect.x, scaled_rect.y, anim_ms);
+      if (shadow_.get())
+        shadow_->Move(scaled_rect.x, scaled_rect.y, anim_ms);
+      break;
+    case MOVE_DIMENSIONS_X_ONLY:
+      actor_->MoveX(scaled_rect.x, anim_ms);
+      if (shadow_.get())
+        shadow_->MoveX(scaled_rect.x, anim_ms);
+      break;
+    case MOVE_DIMENSIONS_Y_ONLY:
+      actor_->MoveY(scaled_rect.y, anim_ms);
+      if (shadow_.get())
+        shadow_->MoveY(scaled_rect.y, anim_ms);
+      break;
+    default:
+      NOTREACHED() << "Unknown move dimensions " << dimensions;
+  }
+
+  if (damage_debug_group_.get())
+    damage_debug_group_->Move(scaled_rect.x, scaled_rect.y, anim_ms);
+}
+
+void Window::ResetPixmap() {
+  DCHECK(xid_);
+  DCHECK(actor_.get());
+  if (!mapped_)
+    return;
+
+  XID old_pixmap = pixmap_;
+  pixmap_ = wm_->xconn()->GetCompositingPixmapForWindow(xid_);
+  DLOG(INFO) << "Fetched pixmap " << XidStr(pixmap_) << " for " << xid_str_;
+
+  Size old_size(actor_->GetWidth(), actor_->GetHeight());
+  actor_->SetPixmap(pixmap_);
+  if (shadow_.get()) {
+    shadow_->Resize(composited_scale_x_ * actor_->GetWidth(),
+                    composited_scale_y_ * actor_->GetHeight(),
+                    0);  // anim_ms
+  }
+
+  if (actor_gravity_ != GRAVITY_NORTHWEST &&
+      Size(actor_->GetWidth(), actor_->GetHeight()) != old_size)
+    MoveActorToAdjustedPosition(MOVE_DIMENSIONS_X_AND_Y, 0);
+
+  if (old_pixmap) {
+    wm_->xconn()->FreePixmap(old_pixmap);
+  } else {
+    // If we didn't have a pixmap already, then we're showing the window for
+    // the first time and may need to show the shadow as well.
+    DLOG(INFO) << "Fetched initial pixmap for already-mapped " << xid_str_;
+    UpdateShadowVisibility();
+  }
+
+  need_to_reset_pixmap_ = false;
+  wm_->HandleWindowPixmapFetch(this);
+}
+
 void Window::UpdateShadowVisibility() {
   // If nobody requested that this window have a shadow, |shadow_| will just
   // be NULL.
@@ -1394,7 +1430,7 @@ void Window::SendWmSyncRequestMessage() {
   data[1] = wm_->GetCurrentTimeFromServer();
   data[2] = current_wm_sync_num_ & 0xffffffff;
   data[3] = (current_wm_sync_num_ >> 32) & 0xffffffff;
-  DLOG(INFO) << "Asking " << xid_str_ << " to notify us after it's redrawn "
+  DLOG(INFO) << "Asking " << xid_str() << " to notify us after it's redrawn "
              << "using sync num " << current_wm_sync_num_;
   wm_->xconn()->SendClientMessageEvent(
       xid_, xid_, wm_->GetXAtom(ATOM_WM_PROTOCOLS), data, 0);

@@ -322,15 +322,12 @@ class Window {
   // Ask the X server to move or resize the client window.  Also calls the
   // corresponding SetClient*() method on success.  Returns false on
   // failure.
-  // This method is deprecated; use SetBounds() or Move() instead.
   bool MoveClient(int x, int y);
 
   // Move the client window offscreen to prevent it from receiving input.
-  // This method is deprecated; use SetVisibility() instead.
   bool MoveClientOffscreen();
 
   // Move the client window to the same position as the composited window.
-  // This method is deprecated; use Move() or SetBounds() instead.
   bool MoveClientToComposited();
 
   // Center the client window over the passed-in window.
@@ -342,14 +339,10 @@ class Window {
   bool Resize(const Size& new_size, Gravity gravity);
 
   // Stack the client window directly above or below another window.
-  // Use StackingManager to restack the X window and the actor simultaneously
-  // instead of calling this method.
   bool StackClientAbove(XWindow sibling_xid);
   bool StackClientBelow(XWindow sibling_xid);
 
   // Make various changes to the composited window (and its shadow).
-  // These methods are deprecated; use SetBounds(), Move(), and SetVisibility()
-  // instead.
   void MoveComposited(int x, int y, int anim_ms);
   void MoveCompositedX(int x, int anim_ms);
   void MoveCompositedY(int y, int anim_ms);
@@ -495,7 +488,6 @@ class Window {
   FRIEND_TEST(WindowTest, SyncRequest);
   FRIEND_TEST(WindowTest, DeferFetchingPixmapUntilPainted);
   FRIEND_TEST(WindowTest, FreezeUpdates);
-  FRIEND_TEST(WindowTest, AvoidMovingActorDuringResize);
   FRIEND_TEST(WindowManagerTest, VideoTimeProperty);
   FRIEND_TEST(WindowManagerTest, HandleLateSyncRequestCounter);
 
@@ -505,7 +497,8 @@ class Window {
   static const int kVideoMinHeight;
   static const int kVideoMinFramerate;
 
-  // Dimensions in which the actor should be moved by UpdateActorPosition().
+  // Dimensions in which the actor should be moved by
+  // MoveActorToAdjustedPosition().
   enum MoveDimensions {
     MOVE_DIMENSIONS_X_AND_Y = 0,
     MOVE_DIMENSIONS_X_ONLY,
@@ -530,11 +523,9 @@ class Window {
   // SaveClientPosition() on success.  Returns false on failure.
   bool MoveClientInternal(const Point& origin);
 
-  // Update |composited_origin_|.  If we're not in the middle of a resize, we
-  // also call UpdateActorPosition() to move the actor; otherwise the actor will
-  // be updated later after we've fetched a new pixmap.  Depending on the value
-  // of |dimensions|, either the X coordinate, Y coordinate, or both from
-  // |origin| may be used.
+  // Move the window's actor to |origin| over |anim_ms| milliseconds.
+  // Depending on the value of |dimensions|, either the X coordinate, Y
+  // coordinate, or both from |origin| may be used.
   void MoveCompositedInternal(const Point& origin,
                               MoveDimensions dimensions,
                               int anim_ms);
@@ -543,30 +534,6 @@ class Window {
   // visibility setting.  This can only be invoked if the visibility has been
   // set (i.e. it isn't equal to VISIBILITY_UNSET).
   void UpdateClientWindowPosition();
-
-  // Move |actor_| to the position in |composited_origin_| over |anim_ms|.
-  // |dimensions| can be used to limit the dimension over which the actor is
-  // moved to just X or Y.
-  //
-  // Way more background than you want to know: resizing a client window can be
-  // tricky for compositing window managers.  Suppose that we have a 20x20
-  // window located at (10, 10) and we want to make it bigger so that its
-  // upper-left corner goes to (5, 10) while the right edge remains fixed,
-  // resulting in a 25x20 window.  Resize() asks the X server to atomically move
-  // and resize the window to the new bounds, but the window can't be drawn at
-  // the new size until the client has received the ConfigureNotify event and
-  // finished painting the new pixmap.  If we move the actor to (5, 10)
-  // immediately and then update its pixmap later, the window will initially
-  // appear to jump to the left by 5 pixels; once we get the new pixmap, the
-  // right edge will expand by 5 pixels.
-  //
-  // To avoid this jank, we update |composited_origin_| immediately in Resize()
-  // if the window's origin moved due to the resize gravity but hold off on
-  // actually moving the actor until its size changes.  Similarly, methods like
-  // Move() may not actually move the actor to the requested position
-  // immediately -- if we're waiting for the pixmap to be resized, we defer
-  // updating the actor until we have the resized pixmap.
-  void UpdateActorPosition(MoveDimensions dimensions, int anim_ms);
 
   // Update the window's _NET_WM_STATE property based on the current values
   // of the |wm_state_*| members.
@@ -580,6 +547,33 @@ class Window {
   // interest in it in the WindowManager, and resets
   // |client_has_redrawn_after_last_resize_| to true.
   void DestroyWmSyncRequestAlarm();
+
+  // Move the actor to its correct position over |anim_ms|, given
+  // |composited_x_| and |composited_y_|, the composited scale, and the actor's
+  // current size versus the client window's size.  |dimensions| can be used to
+  // limit the dimension over which the actor is moved to just X or Y (when
+  // invoked by MoveCompositedX() or MoveCompositedY()).
+  //
+  // Way more background than you want to know: resizing a client window can be
+  // tricky for compositing window managers.  Suppose that we have a 20x20
+  // window located at (10, 10) and we want to make it bigger so that its
+  // upper-left corner goes to (5, 10) while the right edge remains fixed,
+  // resulting in a 25x20 window.  Resize() asks the X server to atomically move
+  // and resize the window to the new bounds, but the window can't be drawn at
+  // the new size until the client has received the ConfigureNotify event and
+  // finished painting the new pixmap.  If we move the actor to (5, 10)
+  // immediately and then update its pixmap later, the window will initially
+  // appear to jump to the left by 5 pixels; once we get the new pixmap, the
+  // right edge will expand by 5 pixels.
+  //
+  // To avoid this jank, we update |composited_x_| and |composited_y_|
+  // immediately in Resize() if the window's origin moved due to the resize
+  // gravity but hold off on actually moving the actor until its size changes.
+  // Similarly, methods like MoveComposited() may not actually move the actor to
+  // the requested position immediately -- if we're waiting for the pixmap to be
+  // resized, we take the difference between its current size and the
+  // newly-requested size into account.
+  void MoveActorToAdjustedPosition(MoveDimensions dimensions, int anim_ms);
 
   // Free |pixmap_|, store a new offscreen pixmap containing the window's
   // contents in it, and notify |actor_| that the pixmap has changed.
@@ -658,6 +652,11 @@ class Window {
   double composited_scale_y_;
   double composited_opacity_;
 
+  // Gravity used to position the actor in the case where the actor's size
+  // differs from that of the client window.  See MoveActorToAdjustedPosition()
+  // for details.
+  Gravity actor_gravity_;
+
   // Current opacity requested for the window's shadow.
   double shadow_opacity_;
 
@@ -698,10 +697,6 @@ class Window {
 
   // Offscreen pixmap containing the window's redirected contents.
   XID pixmap_;
-
-  // Do we need to move |actor_| to |composited_origin_| the next time that we
-  // get a pixmap that's the same size as the underlying X window?
-  bool need_to_update_actor_position_;
 
   // Do we need to fetch a new pixmap to get at the X window's contents?
   // This happens when the window is first mapped, or resized, or unredirected
