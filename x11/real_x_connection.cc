@@ -7,7 +7,7 @@
 extern "C" {
 #include <xcb/composite.h>
 #include <xcb/damage.h>
-#include <xcb/randr.h>
+//#include <xcb/randr.h>
 #include <xcb/shape.h>
 #include <xcb/sync.h>
 #include <xcb/xfixes.h>
@@ -116,7 +116,7 @@ RealXConnection::RealXConnection(XDisplay* display)
   CHECK(GetAtom("UTF8_STRING", &utf8_string_atom_));
 
   CHECK(QueryExtension("SHAPE", &shape_event_base_, NULL));
-  CHECK(QueryExtension("RANDR", &randr_event_base_, NULL));
+//  CHECK(QueryExtension("RANDR", &randr_event_base_, NULL));
   CHECK(QueryExtension("Composite", NULL, NULL));
   CHECK(QueryExtension("DAMAGE", &damage_event_base_, NULL));
   CHECK(QueryExtension("XFIXES", NULL, NULL));
@@ -125,7 +125,7 @@ RealXConnection::RealXConnection(XDisplay* display)
   // The shape extension's XCB interface is different; it doesn't take a
   // version number.  The extension is ancient and doesn't require that we
   // tell the server which version we support, though, so just skip it.
-  INIT_XCB_EXTENSION(randr, query_version, 1, 2);
+//  INIT_XCB_EXTENSION(randr, query_version, 1, 2);
   INIT_XCB_EXTENSION(composite, query_version, 0, 4);
   INIT_XCB_EXTENSION(damage, query_version, 1, 1);
   INIT_XCB_EXTENSION(xfixes, query_version, 4, 0);
@@ -774,7 +774,7 @@ bool RealXConnection::ResetWindowBoundingRegionToDefault(XWindow xid) {
 }
 
 bool RealXConnection::SelectRandREventsOnWindow(XWindow xid) {
-  xcb_randr_select_input(xcb_conn_, xid, 1);
+//  xcb_randr_select_input(xcb_conn_, xid, 1);
   return true;
 }
 

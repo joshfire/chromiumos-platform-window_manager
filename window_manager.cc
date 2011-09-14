@@ -335,7 +335,7 @@ void WindowManager::HandleTopFullscreenActorChange(
 bool WindowManager::Init() {
   CHECK(!root_) << "Init() may only be called once";
   root_ = xconn_->GetRootWindow();
-  xconn_->SelectRandREventsOnWindow(root_);
+//  xconn_->SelectRandREventsOnWindow(root_);
   xconn_->SelectInputOnWindow(root_, StructureNotifyMask, true);
   XConnection::WindowGeometry root_geometry;
   CHECK(xconn_->GetWindowGeometry(root_, &root_geometry));
@@ -552,7 +552,7 @@ void WindowManager::HandleEvent(XEvent* event) {
 #endif
   static int damage_notify = xconn_->damage_event_base() + XDamageNotify;
   static int shape_notify = xconn_->shape_event_base() + ShapeNotify;
-  static int randr_notify = xconn_->randr_event_base() + RRScreenChangeNotify;
+//  static int randr_notify = xconn_->randr_event_base() + RRScreenChangeNotify;
   static int sync_alarm_notify = xconn_->sync_event_base() + XSyncAlarmNotify;
 
   switch (event->type) {
@@ -600,9 +600,9 @@ void WindowManager::HandleEvent(XEvent* event) {
             *(reinterpret_cast<XSyncAlarmNotifyEvent*>(event)));
       } else if (event->type == shape_notify) {
         HandleShapeNotify(*(reinterpret_cast<XShapeEvent*>(event)));
-      } else if (event->type == randr_notify) {
-        HandleRRScreenChangeNotify(
-            *(reinterpret_cast<XRRScreenChangeNotifyEvent*>(event)));
+//      } else if (event->type == randr_notify) {
+//        HandleRRScreenChangeNotify(
+//            *(reinterpret_cast<XRRScreenChangeNotifyEvent*>(event)));
       }
   }
 }
